@@ -2,10 +2,11 @@
 
 use clap::{App, Arg, crate_version};
 use std::fs::File;
-use std::io::{BufReader, BufWriter};
+use std::io::{BufReader, BufWriter, Read};
 use std::error::Error;
 use std::num::IntErrorKind;
 use std::path::{Path, PathBuf};
+use std::ffi::OsStr;
 use dasm::DasmOptions;
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -22,7 +23,7 @@ fn main() -> Result<(), Box<dyn Error>> {
       .short("o")
       .long("output")
       .value_name("OUTPUT")
-      .help("output file for dumping disassembly")
+      .help("file for dumping assembly")
       .takes_value(true))
     .arg(Arg::with_name("FILE")
       .help("source .BIN file")
@@ -33,13 +34,18 @@ fn main() -> Result<(), Box<dyn Error>> {
   let origin = matches.value_of("origin").map(|o| o.parse().unwrap());
   let output = matches.value_of("output")
     .map_or_else(
-      || Path::new(Path::new(file).file_stem().unwrap()).join(".txt"),
+      || {
+        let mut path = Path::new(file).file_stem().unwrap().to_owned();
+        path.push(".txt");
+        PathBuf::from(path)
+      },
       PathBuf::from);
 
-  let input = BufReader::new(File::open(file)?);
+  let mut bytes = vec![];
+  BufReader::new(File::open(file)?).read_to_end(&mut bytes)?;
   let output = BufWriter::new(File::create(output)?);
 
-  ::dasm::disassemble(input, output, DasmOptions {
+  ::dasm::disassemble(&bytes, output, DasmOptions {
     starting_address: origin,
   })?;
 

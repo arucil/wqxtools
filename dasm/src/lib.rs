@@ -8,15 +8,40 @@ pub struct DasmOptions {
   pub starting_address: Option<u16>,
 }
 
-pub fn disassemble<R, W>(mut input: R, mut output: W, options: DasmOptions) -> io::Result<()>
-  where
-    R: Read,
-    W: Write,
+pub fn disassemble<W>(mut bytes: &[u8], mut output: W, options: DasmOptions) -> io::Result<()>
+  where W: Write,
 {
-  let pc = options.starting_address.unwrap_or(DEFAULT_ORIGIN);
-  let mut byte = [0u8; 1];
+  let mut header = [0u8; 16];
 
-  while input.read(&mut byte)? != 0 {
+  if bytes.read(&mut header)? < 16 {
+    return Err(io::Error::new(io::ErrorKind::InvalidData, "missing 16-byte header"));
+  }
+
+  let entry = header[8] as u16 + ((header[9] as u16) << 8);
+  writeln!(&mut output, "; entry = ${:04X}", entry)?;
+
+  let mut pc = options.starting_address.unwrap_or(DEFAULT_ORIGIN) + 16;
+
+  while !bytes.is_empty() {
+    write!(&mut output, "{:04X}: ", pc)?;
+    if let Some(inst) = &INSTRUCTION_TABLE[bytes[0] as usize] {
+      let size = inst.addr_mode.instruction_size();
+      pc += size as u16;
+      for i in 0..size {
+        write!(&mut output, "{:02X} ", bytes[i])?;
+      }
+      for _ in size..3 {
+        write!(&mut output, "   ")?;
+      }
+      write!(&mut output, "{}", inst.name)?;
+      inst.addr_mode.write(pc, &bytes[1..], &mut output)?;
+      writeln!(&mut output)?;
+      bytes = &bytes[size..];
+    } else {
+      pc += 1;
+      writeln!(&mut output, "{:02X}       ??", bytes[0])?;
+      bytes = &bytes[1..];
+    }
   }
 
   Ok(())
@@ -56,7 +81,6 @@ enum AddressMode {
   ZpgX,
   /// ZeroPage, 
   ZpgY,
-  NumOfAddressModes,
 }
 
 macro_rules! inst {
@@ -240,7 +264,7 @@ static INSTRUCTION_TABLE: [Option<Instruction>; 256] = [
   None,
   inst!("TYA" Impl),
   inst!("STA" AbsY),
-  inst!("TXA" Impl),
+  inst!("TXS" Impl),
   None,
   None,
   inst!("STA" AbsX),
@@ -371,11 +395,10 @@ impl AddressMode {
       Ind => 3,
       XInd => 2,
       IndY => 2,
-      Rel => 3,
+      Rel => 2,
       Zpg => 2,
       ZpgX => 2,
       ZpgY => 2,
-      NumOfAddressModes => unreachable!()
     }
   }
 
@@ -396,7 +419,6 @@ impl AddressMode {
       Zpg => write!(w, " ${:02X}", operand[0]),
       ZpgX => write!(w, " ${:02X},X", operand[0]),
       ZpgY => write!(w, " ${:02X},Y", operand[0]),
-      NumOfAddressModes => unreachable!(),
     }
   }
 }
