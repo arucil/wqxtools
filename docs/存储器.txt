@@ -1,0 +1,12 @@
+ 
+存储器       地址                  切换方法
+
+SRAM       $4000-$BFFF    LDA $0A | ORA #$80 | STA $0A
+NAND       ---            只能读取，不能切换。
+NOR        $4000-$BFFF    LDA $0A | AND #$7F | STA $0A | LDA #$01,02.... | STA $00
+BIOS       $E000-$FFFB    固定，不需要切换。
+RAM04      $C000-$DFFF    LDA $0A | AND #$F0 | ORA #$01 | STA $0A
+ActiveBIOS $C000-$DFFF    LDA $0A | AND #$F0 | ORA #$02,03.... | STA $0A
+RAMB       $2000-$27FF    LDA #$04 | STA $0D
+
+ 
