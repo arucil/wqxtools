@@ -5485,7 +5485,7 @@
 6088: A9 4C    LDA #$4C
 608A: 8D 5E B9 STA $B95E
 608D: A2 00    LDX #$00
-608F: 8E 11 B8 STX $B811
+608F: 8E 11 B8 STX $B811 ; clear TRACE flag
 6092: 8E 4D B9 STX $B94D
 6095: 86 48    STX $48
 6097: 8A       TXA
@@ -5570,7 +5570,7 @@
 6145: 90 02    BCC $6149
 6147: E6 5F    INC $5F
 
-6149: 2C 11 B8 BIT $B811
+6149: 2C 11 B8 BIT $B811 ; test if TRACE flag is set
 614C: 10 3E    BPL $618C
 614E: AE 15 B8 LDX $B815
 6151: E8       INX
@@ -5625,9 +5625,10 @@
 61B4: 48       PHA
 61B5: B9 C3 61 LDA $61C3,Y
 61B8: 48       PHA
-61B9: 4C 34 66 JMP $6634
+61B9: 4C 34 66 JMP $6634 ; read a character after the statement token
 
 61BC: 4C BC 77 JMP $77BC
+
 61BF: 68       PLA
 61C0: 68       PLA
 61C1: 60       RTS
@@ -5638,19 +5639,16 @@
 61C3: .dw $7504 ; $7505 end
 61C5: .dw $7422 ; $7423 for
 61C6: .dw $7c96 ; $7c97 next
-61C9: 5F       ??
-61CA: 76 59    ROR $59,X
-61CC: 7A       ??
-61CD: A2 86    LDX #$86
-61CF: C4 7D    CPY $7D
-61D1: 4A       LSR
-61D2: 7B       ??
-61D3: 0B       ??
-61D4: 7B       ??
-61D5: 42       ??
-61D6: 86 44    STX $44
-61D8: 86 F2    STX $F2
-61DA: 75 BB    ADC $BB,X
+61C9: .dw $765f ; $7660 data
+61CB: .dw $7a59 ; $7a5a input
+61CD: .dw $86A2 ; $86a3 del
+61CF: .dw $7dC4 ; $7dc5 dim
+61D1: .dw $7b4A ; $7b4b read
+61D3: .dw $7b0B ; $7b0c swap
+61D5: .dw $8642 ; $8643 trace
+61D7: .dw $8644 ; $8645 notrace
+61D9: .dw $75F2 ; $75f3 pop
+61DB: BB    ADC $BB,X
 61DC: 77       ??
 61DD: BD 75 6E LDA $6E75,X
 61E0: 75 E4    ADC $E4,X
@@ -5912,7 +5910,7 @@
 662E: .db "break", $00
 
 ; read character code into A
-; return: C = if character >= #$D0
+; return: C = if A < '0'
 6634: E6 5E    INC $5E
 6636: D0 02    BNE $663A
 6638: E6 5F    INC $5F
@@ -6141,6 +6139,7 @@
 67FA: 20 B6 72 JSR $72B6
 67FD: A9 22    LDA #$22
 67FF: A0 66    LDY #$66
+
 6801: 20 2D 79 JSR $792D
 6804: AC 15 B8 LDY $B815
 6807: C8       INY
@@ -7338,6 +7337,7 @@
 7230: 99 29 B8 STA $B829,Y
 7233: 88       DEY
 7234: 10 FA    BPL $7230
+
 7236: A0 5E    LDY #$5E
 7238: A9 00    LDA #$00
 723A: 99 58 B8 STA $B858,Y
@@ -7422,6 +7422,7 @@
 72C5: 8D D4 B8 STA $B8D4
 72C8: 8D 0B B8 STA $B80B
 72CB: 60       RTS
+
 72CC: AD D1 B8 LDA $B8D1
 72CF: AC D2 B8 LDY $B8D2
 72D2: 8D CF B8 STA $B8CF
@@ -7663,6 +7664,7 @@
 74B5: A9 22    LDA #$22
 74B7: 8D D6 B8 STA $B8D6
 74BA: 60       RTS
+
 74BB: 38       SEC
 74BC: A5 54    LDA $54
 74BE: E9 01    SBC #$01
@@ -7672,6 +7674,7 @@
 74C5: 8D D5 B8 STA $B8D5
 74C8: 8C D6 B8 STY $B8D6
 74CB: 60       RTS
+
 74CC: B0 CF    BCS $749D
 74CE: 20 78 77 JSR $7778
 74D1: 2C 4E B9 BIT $B94E
@@ -7719,6 +7722,7 @@
 7524: 8C 17 B8 STY $B817
 7527: 68       PLA
 7528: 68       PLA
+
 7529: A9 2E    LDA #$2E
 752B: A0 66    LDY #$66
 752D: 90 03    BCC $7532
@@ -7815,6 +7819,7 @@
 75EE: E9 00    SBC #$00
 75F0: 85 5F    STA $5F
 75F2: 60       RTS
+
 75F3: D0 FD    BNE $75F2
 75F5: BA       TSX
 75F6: E8       INX
@@ -7871,7 +7876,9 @@
 7657: 20 7C 68 JSR $687C
 765A: 20 60 76 JSR $7660
 765D: 4C F1 60 JMP $60F1
+
 7660: 20 76 76 JSR $7676
+
 7663: 98       TYA
 7664: 18       CLC
 7665: 65 5E    ADC $5E
@@ -7879,14 +7886,21 @@
 7669: 90 02    BCC $766D
 766B: E6 5F    INC $5F
 766D: 60       RTS
+
 766E: 68       PLA
 766F: 68       PLA
 7670: 68       PLA
 7671: 68       PLA
 7672: 68       PLA
 7673: 4C 5A 76 JMP $765A
-7676: A2 3A    LDX #$3A
-7678: 2C A2 00 BIT $00A2
+
+; DATA statement
+; just skip DATA statement
+7676: A2 3A    LDX #$3A ; ':'
+
+7678: 2C    ; junk code: BIT $00A2
+7679: A2 00    LDX #$00
+
 767B: 8E 00 B8 STX $B800
 767E: A0 00    LDY #$00
 7680: 8C 01 B8 STY $B801
@@ -7899,9 +7913,10 @@
 7693: CD 01 B8 CMP $B801
 7696: F0 D5    BEQ $766D
 7698: C8       INY
-7699: C9 22    CMP #$22
+7699: C9 22    CMP #$22 ; '"'
 769B: D0 F2    BNE $768F
 769D: F0 E4    BEQ $7683
+
 769F: A2 8F    LDX #$8F
 76A1: 86 81    STX $81
 76A3: A2 C5    LDX #$C5
@@ -7980,6 +7995,7 @@
 773B: 20 79 76 JSR $7679
 773E: 20 63 76 JSR $7663
 7741: 60       RTS
+
 7742: 20 79 76 JSR $7679
 7745: D0 03    BNE $774A
 7747: 4C 63 76 JMP $7663
@@ -7987,6 +8003,7 @@
 774D: B0 03    BCS $7752
 774F: 4C BE 75 JMP $75BE
 7752: 4C A4 61 JMP $61A4
+
 7755: 20 C7 85 JSR $85C7
 7758: 48       PHA
 7759: C9 91    CMP #$91
@@ -8208,6 +8225,7 @@
 7924: 20 9C 6F JSR $6F9C
 7927: 20 34 66 JSR $6634
 792A: 4C 4B 78 JMP $784B
+
 792D: 20 D0 7E JSR $7ED0
 7930: 20 B6 84 JSR $84B6
 7933: 8D 00 B8 STA $B800
@@ -8330,18 +8348,19 @@
 7A55: C0 5E    CPY #$5E
 7A57: 90 F6    BCC $7A4F
 7A59: 60       RTS
+
 7A5A: 8D C5 B8 STA $B8C5
 7A5D: 20 36 72 JSR $7236
 7A60: A9 00    LDA #$00
 7A62: 8D C6 B8 STA $B8C6
 7A65: AD C5 B8 LDA $B8C5
-7A68: C9 23    CMP #$23
+7A68: C9 23    CMP #$23  ; '#'
 7A6A: D0 03    BNE $7A6F
 7A6C: 4C 0C 8E JMP $8E0C
-7A6F: C9 22    CMP #$22
+7A6F: C9 22    CMP #$22  ; '"'
 7A71: D0 0E    BNE $7A81
 7A73: 20 AB 9C JSR $9CAB
-7A76: A9 3B    LDA #$3B
+7A76: A9 3B    LDA #$3B  ; ';'
 7A78: 20 F4 9C JSR $9CF4
 7A7B: 20 55 79 JSR $7955
 7A7E: 4C 84 7A JMP $7A84
@@ -8733,6 +8752,8 @@
 7DBD: A9 01    LDA #$01
 7DBF: 4C 05 A2 JMP $A205
 7DC2: 20 F2 9C JSR $9CF2
+
+; DIM statement
 7DC5: AA       TAX
 7DC6: 20 DB 96 JSR $96DB
 7DC9: 20 3A 66 JSR $663A
@@ -8881,7 +8902,7 @@
 7ECF: 60       RTS
 
 ; get description of string into float accum
-7ED0: A2 22    LDX #$22 ; "
+7ED0: A2 22    LDX #$22 ; '"'
 7ED2: 8E 00 B8 STX $B800
 7ED5: 8E 01 B8 STX $B801
 7ED8: 85 7D    STA $7D
@@ -9858,8 +9879,15 @@
 863D: 4C E0 7D JMP $7DE0
 
 8640: 4C 42 77 JMP $7742
+
+; TRACE statement
+; set TRACE flag
 8643: 38       SEC
-8644: 90 18    BCC $865E
+8644: 90            ; BCC $865E
+
+; NOTRACE statement
+; clear TRACE flag
+8645: 18       CLC
 8646: 6E 11 B8 ROR $B811
 8649: 60       RTS
 
@@ -9901,6 +9929,7 @@
 869A: 20 3A 66 JSR $663A
 869D: 20 BE 75 JSR $75BE
 86A0: 4C F1 60 JMP $60F1
+
 86A3: 4C 42 77 JMP $7742
 86A6: 4C 42 77 JMP $7742
 86A9: F0 3F    BEQ $86EA
@@ -11792,6 +11821,7 @@
 ; get name and pointer to a variable
 96D8: A2 00    LDX #$00
 96DA: 8A       TXA
+
 96DB: 8E 07 B8 STX $B807
 96DE: 85 58    STA $58
 96E0: A5 5E    LDA $5E
@@ -12354,7 +12384,7 @@
 9B4A: E9 A5    SBC #$A5
 9B4C: 60       RTS
 
-; check if A is digit, the result is in C
+; check if A is not digit, the result is in C
 9B4D: C9 3A    CMP #$3A ; ':'
 9B4F: B0 06    BCS $9B57
 9B51: 38       SEC
@@ -12373,7 +12403,7 @@
 9B65: 99 DB B8 STA $B8DB,Y
 
 9B68: C8       INY
-9B69: C0 11    CPY #$11
+9B69: C0 11    CPY #$11 ; max variable length = 17
 9B6B: F0 0C    BEQ $9B79
 
 9B6D: B1 5E    LDA ($5E),Y

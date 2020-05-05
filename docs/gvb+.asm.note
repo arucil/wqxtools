@@ -1,0 +1,12 @@
+subroutine:
+
+    9B43    C = if A is uppercase
+    9B4D    C = if A is not digit
+    6634    read a character into A, C = if A < '0'
+    9CFD    syntax error
+
+data:
+    B811
+            TRACE flag, #$00 or #$80
+    B814, B815
+            current line number
