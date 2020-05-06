@@ -5415,6 +5415,8 @@
 6FC7: 00 00 FF INT $FF00
 
 6000: 4C 03 60 JMP $6003
+
+; entrance to BASIC runtime
 6003: 8A       TXA
 6004: 48       PHA
 6005: A9 00    LDA #$00
@@ -5444,6 +5446,10 @@
 603B: 8D 95 B9 STA $B995
 603E: A9 BF    LDA #$BF
 6040: 8D 96 B9 STA $B996
+
+; save stack pointer in $BCE0,
+; and the content of stack in $BCE1...
+; the address $BCE0 is stored in $B945,$B946
 6043: A2 E0    LDX #$E0
 6045: A0 BC    LDY #$BC
 6047: 8E 45 B9 STX $B945
@@ -5460,6 +5466,7 @@
 605D: C8       INY
 605E: E8       INX
 605F: D0 F7    BNE $6058
+
 6061: A9 00    LDA #$00
 6063: A2 51    LDX #$51
 6065: 9D D9 B8 STA $B8D9,X
@@ -5472,7 +5479,7 @@
 6070: AC FE 03 LDY $03FE ; current second * 2
 6073: 20 CF 7D JSR $7DCF
 
-; 保存随机数种子到 $B8BB
+; 保存随机数种子到 $B8BB (5 bytes)
 6076: A2 BB    LDX #$BB
 6078: A0 B8    LDY #$B8
 607A: 20 99 A1 JSR $A199
@@ -6249,6 +6256,7 @@
 68E6: 09 40    ORA #$40
 68E8: 8D 4E B9 STA $B94E
 68EB: 60       RTS
+
 68EC: 91 80    STA ($80),Y
 68EE: 86 80    STX $80
 68F0: 85 81    STA $81
@@ -10128,11 +10136,14 @@
 8835: C9 FF    CMP #$FF
 8837: F0 03    BEQ $883C
 8839: 4C FD 9C JMP $9CFD
+
 883C: A9 00    LDA #$00
 883E: 8D E2 03 STA $03E2
 8841: 8D 08 04 STA $0408
 8844: 8D 06 04 STA $0406
 8847: 85 C7    STA $C7
+
+; restore stack content in $BCE0
 8849: AD 45 B9 LDA $B945
 884C: 85 80    STA $80
 884E: AD 46 B9 LDA $B946
@@ -12812,8 +12823,10 @@
 9E85: 69 01    ADC #$01
 9E87: 85 6F    STA $6F
 9E89: 90 0F    BCC $9E9A
-9E8B: E6 6F    INC $6F
-9E8D: F0 46    BEQ $9ED5
+
+; normalize FAC1 for C=1
+9E8B: E6 6F    INC $6F ; increment exponent
+9E8D: F0 46    BEQ $9ED5 ; if exponent is zero, overflow error
 9E8F: 66 70    ROR $70
 9E91: 66 71    ROR $71
 9E93: 66 72    ROR $72
@@ -12843,7 +12856,7 @@
 9EC1: EE 0E B8 INC $B80E
 9EC4: D0 0E    BNE $9ED4
 
-; increment fraction
+; increment FAC1 mantissa
 9EC6: E6 73    INC $73
 9EC8: D0 0A    BNE $9ED4
 9ECA: E6 72    INC $72
@@ -13227,8 +13240,8 @@ A193: F0 04    BEQ $A199
 A195: A6 5C    LDX $5C
 A197: A4 5D    LDY $5D
 
-; store float accum in index XY
-A199: 20 E3 A1 JSR $A1E3
+; store FAC1 in index XY
+A199: 20 E3 A1 JSR $A1E3  ; round FAC1
 A19C: 86 44    STX $44
 A19E: 84 45    STY $45
 A1A0: A0 04    LDY #$04
@@ -13248,7 +13261,7 @@ A1B7: 91 44    STA ($44),Y
 A1B9: 88       DEY
 A1BA: A5 6F    LDA $6F
 A1BC: 91 44    STA ($44),Y
-A1BE: 8C 0E B8 STY $B80E
+A1BE: 8C 0E B8 STY $B80E ; clear extra mantissa
 A1C1: 60       RTS
 
 ; move second float accum into first
@@ -13272,16 +13285,16 @@ A1DD: D0 F9    BNE $A1D8
 A1DF: 8E 0E B8 STX $B80E
 A1E2: 60       RTS
 
-; round float accum according to guard bit
+; round FAC1
 A1E3: A5 6F    LDA $6F
-A1E5: F0 FB    BEQ $A1E2
+A1E5: F0 FB    BEQ $A1E2 ; exit if zero
 A1E7: 0E 0E B8 ASL $B80E
-A1EA: 90 F6    BCC $A1E2
-A1EC: 20 C6 9E JSR $9EC6
-A1EF: D0 F1    BNE $A1E2
+A1EA: 90 F6    BCC $A1E2 ; exit if no overflow
+A1EC: 20 C6 9E JSR $9EC6 ; increment mantissa
+A1EF: D0 F1    BNE $A1E2 ; exit if no overflow
 A1F1: 4C 8B 9E JMP $9E8B
 
-; get sign of float accum in A
+; get sign of FAC1 in A
 A1F4: A5 6F    LDA $6F
 A1F6: F0 09    BEQ $A201
 A1F8: A5 74    LDA $74
