@@ -105,27 +105,28 @@
 60BC: E6 54    INC $54
 60BE: D0 02    BNE $60C2
 60C0: E6 55    INC $55
-60C2: 20 18 89 JSR $8918 ; read .BAS file
+60C2: 20 18 89 JSR $8918 ; open and read .BAS file
 60C5: 20 93 72 JSR $7293
 60C8: AD 07 04 LDA $0407
 60CB: 09 80    ORA #$80
-60CD: 8D 07 04 STA $0407
+60CD: 8D 07 04 STA $0407  ; sound flag
 60D0: A9 80    LDA #$80
 60D2: 8D 41 0B STA $0B41
 60D5: A9 00    LDA #$00
 60D7: 8D 40 0B STA $0B40
 60DA: 8D 68 B9 STA $B968
-60DD: 8D B4 03 STA $03B4
-60E0: 8D B5 03 STA $03B5
-60E3: 8D B3 03 STA $03B3
-60E6: 8D 47 04 STA $0447
+60DD: 8D B4 03 STA $03B4  ; caret x
+60E0: 8D B5 03 STA $03B5  ; caret y
+60E3: 8D B3 03 STA $03B3  ; cursor mode
+60E6: 8D 47 04 STA $0447  ; input mode
 60E9: A9 01    LDA #$01
 60EB: 8D C4 B8 STA $B8C4
 60EE: 4C 6F 75 JMP $756F
 
+; execute statements
 60F1: BA       TSX
 60F2: 8E 26 B8 STX $B826
-60F5: 20 EC 74 JSR $74EC ; if use is pressing ESC, terminate.
+60F5: 20 EC 74 JSR $74EC ; if user is pressing ESC, terminate.
 60F8: 00 08 C0 INT $C008
 60FB: A5 5E    LDA $5E
 60FD: A4 5F    LDY $5F
@@ -208,7 +209,7 @@
 619F: D0 03    BNE $61A4
 61A1: 4C 29 75 JMP $7529
 
-; if character code in A is not zero, execute command
+; if character code in A is not zero, execute statement
 61A4: D0 01    BNE $61A7
 61A6: 60       RTS
 
@@ -218,6 +219,7 @@
 61AB: C9 40    CMP #$40
 61AD: B0 ED    BCS $619C ; if command in A >= #$C0, report syntax error
 
+; get command address from command address table
 61AF: 0A       ASL
 61B0: A8       TAY
 61B1: B9 C4 61 LDA $61C4,Y
@@ -508,7 +510,7 @@
 
 662E: .db "break", $00
 
-; read character code into A
+; increment ($5E,$5F) and read character code into A
 ; return: C = if A < '0'
 6634: E6 5E    INC $5E
 6636: D0 02    BNE $663A
@@ -523,7 +525,7 @@
 6648: C9 3A    CMP #$3A   ; ':'
 664A: B0 0A    BCS $6656
 664C: C9 20    CMP #$20
-664E: F0 E4    BEQ $6634
+664E: F0 E4    BEQ $6634  ; skip space
 6650: 38       SEC
 6651: E9 30    SBC #$30
 6653: 38       SEC
@@ -794,6 +796,9 @@
 6879: 10 FA    BPL $6875
 687B: 60       RTS
 
+; scan current chunk of .BAS file
+; set bit6 of $B94E conditionally.
+; store first line number of current chunk of the .BAS file in $B951,$B952.
 687C: A9 FF    LDA #$FF
 687E: 8D 52 B9 STA $B952
 6881: 8D 54 B9 STA $B954
@@ -2012,7 +2017,7 @@
 72A2: 8D C8 B8 STA $B8C8
 72A5: 60       RTS
 
-72A6: 20 EE 72 JSR $72EE
+72A6: 20 EE 72 JSR $72EE  ; decrement $54,$55
 72A9: A9 00    LDA #$00
 72AB: 8D 68 B9 STA $B968
 72AE: D0 1B    BNE $72CB
@@ -2047,6 +2052,7 @@
 72EA: 38       SEC
 72EB: 4C CC 74 JMP $74CC
 
+; decrement $54,$55
 72EE: 18       CLC
 72EF: A5 54    LDA $54
 72F1: 69 FF    ADC #$FF
@@ -2265,6 +2271,7 @@
 
 749D: 2C 4E B9 BIT $B94E
 74A0: 10 19    BPL $74BB
+
 74A2: A9 00    LDA #$00
 74A4: 8D 59 B9 STA $B959
 74A7: 8D 5A B9 STA $B95A
@@ -2276,6 +2283,7 @@
 74B7: 8D D6 B8 STA $B8D6
 74BA: 60       RTS
 
+; store ($54,$55) minus 1 in $B8D5, $B8D6
 74BB: 38       SEC
 74BC: A5 54    LDA $54
 74BE: E9 01    SBC #$01
@@ -2372,7 +2380,7 @@
 7576: 8D 10 B8 STA $B810
 7579: 20 8C 88 JSR $888C
 757C: 2C 4E B9 BIT $B94E
-757F: 10 0E    BPL $758F  ; if bit7 of $B94E is set, .BAS file is greater than 8KB.
+757F: 10 0E    BPL $758F  ; branch if file size < 8KB
 
 7581: A9 00    LDA #$00
 7583: 8D 57 B9 STA $B957
@@ -2666,6 +2674,7 @@
 77B6: 20 DB 6A JSR $6ADB
 77B9: 4C 7E 77 JMP $777E
 
+; LET statement
 77BC: 20 D8 96 JSR $96D8
 77BF: 85 5C    STA $5C
 77C1: 84 5D    STY $5D
@@ -4766,6 +4775,7 @@
 
 8864: F0 03    BEQ $8869
 8866: 4C FD 9C JMP $9CFD
+
 8869: A9 00    LDA #$00
 886B: 8D 12 B8 STA $B812
 886E: 8D 68 B9 STA $B968
@@ -4773,6 +4783,7 @@
 8874: A9 01    LDA #$01
 8876: 8D C4 B8 STA $B8C4
 8879: 4C 8C 88 JMP $888C
+
 887C: F0 03    BEQ $8881
 887E: 4C FD 9C JMP $9CFD
 8881: 20 E5 7D JSR $7DE5
@@ -4780,11 +4791,11 @@
 8886: 8D 68 B9 STA $B968
 8889: 8D B3 03 STA $03B3
 
-888C: 20 E2 AC JSR $ACE2
+888C: 20 E2 AC JSR $ACE2  ; clear screen and text buffer
 888F: A9 00    LDA #$00
 8891: 8D C2 B8 STA $B8C2
-8894: 8D B4 03 STA $03B4
-8897: 8D B5 03 STA $03B5
+8894: 8D B4 03 STA $03B4  ; caret x
+8897: 8D B5 03 STA $03B5  ; caret y
 889A: A9 00    LDA #$00
 889C: A0 0C    LDY #$0C
 889E: 99 2B B9 STA $B92B,Y
@@ -9303,9 +9314,10 @@ ACDB: 00 02 04 INT $0402
 ACDE: 05 07    ORA $07
 ACE0: 09 0A    ORA #$0A
 
-ACE2: 20 06 AD JSR $AD06
+; clear screen and text buffer
+ACE2: 20 06 AD JSR $AD06  ; clear screen
 
-; 清空屏幕
+; clear text buffer
 ACE5: A2 00    LDX #$00
 ACE7: A0 64    LDY #$64
 ACE9: D0 0E    BNE $ACF9
@@ -9326,6 +9338,7 @@ AD00: D0 F9    BNE $ACFB
 AD02: 00 1A C7 INT $C71A
 AD05: 60       RTS
 
+; clear screen
 AD06: A9 00    LDA #$00
 AD08: A0 C0    LDY #$C0
 AD0A: 99 00 19 STA $1900,Y

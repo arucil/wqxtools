@@ -13,6 +13,10 @@ subroutine:
     6634    read a character into A, C = if A < '0'
     9CFD    syntax error
     9ED5    overflow error
+    AD06    clear screen
+    ACE2    clear screen and text buffer
+    6634    increment ($5E, $5F) and read a character into A,
+                C = if A < '0'
 
 data:
     $B811
@@ -35,3 +39,6 @@ data:
 
     $BA8D, $BA8E
             end address of .BAS file content
+
+    $5E, $5F
+            address of current character
