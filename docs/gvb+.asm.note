@@ -4,7 +4,7 @@ floating point format:
            bit0-6  higher mantissa
     byte2          mantissa
     byte3          mantissa
-    byte3          lower mantissa
+    byte4          lower mantissa
 
 subroutine:
 
@@ -15,10 +15,10 @@ subroutine:
     9ED5    overflow error
 
 data:
-    B811
+    $B811
             TRACE flag, #$00 or #$80
 
-    B814, B815
+    $B814, $B815
             current line number
 
     $6F     exponent of FAC1 (float accumulator 1)
@@ -32,3 +32,6 @@ data:
 
     $B94E
             bit7   if .BAS file is greater than 8KB
+
+    $BA8D, $BA8E
+            end address of .BAS file content
