@@ -8,17 +8,34 @@ floating point format:
 
 subroutine:
 
+    6634    increment ($5E, $5F) and read a character into A,
+                C = if A is not digit
+    663A    read a character into A without incrementing ($5E, $5F)
+                C = if A is not digit
+    679D    out of memory error
     9B43    C = if A is uppercase
     9B4D    C = if A is not digit
-    6634    read a character into A, C = if A < '0'
+    9B58    read an identifier and store it in space starting with $B8DB,
+                Y = length of identifier
+                ($5E, $5F) = address before identifier
     9CFD    syntax error
     9ED5    overflow error
-    AD06    clear screen
+    A095    multiply FAC1 by 10
+    A1C2    copy FAC2 into FAC1
+    A1E3    round FAC1
+    A1D3    round FAC1 and then copy FAC1 into FAC2
+                A = exponent of FAC1
     ACE2    clear screen and text buffer
-    6634    increment ($5E, $5F) and read a character into A,
-                C = if A < '0'
+    AD06    clear screen
 
 data:
+    $B808   variable type flag, $00 = numeric, $FF = string
+
+    $B809   variable type flag, $00 = float, $80 = integer
+
+    $B80B
+            bit7   is executing subscript, FOR, or FN
+
     $B811
             TRACE flag, #$00 or #$80
 
@@ -32,7 +49,18 @@ data:
 
     $74     sign of FAC1 (bit7)
 
-    $B80E   extra mantissa of FAC1 for rounding
+    $B80E   extra mantissa of FAC1
+
+    $77     exponenet of FAC2
+
+    $78-$7B
+            mantissa of FAC2 (including sign)
+
+    $7C     sign of FAC2 (bit7)
+
+    $B960   extra mantissa of FAC2
+
+    $7D     sign of FAC1 xor sign of FAC2
 
     $B94E
             bit7   if .BAS file is greater than 8KB

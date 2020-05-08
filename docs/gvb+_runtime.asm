@@ -172,6 +172,7 @@
 
 6149: 2C 11 B8 BIT $B811 ; test if TRACE flag is set
 614C: 10 3E    BPL $618C
+
 614E: AE 15 B8 LDX $B815
 6151: E8       INX
 6152: F0 38    BEQ $618C
@@ -197,7 +198,7 @@
 6189: 00 06 C0 INT $C006
 
 618C: 20 34 66 JSR $6634 ; read a character
-618F: 20 A4 61 JSR $61A4
+618F: 20 A4 61 JSR $61A4 ; execute statement
 6192: 4C F1 60 JMP $60F1
 
 6195: C9 3A    CMP #$3A ; ':'
@@ -249,74 +250,58 @@
 61D5: .dw $8642 ; $8643 trace
 61D7: .dw $8644 ; $8645 notrace
 61D9: .dw $75F2 ; $75f3 pop
-61DB: BB    ADC $BB,X
-61DC: 77       ??
-61DD: BD 75 6E LDA $6E75,X
-61E0: 75 E4    ADC $E4,X
-61E2: 76 CB    ROR $CB,X
-61E4: 74       ??
-61E5: 94 75    STY $75,X
-61E7: F2       ??
-61E8: 75 41    ADC $41,X
-61EA: 77       ??
-61EB: 01 75    ORA ($75,X)
-61ED: 54       ??
-61EE: 77       ??
-61EF: F9 7D 56 SBC $567D,Y
-61F2: AF       ??
-61F3: 4A       LSR
-61F4: 78       SEI
-61F5: 47       ??
-61F6: 75 FB    ADC $FB,X
-61F8: 72       ??
-61F9: AD 72 8F LDA $8F72
-61FC: 72       ??
-61FD: 63       ??
-61FE: 88       DEY
-61FF: 7B       ??
-6200: 88       DEY
-6201: 31 88    AND ($88),Y
-6203: 49 86    EOR #$86
-6205: 4D 86 51 EOR $5186
-6208: 86 24    STX $24
-620A: 88       DEY
-620B: 27       ??
-620C: 88       DEY
-620D: 00 85 14 INT $1485
-6210: 89       ??
-6211: C1 89    CMP ($89,X)
-6213: DF       ??
-6214: 89       ??
-6215: E2       ??
-6216: 89       ??
-6217: E5 89    SBC $89
-6219: 06 8D    ASL $8D
-621B: 64       ??
-621C: 8F       ??
-621D: B1 90    LDA ($90),Y
-621F: 97       ??
-6220: 91 C0    STA ($C0),Y
-6222: 92       ??
-6223: 8A       TXA
-6224: 94 10    STY $10,X
-6226: 94 A5    STY $A5,X
-6228: 86 A8    STX $A8
-622A: 86 0E    STX $0E
-622C: 87       ??
-622D: 41 87    EOR ($87,X)
-622F: 6D 87 C9 ADC $C987
-6232: 87       ??
-6233: EB       ??
-6234: 87       ??
-6235: 8B       ??
-6236: 88       DEY
-6237: 8C 72 26 STY $2672
-623A: 73       ??
-623B: B9 73 4D LDA $4D73,Y
-623E: AF       ??
-623F: D4       ??
-6240: 96 D1    STX $D1,Y
-6242: 96 
+61DB: .dw $77BB ; $77bc let
+61DD: .dw $75BD ; $75be goto
+61DF: .dw $756e ; $756f run
+61E1: .dw $76E4 ; $76e5 if 
+61E3: .dw $74CB ; $74cc restore
+61E5: .dw $7594 ; $7595 gosub
+61E7: .dw $75F2 ; $75f3 return
+61E9: .dw $7741 ; $7742 rem
+61EB: .dw $7501 ; $7502 stop
+61ED: .dw $7754 ; $7755 on
+61EF: .dw $7dF9 ; $7dfa def
+61F1: .dw $af56 ; $af57 poke
+61F3: .dw $784A ; $784b print
+61F5: .dw $7547 ; $7548 cont
+61F7: .dw $72FB ; $72fc list
+61F9: .dw $72AD ; $72ae clear
+61FB: .dw $728f ; $7290 new
+61FD: .dw $8863 ; $8864 text
+61FF: .dw $887B ; $887c graph
+6201: .dw $8831 ; $8832 system
+6203: .dw $8649 ; $864a normal
+6205: .dw $864D ; $864e inverse
+6207: .dw $8651 ; $8652 flash
+6209: .dw $8824 ; $8825 play
+620B: .dw $8827 ; $8828 beep
+620D: .dw $8500 ; $8501 inkey$
+620F: .dw $8914 ; $8915 load
+6211: .dw $89C1 ; $89c2 save
+6213: .dw $89DF ; $89e0 kill
+6215: .dw $89E2 ; $89e3 files
+6217: .dw $89E5 ; $89e6 open
+6219: .dw $8d06 ; $8d07 close
+621B: .dw $8f64 ; $8f65 write
+621D: .dw $90B1 ; $90b2 field
+621F: .dw $9197 ; $9198 get
+6221: .dw $92C0 ; $92c1 put
+6223: .dw $948A ; $948b lset
+6225: .dw $9410 ; $9411 rset
+6227: .dw $86A5 ; $86a6 auto
+6229: .dw $86A8 ; $86a9 locate
+622B: .dw $870E ; $870f draw
+622D: .dw $8741 ; $8742 line
+622F: .dw $876D ; $876e box
+6231: .dw $87c9 ; $87ca circle
+6233: .dw $87EB ; $87ec ellipse
+6235: .dw $888B ; $888c cls
+6237: .dw $728C ; $728d edit
+6239: .dw $7326 ; $7327 while
+623B: .dw $73B9 ; $73ba wend
+623D: .dw $af4D ; $af4e call
+623F: .dw $96D4 ; $96d5 rename
+6241: .dw $96D1 ; $96d2 copy
 
 ; address table for functions
 6243: .dw $a202 ; sgn
@@ -511,11 +496,12 @@
 662E: .db "break", $00
 
 ; increment ($5E,$5F) and read character code into A
-; return: C = if A < '0'
+; return: C = if A is not digit
 6634: E6 5E    INC $5E
 6636: D0 02    BNE $663A
 6638: E6 5F    INC $5F
 
+; read a character into A without moving forward
 663A: 8C 47 B9 STY $B947
 663D: A0 00    LDY #$00
 663F: B1 5E    LDA ($5E),Y
@@ -662,6 +648,8 @@
 675B: CA       DEX
 675C: D0 F2    BNE $6750
 675E: 60       RTS
+
+; check out of memory error ?
 675F: 0A       ASL
 6760: 69 36    ADC #$36
 6762: B0 39    BCS $679D
@@ -670,6 +658,7 @@
 6767: E4 44    CPX $44
 6769: 90 32    BCC $679D
 676B: 60       RTS
+
 676C: CC D0 B8 CPY $B8D0
 676F: 90 2B    BCC $679C
 6771: D0 05    BNE $6778
@@ -697,6 +686,7 @@
 6797: CD CF B8 CMP $B8CF
 679A: B0 01    BCS $679D
 679C: 60       RTS
+
 679D: A2 06    LDX #$06
 
 ; 报告运行时错误, X=错误码
@@ -2674,7 +2664,7 @@
 77B6: 20 DB 6A JSR $6ADB
 77B9: 4C 7E 77 JMP $777E
 
-; LET statement
+; assignment statement
 77BC: 20 D8 96 JSR $96D8
 77BF: 85 5C    STA $5C
 77C1: 84 5D    STY $5D
@@ -3297,6 +3287,7 @@
 7D24: D0 F1    BNE $7D17
 7D26: 20 34 66 JSR $6634
 7D29: 20 9D 7C JSR $7C9D
+
 7D2C: 20 7A 9B JSR $9B7A
 7D2F: 18       CLC
 7D30: 24 38    BIT $38
@@ -3405,6 +3396,7 @@
 7DF7: D0 F2    BNE $7DEB
 7DF9: 60       RTS
 
+; DEF statement
 7DFA: 20 29 7E JSR $7E29
 7DFD: 20 E5 7D JSR $7DE5
 7E00: 20 EF 9C JSR $9CEF
@@ -4791,6 +4783,7 @@
 8886: 8D 68 B9 STA $B968
 8889: 8D B3 03 STA $03B3
 
+; CLS statement
 888C: 20 E2 AC JSR $ACE2  ; clear screen and text buffer
 888F: A9 00    LDA #$00
 8891: 8D C2 B8 STA $B8C2
@@ -6451,58 +6444,69 @@
 
 96DB: 8E 07 B8 STX $B807
 96DE: 85 58    STA $58
-96E0: A5 5E    LDA $5E
+96E0: A5 5E    LDA $5E   ;  save starting address of identifier in ($B81A, $B81B)
 96E2: 8D 1A B8 STA $B81A
 96E5: A5 5F    LDA $5F
 96E7: 8D 1B B8 STA $B81B
 96EA: 20 3A 66 JSR $663A ; read a character without moving forward
-96ED: 20 43 9B JSR $9B43 ; check if A is uppercase letter
-96F0: B0 03    BCS $96F5
+96ED: 20 43 9B JSR $9B43 ; test if A is uppercase letter
+96F0: B0 03    BCS $96F5 ; branch if A is uppercase letter
 96F2: 4C FD 9C JMP $9CFD ; report syntax error
 
 96F5: A0 00    LDY #$00
-96F7: 8C 08 B8 STY $B808
-96FA: 8C 09 B8 STY $B809
-96FD: 20 58 9B JSR $9B58
+96F7: 8C 08 B8 STY $B808  ; clear type flag to numeric
+96FA: 8C 09 B8 STY $B809  ; clear number type to float
+96FD: 20 58 9B JSR $9B58  ; read an identifier
 9700: 88       DEY
 9701: 98       TYA
 9702: 88       DEY
-9703: 84 59    STY $59
+9703: 84 59    STY $59    ; $59 = index of last character of identifier
 9705: 18       CLC
 9706: 65 5E    ADC $5E
 9708: 85 5E    STA $5E
 970A: 90 02    BCC $970E
 970C: E6 5F    INC $5F
-970E: 20 34 66 JSR $6634
-9711: 90 FB    BCC $970E
-9713: 20 43 9B JSR $9B43
+
+; skip rest characters of an identifier if length exceeds 17
+970E: 20 34 66 JSR $6634  ; read a character
+9711: 90 FB    BCC $970E  ; branch if character is digit
+9713: 20 43 9B JSR $9B43  ; test if character
 9716: B0 F6    BCS $970E
-9718: C9 24    CMP #$24
+
+9718: C9 24    CMP #$24   ; '$'
 971A: D0 07    BNE $9723
 971C: A9 FF    LDA #$FF
-971E: 8D 08 B8 STA $B808
+971E: 8D 08 B8 STA $B808  ; set string type flag
 9721: D0 11    BNE $9734
-9723: C9 25    CMP #$25
+
+9723: C9 25    CMP #$25   ; '%'
 9725: D0 10    BNE $9737
 9727: AD 0B B8 LDA $B80B
 972A: 10 03    BPL $972F
-972C: 4C FD 9C JMP $9CFD
+972C: 4C FD 9C JMP $9CFD  ; syntax error
+
 972F: A9 80    LDA #$80
-9731: 8D 09 B8 STA $B809
-9734: 20 34 66 JSR $6634
+9731: 8D 09 B8 STA $B809  ; set integer type flag
+
+9734: 20 34 66 JSR $6634  ; read a character
+
 9737: 38       SEC
-9738: 0D 0B B8 ORA $B80B
-973B: E9 28    SBC #$28
-973D: D0 03    BNE $9742
+9738: 0D 0B B8 ORA $B80B  
+973B: E9 28    SBC #$28   ; '('
+973D: D0 03    BNE $9742  ; branch if not '('
 973F: 4C C1 98 JMP $98C1
+
 9742: 2C 0B B8 BIT $B80B
 9745: 30 05    BMI $974C
 9747: 50 03    BVC $974C
 9749: 4C C1 98 JMP $98C1
+
 974C: A5 58    LDA $58
 974E: 8D 0B B8 STA $B80B
-9751: 20 2E 9B JSR $9B2E
-9754: A5 5E    LDA $5E
+9751: 20 2E 9B JSR $9B2E  ; swap ($5E, $5F) and ($B81A, B81B)
+                          ; now ($5E, $5F) is starting address of identifier,
+                          ; ($B81A, $B81B) is the address immediately after identifier.
+9754: A5 5E    LDA $5E    ; decrement ($5E, $5F)
 9756: D0 02    BNE $975A
 9758: C6 5F    DEC $5F
 975A: C6 5E    DEC $5E
@@ -6516,6 +6520,7 @@
 976D: A5 69    LDA $69
 976F: CD CE B8 CMP $B8CE
 9772: F0 65    BEQ $97D9
+
 9774: A2 07    LDX #$07
 9776: 8E 02 B8 STX $B802
 9779: B1 68    LDA ($68),Y
@@ -6662,7 +6667,8 @@
 989C: 60       RTS
 989D: 90 80    BCC $981F
 989F: 00 00 00 INT $0000
-98A2: 20 34 66 JSR $6634
+
+98A2: 20 34 66 JSR $6634  ; read a character
 98A5: 20 2C 7D JSR $7D2C
 98A8: A5 74    LDA $74
 98AA: 30 0D    BMI $98B9
@@ -6675,6 +6681,7 @@
 98B9: F0 03    BEQ $98BE
 98BB: 4C 99 99 JMP $9999
 98BE: 4C 7B A2 JMP $A27B
+
 98C1: AD 0B B8 LDA $B80B
 98C4: D0 63    BNE $9929
 98C6: AD 07 B8 LDA $B807
@@ -6684,7 +6691,7 @@
 98D0: 48       PHA
 98D1: A0 00    LDY #$00
 98D3: A9 03    LDA #$03
-98D5: 20 5F 67 JSR $675F
+98D5: 20 5F 67 JSR $675F  ; check out of memory error
 98D8: 98       TYA
 98D9: 48       PHA
 98DA: AD 1A B8 LDA $B81A
@@ -6729,6 +6736,7 @@
 9921: 8D 09 B8 STA $B809
 9924: 29 7F    AND #$7F
 9926: 8D 07 B8 STA $B807
+
 9929: 20 2E 9B JSR $9B2E
 992C: 20 58 9B JSR $9B58
 992F: A5 5E    LDA $5E
@@ -6993,6 +7001,8 @@
 9B29: C6 66    DEC $66
 9B2B: D0 DE    BNE $9B0B
 9B2D: 60       RTS
+
+; swap ($5E, $5F) and ($B81A, $B81B)
 9B2E: A6 5E    LDX $5E
 9B30: AD 1A B8 LDA $B81A
 9B33: 8E 1A B8 STX $B81A
@@ -7020,6 +7030,9 @@
 9B55: E9 D0    SBC #$D0
 9B57: 60       RTS
 
+; read an identifier and store it in $B8DB...
+; Y = length of identifier
+; ($5E, $5F) = address before identifier
 9B58: A0 00    LDY #$00
 9B5A: A5 5E    LDA $5E
 9B5C: D0 02    BNE $9B60
@@ -7034,10 +7047,10 @@
 9B6B: F0 0C    BEQ $9B79
 
 9B6D: B1 5E    LDA ($5E),Y
-9B6F: 20 4D 9B JSR $9B4D
-9B72: 90 F1    BCC $9B65
-9B74: 20 43 9B JSR $9B43
-9B77: B0 EC    BCS $9B65
+9B6F: 20 4D 9B JSR $9B4D  ; test if A is not digit
+9B72: 90 F1    BCC $9B65  ; branch if A is digit
+9B74: 20 43 9B JSR $9B43  ; test if A is uppercase letter
+9B77: B0 EC    BCS $9B65  ; branch if A is uppercase letter
 9B79: 60       RTS
 
 9B7A: A6 5E    LDX $5E
@@ -7045,11 +7058,13 @@
 9B7E: C6 5F    DEC $5F
 9B80: C6 5E    DEC $5E
 9B82: A2 00    LDX #$00
-9B84: 24 48    BIT $48
+9B84: 24           ; junk code: BIT $48
+
+9B85: 48       PHA
 9B86: 8A       TXA
 9B87: 48       PHA
 9B88: A9 09    LDA #$09
-9B8A: 20 5F 67 JSR $675F
+9B8A: 20 5F 67 JSR $675F  ; check out of memory error
 9B8D: 20 82 9C JSR $9C82
 9B90: A9 00    LDA #$00
 9B92: 8D 03 B8 STA $B803
@@ -7173,12 +7188,14 @@
 9C7D: 85 7D    STA $7D
 9C7F: A5 6F    LDA $6F
 9C81: 60       RTS
+
 9C82: A9 00    LDA #$00
 9C84: 8D 08 B8 STA $B808
-9C87: 20 34 66 JSR $6634
-9C8A: B0 04    BCS $9C90
+9C87: 20 34 66 JSR $6634  ; read a character
+9C8A: B0 04    BCS $9C90  ; branch if character >= '0'
 9C8C: 20 93 A3 JSR $A393
 9C8F: 60       RTS
+
 9C90: 20 43 9B JSR $9B43
 9C93: 90 03    BCC $9C98
 9C95: 4C 09 9D JMP $9D09
@@ -7222,6 +7239,7 @@
 9CEC: A9 29    LDA #$29
 9CEE: 2C A9 28 BIT $28A9
 9CF1: 2C A9 2C BIT $2CA9
+
 9CF4: A0 00    LDY #$00
 9CF6: D1 5E    CMP ($5E),Y
 9CF8: D0 03    BNE $9CFD
@@ -7320,47 +7338,55 @@
 9DA8: 20 39 9F JSR $9F39
 9DAB: 90 42    BCC $9DEF
 
-; add float indexed by AY to float accum
+; add float indexed by AY to FAC1
 9DAD: 20 3F A0 JSR $A03F
 
 ; + operator
-9DB0: D0 03    BNE $9DB5
-9DB2: 4C C2 A1 JMP $A1C2
-9DB5: AE 0E B8 LDX $B80E
+9DB0: D0 03    BNE $9DB5  ; branch if FAC1 is not zero
+9DB2: 4C C2 A1 JMP $A1C2  ; if FAC1 is zero, copy FAC2 to FAC1
+
+9DB5: AE 0E B8 LDX $B80E  ; copy FAC1 extra mantissa to FAC2
 9DB8: 8E 60 B9 STX $B960
-9DBB: A2 77    LDX #$77
-9DBD: A5 77    LDA $77
-9DBF: A8       TAY
-9DC0: D0 01    BNE $9DC3
+9DBB: A2 77    LDX #$77  ; X = FAC2 exponent address
+9DBD: A5 77    LDA $77  ; get exponent of FAC2
+
+9DBF: A8       TAY        ; copy exponent
+9DC0: D0 01    BNE $9DC3  ; branch if exponent not zero
 9DC2: 60       RTS
 
 9DC3: 38       SEC
-9DC4: E5 6F    SBC $6F
-9DC6: F0 27    BEQ $9DEF
-9DC8: 90 13    BCC $9DDD
-9DCA: 84 6F    STY $6F
-9DCC: A4 7C    LDY $7C
+9DC4: E5 6F    SBC $6F   ; subtract exponent of FAC1
+9DC6: F0 27    BEQ $9DEF  ; branch if exponent are equal
+9DC8: 90 13    BCC $9DDD  ; branch if exponent of FAC2 < FAC1
+
+; exponent of FAC2 > FAC1
+9DCA: 84 6F    STY $6F   ; save FAC2 exponent to FAC1
+9DCC: A4 7C    LDY $7C  ; copy sign of FAC2 into FAC1
 9DCE: 84 74    STY $74
-9DD0: 49 FF    EOR #$FF
+9DD0: 49 FF    EOR #$FF  ; negate exponent diff
 9DD2: 69 00    ADC #$00
 9DD4: A0 00    LDY #$00
-9DD6: 8C 60 B9 STY $B960
-9DD9: A2 6F    LDX #$6F
+9DD6: 8C 60 B9 STY $B960  ; clear extra mantissa of FAC2
+9DD9: A2 6F    LDX #$6F   ; FAC1 exponent address
 9DDB: D0 05    BNE $9DE2
+
+; exponent of FAC2 < FAC1
 9DDD: A0 00    LDY #$00
-9DDF: 8C 0E B8 STY $B80E
-9DE2: C9 F9    CMP #$F9
-9DE4: 30 C2    BMI $9DA8
-9DE6: A8       TAY
-9DE7: AD 0E B8 LDA $B80E
-9DEA: 56 01    LSR $01,X
-9DEC: 20 51 9F JSR $9F51
+9DDF: 8C 0E B8 STY $B80E  ; clear extra mantissa of FAC1
+
+9DE2: C9 F9    CMP #$F9   ; compare exponent diff with $F9  ?
+9DE4: 30 C2    BMI $9DA8  ; if exponent diff is $79-$F8, byte shift mantissa
+9DE6: A8       TAY        ; copy exponent diff to Y
+9DE7: AD 0E B8 LDA $B80E  ; A = extra mantissa of FAC1
+9DEA: 56 01    LSR $01,X  ; right shift FAC1 or FAC2 higher mantissa
+9DEC: 20 51 9F JSR $9F51  ; right shift FAC1 or FAC2 mantissa
+
 9DEF: 24 7D    BIT $7D
 9DF1: 10 5B    BPL $9E4E
-9DF3: A0 6F    LDY #$6F
+9DF3: A0 6F    LDY #$6F  ; Y = FAC1 exponent address
 9DF5: E0 77    CPX #$77
-9DF7: F0 02    BEQ $9DFB
-9DF9: A0 77    LDY #$77
+9DF7: F0 02    BEQ $9DFB  ; branch if we've shifted FAC2
+9DF9: A0 77    LDY #$77   ; Y = FAC2 exponent address
 9DFB: 38       SEC
 9DFC: 49 FF    EOR #$FF
 9DFE: 6D 60 B9 ADC $B960
@@ -7407,7 +7433,7 @@
 9E4B: 85 74    STA $74  ; set FAC1 sign
 9E4D: 60       RTS
 
-; add fractions
+; add mantissas
 9E4E: 6D 60 B9 ADC $B960
 9E51: 8D 0E B8 STA $B80E
 9E54: A5 73    LDA $73
@@ -7534,15 +7560,18 @@
 9F41: A8       TAY
 9F42: AD 0E B8 LDA $B80E
 9F45: B0 14    BCS $9F5B
+
+; A is extra mantissa
 9F47: 16 01    ASL $01,X
-9F49: 90 02    BCC $9F4D
-9F4B: F6 01    INC $01,X
-9F4D: 76 01    ROR $01,X
-9F4F: 76 01    ROR $01,X
+9F49: 90 02    BCC $9F4D   ; branch if positive
+9F4B: F6 01    INC $01,X   ; this will set C=1 after the following ROR
+9F4D: 76 01    ROR $01,X   ; undo ASL and set C=1
+9F4F: 76 01    ROR $01,X   ; after ROR, C is always 1
+
 9F51: 76 02    ROR $02,X
 9F53: 76 03    ROR $03,X
 9F55: 76 04    ROR $04,X
-9F57: 6A       ROR
+9F57: 6A       ROR         ; shift extra mantissa
 9F58: C8       INY
 9F59: D0 EC    BNE $9F47
 9F5B: 18       CLC
@@ -7711,20 +7740,20 @@ A08B: 30 05    BMI $A092
 A08D: 68       PLA
 A08E: 68       PLA
 A08F: 4C 47 9E JMP $9E47
-A092: 4C D5 9E JMP $9ED5
+A092: 4C D5 9E JMP $9ED5  ; overflow error
 
-; multiply float accum by 10
-A095: 20 D3 A1 JSR $A1D3
+; multiply FAC1 by 10
+A095: 20 D3 A1 JSR $A1D3  ; round FAC1 then move into FAC2
 A098: AA       TAX
-A099: F0 10    BEQ $A0AB
+A099: F0 10    BEQ $A0AB  ; if zero, do nothing
 A09B: 18       CLC
 A09C: 69 02    ADC #$02
-A09E: B0 F2    BCS $A092
+A09E: B0 F2    BCS $A092   ; report overflow error if FAC1 * 4 overflows
 A0A0: A2 00    LDX #$00
 A0A2: 86 7D    STX $7D
 A0A4: 20 BF 9D JSR $9DBF
-A0A7: E6 6F    INC $6F
-A0A9: F0 E7    BEQ $A092
+A0A7: E6 6F    INC $6F     ; FAC1 * 2
+A0A9: F0 E7    BEQ $A092   ; overflow
 A0AB: 60       RTS
 
 ; constant 10 for division
@@ -7881,25 +7910,26 @@ A1BC: 91 44    STA ($44),Y
 A1BE: 8C 0E B8 STY $B80E ; clear extra mantissa
 A1C1: 60       RTS
 
-; move second float accum into first
-A1C2: A5 7C    LDA $7C
+; move FAC2 into FAC1
+A1C2: A5 7C    LDA $7C  ; copy sign
 A1C4: 85 74    STA $74
-A1C6: A2 05    LDX #$05
+A1C6: A2 05    LDX #$05  ; copy 
 A1C8: B5 76    LDA $76,X
 A1CA: 95 6E    STA $6E,X
 A1CC: CA       DEX
 A1CD: D0 F9    BNE $A1C8
-A1CF: 8E 0E B8 STX $B80E
+A1CF: 8E 0E B8 STX $B80E  ; clear extra mantissa of FAC1
 A1D2: 60       RTS
 
-; move rounded float accum into second
-A1D3: 20 E3 A1 JSR $A1E3
+; move rounded FAC1 into FAC2
+; A = exponent of FAC1
+A1D3: 20 E3 A1 JSR $A1E3  ; round FAC1
 A1D6: A2 06    LDX #$06
 A1D8: B5 6E    LDA $6E,X
 A1DA: 95 76    STA $76,X
 A1DC: CA       DEX
 A1DD: D0 F9    BNE $A1D8
-A1DF: 8E 0E B8 STX $B80E
+A1DF: 8E 0E B8 STX $B80E  ; clear extra mantissa of FAC1
 A1E2: 60       RTS
 
 ; round FAC1
@@ -8141,15 +8171,19 @@ A38B: 38       SEC
 A38C: E9 30    SBC #$30
 A38E: 85 67    STA $67
 A390: 4C 24 A3 JMP $A324
+
 A393: A0 00    LDY #$00
 A395: A2 03    LDX #$03
 A397: 94 66    STY $66,X
 A399: CA       DEX
 A39A: 10 FB    BPL $A397
+
+; clear FAC1
 A39C: A2 06    LDX #$06
 A39E: 94 6F    STY $6F,X
 A3A0: CA       DEX
 A3A1: 10 FB    BPL $A39E
+
 A3A3: 90 17    BCC $A3BC
 A3A5: C9 2D    CMP #$2D
 A3A7: F0 04    BEQ $A3AD
@@ -8162,6 +8196,7 @@ A3B3: F0 04    BEQ $A3B9
 A3B5: C9 C9    CMP #$C9
 A3B7: D0 05    BNE $A3BE
 A3B9: 20 34 66 JSR $6634
+
 A3BC: 90 5B    BCC $A419
 A3BE: C9 2E    CMP #$2E
 A3C0: F0 2E    BEQ $A3F0
@@ -8207,11 +8242,12 @@ A411: A5 75    LDA $75
 A413: 30 01    BMI $A416
 A415: 60       RTS
 A416: 4C 2B A6 JMP $A62B
+
 A419: 48       PHA
 A41A: 24 68    BIT $68
 A41C: 10 02    BPL $A420
 A41E: E6 66    INC $66
-A420: 20 95 A0 JSR $A095
+A420: 20 95 A0 JSR $A095  ; multiply FAC1 by 10
 A423: 68       PLA
 A424: 38       SEC
 A425: E9 30    SBC #$30
@@ -8245,15 +8281,17 @@ A45A: 38       SEC
 A45B: E9 30    SBC #$30
 A45D: 85 67    STA $67
 A45F: 4C DF A3 JMP $A3DF
-A462: 9B       ??
-A463: 3E BC 1F ROL $1FBC,X
-A466: FD 9E 6E SBC $6E9E,X
-A469: 6B       ??
-A46A: 27       ??
-A46B: FD 9E 6E SBC $6E9E,X
-A46E: 6B       ??
-A46F: 28       PLP
-A470: 00 A9 29 INT $29A9
+
+; 99_999_999.90625  maximum value with at least one decimal
+A462: .db $9B, $3e, $bc, $1f, $fd
+
+; 999_999_999.25  maximum value before scientific notation
+A467: .db $9E, $6E, $6b, $27, $fd
+
+; 1_000_000_000
+A46C: .db $9E, $6E, $6b, $28, $00
+
+A471: A9 29    LDA #$29
 A473: A0 66    LDY #$66
 A475: 20 8B A4 JSR $A48B
 A478: AD 15 B8 LDA $B815

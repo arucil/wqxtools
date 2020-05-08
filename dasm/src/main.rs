@@ -6,7 +6,6 @@ use std::io::{BufReader, BufWriter, Read};
 use std::error::Error;
 use std::num::IntErrorKind;
 use std::path::{Path, PathBuf};
-use std::ffi::OsStr;
 use dasm::DasmOptions;
 
 fn main() -> Result<(), Box<dyn Error>> {

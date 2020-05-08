@@ -3825,7 +3825,7 @@
 .,BA24 A9 E5    LDA #$E5        pointer to LOG(2) low byte
 .,BA26 A0 B9    LDY #$B9        pointer to LOG(2) high byte
 
-                                *** do convert AY, FCA1*(AY)
+                                *** do convert AY, FAC1*(AY)
 .,BA28 20 8C BA JSR $BA8C       unpack memory (AY) into FAC2
 .,BA2B D0 03    BNE $BA30       multiply FAC1 by FAC2 ??
 .,BA2D 4C 8B BA JMP $BA8B       exit if zero
@@ -4426,7 +4426,7 @@
 .,BDFE B0 09    BCS $BE09       branch if FAC1=>1
 .,BE00 A9 BD    LDA #$BD        set 1000000000 pointer low byte
 .,BE02 A0 BD    LDY #$BD        set 1000000000 pointer high byte
-.,BE04 20 28 BA JSR $BA28       do convert AY, FCA1*(AY)
+.,BE04 20 28 BA JSR $BA28       do convert AY, FAC1*(AY)
 .,BE07 A9 F7    LDA #$F7        set number exponent count
 .,BE09 85 5D    STA $5D         save number exponent count
 .,BE0B A9 B8    LDA #$B8        set 999999999.25 pointer low byte (max before sci note)
@@ -4644,7 +4644,7 @@
 .,BFA3 20 EA B9 JSR $B9EA       perform LOG()
 .,BFA6 A9 4E    LDA #$4E        set pointer low byte
 .,BFA8 A0 00    LDY #$00        set pointer high byte
-.,BFAA 20 28 BA JSR $BA28       do convert AY, FCA1*(AY)
+.,BFAA 20 28 BA JSR $BA28       do convert AY, FAC1*(AY)
 .,BFAD 20 ED BF JSR $BFED       perform EXP()
 .,BFB0 68       PLA             pull sign from stack
 .,BFB1 4A       LSR             b0 is to be tested
@@ -4672,7 +4672,7 @@
                                 *** perform EXP()
 .,BFED A9 BF    LDA #$BF        set 1.443 pointer low byte
 .,BFEF A0 BF    LDY #$BF        set 1.443 pointer high byte
-.,BFF1 20 28 BA JSR $BA28       do convert AY, FCA1*(AY)
+.,BFF1 20 28 BA JSR $BA28       do convert AY, FAC1*(AY)
 .,BFF4 A5 70    LDA $70         get FAC1 rounding byte
 .,BFF6 69 50    ADC #$50        +$50/$100
 .,BFF8 90 03    BCC $BFFD       skip rounding if no carry
@@ -4720,11 +4720,11 @@
 .,E045 84 72    STY $72         save count pointer high byte
 .,E047 20 CA BB JSR $BBCA       pack FAC1 into $57
 .,E04A A9 57    LDA #$57        set pointer low byte (Y already $00)
-.,E04C 20 28 BA JSR $BA28       do convert AY, FCA1*(AY)
+.,E04C 20 28 BA JSR $BA28       do convert AY, FAC1*(AY)
 .,E04F 20 5D E0 JSR $E05D       go do series evaluation
 .,E052 A9 57    LDA #$57        pointer to original # low byte
 .,E054 A0 00    LDY #$00        pointer to original # high byte
-.,E056 4C 28 BA JMP $BA28       do convert AY, FCA1*(AY)
+.,E056 4C 28 BA JMP $BA28       do convert AY, FAC1*(AY)
                                 do series evaluation
 .,E059 85 71    STA $71         save count pointer low byte
 .,E05B 84 72    STY $72         save count pointer high byte
@@ -4739,7 +4739,7 @@
 .,E06A E6 72    INC $72         else increment high byte
 .,E06C 85 71    STA $71         save low byte
 .,E06E A4 72    LDY $72         get high byte
-.,E070 20 28 BA JSR $BA28       do convert AY, FCA1*(AY)
+.,E070 20 28 BA JSR $BA28       do convert AY, FAC1*(AY)
 .,E073 A5 71    LDA $71         get constants pointer low byte
 .,E075 A4 72    LDY $72         get constants pointer high byte
 .,E077 18       CLC             clear carry for add
@@ -4786,7 +4786,7 @@
 .,E0C2 20 A2 BB JSR $BBA2       unpack memory (AY) into FAC1
 .,E0C5 A9 8D    LDA #$8D        set 11879546 pointer low byte
 .,E0C7 A0 E0    LDY #$E0        set 11879546 pointer high byte
-.,E0C9 20 28 BA JSR $BA28       do convert AY, FCA1*(AY)
+.,E0C9 20 28 BA JSR $BA28       do convert AY, FAC1*(AY)
 .,E0CC A9 92    LDA #$92        set 3.927677739E-8 pointer low byte
 .,E0CE A0 E0    LDY #$E0        set 3.927677739E-8 pointer high byte
 .,E0D0 20 67 B8 JSR $B867       add (AY) to FAC1
