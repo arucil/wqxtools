@@ -1,5 +1,5 @@
 [workspace]
 members = [
   "dasm",
-  "mbf",
+  "mbf5",
 ]

@@ -7385,7 +7385,7 @@
 9DF1: 10 5B    BPL $9E4E
 9DF3: A0 6F    LDY #$6F  ; Y = FAC1 exponent address
 9DF5: E0 77    CPX #$77
-9DF7: F0 02    BEQ $9DFB  ; branch if we've shifted FAC2
+9DF7: F0 02    BEQ $9DFB  ; branch if we have shifted FAC2
 9DF9: A0 77    LDY #$77   ; Y = FAC2 exponent address
 9DFB: 38       SEC
 9DFC: 49 FF    EOR #$FF

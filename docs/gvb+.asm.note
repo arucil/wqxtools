@@ -70,3 +70,6 @@ data:
 
     $5E, $5F
             address of current character
+
+TODO:
+        数字字面量可以用空格分隔？
