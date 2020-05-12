@@ -7692,7 +7692,7 @@ A03B: 4A       LSR
 A03C: D0 C9    BNE $A007
 A03E: 60       RTS
 
-; move float indexed by AY into second float accumulator
+; move float indexed by AY into FAC2
 A03F: 85 44    STA $44
 A041: 84 45    STY $45
 A043: A0 04    LDY #$04

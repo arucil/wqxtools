@@ -6,6 +6,8 @@ floating point format:
     byte3          mantissa
     byte4          lower mantissa
 
+    if exponent is 0, the number is zero, regardless of the mantissa and sign.
+
 subroutine:
 
     6634    increment ($5E, $5F) and read a character into A,
@@ -45,7 +47,7 @@ data:
     $6F     exponent of FAC1 (float accumulator 1)
 
     $70-$73
-            mantissa of FAC1 (including sign)
+            mantissa of FAC1 (including assuming bit)
 
     $74     sign of FAC1 (bit7)
 
@@ -54,7 +56,7 @@ data:
     $77     exponenet of FAC2
 
     $78-$7B
-            mantissa of FAC2 (including sign)
+            mantissa of FAC2 (including assuming bit)
 
     $7C     sign of FAC2 (bit7)
 
