@@ -7408,7 +7408,7 @@
 9DF1: 10 5B    BPL $9E4E
 9DF3: A0 6F    LDY #$6F  ; Y = FAC1 exponent address
 9DF5: E0 77    CPX #$77
-9DF7: F0 02    BEQ $9DFB  ; branch if we've shifted FAC2
+9DF7: F0 02    BEQ $9DFB  ; branch if we have shifted FAC2
 9DF9: A0 77    LDY #$77   ; Y = FAC2 exponent address
 9DFB: 38       SEC
 9DFC: 49 FF    EOR #$FF
@@ -7695,7 +7695,7 @@ A03B: 4A       LSR
 A03C: D0 C9    BNE $A007
 A03E: 60       RTS
 
-; move float indexed by AY into second float accumulator
+; move float indexed by AY into FAC2
 A03F: 85 44    STA $44
 A041: 84 45    STY $45
 A043: A0 04    LDY #$04
