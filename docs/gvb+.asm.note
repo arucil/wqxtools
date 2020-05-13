@@ -8,9 +8,9 @@ floating point format:
 
 subroutine:
 
-    6634    increment ($5E, $5F) and read a character into A,
+    6634    increment ($5E, $5F) and read a character into A, ignoring spaces
                 C = if A is not digit
-    663A    read a character into A without incrementing ($5E, $5F)
+    663A    read a character into A without incrementing ($5E, $5F), ignoring spaces
                 C = if A is not digit
     679D    out of memory error
     9B43    C = if A is uppercase
@@ -21,6 +21,7 @@ subroutine:
     9CFD    syntax error
     9ED5    overflow error
     A095    multiply FAC1 by 10
+    A199    round FAC1 then store FAC1 into (X, Y)
     A1C2    copy FAC2 into FAC1
     A1E3    round FAC1
     A1D3    round FAC1 and then copy FAC1 into FAC2
@@ -45,7 +46,7 @@ data:
     $6F     exponent of FAC1 (float accumulator 1)
 
     $70-$73
-            mantissa of FAC1 (including sign)
+            mantissa of FAC1 (including assumed leading 1)
 
     $74     sign of FAC1 (bit7)
 
@@ -54,7 +55,7 @@ data:
     $77     exponenet of FAC2
 
     $78-$7B
-            mantissa of FAC2 (including sign)
+            mantissa of FAC2 (including assumed leading 1)
 
     $7C     sign of FAC2 (bit7)
 
@@ -70,3 +71,8 @@ data:
 
     $5E, $5F
             address of current character
+
+TODO:
+    数字字面量可以用空格分隔？
+    AND、OR、NOT 是 bitwise？
+    GOTO 10 NOT EXECUTED

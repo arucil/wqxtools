@@ -38,7 +38,7 @@
 6040: 8D 96 B9 STA $B996
 
 ; save stack pointer in $BCE0,
-; and the content of stack in $BCE1...
+; and the content of stack (not entire stack) in $BCE1...
 ; the address $BCE0 is stored in $B945,$B946
 6043: A2 E0    LDX #$E0
 6045: A0 BC    LDY #$BC
@@ -57,6 +57,7 @@
 605E: E8       INX
 605F: D0 F7    BNE $6058
 
+; clear $B8D9-$B92A
 6061: A9 00    LDA #$00
 6063: A2 51    LDX #$51
 6065: 9D D9 B8 STA $B8D9,X
@@ -69,7 +70,7 @@
 ; 初始化随机数种子
 606E: A9 00    LDA #$00
 6070: AC FE 03 LDY $03FE ; current second * 2
-6073: 20 CF 7D JSR $7DCF
+6073: 20 CF 7D JSR $7DCF ; integer to float
 
 ; 保存随机数种子到 $B8BB (5 bytes)
 6076: A2 BB    LDX #$BB
@@ -199,7 +200,7 @@
 
 618C: 20 34 66 JSR $6634 ; read a character
 618F: 20 A4 61 JSR $61A4 ; execute statement
-6192: 4C F1 60 JMP $60F1
+6192: 4C F1 60 JMP $60F1 ; continue executing statements
 
 6195: C9 3A    CMP #$3A ; ':'
 6197: D0 03    BNE $619C
@@ -918,13 +919,16 @@
 696A: A9 00    LDA #$00
 696C: 8D 5B B9 STA $B95B
 696F: 60       RTS
+
 6970: 91 80    STA ($80),Y
 6972: 86 80    STX $80
 6974: 85 81    STA $81
 6976: 4C 23 69 JMP $6923
+
 6979: A9 FF    LDA #$FF
 697B: 8D 5B B9 STA $B95B
 697E: 60       RTS
+
 697F: A0 01    LDY #$01
 6981: B1 68    LDA ($68),Y
 6983: 85 45    STA $45
@@ -987,6 +991,7 @@
 69EC: 60       RTS
 69ED: 00 01 07 INT $0701
 69F0: 60       RTS
+
 69F1: 2B       ??
 69F2: 2D 2A 2F AND $2F2A
 69F5: 5E 3E 3D LSR $3D3E,X
@@ -1000,6 +1005,7 @@
 6A04: CC CD D0 CPY $D0CD
 6A07: D1 D2    CMP ($D2),Y
 6A09: 60       RTS
+
 6A0A: A5 54    LDA $54
 6A0C: A6 55    LDX $55
 6A0E: 85 68    STA $68
@@ -1041,6 +1047,8 @@
 6A53: B0 B9    BCS $6A0E
 6A55: 18       CLC
 6A56: 60       RTS
+
+; will be called only when .BAS file > 8KB
 6A57: A9 00    LDA #$00
 6A59: 8D 59 B9 STA $B959
 6A5C: 8D 5A B9 STA $B95A
@@ -1077,6 +1085,7 @@
 6A97: B0 D0    BCS $6A69
 6A99: 18       CLC
 6A9A: 60       RTS
+
 6A9B: 2C 4E B9 BIT $B94E
 6A9E: 10 B5    BPL $6A55
 6AA0: A5 41    LDA $41
@@ -1468,6 +1477,7 @@
 6E3B: 90 D4    BCC $6E11
 6E3D: A5 6F    LDA $6F
 6E3F: 60       RTS
+
 6E40: 14       ??
 6E41: 28       PLP
 6E42: 3C       ??
@@ -1746,12 +1756,14 @@
 70A1: D0 03    BNE $70A6
 70A3: 99 38 B9 STA $B938,Y
 70A6: 60       RTS
+
 70A7: 80       ??
 70A8: 40       RTI
 70A9: 20 10 08 JSR $0810
 70AC: 04       ??
 70AD: 02       ??
 70AE: 01 60    ORA ($60,X)
+
 70B0: A0 00    LDY #$00
 70B2: E6 6F    INC $6F
 70B4: D0 02    BNE $70B8
@@ -1959,6 +1971,7 @@
 724D: B0 02    BCS $7251
 724F: 49 20    EOR #$20
 7251: 60       RTS
+
 7252: C0 02    CPY #$02
 7254: D4       ??
 7255: 02       ??
@@ -1967,6 +1980,7 @@
 7258: FC       ??
 7259: 02       ??
 725A: 10 03    BPL $725F
+
 725C: D3       ??
 725D: 02       ??
 725E: E7       ??
@@ -1977,6 +1991,7 @@
 7263: 03       ??
 7264: 23       ??
 7265: 03       ??
+
 7266: 00 01 02 INT $0201
 7269: FF       ??
 726A: 09 6A    ORA #$6A
@@ -1986,6 +2001,7 @@
 7271: 71 D0    ADC ($D0),Y
 7273: 16 A2    ASL $A2,X
 7275: 0F       ??
+
 7276: AC D4 B8 LDY $B8D4
 7279: D0 03    BNE $727E
 727B: 4C 9F 67 JMP $679F
@@ -2296,6 +2312,7 @@
 74E0: A4 69    LDY $69
 74E2: B0 E1    BCS $74C5
 74E4: 90 DE    BCC $74C4
+
 74E6: 20 57 6A JSR $6A57
 74E9: 4C D9 74 JMP $74D9
 
@@ -2368,7 +2385,7 @@
 7571: 8D 15 B8 STA $B815
 7574: A9 00    LDA #$00
 7576: 8D 10 B8 STA $B810
-7579: 20 8C 88 JSR $888C
+7579: 20 8C 88 JSR $888C ; CLS
 757C: 2C 4E B9 BIT $B94E
 757F: 10 0E    BPL $758F  ; branch if file size < 8KB
 
@@ -2379,7 +2396,7 @@
 758C: 20 7C 68 JSR $687C
 
 758F: 20 A6 72 JSR $72A6
-7592: 4C F1 60 JMP $60F1
+7592: 4C F1 60 JMP $60F1  ; start executing statements
 
 7595: A9 04    LDA #$04
 7597: 20 5F 67 JSR $675F
@@ -3202,6 +3219,7 @@
 7C79: A0 7C    LDY #$7C
 7C7B: 4C 2D 79 JMP $792D
 7C7E: 60       RTS
+
 7C7F: 3F       ??
 7C80: 45 58    EOR $58
 7C82: 54       ??
@@ -3373,10 +3391,10 @@
 
 ; convert integer to float
 7DCF: A2 00    LDX #$00
-7DD1: 8E 08 B8 STX $B808
-7DD4: 85 70    STA $70
-7DD6: 84 71    STY $71
-7DD8: A2 90    LDX #$90 ; exponent = #$90
+7DD1: 8E 08 B8 STX $B808  ; clear type flag
+7DD4: 85 70    STA $70  ; mantissa 1
+7DD6: 84 71    STY $71  ; mantissa 2
+7DD8: A2 90    LDX #$90 ; exponent = $90 (+16)
 7DDA: 4C 0D A2 JMP $A20D ; do ABS and normalize FAC1
 
 ; POS function
@@ -5034,6 +5052,7 @@
 8A7A: E6 5F    INC $5F
 8A7C: 86 6A    STX $6A
 8A7E: 60       RTS
+
 8A7F: 4F       ??
 8A80: 55 54    EOR $54,X
 8A82: 50 55    BVC $8AD9
@@ -5049,6 +5068,7 @@
 8A94: 66 C9    ROR $C9
 8A96: 41 F0    EOR ($F0,X)
 8A98: 03       ??
+
 8A99: 4C FB 89 JMP $89FB
 8A9C: 20 34 66 JSR $6634
 8A9F: C9 53    CMP #$53
@@ -5084,11 +5104,13 @@
 8ADE: 2C A2 01 BIT $01A2
 8AE1: 4C 9F 67 JMP $679F
 8AE4: 60       RTS
+
 8AE5: 00 00 3B INT $3B00
 8AE8: 8B       ??
 8AE9: A0 8B    LDY #$8B
 8AEB: 12       ??
 8AEC: 8C A9 8C STY $8CA9
+
 8AEF: A9 00    LDA #$00
 8AF1: 8D 00 B8 STA $B800
 8AF4: 0A       ASL
@@ -7305,6 +7327,7 @@
 9D68: 8D 60 B9 STA $B960
 9D6B: 20 5E B9 JSR $B95E
 9D6E: 4C 2F 7D JMP $7D2F
+
 9D71: 79 AF 9D ADC $9DAF,Y
 9D74: 79 98 9D ADC $9D98,Y
 9D77: 7B       ??
@@ -7422,13 +7445,13 @@
 9E37: 86 72    STX $72
 9E39: AE 0E B8 LDX $B80E
 9E3C: 86 73    STX $73
-9E3E: 8C 0E B8 STY $B80E ; clear rounding byte
-9E41: 69 08    ADC #$08 ; add 8 to exponent offset
-9E43: C9 20    CMP #$20
+9E3E: 8C 0E B8 STY $B80E ; clear extra mantissa
+9E41: 69 08    ADC #$08  ; add 8 to exponent offset
+9E43: C9 20    CMP #$20  ; shift at most 32 bits
 9E45: D0 E2    BNE $9E29
 
 9E47: A9 00    LDA #$00
-9E49: 85 6F    STA $6F  ; clear FAC1 component
+9E49: 85 6F    STA $6F  ; clear FAC1 exponent, set FAC1 to zero
 
 9E4B: 85 74    STA $74  ; set FAC1 sign
 9E4D: 60       RTS
@@ -7450,7 +7473,7 @@
 9E6A: 85 70    STA $70
 9E6C: 4C 89 9E JMP $9E89
 
-; bit-shift mantissa
+; left bit-shift mantissa
 9E6F: 69 01    ADC #$01
 9E71: 0E 0E B8 ASL $B80E
 9E74: 26 73    ROL $73
@@ -7460,12 +7483,12 @@
 
 9E7C: 10 F1    BPL $9E6F
 9E7E: 38       SEC
-9E7F: E5 6F    SBC $6F
-9E81: B0 C4    BCS $9E47
-9E83: 49 FF    EOR #$FF
+9E7F: E5 6F    SBC $6F  ; exponent offset - FAC1 exponent
+9E81: B0 C4    BCS $9E47 ; if exponent offset >= FAC1 exponent, set FAC1 to zero
+9E83: 49 FF    EOR #$FF  ; negate exponent diff
 9E85: 69 01    ADC #$01
-9E87: 85 6F    STA $6F
-9E89: 90 0F    BCC $9E9A
+9E87: 85 6F    STA $6F  ; FAC1 exponent = FAC1 exponent - exponent offset
+9E89: 90 0F    BCC $9E9A ; always branch ?
 
 ; normalize FAC1 for C=1
 9E8B: E6 6F    INC $6F ; increment exponent
@@ -7477,7 +7500,7 @@
 9E97: 6E 0E B8 ROR $B80E
 9E9A: 60       RTS
 
-; negate FAC1
+; negate FAC1  (negate sign, ~mantissa + 1)
 9E9B: A5 74    LDA $74
 9E9D: 49 FF    EOR #$FF
 9E9F: 85 74    STA $74
@@ -7577,36 +7600,16 @@
 9F5B: 18       CLC
 9F5C: 60       RTS
 
-; 1
-9F5D: .db $81, $00, $00, $00, $00
-
-9F62: 03       ??
-9F63: 7F       ??
-9F64: 5E 56 CB LSR $CB56,X
-9F67: 79 80 13 ADC $1380,Y
-9F6A: 9B       ??
-9F6B: 0B       ??
-9F6C: 64       ??
-9F6D: 80       ??
-9F6E: 76 38    ROR $38,X
-9F70: 93       ??
-9F71: 16 82    ASL $82,X
-9F73: 38       SEC
-9F74: AA       TAX
-9F75: 3B       ??
-9F76: 20
-
-; 0.5 * sqr(2)
-9F77: .db $80, $35, $04, $f3, $34
-
-; sqr(2)
-9F7C: .db $81, $35, $04, $f3, $34
-
-; -0.5
-9F81: .db $80, $80, $00, $00, $00
-
-; log(2)
-9F86: .db $80, $31, $72, $17, $f8
+9F5D: .db $81, $00, $00, $00, $00 ; 1
+9F62: .db $03                     ; series counter
+9F63: .db $7F, $5e, $56, $cb, $79 ; 0.434255942
+9F68: .db $80, $13, $9b, $0b, $64 ; 0.576584541
+9F6D: .db $80, $76, $38, $93, $16 ; 0.961800759
+9F72: .db $82, $38, $aa, $3b, $20 ; 2.88539007
+9F77: .db $80, $35, $04, $f3, $34 ; 1 / sqr(2)
+9F7C: .db $81, $35, $04, $f3, $34 ; sqr(2)
+9F81: .db $80, $80, $00, $00, $00 ; -0.5
+9F86: .db $80, $31, $72, $17, $f8 ; log(2)
 
 ; LOG function
 9F8B: 20 F4 A1 JSR $A1F4
@@ -7874,11 +7877,11 @@ A186: 85 6F    STA $6F
 A188: 8C 0E B8 STY $B80E
 A18B: 60       RTS
 
-; store float accum at $65-$69
+; store FAC1 at $65-$69
 A18C: A2 65    LDX #$65
 A18E: .DB $2c   ;   junk code: BIT $60A2
 
-; store float accum at $60-$64
+; store FAC1 at $60-$64
 A18F: A2 60    LDX #$60
 A191: A0 00    LDY #$00
 A193: F0 04    BEQ $A199
@@ -7886,7 +7889,7 @@ A193: F0 04    BEQ $A199
 A195: A6 5C    LDX $5C
 A197: A4 5D    LDY $5D
 
-; store FAC1 in index XY
+; store FAC1 into (X, Y)
 A199: 20 E3 A1 JSR $A1E3  ; round FAC1
 A19C: 86 44    STX $44
 A19E: 84 45    STY $45
@@ -7962,13 +7965,13 @@ A20B: A2 88    LDX #$88
 
 A20D: A5 70    LDA $70
 A20F: 49 FF    EOR #$FF
-A211: 2A       ROL     ; sign bit into C
-A212: A9 00    LDA #$00
+A211: 2A       ROL     ; sign bit into C (C=1 positive, C=0 negative)
+A212: A9 00    LDA #$00  ; clear mantissa 3 & 4
 A214: 85 73    STA $73
 A216: 85 72    STA $72
-A218: 86 6F    STX $6F
-A21A: 8D 0E B8 STA $B80E
-A21D: 85 74    STA $74
+A218: 86 6F    STX $6F  ; save exponent
+A21A: 8D 0E B8 STA $B80E ; clear extra mantissa
+A21D: 85 74    STA $74  ; clear sign
 A21F: 4C 20 9E JMP $9E20
 
 A222: A9 91    LDA #$91
@@ -8458,31 +8461,22 @@ A5B6: 99 99 B9 STA $B999,Y
 A5B9: A9 99    LDA #$99
 A5BB: A0 B9    LDY #$B9
 A5BD: 60       RTS
-A5BE: 80       ??
-A5BF: 00 00 00 INT $0000
-A5C2: 00 FA 0A INT $0AFA
-A5C5: 1F       ??
-A5C6: 00 00 98 INT $9800
-A5C9: 96 80    STX $80,Y
-A5CB: FF       ??
-A5CC: F0 BD    BEQ $A58B
-A5CE: C0 00    CPY #$00
-A5D0: 01 86    ORA ($86,X)
-A5D2: A0 FF    LDY #$FF
-A5D4: FF       ??
-A5D5: D8       CLD
-A5D6: F0 00    BEQ $A5D8
-A5D8: 00 03 E8 INT $E803
-A5DB: FF       ??
-A5DC: FF       ??
-A5DD: FF       ??
-A5DE: 9C       ??
-A5DF: 00 00 00 INT $0000
-A5E2: 0A       ASL
-A5E3: FF       ??
-A5E4: FF       ??
-A5E5: FF       ??
-A5E6: FF       ??
+
+; 0.5, first two bytes
+A5BE: .db $80, $00
+
+; null return for undefined variables
+A5C0: .db $00, $00, $00
+
+A5C3: .db $FA, $0A, $1F, $00  ; -100_000_000
+A5C7: .db $00, $98, $96, $80  ; +10_000_000
+A5CB: .db $FF, $F0, $bd, $c0  ; -1_000_000
+A5CF: .db $00, $01, $86, $a0  ; +100_000
+A5D3: .db $FF, $ff, $d8, $f0  ; -10_000
+A5D7: .db $00, $00, $03, $e8  ; +1_000
+A5DB: .db $FF, $ff, $ff, $9c  ; -100
+A5DF: .db $00, $00, $00, $0a  ; +10
+A5E3: .db $FF, $ff, $ff, $ff  ; -1
 
 ; SQR function
 A5E7: 20 D3 A1 JSR $A1D3
@@ -9318,6 +9312,7 @@ ACA8: 18       CLC
 ACA9: 60       RTS
 ACAA: 38       SEC
 ACAB: 60       RTS
+
 ACAC: 2E AA 2E ROL $2EAA
 ACAF: AA       TAX
 ACB0: 2E AA 2E ROL $2EAA
@@ -9473,109 +9468,18 @@ ADC2: 8D B0 03 STA $03B0
 ADC5: 00 19 C7 INT $C719
 ADC8: 60       RTS
 ADC9: 4C 6C AE JMP $AE6C
-ADCC: C0 19    CPY #$19
-ADCE: D4       ??
-ADCF: 19 E8 19 ORA $19E8,Y
-ADD2: FC       ??
-ADD3: 19 10 1A ORA $1A10,Y
-ADD6: 24 1A    BIT $1A
-ADD8: 38       SEC
-ADD9: 1A       ??
-ADDA: 4C 1A 60 JMP $601A
-ADDD: 1A       ??
-ADDE: 74       ??
-ADDF: 1A       ??
-ADE0: 88       DEY
-ADE1: 1A       ??
-ADE2: 9C       ??
-ADE3: 1A       ??
-ADE4: B0 1A    BCS $AE00
-ADE6: C4 1A    CPY $1A
-ADE8: D8       CLD
-ADE9: 1A       ??
-ADEA: EC 1A 00 CPX $001A
-ADED: 1B       ??
-ADEE: 14       ??
-ADEF: 1B       ??
-ADF0: 28       PLP
-ADF1: 1B       ??
-ADF2: 3C       ??
-ADF3: 1B       ??
-ADF4: 50 1B    BVC $AE11
-ADF6: 64       ??
-ADF7: 1B       ??
-ADF8: 78       SEI
-ADF9: 1B       ??
-ADFA: 8C 1B A0 STY $A01B
-ADFD: 1B       ??
-ADFE: B4 1B    LDY $1B,X
-AE00: C8       INY
-AE01: 1B       ??
-AE02: DC       ??
-AE03: 1B       ??
-AE04: F0 1B    BEQ $AE21
-AE06: 04       ??
-AE07: 1C       ??
-AE08: 18       CLC
-AE09: 1C       ??
-AE0A: 2C 1C 40 BIT $401C
-AE0D: 1C       ??
-AE0E: 54       ??
-AE0F: 1C       ??
-AE10: 68       PLA
-AE11: 1C       ??
-AE12: 7C       ??
-AE13: 1C       ??
-AE14: 90 1C    BCC $AE32
-AE16: A4 1C    LDY $1C
-AE18: B8       CLV
-AE19: 1C       ??
-AE1A: CC 1C E0 CPY $E01C
-AE1D: 1C       ??
-AE1E: F4       ??
-AE1F: 1C       ??
-AE20: 08       PHP
-AE21: 1D 1C 1D ORA $1D1C,X
-AE24: 30 1D    BMI $AE43
-AE26: 44       ??
-AE27: 1D 58 1D ORA $1D58,X
-AE2A: 6C 1D 80 JMP ($801D)
-AE2D: 1D 94 1D ORA $1D94,X
-AE30: A8       TAY
-AE31: 1D BC 1D ORA $1DBC,X
-AE34: D0 1D    BNE $AE53
-AE36: E4 1D    CPX $1D
-AE38: F8       SED
-AE39: 1D 0C 1E ORA $1E0C,X
-AE3C: 20 1E 34 JSR $341E
-AE3F: 1E 48 1E ASL $1E48,X
-AE42: 5C       ??
-AE43: 1E 70 1E ASL $1E70,X
-AE46: 84 1E    STY $1E
-AE48: 98       TYA
-AE49: 1E AC 1E ASL $1EAC,X
-AE4C: C0 1E    CPY #$1E
-AE4E: D4       ??
-AE4F: 1E E8 1E ASL $1EE8,X
-AE52: FC       ??
-AE53: 1E 10 1F ASL $1F10,X
-AE56: 24 1F    BIT $1F
-AE58: 38       SEC
-AE59: 1F       ??
-AE5A: 4C 1F 60 JMP $601F
-AE5D: 1F       ??
-AE5E: 74       ??
-AE5F: 1F       ??
-AE60: 88       DEY
-AE61: 1F       ??
-AE62: 9C       ??
-AE63: 1F       ??
-AE64: B0 1F    BCS $AE85
-AE66: C4 1F    CPY $1F
-AE68: D8       CLD
-AE69: 1F       ??
-AE6A: EC 1F A9 CPX $A91F
-AE6D: 00 85 65 INT $6585
+
+ADCC: .dw $19C0, $19d4, $19e8, $19fc, $1a10, $1a24, $1a38, $1a4c, $1a60, $1a74
+ADE0: .dw $1a88, $1a9c, $1ab0, $1ac4, $1ad8, $1aec, $1b00, $1b14, $1b28, $1b3c
+ADF4: .dw $1b50, $1b64, $1b78, $1b8c, $1ba0, $1bb4, $1bc8, $1bdc, $1bf0, $1c04
+AE08: .dw $1c18, $1c2c, $1c40, $1c54, $1c68, $1c7c, $1c90, $1ca4, $1cb8, $1ccc
+AE1C: .dw $1cE0, $1cf4, $1d08, $1d1c, $1d30, $1d44, $1d58, $1d6c, $1d80, $1d94
+AE30: .dw $1dA8, $1dbc, $1dd0, $1de4, $1df8, $1e0c, $1e20, $1e34, $1e48, $1e5c
+AE44: .dw $1e70, $1e84, $1e98, $1eac, $1ec0, $1ed4, $1ee8, $1efc, $1f10, $1f24
+AE58: .dw $1f38, $1f4c, $1f60, $1f74, $1f88, $1f9c, $1fb0, $1fc4, $1fd8, $1fec
+
+AE6C: A9 00    LDA #$00
+AE6D: 85 65    STA $65
 AE70: A5 65    LDA $65
 AE72: 0A       ASL
 AE73: AA       TAX
