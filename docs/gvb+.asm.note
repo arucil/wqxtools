@@ -15,6 +15,7 @@ subroutine:
     663A    read a character into A without incrementing ($5E, $5F), ignoring spaces
                 C = if A is not digit
     679D    out of memory error
+    684A    close all files opend by OPEN statements
     9B43    C = if A is uppercase
     9B4D    C = if A is not digit
     9B58    read an identifier and store it in space starting with $B8DB,
@@ -28,6 +29,7 @@ subroutine:
     A1E3    round FAC1
     A1D3    round FAC1 and then copy FAC1 into FAC2
                 A = exponent of FAC1
+    A23A    compare FAC1 with (A, Y)
     ACE2    clear screen and text buffer
     AD06    clear screen
 
@@ -48,11 +50,7 @@ data:
     $6F     exponent of FAC1 (float accumulator 1)
 
     $70-$73
-<<<<<<< HEAD
             mantissa of FAC1 (including assumed leading 1)
-=======
-            mantissa of FAC1 (including assuming bit)
->>>>>>> 01fddecde48380db0c46017fc53e0713f3985e96
 
     $74     sign of FAC1 (bit7)
 
@@ -69,6 +67,8 @@ data:
 
     $7D     sign of FAC1 xor sign of FAC2
 
+    $B94D  FAC1 overflow byte
+
     $B94E
             bit7   if .BAS file is greater than 8KB
 
@@ -78,7 +78,48 @@ data:
     $5E, $5F
             address of current character
 
+    $B8C9, $B8CA
+            starting address of variable table
+
+    $B8CF, $B8D0
+            
+
 TODO:
     数字字面量可以用空格分隔？
     AND、OR、NOT 是 bitwise？
     GOTO 10 NOT EXECUTED
+    FN 自变量可以是字符串 ?
+
+
+----------------------------------------------------
+$B98F, $B990  = $2000
+$B991, $B992  = $6000
+$B993, $B994  = $BD00
+$B995, $B996  = $BF00
+$B8D9 ~ $B92A = 0
+$B812    normal, inverse, ... ?
+$B804  = 0
+$B8D1, $B8D2  = $6000
+$B951, $B952  = first line number of current chunk of the .BAS file
+$B8C7, $B8C8  = end of .BAS chunk
+$B8CD, $B8CE  = end of .BAS chunk
+$B8CB, $B8CC  = end of .BAS chunk
+$B968  = 0
+$B8C4  = 0
+$B810  = 0
+$B92B ~ $B937  = 0
+$B8D4  = 0
+
+----------------------------------
+variable table
+entry:
+        byte0   bit7,bit6  = 11 int
+                           = 00 float
+                           = 01 str
+                           = 10 subscript / FOR / FN ??
+                bit0~bit3  variable length - 1
+        N bytes            variable name
+        data               if subscript / FOR / FN, 5 bytes
+                           if float, 5 bytes
+                           if str, 3 bytes
+                           if int, 2 bytes

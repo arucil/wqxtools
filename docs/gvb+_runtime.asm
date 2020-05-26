@@ -3,11 +3,13 @@
 6000: 4C 03 60 JMP $6003
 
 ; entry of BASIC runtime
+
+; clear icons
 6003: 8A       TXA
 6004: 48       PHA
 6005: A9 00    LDA #$00
 6007: A2 09    LDX #$09
-6009: 9D 88 03 STA $0388,X  ; clear icons
+6009: 9D 88 03 STA $0388,X
 600C: CA       DEX
 600D: D0 FA    BNE $6009
 600F: 68       PLA
@@ -81,12 +83,12 @@
 607F: 8E 15 B8 STX $B815
 6082: A2 F8    LDX #$F8
 6084: 9A       TXS
-6085: 20 4A 86 JSR $864A ; clear $B812
+6085: 20 4A 86 JSR $864A ; set $B812 to 0 (NORMAL text mode)
 6088: A9 4C    LDA #$4C
 608A: 8D 5E B9 STA $B95E ; store JMP in $B95E
 608D: A2 00    LDX #$00
 608F: 8E 11 B8 STX $B811 ; clear TRACE flag
-6092: 8E 4D B9 STX $B94D
+6092: 8E 4D B9 STX $B94D ; clear FAC1 overflow byte
 6095: 86 48    STX $48
 6097: 8A       TXA
 6098: 48       PHA
@@ -183,7 +185,7 @@
 615C: 20 2C 72 JSR $722C
 615F: 20 4A 6E JSR $6E4A
 6162: A9 00    LDA #$00
-6164: 8D B4 03 STA $03B4
+6164: 8D B4 03 STA $03B4  ; caret x = 0
 6167: A9 7E    LDA #$7E
 6169: 20 E3 79 JSR $79E3
 616C: AE 14 B8 LDX $B814
@@ -319,15 +321,15 @@
 6259: .dw $a805 ; atn
 625B: .dw $8629 ; peek
 625D: .dw $85A4 ; len
-625F: .dw $7eAE ; 
-6261: .dw $85d6 ; 
+625F: .dw $7eAE ; str$
+6261: .dw $85d6 ; val
 6263: .dw $85b4 ; asc
-6265: .dw $94B8 ;
-6267: .dw $94D3 ;
-6269: .dw $94FD ;
-626B: .dw $951F ;
-626D: .dw $9548 ;
-626F: .dw $958B ;
+6265: .dw $94B8 ; mks$
+6267: .dw $94D3 ; mki$
+6269: .dw $94FD ; cvs$
+626B: .dw $951F ; cvi$
+626D: .dw $9548 ; lof
+626F: .dw $958B ; eof
 6271: .dw $8512 ; chr$
 6273: .dw $8526 ; left$
 6275: .dw $8552 ; right$
@@ -345,13 +347,13 @@
 6292: .db $52, $45, $41, $c4 ; read
 6296: .db $53, $57, $41, $d0 ; swap
 629A: .db $54, $52, $41, $43, $c5 ; trace
-629F: .db $4E, $4f, $54, $52, $41, $43, $c5 ; notrace
+629F: .db $4E, $4f, $54, $52, $41, $43, $c5 ; notrace  $8A
 62A6: .db $50, $4f, $d0 ; pop
 62A9: .db $4C, $45, $d4 ; let
 62AC: .db $47, $4f, $54, $cf ; goto
 62B0: .db $52, $55, $ce ; run
 62B3: .db $49, $C6 ; if
-62B5: .db $52, $45, $53, $54, $4f, $52, $c5 ; restore
+62B5: .db $52, $45, $53, $54, $4f, $52, $c5 ; restore  $90
 62BC: .db gosub
 62C1: .db return
 62C7: .db rem
@@ -367,7 +369,7 @@
 62EC: .db text
 62F0: .db graph
 62F5: .db system
-62F6: .db normal
+62F6: .db normal  ; $A0
 6301: .db inverse
 6308: .db flash
 630D: .db play
@@ -383,7 +385,7 @@
 633A: .db field
 633F: .db get
 6342: .db put
-6345: .db lset
+6345: .db lset  ; $B0
 6349: .db rset
 634D: .db auto
 6351: .db locate
@@ -399,7 +401,8 @@
 637F: .db call
 6383: .db rename
 6389: .db copy
-638D: .db tab
+
+638D: .db tab  ; $C0
 6390: .db to
 6392: .db fn
 6394: .db spc
@@ -415,7 +418,7 @@
 63AC: .db ^
 63AD: .db and
 63B0: .db or
-63B2: .db >
+63B2: .db >    ; $D0
 63B3: .db =
 63B4: .db <
 63B5: .db sgn
@@ -431,7 +434,7 @@
 63D3: .db tan
 63D6: .db atn
 63D9: .db peek
-63DD: .db len
+63DD: .db len  ; $E0
 63E0: .db str$
 63E4: .db val
 63E7: .db asc
@@ -496,7 +499,7 @@
 
 662E: .db "break", $00
 
-; increment ($5E,$5F) and read character code into A
+; increment ($5E,$5F) and read character code into A, ignoring spaces
 ; return: C = if A is not digit
 6634: E6 5E    INC $5E
 6636: D0 02    BNE $663A
@@ -611,6 +614,7 @@
 6716: AA       TAX
 6717: D0 C4    BNE $66DD
 6719: 60       RTS
+
 671A: 20 6C 67 JSR $676C
 671D: 8D CB B8 STA $B8CB
 6720: 8C CC B8 STY $B8CC
@@ -688,6 +692,7 @@
 679A: B0 01    BCS $679D
 679C: 60       RTS
 
+; out of memory error
 679D: A2 06    LDX #$06
 
 ; 报告运行时错误, X=错误码
@@ -762,6 +767,7 @@
 6844: 00 06 C0 INT $C006
 6847: 4C 32 88 JMP $8832
 
+; close all files opened by OPEN statement
 684A: A9 00    LDA #$00
 684C: 8D 01 B8 STA $B801
 684F: 0A       ASL
@@ -2026,9 +2032,9 @@
 72A6: 20 EE 72 JSR $72EE  ; decrement $54,$55
 72A9: A9 00    LDA #$00
 72AB: 8D 68 B9 STA $B968
-72AE: D0 1B    BNE $72CB
+72AE: D0 1B    BNE $72CB  ; never branches
 
-72B0: 20 4A 68 JSR $684A
+72B0: 20 4A 68 JSR $684A  ; close all files opened by OPEN
 72B3: 20 CC 72 JSR $72CC
 72B6: A2 49    LDX #$49
 72B8: 86 42    STX $42
@@ -2069,6 +2075,7 @@
 72FB: 60       RTS
 
 72FC: 4C 42 77 JMP $7742
+
 72FF: AE C6 B8 LDX $B8C6
 7302: 48       PHA
 7303: 68       PLA
@@ -2076,13 +2083,16 @@
 7306: E0 5D    CPX #$5D
 7308: 90 06    BCC $7310
 730A: 60       RTS
+
 730B: E0 5E    CPX #$5E
 730D: 90 01    BCC $7310
 730F: 60       RTS
+
 7310: 9D 58 B8 STA $B858,X
 7313: EE C6 B8 INC $B8C6
 7316: EE C3 B8 INC $B8C3
 7319: 60       RTS
+
 731A: AE C6 B8 LDX $B8C6
 731D: 9D 99 B9 STA $B999,X
 7320: EE C6 B8 INC $B8C6
@@ -2214,7 +2224,7 @@
 ; FOR statement
 7423: A9 80    LDA #$80
 7425: 8D 0B B8 STA $B80B
-7428: 20 BC 77 JSR $77BC
+7428: 20 BC 77 JSR $77BC  ; assignment
 742B: 20 D8 66 JSR $66D8
 742E: D0 05    BNE $7435
 7430: 8A       TXA
@@ -2381,6 +2391,7 @@
 756B: 8C 15 B8 STY $B815
 756E: 60       RTS
 
+; RUN statement
 756F: A9 00    LDA #$00
 7571: 8D 15 B8 STA $B815
 7574: A9 00    LDA #$00
@@ -2682,23 +2693,23 @@
 77B9: 4C 7E 77 JMP $777E
 
 ; assignment statement
-77BC: 20 D8 96 JSR $96D8
+77BC: 20 D8 96 JSR $96D8 ; read variable name, store its data address into $58, $59 and A, Y
 77BF: 85 5C    STA $5C
 77C1: 84 5D    STY $5D
 77C3: A9 D1    LDA #$D1
-77C5: 20 F4 9C JSR $9CF4
+77C5: 20 F4 9C JSR $9CF4  ; assert current character is '=' token and read a character
 77C8: AD 09 B8 LDA $B809
 77CB: 48       PHA
 77CC: AD 08 B8 LDA $B808
 77CF: 48       PHA
-77D0: 20 7A 9B JSR $9B7A
+77D0: 20 7A 9B JSR $9B7A  ; evaluate expression
 77D3: 68       PLA
 77D4: 2A       ROL
-77D5: 20 32 7D JSR $7D32
-77D8: D0 18    BNE $77F2
+77D5: 20 32 7D JSR $7D32  ; check type match
+77D8: D0 18    BNE $77F2  ; branch if string
 77DA: 68       PLA
-77DB: 10 12    BPL $77EF
-77DD: 20 E3 A1 JSR $A1E3
+77DB: 10 12    BPL $77EF  ; branch if float
+77DD: 20 E3 A1 JSR $A1E3  ; round FAC1
 77E0: 20 AC 98 JSR $98AC
 77E3: A0 00    LDY #$00
 77E5: A5 72    LDA $72
@@ -2707,7 +2718,9 @@
 77EA: A5 73    LDA $73
 77EC: 91 5C    STA ($5C),Y
 77EE: 60       RTS
+
 77EF: 4C 95 A1 JMP $A195
+
 77F2: 68       PLA
 77F3: A0 02    LDY #$02
 77F5: B1 72    LDA ($72),Y
@@ -2728,6 +2741,7 @@
 7816: A5 72    LDA $72
 7818: A4 73    LDY $73
 781A: 4C 33 78 JMP $7833
+
 781D: A0 00    LDY #$00
 781F: B1 72    LDA ($72),Y
 7821: 20 BE 7E JSR $7EBE
@@ -2926,7 +2940,9 @@
 79DD: 60       RTS
 79DE: A9 20    LDA #$20
 79E0: 2C A9 3F BIT $3FA9
+
 79E3: 4C E8 79 JMP $79E8
+
 79E6: 29 7F    AND #$7F
 79E8: 20 FF 72 JSR $72FF
 79EB: 60       RTS
@@ -3309,13 +3325,16 @@
 7D2C: 20 7A 9B JSR $9B7A
 7D2F: 18       CLC
 7D30: 24 38    BIT $38
+
 7D32: 2C 08 B8 BIT $B808
 7D35: 30 03    BMI $7D3A
 7D37: B0 03    BCS $7D3C
 7D39: 60       RTS
+
 7D3A: B0 FD    BCS $7D39
-7D3C: A2 0C    LDX #$0C
+7D3C: A2 0C    LDX #$0C  ; type mismatch error
 7D3E: 4C 9F 67 JMP $679F
+
 7D41: A5 77    LDA $77
 7D43: 05 6F    ORA $6F
 7D45: D0 0B    BNE $7D52
@@ -3436,6 +3455,7 @@
 7E22: 48       PHA
 7E23: 20 60 76 JSR $7660
 7E26: 4C 98 7E JMP $7E98
+
 7E29: A9 C2    LDA #$C2
 7E2B: 20 F4 9C JSR $9CF4
 7E2E: 09 80    ORA #$80
@@ -3525,6 +3545,7 @@
 7EC0: A4 73    LDY $73
 7EC2: 86 6C    STX $6C
 7EC4: 84 6D    STY $6D
+
 7EC6: 20 38 7F JSR $7F38
 7EC9: 86 70    STX $70
 7ECB: 84 71    STY $71
@@ -3585,6 +3606,7 @@
 7F34: E8       INX
 7F35: 86 42    STX $42
 7F37: 60       RTS
+
 7F38: 4E 0A B8 LSR $B80A
 7F3B: 48       PHA
 7F3C: 49 FF    EOR #$FF
@@ -4319,6 +4341,7 @@
 84EB: 86 44    STX $44
 84ED: 84 45    STY $45
 84EF: 60       RTS
+
 84F0: C4 48    CPY $48
 84F2: D0 0C    BNE $8500
 84F4: C5 43    CMP $43
@@ -4328,6 +4351,7 @@
 84FC: 85 43    STA $43
 84FE: A0 00    LDY #$00
 8500: 60       RTS
+
 8501: 00 06 C0 INT $C006
 8504: 48       PHA
 8505: A9 01    LDA #$01
@@ -4521,6 +4545,7 @@
 8646: 6E 11 B8 ROR $B811
 8649: 60       RTS
 
+; NORMAL statement
 864A: A9 00    LDA #$00
 864C: F0 11    BEQ $865F
 
@@ -4809,7 +4834,7 @@
 8897: 8D B5 03 STA $03B5  ; caret y
 889A: A9 00    LDA #$00
 889C: A0 0C    LDY #$0C
-889E: 99 2B B9 STA $B92B,Y
+889E: 99 2B B9 STA $B92B,Y  ; clear $B92B-$B937
 88A1: 88       DEY
 88A2: 10 FA    BPL $889E
 88A4: 60       RTS
@@ -4905,7 +4930,7 @@
 8952: 90 03    BCC $8957
 8954: 4C B2 89 JMP $89B2
 
-; if length of .BAS file does not exceed 8KB, read entire file to $2000
+; if length of .BAS file is less than 8KB, read entire file to $2000
 8957: 18       CLC
 8958: AD FB 08 LDA $08FB
 895B: 69 00    ADC #$00
@@ -6460,7 +6485,8 @@
 96D2: 4C 42 77 JMP $7742
 96D5: 4C 42 77 JMP $7742
 
-; get name and pointer to a variable
+; get name and pointer to a variable.
+; pointer to variable data in $58, $59 and A, Y
 96D8: A2 00    LDX #$00
 96DA: 8A       TXA
 
@@ -6480,7 +6506,7 @@
 96FA: 8C 09 B8 STY $B809  ; clear number type to float
 96FD: 20 58 9B JSR $9B58  ; read an identifier
 9700: 88       DEY
-9701: 98       TYA
+9701: 98       TYA        ; A = length of identifier
 9702: 88       DEY
 9703: 84 59    STY $59    ; $59 = index of last character of identifier
 9705: 18       CLC
@@ -6505,7 +6531,8 @@
 9725: D0 10    BNE $9737
 9727: AD 0B B8 LDA $B80B
 972A: 10 03    BPL $972F
-972C: 4C FD 9C JMP $9CFD  ; syntax error
+972C: 4C FD 9C JMP $9CFD  ; integer variable is not allowed in subscript, FOR or FN,
+                          ; report syntax error
 
 972F: A9 80    LDA #$80
 9731: 8D 09 B8 STA $B809  ; set integer type flag
@@ -6543,6 +6570,7 @@
 976F: CD CE B8 CMP $B8CE
 9772: F0 65    BEQ $97D9
 
+; search in variable table
 9774: A2 07    LDX #$07
 9776: 8E 02 B8 STX $B802
 9779: B1 68    LDA ($68),Y
@@ -6555,19 +6583,23 @@
 9788: E8       INX
 9789: D0 3A    BNE $97C5
 978B: F0 1F    BEQ $97AC
+
 978D: A2 04    LDX #$04
 978F: 8E 02 B8 STX $B802
 9792: AE 09 B8 LDX $B809
 9795: 10 2E    BPL $97C5
 9797: 30 13    BMI $97AC
+
 9799: B0 0C    BCS $97A7
 979B: AE 08 B8 LDX $B808
 979E: D0 25    BNE $97C5
 97A0: AE 09 B8 LDX $B809
 97A3: 30 20    BMI $97C5
 97A5: 10 05    BPL $97AC
+
 97A7: AE 0B B8 LDX $B80B
 97AA: 10 19    BPL $97C5
+
 97AC: B1 68    LDA ($68),Y
 97AE: 29 0F    AND #$0F
 97B0: 85 58    STA $58
@@ -6580,17 +6612,22 @@
 97BD: D0 06    BNE $97C5
 97BF: CA       DEX
 97C0: 10 F5    BPL $97B7
-97C2: 4C 63 98 JMP $9863
+97C2: 4C 63 98 JMP $9863  ; found the variable
+
+; continue searching
 97C5: A0 00    LDY #$00
 97C7: B1 68    LDA ($68),Y
 97C9: 29 0F    AND #$0F
 97CB: 85 58    STA $58
+
 97CD: 18       CLC
 97CE: 6D 02 B8 ADC $B802
 97D1: 65 68    ADC $68
 97D3: 90 8F    BCC $9764
 97D5: E6 69    INC $69
 97D7: D0 8B    BNE $9764
+
+; variable not found, allocate one
 97D9: A4 59    LDY $59
 97DB: 84 58    STY $58
 97DD: C8       INY
@@ -6655,6 +6692,7 @@
 985D: C8       INY
 985E: CC 02 B8 CPY $B802
 9861: 90 F8    BCC $985B
+
 9863: A6 58    LDX $58
 9865: E8       INX
 9866: E8       INX
@@ -6673,6 +6711,7 @@
 987E: A2 00    LDX #$00
 9880: 8E 0B B8 STX $B80B
 9883: 60       RTS
+
 9884: A5 58    LDA $58
 9886: 18       CLC
 9887: 69 05    ADC #$05
@@ -6687,19 +6726,21 @@
 9898: 85 61    STA $61
 989A: 84 62    STY $62
 989C: 60       RTS
-989D: 90 80    BCC $981F
-989F: 00 00 00 INT $0000
+
+989D: .db $90, $80, $00, $00, $00  ; -32768
 
 98A2: 20 34 66 JSR $6634  ; read a character
 98A5: 20 2C 7D JSR $7D2C
 98A8: A5 74    LDA $74
 98AA: 30 0D    BMI $98B9
+
 98AC: A5 6F    LDA $6F
 98AE: C9 90    CMP #$90
-98B0: 90 0C    BCC $98BE
+98B0: 90 0C    BCC $98BE  ; branches if exponent < +16
+; if exponent >= 16, then only -32768 can be stored in an integer variable.
 98B2: A9 9D    LDA #$9D
 98B4: A0 98    LDY #$98
-98B6: 20 3A A2 JSR $A23A
+98B6: 20 3A A2 JSR $A23A  ; compare FAC1 with A, Y (-32768)
 98B9: F0 03    BEQ $98BE
 98BB: 4C 99 99 JMP $9999
 98BE: 4C 7B A2 JMP $A27B
@@ -7053,7 +7094,7 @@
 9B57: 60       RTS
 
 ; read an identifier and store it in $B8DB...
-; Y = length of identifier
+; Y = length of identifier + 1
 ; ($5E, $5F) = address before identifier
 9B58: A0 00    LDY #$00
 9B5A: A5 5E    LDA $5E
@@ -7075,6 +7116,7 @@
 9B77: B0 EC    BCS $9B65  ; branch if A is uppercase letter
 9B79: 60       RTS
 
+; evaluate expression
 9B7A: A6 5E    LDX $5E
 9B7C: D0 02    BNE $9B80
 9B7E: C6 5F    DEC $5F
@@ -7428,7 +7470,7 @@
 9E1E: 85 70    STA $70
 
 9E20: B0 03    BCS $9E25 ; branch if positive
-9E22: 20 9B 9E JSR $9E9B ; negate FAC1
+9E22: 20 9B 9E JSR $9E9B ; negate mantissa
 
 9E25: A0 00    LDY #$00
 9E27: 98       TYA
@@ -7490,7 +7532,7 @@
 9E87: 85 6F    STA $6F  ; FAC1 exponent = FAC1 exponent - exponent offset
 9E89: 90 0F    BCC $9E9A ; always branch ?
 
-; normalize FAC1 for C=1
+; right bit shift mantissa of FAC1 for C=1
 9E8B: E6 6F    INC $6F ; increment exponent
 9E8D: F0 46    BEQ $9ED5 ; if exponent is zero, overflow error
 9E8F: 66 70    ROR $70
@@ -7500,10 +7542,12 @@
 9E97: 6E 0E B8 ROR $B80E
 9E9A: 60       RTS
 
-; negate FAC1  (negate sign, ~mantissa + 1)
+; negate mantissa and sign  (negate sign, ~mantissa + 1)
 9E9B: A5 74    LDA $74
 9E9D: 49 FF    EOR #$FF
 9E9F: 85 74    STA $74
+
+; negate mantissa (~mantissa + 1)
 9EA1: A5 70    LDA $70
 9EA3: 49 FF    EOR #$FF
 9EA5: 85 70    STA $70
@@ -7566,6 +7610,7 @@
 9F1F: D0 E5    BNE $9F06
 9F21: 18       CLC
 9F22: 60       RTS
+
 9F23: B4 04    LDY $04,X
 9F25: 8C 0E B8 STY $B80E
 9F28: B4 03    LDY $03,X
@@ -7576,6 +7621,7 @@
 9F32: 94 02    STY $02,X
 9F34: AC 4D B9 LDY $B94D
 9F37: 94 01    STY $01,X
+
 9F39: 69 08    ADC #$08
 9F3B: 30 E6    BMI $9F23
 9F3D: F0 E4    BEQ $9F23
@@ -7597,6 +7643,7 @@
 9F57: 6A       ROR         ; shift extra mantissa
 9F58: C8       INY
 9F59: D0 EC    BNE $9F47
+
 9F5B: 18       CLC
 9F5C: 60       RTS
 
@@ -7942,7 +7989,7 @@ A1E7: 0E 0E B8 ASL $B80E
 A1EA: 90 F6    BCC $A1E2 ; exit if no overflow
 A1EC: 20 C6 9E JSR $9EC6 ; increment mantissa
 A1EF: D0 F1    BNE $A1E2 ; exit if no overflow
-A1F1: 4C 8B 9E JMP $9E8B
+A1F1: 4C 8B 9E JMP $9E8B ; right bit shift mantissa
 
 ; get sign of FAC1 in A
 A1F4: A5 6F    LDA $6F
@@ -7961,7 +8008,7 @@ A202: 20 F4 A1 JSR $A1F4
 A205: 85 70    STA $70
 A207: A9 00    LDA #$00
 A209: 85 71    STA $71
-A20B: A2 88    LDX #$88
+A20B: A2 88    LDX #$88  ; exponent = +8
 
 A20D: A5 70    LDA $70
 A20F: 49 FF    EOR #$FF
@@ -7989,7 +8036,7 @@ A234: 4C 25 9E JMP $9E25
 A237: 46 74    LSR $74 ; clear FAC1 sign
 A239: 60       RTS
 
-; compare FAC1 to float indexed by AY
+; compare FAC1 with float indexed by AY
 A23A: 85 46    STA $46
 A23C: 84 47    STY $47
 A23E: A0 00    LDY #$00
@@ -8031,25 +8078,27 @@ A27D: F0 4F    BEQ $A2CE
 A27F: 38       SEC
 A280: E9 A0    SBC #$A0
 A282: 24 74    BIT $74
-A284: 10 0A    BPL $A290
+A284: 10 0A    BPL $A290  ; branch if FAC1 is positive
 A286: AA       TAX
 A287: A9 FF    LDA #$FF
 A289: 8D 4D B9 STA $B94D
-A28C: 20 A1 9E JSR $9EA1
+A28C: 20 A1 9E JSR $9EA1  ; negate mantissa
 A28F: 8A       TXA
+
 A290: A2 6F    LDX #$6F
 A292: C9 F9    CMP #$F9
 A294: 10 07    BPL $A29D
 A296: 20 39 9F JSR $9F39
 A299: 8C 4D B9 STY $B94D
 A29C: 60       RTS
+
 A29D: A8       TAY
 A29E: A5 74    LDA $74
 A2A0: 29 80    AND #$80
 A2A2: 46 70    LSR $70
 A2A4: 05 70    ORA $70
 A2A6: 85 70    STA $70
-A2A8: 20 51 9F JSR $9F51
+A2A8: 20 51 9F JSR $9F51 ; right bit shift mantissa 2, 3, 4
 A2AB: 8C 4D B9 STY $B94D
 A2AE: 60       RTS
 
@@ -9447,6 +9496,7 @@ AD93: E8       INX
 AD94: EC 02 B8 CPX $B802
 AD97: 90 C9    BCC $AD62
 AD99: 60       RTS
+
 AD9A: A0 0C    LDY #$0C
 AD9C: B9 2B B9 LDA $B92B,Y
 AD9F: 99 96 03 STA $0396,Y
