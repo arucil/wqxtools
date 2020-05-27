@@ -139,6 +139,7 @@
 6105: 8D D3 B8 STA $B8D3
 6108: 8C D4 B8 STY $B8D4
 
+; assert the current token is ':' or $00
 610B: A0 00    LDY #$00
 610D: B1 5E    LDA ($5E),Y
 610F: F0 03    BEQ $6114 ; a #$00 means a new line is reached.
@@ -213,7 +214,7 @@
 619F: D0 03    BNE $61A4
 61A1: 4C 29 75 JMP $7529
 
-; if character code in A is not zero, execute statement
+; if token in A is not $00, execute statement
 61A4: D0 01    BNE $61A7
 61A6: 60       RTS
 
@@ -350,7 +351,7 @@
 629F: .db $4E, $4f, $54, $52, $41, $43, $c5 ; notrace  $8A
 62A6: .db $50, $4f, $d0 ; pop
 62A9: .db $4C, $45, $d4 ; let
-62AC: .db $47, $4f, $54, $cf ; goto
+62AC: .db $47, $4f, $54, $cf ; goto  $8D
 62B0: .db $52, $55, $ce ; run
 62B3: .db $49, $C6 ; if
 62B5: .db $52, $45, $53, $54, $4f, $52, $c5 ; restore  $90
@@ -501,6 +502,7 @@
 
 ; increment ($5E,$5F) and read character code into A, ignoring spaces
 ; return: C = if A is not digit
+;         Z = if A is $00 or ':'
 6634: E6 5E    INC $5E
 6636: D0 02    BNE $663A
 6638: E6 5F    INC $5F
@@ -577,29 +579,33 @@
 66D3: .db $80, $4f, $c7, $52, $58
 
 ; search for `for` blocks on stack
+; X = stack pointer of the FOR item
 66D8: BA       TSX
 66D9: E8       INX
 66DA: E8       INX
 66DB: E8       INX
 66DC: E8       INX
 66DD: BD 01 01 LDA $0101,X
-66E0: C9 81    CMP #$81
+66E0: C9 81    CMP #$81    ; for
 66E2: F0 14    BEQ $66F8
-66E4: C9 BB    CMP #$BB
+66E4: C9 BB    CMP #$BB    ; while
 66E6: F0 04    BEQ $66EC
-66E8: C9 91    CMP #$91
+66E8: C9 91    CMP #$91    ; gosub
 66EA: D0 2D    BNE $6719
 66EC: 8A       TXA
 66ED: 18       CLC
-66EE: 69 07    ADC #$07
+66EE: 69 07    ADC #$07  ; a WHILE stack item is of 7 bytes
 66F0: 90 03    BCC $66F5
 66F2: A9 01    LDA #$01
 66F4: 60       RTS
+
 66F5: AA       TAX
-66F6: D0 E5    BNE $66DD
+66F6: D0 E5    BNE $66DD  ; always branch
+
 66F8: A5 5D    LDA $5D
 66FA: D0 0A    BNE $6706
-66FC: BD 03 01 LDA $0103,X
+66FC: BD 03 01 LDA $0103,X  ; if no variable follows NEXT, get the variable
+                            ; in FOR stack item
 66FF: 85 5C    STA $5C
 6701: BD 02 01 LDA $0102,X
 6704: 85 5D    STA $5D
@@ -607,10 +613,10 @@
 6709: D0 07    BNE $6712
 670B: A5 5C    LDA $5C
 670D: DD 03 01 CMP $0103,X
-6710: F0 07    BEQ $6719
+6710: F0 07    BEQ $6719  ; if loop variable is the same, previous FOR loop is found
 6712: 8A       TXA
 6713: 18       CLC
-6714: 69 14    ADC #$14
+6714: 69 14    ADC #$14  ; a FOR stack items is of 20 bytes
 6716: AA       TAX
 6717: D0 C4    BNE $66DD
 6719: 60       RTS
@@ -654,7 +660,7 @@
 675C: D0 F2    BNE $6750
 675E: 60       RTS
 
-; check out of memory error ?
+; check out of memory error
 675F: 0A       ASL
 6760: 69 36    ADC #$36
 6762: B0 39    BCS $679D
@@ -1014,6 +1020,9 @@
 
 6A0A: A5 54    LDA $54
 6A0C: A6 55    LDX $55
+
+; find line number
+; C = if line number is found
 6A0E: 85 68    STA $68
 6A10: 86 69    STX $69
 6A12: A5 41    LDA $41
@@ -1117,6 +1126,9 @@
 6AD2: 20 57 66 JSR $6657
 6AD5: 20 7C 68 JSR $687C
 6AD8: 4C 0A 6A JMP $6A0A
+
+; increment ($5E, $5F), read a character (space is not ignored)
+; C = if A is not digit
 6ADB: E6 5E    INC $5E
 6ADD: D0 02    BNE $6AE1
 6ADF: E6 5F    INC $5F
@@ -1131,6 +1143,7 @@
 6AF0: 38       SEC
 6AF1: E9 D0    SBC #$D0
 6AF3: 60       RTS
+
 6AF4: 20 2C 72 JSR $722C
 6AF7: 20 37 6D JSR $6D37
 6AFA: AD B5 03 LDA $03B5
@@ -1508,13 +1521,17 @@
 6E66: BD 53 72 LDA $7253,X
 6E69: 85 70    STA $70
 6E6B: 60       RTS
+
 6E6C: AD 47 04 LDA $0447
-6E6F: C9 02    CMP #$02
+6E6F: C9 02    CMP #$02   ; check if is pinyin input mode, if so,
+                          ; when caret y reaches 4, the text buffer must be
+                          ; scrolled
 6E71: 90 E9    BCC $6E5C
 6E73: 20 00 71 JSR $7100
 6E76: 20 BA 71 JSR $71BA
 6E79: CE B5 03 DEC $03B5
 6E7C: 4C 5C 6E JMP $6E5C
+
 6E7F: 20 2C 6F JSR $6F2C
 6E82: 18       CLC
 6E83: 6D C3 B8 ADC $B8C3
@@ -1649,6 +1666,7 @@
 6FB5: 4C C9 6F JMP $6FC9
 6FB8: AD C2 B8 LDA $B8C2
 6FBB: 8D 01 B8 STA $B801
+
 6FBE: A9 58    LDA #$58
 6FC0: 85 60    STA $60
 6FC2: A9 B8    LDA #$B8
@@ -1810,6 +1828,7 @@
 70FB: 90 02    BCC $70FF
 70FD: E6 70    INC $70
 70FF: 60       RTS
+
 7100: A9 50    LDA #$50
 7102: E0 05    CPX #$05
 7104: F0 02    BEQ $7108
@@ -1826,11 +1845,14 @@
 711F: F0 03    BEQ $7124
 7121: 20 32 71 JSR $7132
 7124: 60       RTS
+
 7125: AD 02 B8 LDA $B802
 7128: C9 3C    CMP #$3C
 712A: D0 03    BNE $712F
 712C: 4C EB AC JMP $ACEB
+
 712F: 4C F2 AC JMP $ACF2
+
 7132: A9 30    LDA #$30
 7134: AE 02 B8 LDX $B802
 7137: E0 3C    CPX #$3C
@@ -1838,6 +1860,7 @@
 713B: A9 40    LDA #$40
 713D: 20 5D AD JSR $AD5D
 7140: 60       RTS
+
 7141: AA       TAX
 7142: A0 00    LDY #$00
 7144: A5 6F    LDA $6F
@@ -1978,14 +2001,7 @@
 724F: 49 20    EOR #$20
 7251: 60       RTS
 
-7252: C0 02    CPY #$02
-7254: D4       ??
-7255: 02       ??
-7256: E8       INX
-7257: 02       ??
-7258: FC       ??
-7259: 02       ??
-725A: 10 03    BPL $725F
+7252: .dw $02C0, $02d4, $02e8, $02fc, $0310
 
 725C: D3       ??
 725D: 02       ??
@@ -2225,17 +2241,18 @@
 7423: A9 80    LDA #$80
 7425: 8D 0B B8 STA $B80B
 7428: 20 BC 77 JSR $77BC  ; assignment
-742B: 20 D8 66 JSR $66D8
-742E: D0 05    BNE $7435
+742B: 20 D8 66 JSR $66D8  ; find `for` block on stack
+742E: D0 05    BNE $7435  ; branch if not found
 7430: 8A       TXA
 7431: 69 11    ADC #$11
 7433: AA       TAX
-7434: 9A       TXS
+7434: 9A       TXS  ; pop the existing identical FOR loop, and all WHILE loops and
+                    ; GOSUBs above it.
 7435: 68       PLA
 7436: 68       PLA
 7437: A9 0A    LDA #$0A
-7439: 20 5F 67 JSR $675F
-743C: 20 76 76 JSR $7676
+7439: 20 5F 67 JSR $675F  ; check out of memory error
+743C: 20 76 76 JSR $7676  ; Y = offset of next unquoted ':' or $00
 743F: AD 55 B9 LDA $B955
 7442: 48       PHA
 7443: AD 56 B9 LDA $B956
@@ -2252,35 +2269,38 @@
 7455: AD 15 B8 LDA $B815
 7458: 48       PHA
 7459: A9 C1    LDA #$C1
-745B: 20 F4 9C JSR $9CF4
-745E: 20 2F 7D JSR $7D2F
-7461: 20 2C 7D JSR $7D2C
+745B: 20 F4 9C JSR $9CF4  ; assert token 'to'
+745E: 20 2F 7D JSR $7D2F  ; assert variable is number (always float)
+7461: 20 2C 7D JSR $7D2C  ; evaluate expression and assert result is number
+                          ; (float or int)
 7464: A5 74    LDA $74
 7466: 09 7F    ORA #$7F
 7468: 25 70    AND $70
 746A: 85 70    STA $70
-746C: A9 77    LDA #$77 ; low 8477
-746E: A0 74    LDY #$74 ; high 8477
+746C: A9 77    LDA #$77
+746E: A0 74    LDY #$74
 7470: 85 44    STA $44
 7472: 84 45    STY $45
 7474: 4C 40 9C JMP $9C40
 
 7477: A9 5D    LDA #$5D
 7479: A0 9F    LDY #$9F
-747B: 20 66 A1 JSR $A166
-747E: 20 3A 66 JSR $663A
+747B: 20 66 A1 JSR $A166  ; load 1 into FAC1
+747E: 20 3A 66 JSR $663A  ; read a character
 7481: C9 C8    CMP #$C8
-7483: D0 06    BNE $748B
+7483: D0 06    BNE $748B  ; branch if token is not 'step'
 7485: 20 34 66 JSR $6634
-7488: 20 2C 7D JSR $7D2C
-748B: 20 F4 A1 JSR $A1F4
-748E: 20 35 9C JSR $9C35
+7488: 20 2C 7D JSR $7D2C  ; evaluate expression and assert result is number
+748B: 20 F4 A1 JSR $A1F4  ; get sign of FAC1 in A
+748E: 20 35 9C JSR $9C35  ; push FAC1 sign and FAC1
 7491: A5 5C    LDA $5C
 7493: 48       PHA
 7494: A5 5D    LDA $5D
 7496: 48       PHA
-7497: A9 81    LDA #$81
+7497: A9 81    LDA #$81  ; for
 7499: 48       PHA
+
+; the loop body of FOR loop will be executed at least once.
 
 ; execute next statement
 749A: 4C F1 60 JMP $60F1
@@ -2409,8 +2429,9 @@
 758F: 20 A6 72 JSR $72A6
 7592: 4C F1 60 JMP $60F1  ; start executing statements
 
+; GOSUB statement
 7595: A9 04    LDA #$04
-7597: 20 5F 67 JSR $675F
+7597: 20 5F 67 JSR $675F  ; make sure stack space is enough
 759A: 68       PLA
 759B: 68       PLA
 759C: AD 55 B9 LDA $B955
@@ -2430,8 +2451,9 @@
 75B5: 20 3A 66 JSR $663A
 75B8: 20 BE 75 JSR $75BE
 75BB: 4C F1 60 JMP $60F1
-75BE: 20 78 77 JSR $7778
-75C1: 20 79 76 JSR $7679
+
+75BE: 20 78 77 JSR $7778 ; read a line number into ($40, $41)
+75C1: 20 79 76 JSR $7679 ; Y = offset of next $00
 75C4: AD 15 B8 LDA $B815
 75C7: C5 41    CMP $41
 75C9: D0 05    BNE $75D0
@@ -2447,8 +2469,8 @@
 75DB: B0 04    BCS $75E1
 75DD: A5 54    LDA $54
 75DF: A6 55    LDX $55
-75E1: 20 0E 6A JSR $6A0E
-75E4: 90 3B    BCC $7621
+75E1: 20 0E 6A JSR $6A0E  ; find line number
+75E4: 90 3B    BCC $7621  ; report 'undefined statement' if line number is not found
 75E6: A5 68    LDA $68
 75E8: E9 01    SBC #$01
 75EA: 85 5E    STA $5E
@@ -2457,14 +2479,18 @@
 75F0: 85 5F    STA $5F
 75F2: 60       RTS
 
-75F3: D0 FD    BNE $75F2
+; POP statement & RETURN statement
+75F3: D0 FD    BNE $75F2  ; if the token following POP / RETURN is not ':' or $00,
+                          ; simply return, and the interpreter will go to $60F1,
+                          ; which requires a ':' or $00, which will then report
+                          ; syntax error
 75F5: BA       TSX
 75F6: E8       INX
 75F7: E8       INX
 75F8: BD 01 01 LDA $0101,X
-75FB: C9 91    CMP #$91
+75FB: C9 91    CMP #$91   ; gosub
 75FD: F0 1A    BEQ $7619
-75FF: C9 81    CMP #$81
+75FF: C9 81    CMP #$81   ; for
 7601: D0 09    BNE $760C
 7603: 8A       TXA
 7604: 18       CLC
@@ -2472,8 +2498,8 @@
 7607: B0 15    BCS $761E
 7609: AA       TAX
 760A: D0 EC    BNE $75F8
-760C: C9 BB    CMP #$BB
-760E: D0 0E    BNE $761E
+760C: C9 BB    CMP #$BB   ; while
+760E: D0 0E    BNE $761E  ; report 'return without gosub'
 7610: 8A       TXA
 7611: 18       CLC
 7612: 69 07    ADC #$07
@@ -2483,14 +2509,18 @@
 7619: 9A       TXS
 761A: C9 91    CMP #$91
 761C: F0 0B    BEQ $7629
-761E: A2 02    LDX #$02
-7620: 2C A2 07 BIT $07A2
+761E: A2 02    LDX #$02  ; return without gosub
+7620: 2C       ; junk code BIT $07A2
+
+7621: A2 07    LDX #$07  ; undefined statement
 7623: 4C 9F 67 JMP $679F
+
 7626: 4C FD 9C JMP $9CFD
+
 7629: 68       PLA
 762A: 68       PLA
-762B: C0 16    CPY #$16
-762D: F0 3F    BEQ $766E
+762B: C0 16    CPY #$16   ; Y is the offset of address table for statements
+762D: F0 3F    BEQ $766E  ; branch if is POP
 762F: 8D 15 B8 STA $B815
 7632: 68       PLA
 7633: 8D 14 B8 STA $B814
@@ -2511,9 +2541,12 @@
 7651: 8E 58 B9 STX $B958
 7654: 20 57 66 JSR $6657
 7657: 20 7C 68 JSR $687C
+
 765A: 20 60 76 JSR $7660
 765D: 4C F1 60 JMP $60F1
 
+; DATA statement
+; just skip to next unquoted ':' or $00
 7660: 20 76 76 JSR $7676
 
 7663: 98       TYA
@@ -2531,11 +2564,11 @@
 7672: 68       PLA
 7673: 4C 5A 76 JMP $765A
 
-; DATA statement
-; just skip DATA statement
+; find next unquoted ':' or $00
+; Y = offset of next unquoted ':' or $00
 7676: A2 3A    LDX #$3A ; ':'
-
 7678: 2C    ; junk code: BIT $00A2
+
 7679: A2 00    LDX #$00
 
 767B: 8E 00 B8 STX $B800
@@ -2633,9 +2666,12 @@
 773E: 20 63 76 JSR $7663
 7741: 60       RTS
 
-7742: 20 79 76 JSR $7679
-7745: D0 03    BNE $774A
+; REM statement
+; just skip to next $00
+7742: 20 79 76 JSR $7679  ; Y = offset of next $00
+7745: D0 03    BNE $774A  ; never branches
 7747: 4C 63 76 JMP $7663
+
 774A: 20 3A 66 JSR $663A
 774D: B0 03    BCS $7752
 774F: 4C BE 75 JMP $75BE
@@ -2647,7 +2683,7 @@
 775B: F0 07    BEQ $7764
 775D: C9 8D    CMP #$8D
 775F: F0 03    BEQ $7764
-7761: 4C 26 76 JMP $7626
+7761: 4C 26 76 JMP $7626  ; report syntax error
 7764: C6 73    DEC $73
 7766: D0 04    BNE $776C
 7768: 68       PLA
@@ -2658,10 +2694,13 @@
 7774: F0 EE    BEQ $7764
 7776: 68       PLA
 7777: 60       RTS
+
+; read a line number into ($40, $41)
+; if no line number, ($40, $41) = 0
 7778: A2 00    LDX #$00
 777A: 86 40    STX $40
 777C: 86 41    STX $41
-777E: B0 F7    BCS $7777
+777E: B0 F7    BCS $7777  ; branch if current character is not digit
 7780: E9 2F    SBC #$2F
 7782: 8D 00 B8 STA $B800
 7785: A5 41    LDA $41
@@ -2671,7 +2710,8 @@
 778D: D0 04    BNE $7793
 778F: A5 40    LDA $40
 7791: C9 E8    CMP #$E8
-7793: B0 C8    BCS $775D
+7793: B0 C8    BCS $775D  ; branch if ($40, $41) >= 1000, which means
+                          ; after multiplying 10, will exceed 9999
 7795: A5 40    LDA $40
 7797: 0A       ASL
 7798: 26 44    ROL $44
@@ -2689,7 +2729,7 @@
 77B0: 85 40    STA $40
 77B2: 90 02    BCC $77B6
 77B4: E6 41    INC $41
-77B6: 20 DB 6A JSR $6ADB
+77B6: 20 DB 6A JSR $6ADB ; read a character
 77B9: 4C 7E 77 JMP $777E
 
 ; assignment statement
@@ -2743,7 +2783,7 @@
 781A: 4C 33 78 JMP $7833
 
 781D: A0 00    LDY #$00
-781F: B1 72    LDA ($72),Y
+781F: B1 72    LDA ($72),Y  ; get string length
 7821: 20 BE 7E JSR $7EBE
 7824: A5 6C    LDA $6C
 7826: A4 6D    LDY $6D
@@ -2938,6 +2978,7 @@
 79D8: A9 00    LDA #$00
 79DA: 20 1A 73 JSR $731A
 79DD: 60       RTS
+
 79DE: A9 20    LDA #$20
 79E0: 2C A9 3F BIT $3FA9
 
@@ -2946,6 +2987,7 @@
 79E6: 29 7F    AND #$7F
 79E8: 20 FF 72 JSR $72FF
 79EB: 60       RTS
+
 79EC: AD 0C B8 LDA $B80C
 79EF: F0 16    BEQ $7A07
 79F1: 30 04    BMI $79F7
@@ -3071,17 +3113,21 @@
 7B06: A9 01    LDA #$01
 7B08: 8D 47 04 STA $0447
 7B0B: 60       RTS
-7B0C: 20 D8 96 JSR $96D8
+
+; SWAP statement
+7B0C: 20 D8 96 JSR $96D8  ; get first variable
 7B0F: 85 5C    STA $5C
 7B11: 84 5D    STY $5D
-7B13: 20 36 7B JSR $7B36
+7B13: 20 36 7B JSR $7B36  ; get variable type
 7B16: 84 FE    STY $FE
-7B18: 20 F2 9C JSR $9CF2
-7B1B: 20 D8 96 JSR $96D8
-7B1E: 20 36 7B JSR $7B36
+7B18: 20 F2 9C JSR $9CF2  ; assert token ','
+7B1B: 20 D8 96 JSR $96D8  ; get second variable
+7B1E: 20 36 7B JSR $7B36  ; get variable type
 7B21: C4 FE    CPY $FE
 7B23: F0 03    BEQ $7B28
-7B25: 4C FD 9C JMP $9CFD
+7B25: 4C FD 9C JMP $9CFD  ; if type mismatch, report syntax error
+
+; swap variable data
 7B28: B1 58    LDA ($58),Y
 7B2A: AA       TAX
 7B2B: B1 5C    LDA ($5C),Y
@@ -3091,16 +3137,19 @@
 7B32: 88       DEY
 7B33: 10 F3    BPL $7B28
 7B35: 60       RTS
+
+; get variable type
 7B36: AC 08 B8 LDY $B808
 7B39: D0 0D    BNE $7B48
 7B3B: AC 09 B8 LDY $B809
 7B3E: 10 04    BPL $7B44
-7B40: A0 01    LDY #$01
+7B40: A0 01    LDY #$01  ; int
 7B42: D0 06    BNE $7B4A
-7B44: A0 04    LDY #$04
+7B44: A0 04    LDY #$04  ; float
 7B46: D0 02    BNE $7B4A
-7B48: A0 02    LDY #$02
+7B48: A0 02    LDY #$02  ; string
 7B4A: 60       RTS
+
 7B4B: AE D5 B8 LDX $B8D5
 7B4E: AC D6 B8 LDY $B8D6
 7B51: A9 98    LDA #$98
@@ -3254,14 +3303,16 @@
 7C97: D0 04    BNE $7C9D
 7C99: A0 00    LDY #$00
 7C9B: F0 03    BEQ $7CA0
-7C9D: 20 D8 96 JSR $96D8
+
+7C9D: 20 D8 96 JSR $96D8 ; read a variable and its data pointer
 7CA0: 85 5C    STA $5C
 7CA2: 84 5D    STY $5D
-7CA4: 20 D8 66 JSR $66D8
+7CA4: 20 D8 66 JSR $66D8 ; search for FOR loop in stack
 7CA7: F0 07    BEQ $7CB0
-7CA9: A2 00    LDX #$00
-7CAB: D0 03    BNE $7CB0
+7CA9: A2 00    LDX #$00  ; next without for
+7CAB: D0 03    BNE $7CB0 ; never branches
 7CAD: 4C 3E 7D JMP $7D3E
+
 7CB0: 9A       TXS
 7CB1: E8       INX
 7CB2: E8       INX
@@ -3276,20 +3327,20 @@
 7CBB: E8       INX
 7CBC: 86 46    STX $46
 7CBE: A0 01    LDY #$01
-7CC0: 20 66 A1 JSR $A166
+7CC0: 20 66 A1 JSR $A166  ; unpack step number into FAC1
 7CC3: BA       TSX
-7CC4: BD 09 01 LDA $0109,X
+7CC4: BD 09 01 LDA $0109,X  ; get sign of step number
 7CC7: 85 74    STA $74
 7CC9: A5 5C    LDA $5C
 7CCB: A4 5D    LDY $5D
-7CCD: 20 AD 9D JSR $9DAD
-7CD0: 20 95 A1 JSR $A195
+7CCD: 20 AD 9D JSR $9DAD  ; add float (A, Y) to FAC1
+7CD0: 20 95 A1 JSR $A195  ; store FAC1 into loop variable
 7CD3: A0 01    LDY #$01
-7CD5: 20 3C A2 JSR $A23C
+7CD5: 20 3C A2 JSR $A23C  ; compare FAC1 with loop end number
 7CD8: BA       TSX
 7CD9: 38       SEC
 7CDA: FD 09 01 SBC $0109,X
-7CDD: F0 3B    BEQ $7D1A
+7CDD: F0 3B    BEQ $7D1A  ; FOR loop is end
 7CDF: BD 10 01 LDA $0110,X
 7CE2: 8D 14 B8 STA $B814
 7CE5: BD 0F 01 LDA $010F,X
@@ -3312,20 +3363,28 @@
 7D11: 20 57 66 JSR $6657
 7D14: 20 7C 68 JSR $687C
 7D17: 4C F1 60 JMP $60F1
+
 7D1A: 8A       TXA
 7D1B: 69 13    ADC #$13
 7D1D: AA       TAX
 7D1E: 9A       TXS
 7D1F: 20 3A 66 JSR $663A
-7D22: C9 2C    CMP #$2C
+7D22: C9 2C    CMP #$2C  ; ','
 7D24: D0 F1    BNE $7D17
 7D26: 20 34 66 JSR $6634
-7D29: 20 9D 7C JSR $7C9D
+7D29: 20 9D 7C JSR $7C9D  ; NEXT A, B, ...
+                          ; NEXT statement will pop return address of this JSR,
+                          ; so will not fall through
 
-7D2C: 20 7A 9B JSR $9B7A
+; evaluate expression and assert result is number (float or int)
+7D2C: 20 7A 9B JSR $9B7A  ; evaluate expression
+
 7D2F: 18       CLC
-7D30: 24 38    BIT $38
+7D30: 24       ; junk code  BIT $38
 
+7D31: 38       SEC
+
+; C = 0  expected number,  = 1  expected string
 7D32: 2C 08 B8 BIT $B808
 7D35: 30 03    BMI $7D3A
 7D37: B0 03    BCS $7D3C
@@ -6496,7 +6555,7 @@
 96E2: 8D 1A B8 STA $B81A
 96E5: A5 5F    LDA $5F
 96E7: 8D 1B B8 STA $B81B
-96EA: 20 3A 66 JSR $663A ; read a character without moving forward
+96EA: 20 3A 66 JSR $663A ; read a character without moving forward (ignoring spaces)
 96ED: 20 43 9B JSR $9B43 ; test if A is uppercase letter
 96F0: B0 03    BCS $96F5 ; branch if A is uppercase letter
 96F2: 4C FD 9C JMP $9CFD ; report syntax error
@@ -7206,6 +7265,7 @@
 9C2D: 4C 85 9B JMP $9B85
 9C30: A5 74    LDA $74
 9C32: BE 71 9D LDX $9D71,Y
+
 9C35: A8       TAY
 9C36: 68       PLA
 9C37: 85 44    STA $44
@@ -7214,7 +7274,9 @@
 9C3C: 85 45    STA $45
 9C3E: 98       TYA
 9C3F: 48       PHA
-9C40: 20 E3 A1 JSR $A1E3
+
+; push FAC1 mantissa and exponent onto stack and goto ($44, $45)
+9C40: 20 E3 A1 JSR $A1E3  ; round FAC1
 9C43: A5 73    LDA $73
 9C45: 48       PHA
 9C46: A5 72    LDA $72
@@ -7226,6 +7288,7 @@
 9C4F: A5 6F    LDA $6F
 9C51: 48       PHA
 9C52: 6C 44 00 JMP ($0044)
+
 9C55: A0 FF    LDY #$FF
 9C57: 68       PLA
 9C58: F0 25    BEQ $9C7F
@@ -7300,10 +7363,16 @@
 9CE3: 4C 30 9D JMP $9D30
 9CE6: 20 EF 9C JSR $9CEF
 9CE9: 20 7A 9B JSR $9B7A
-9CEC: A9 29    LDA #$29
-9CEE: 2C A9 28 BIT $28A9
-9CF1: 2C A9 2C BIT $2CA9
 
+9CEC: A9 29    LDA #$29  ; ')'
+9CEE: 2C       ; junk code BIT $28A9
+9CEF: A9 28    LDA #$28  ; '('
+9CF1: 2C       ; junk code BIT $2CA9
+
+; make sure the current token is ','
+9CF2: A9 2C    LDA #$2C  ; ','
+
+; make sure the current token is equal to A, and then read a character
 9CF4: A0 00    LDY #$00
 9CF6: D1 5E    CMP ($5E),Y
 9CF8: D0 03    BNE $9CFD
@@ -7902,6 +7971,7 @@ A15E: AD 4B B9 LDA $B94B
 A161: 85 73    STA $73
 A163: 4C 25 9E JMP $9E25
 
+; unpack float in (A, Y) into FAC1
 A166: 85 44    STA $44
 A168: 84 45    STY $45
 A16A: A0 04    LDY #$04
@@ -7933,6 +8003,7 @@ A18F: A2 60    LDX #$60
 A191: A0 00    LDY #$00
 A193: F0 04    BEQ $A199
 
+; store FAC1 into ($5C, $5D)
 A195: A6 5C    LDX $5C
 A197: A4 5D    LDY $5D
 
@@ -7991,7 +8062,7 @@ A1EC: 20 C6 9E JSR $9EC6 ; increment mantissa
 A1EF: D0 F1    BNE $A1E2 ; exit if no overflow
 A1F1: 4C 8B 9E JMP $9E8B ; right bit shift mantissa
 
-; get sign of FAC1 in A
+; get sign of FAC1 in A ($00 = 0, $01 = positive, $FF = negative)
 A1F4: A5 6F    LDA $6F
 A1F6: F0 09    BEQ $A201
 A1F8: A5 74    LDA $74
@@ -8036,7 +8107,10 @@ A234: 4C 25 9E JMP $9E25
 A237: 46 74    LSR $74 ; clear FAC1 sign
 A239: 60       RTS
 
-; compare FAC1 with float indexed by AY
+; compare FAC1 with float (A, Y)
+; A = 00  if FAC1 = (A, Y)
+; A = 01  if FAC1 > (A, Y)
+; A = FF  if FAC1 < (A, Y)
 A23A: 85 46    STA $46
 A23C: 84 47    STY $47
 A23E: A0 00    LDY #$00
@@ -8348,6 +8422,7 @@ A473: A0 66    LDY #$66
 A475: 20 8B A4 JSR $A48B
 A478: AD 15 B8 LDA $B815
 A47B: AE 14 B8 LDX $B814
+
 A47E: 85 70    STA $70
 A480: 86 71    STX $71
 A482: A2 90    LDX #$90
@@ -8355,6 +8430,7 @@ A484: 38       SEC
 A485: 20 12 A2 JSR $A212
 A488: 20 8E A4 JSR $A48E
 A48B: 4C 2D 79 JMP $792D
+
 A48E: A0 01    LDY #$01
 A490: A9 2D    LDA #$2D
 A492: 88       DEY
@@ -9442,6 +9518,7 @@ AD2A: A9 1D    LDA #$1D
 AD2C: 85 81    STA $81
 AD2E: A2 00    LDX #$00
 AD30: F0 16    BEQ $AD48
+
 AD32: A9 C0    LDA #$C0
 AD34: 85 80    STA $80
 AD36: A9 1E    LDA #$1E
@@ -9453,6 +9530,7 @@ AD40: 69 14    ADC #$14
 AD42: 85 80    STA $80
 AD44: 90 02    BCC $AD48
 AD46: E6 81    INC $81
+
 AD48: A9 00    LDA #$00
 AD4A: A0 13    LDY #$13
 AD4C: 91 80    STA ($80),Y

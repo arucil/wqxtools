@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html>
+  <head></head>
+  <body style="width: 100%">
+    <div style="width: 200px; margin-left: auto; margin-right: 0;">
+      <canvas id="canvas" width=16 height=32 style="border: solid 1px green"></canvas>
+      <br/>
+      <input id="offset" style="width: 40px"></input> / <span id="total"></span>
+      <br/>
+      <button id="sub1">-1</button>
+      <button id="add1">+1</button>
+      <br/>
+      <button id="sub16">-16</button>
+      <button id="add16">+16</button>
+      <br/>
+      <button id="sub32">-32</button>
+      <button id="add32">+32</button>
+      <br/>
+      <button id="widthadd1">width+1</button>
+      <button id="widthsub1">width-1</button>
+    </div>
+    <script>
+      let i = 0
+      let w = 1
+      document.querySelector('#sub1').addEventListener('click', () => {
+        --i
+        update()
+      })
+      document.querySelector('#add1').addEventListener('click', () => {
+        ++i
+        update()
+      })
+      document.querySelector('#sub16').addEventListener('click', () => {
+        i -= 16
+        update()
+      })
+      document.querySelector('#add16').addEventListener('click', () => {
+        i += 16
+        update()
+      })
+      document.querySelector('#sub32').addEventListener('click', () => {
+        i -= 32
+        update()
+      })
+      document.querySelector('#add32').addEventListener('click', () => {
+        i += 32
+        update()
+      })
+      document.querySelector('#widthsub1').addEventListener('click', () => {
+        --w
+        update()
+      })
+      document.querySelector('#widthadd1').addEventListener('click', () => {
+        ++w
+        update()
+      })
+      document.querySelector('#offset').addEventListener('keydown', (e) => {
+        console.log(e.keyCode)
+        if (e.keyCode == 13 && !isNaN(parseInt(e.target.value))) {
+          i = parseInt(e.target.value)
+          update()
+        }
+      })
+      let data
+      fetch('./nd2.bin')
+        .then(resp => resp.blob())
+        .then(blob => {
+          data = blob
+          document.querySelector('#total').textContent = blob.size
+          update()
+        })
+      async function update() {
+        document.querySelector('#offset').value = i
+        const c = document.querySelector('#canvas')
+        c.width = w * 8 * 2
+        const ctx = c.getContext('2d')
+        const chunk = new Uint8Array(await data.slice(i, (i + 1) * w * 16).arrayBuffer())
+        for (let y = 0; y < 16; ++y) {
+          for (let x = 0; x < w * 8; ++x) {
+            if (chunk[y + (x >>> w * 3)] & 1 << (7 - (x & 7))) {
+              ctx.fillStyle = 'black'
+            } else {
+              ctx.fillStyle = 'white'
+            }
+            ctx.fillRect(x * 2, y * 2, 2, 2)
+          }
+        }
+      }
+    </script>
+  </body>
+</html>

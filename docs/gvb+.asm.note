@@ -12,23 +12,43 @@ subroutine:
 
     6634    increment ($5E, $5F) and read a character into A, ignoring spaces
                 C = if A is not digit
-    663A    read a character into A without incrementing ($5E, $5F), ignoring spaces
+                Z = if A is $00 or ':'
+    663A    read a character into A, ignoring spaces
                 C = if A is not digit
+                Z = if A is $00 or ':'
+    675F    make sure stack has enough space
     679D    out of memory error
+    679F    report error, X = error code
     684A    close all files opend by OPEN statements
+    6634    increment ($5E, $5F) and read a character into A, space is not ignored
+                C = if A is not digit
+    7676    find next unquoted ':' or $00
+                Y = offset of next unquoted ':' or $00
+    7679    find next $00
+                Y = offset of next $00
+    7D2C    evaluate expression and assert result is number (float or int)
     9B43    C = if A is uppercase
     9B4D    C = if A is not digit
     9B58    read an identifier and store it in space starting with $B8DB,
                 Y = length of identifier
                 ($5E, $5F) = address before identifier
+    9B7A    evaluate expression
+    9C40    push FAC1 mantissa and exponent onto stack and go to ($44, $45)
+    9CF4    make sure the current token is equal to A, and then read a character
+                (call $6634)
     9CFD    syntax error
     9ED5    overflow error
     A095    multiply FAC1 by 10
+    A166    unpack float in (A, Y) into FAC1
     A199    round FAC1 then store FAC1 into (X, Y)
     A1C2    copy FAC2 into FAC1
     A1E3    round FAC1
     A1D3    round FAC1 and then copy FAC1 into FAC2
                 A = exponent of FAC1
+    A1F4    get sign of FAC1 in A
+                $00 = 0
+                $01 = positive
+                $FF = negative
     A23A    compare FAC1 with (A, Y)
     ACE2    clear screen and text buffer
     AD06    clear screen
@@ -82,6 +102,15 @@ data:
             starting address of variable table
 
     $B8CF, $B8D0
+
+    $B8BB-$B8BF
+            random number seed (float)
+
+    $B951, $B952
+            first line number of current chunk of the .BAS file
+
+    $B953, $B954
+            last line number of current chunk of the .BAS file
             
 
 TODO:
@@ -89,6 +118,58 @@ TODO:
     AND、OR、NOT 是 bitwise？
     GOTO 10 NOT EXECUTED
     FN 自变量可以是字符串 ?
+    空格隔开的两个变量名会认为是一个变量名？
+    FOR、FN、subscript 变量和常规 float 变量不认为是同一个类型？
+    POP 后面的 token 就像 DATA 语句一样会被忽略？
+    RETURN 之后 GOSUB 行号后面的 token 就像 DATA 语句一样会被忽略？
+    .BAS 文件结构
+
+    input
+    dim
+    read
+    run
+    if
+    restore
+    trace
+    notrace
+    stop
+    on
+    def
+    poke
+    print
+    cont
+    list
+    clear
+    new
+    text
+    graph
+    system
+    normal
+    inverse
+    flash
+    play
+    beep
+    inkey$
+    open
+    close
+    write
+    field
+    get
+    put
+    lset
+    rset
+    locate
+    draw
+    line
+    box
+    circle
+    ellipse
+    while
+    wend
+    call
+
+FOR 变量必须是 float
+GOSUB / GOTO 的行号不能用空格分隔
 
 
 ----------------------------------------------------
@@ -100,7 +181,6 @@ $B8D9 ~ $B92A = 0
 $B812    normal, inverse, ... ?
 $B804  = 0
 $B8D1, $B8D2  = $6000
-$B951, $B952  = first line number of current chunk of the .BAS file
 $B8C7, $B8C8  = end of .BAS chunk
 $B8CD, $B8CE  = end of .BAS chunk
 $B8CB, $B8CC  = end of .BAS chunk
@@ -121,5 +201,23 @@ entry:
         N bytes            variable name
         data               if subscript / FOR / FN, 5 bytes
                            if float, 5 bytes
-                           if str, 3 bytes
+                           if str, 3 bytes   (string length, string pointer)
                            if int, 2 bytes
+
+----------------------------------
+control flow stack
+item:  (from high address to low address)
+    FOR loop:  (20 bytes)
+        2 bytes            offset of chunk
+        2 bytes            starting pointer of FOR loop body
+        2 bytes            line number of FOR statement
+        5 bytes            loop end number (float)
+        1 byte             sign of step number
+        5 bytes            step number (float)
+        2 bytes            loop variable data pointer
+        1 byte             $81, the 'FOR' token
+    GOSUB:  (7 bytes)
+        2 bytes            offset of chunk
+        2 bytes            pointer of line number following the GOSUB token
+        2 bytes            line number of GOSUB statement
+        1 byte             $91, the 'GOSUB' token
