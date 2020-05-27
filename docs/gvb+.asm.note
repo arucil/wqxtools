@@ -130,25 +130,18 @@ TODO:
     run
     if
     restore
-    trace
-    notrace
-    stop
     on
     def
     poke
     print
     cont
-    list
     clear
-    new
     text
     graph
     system
     normal
     inverse
     flash
-    play
-    beep
     inkey$
     open
     close

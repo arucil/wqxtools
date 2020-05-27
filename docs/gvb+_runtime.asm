@@ -2402,6 +2402,7 @@
 7557: E8       INX
 7558: F0 01    BEQ $755B
 755A: 60       RTS
+
 755B: AD D3 B8 LDA $B8D3
 755E: 85 5E    STA $5E
 7560: 84 5F    STY $5F
@@ -3523,6 +3524,7 @@
 7E36: 85 6A    STA $6A
 7E38: 84 6B    STY $6B
 7E3A: 4C 2F 7D JMP $7D2F
+
 7E3D: 20 29 7E JSR $7E29
 7E40: A5 6A    LDA $6A
 7E42: 48       PHA
@@ -3605,6 +3607,9 @@
 7EC2: 86 6C    STX $6C
 7EC4: 84 6D    STY $6D
 
+; allocate a string of length A
+; ($70, $71) = (X, Y) = string address
+; $6F = A = string length
 7EC6: 20 38 7F JSR $7F38
 7EC9: 86 70    STX $70
 7ECB: 84 71    STY $71
@@ -3638,16 +3643,20 @@
 7EFF: 90 01    BCC $7F02
 7F01: E8       INX
 7F02: 86 53    STX $53
+
 7F04: 98       TYA
 7F05: 20 BE 7E JSR $7EBE
 7F08: A6 7D    LDX $7D
 7F0A: A4 7E    LDY $7E
 7F0C: 20 98 84 JSR $8498
+
+; push string descriptor at $6F-$71 onto string operand stack
 7F0F: A6 42    LDX $42
-7F11: E0 52    CPX #$52
+7F11: E0 52    CPX #$52  ; check if string operand stack overflows
 7F13: D0 05    BNE $7F1A
-7F15: A2 0E    LDX #$0E
+7F15: A2 0E    LDX #$0E  ; formula too complex
 7F17: 4C 9F 67 JMP $679F
+
 7F1A: A5 6F    LDA $6F
 7F1C: 95 00    STA $00,X
 7F1E: A5 70    LDA $70
@@ -3690,6 +3699,7 @@
 7F63: AD 0A B8 LDA $B80A
 7F66: 10 03    BPL $7F6B
 7F68: 4C 9F 67 JMP $679F
+
 7F6B: 20 76 7F JSR $7F76
 7F6E: A9 80    LDA #$80
 7F70: 8D 0A B8 STA $B80A
@@ -4411,14 +4421,15 @@
 84FE: A0 00    LDY #$00
 8500: 60       RTS
 
+; INKEY$ statement
 8501: 00 06 C0 INT $C006
 8504: 48       PHA
 8505: A9 01    LDA #$01
-8507: 20 C6 7E JSR $7EC6
+8507: 20 C6 7E JSR $7EC6 ; allocate a string
 850A: 68       PLA
 850B: A0 00    LDY #$00
 850D: 91 70    STA ($70),Y
-850F: 4C 0F 7F JMP $7F0F
+850F: 4C 0F 7F JMP $7F0F ; push string onto string operand stack
 
 ; CHR$ function
 8512: 20 CA 85 JSR $85CA
@@ -4431,7 +4442,7 @@
 851F: 91 70    STA ($70),Y
 8521: 68       PLA
 8522: 68       PLA
-8523: 4C 0F 7F JMP $7F0F
+8523: 4C 0F 7F JMP $7F0F ; push string onto string operand stack
 
 ; LEFT$ function
 8526: 20 85 85 JSR $8585
@@ -4529,6 +4540,7 @@
 85BE: 4C E0 7D JMP $7DE0
 
 85C1: 4C 99 99 JMP $9999
+
 85C4: 20 34 66 JSR $6634
 85C7: 20 2C 7D JSR $7D2C
 85CA: 20 A8 98 JSR $98A8
@@ -4695,7 +4707,9 @@
 8709: D0 DF    BNE $86EA
 870B: 8E C4 03 STX $03C4
 870E: 60       RTS
-870F: F0 D9    BEQ $86EA
+
+; DRAW statement
+870F: F0 D9    BEQ $86EA  ; if no arguments, report syntax error
 8711: A5 5E    LDA $5E
 8713: D0 02    BNE $8717
 8715: C6 5F    DEC $5F
@@ -4834,8 +4848,11 @@
 8822: A0 01    LDY #$01
 8824: 60       RTS
 8825: 4C 42 77 JMP $7742
+
+; BEEP statement
 8828: D0 03    BNE $882D
 882A: 4C 12 E0 JMP $E012
+
 882D: A2 01    LDX #$01
 882F: 4C 9F 67 JMP $679F
 
@@ -7181,9 +7198,10 @@
 9B7E: C6 5F    DEC $5F
 9B80: C6 5E    DEC $5E
 9B82: A2 00    LDX #$00
-9B84: 24           ; junk code: BIT $48
+9B84: 24       ; junk code: BIT $48
 
 9B85: 48       PHA
+
 9B86: 8A       TXA
 9B87: 48       PHA
 9B88: A9 09    LDA #$09
@@ -7351,11 +7369,11 @@
 9CC6: A0 01    LDY #$01
 9CC8: 2C A0 00 BIT $00A0
 9CCB: 4C E0 7D JMP $7DE0
-9CCE: C9 A5    CMP #$A5
+9CCE: C9 A5    CMP #$A5  ; inkey$
 9CD0: D0 06    BNE $9CD8
 9CD2: 20 34 66 JSR $6634
 9CD5: 4C 01 85 JMP $8501
-9CD8: C9 C2    CMP #$C2
+9CD8: C9 C2    CMP #$C2  ; FN
 9CDA: D0 03    BNE $9CDF
 9CDC: 4C 3D 7E JMP $7E3D
 9CDF: C9 D3    CMP #$D3
@@ -7405,6 +7423,7 @@
 9D2B: A8       TAY
 9D2C: 8A       TXA
 9D2D: 4C CF 7D JMP $7DCF
+
 9D30: 0A       ASL
 9D31: 48       PHA
 9D32: AA       TAX
@@ -7429,6 +7448,7 @@
 9D55: 8A       TXA
 9D56: 48       PHA
 9D57: 4C 5F 9D JMP $9D5F
+
 9D5A: 20 E6 9C JSR $9CE6
 9D5D: 68       PLA
 9D5E: A8       TAY
