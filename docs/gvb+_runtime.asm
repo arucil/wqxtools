@@ -2762,9 +2762,10 @@
 77D5: 20 32 7D JSR $7D32  ; check type match
 77D8: D0 18    BNE $77F2  ; branch if string
 77DA: 68       PLA
+
 77DB: 10 12    BPL $77EF  ; branch if float
 77DD: 20 E3 A1 JSR $A1E3  ; round FAC1
-77E0: 20 AC 98 JSR $98AC
+77E0: 20 AC 98 JSR $98AC  ; convert to 2-byte integer
 77E3: A0 00    LDY #$00
 77E5: A5 72    LDA $72
 77E7: 91 5C    STA ($5C),Y
@@ -3020,6 +3021,7 @@
 7A0A: 10 05    BPL $7A11
 7A0C: A2 FE    LDX #$FE
 7A0E: 4C 63 86 JMP $8663
+
 7A11: A9 00    LDA #$00
 7A13: 8D C6 B8 STA $B8C6
 7A16: 8D C2 B8 STA $B8C2
@@ -3245,10 +3247,11 @@
 7BD9: AD 58 B8 LDA $B858
 7BDC: F0 36    BEQ $7C14
 7BDE: 68       PLA
-7BDF: 20 93 A3 JSR $A393
+7BDF: 20 93 A3 JSR $A393  ; get FAC1 from string
 7BE2: AD 09 B8 LDA $B809
-7BE5: 20 DB 77 JSR $77DB
+7BE5: 20 DB 77 JSR $77DB  ; assignment
 
+; make sure a datum ends with ':', ',' or $00, and continue READing
 7BE8: 20 3A 66 JSR $663A
 7BEB: F0 07    BEQ $7BF4
 7BED: C9 2C    CMP #$2C  ; ','
@@ -3264,7 +3267,7 @@
 7C02: 85 5E    STA $5E
 7C04: 84 5F    STY $5F
 7C06: 20 3A 66 JSR $663A
-7C09: D0 03    BNE $7C0E
+7C09: D0 03    BNE $7C0E  ; brach if not ':' or $00
 7C0B: 4C 65 7C JMP $7C65  ; save DATA pointer
 
 7C0E: 20 F2 9C JSR $9CF2  ; assert current token is ','
@@ -4732,7 +4735,7 @@
 86C8: CA       DEX
 86C9: 8E C5 B8 STX $B8C5
 86CC: 98       TYA
-86CD: F0 14    BEQ $86E3  ; if column is not given, column won't change
+86CD: F0 14    BEQ $86E3  ; if column is not given, column will not change
 86CF: C9 2C    CMP #$2C
 86D1: D0 17    BNE $86EA
 86D3: 20 C4 85 JSR $85C4  ; evaluate column
@@ -8411,6 +8414,7 @@ A38C: E9 30    SBC #$30
 A38E: 85 67    STA $67
 A390: 4C 24 A3 JMP $A324
 
+; get FAC1 from string
 A393: A0 00    LDY #$00
 A395: A2 03    LDX #$03
 A397: 94 66    STY $66,X
@@ -8423,23 +8427,25 @@ A39E: 94 6F    STY $6F,X
 A3A0: CA       DEX
 A3A1: 10 FB    BPL $A39E
 
-A3A3: 90 17    BCC $A3BC
-A3A5: C9 2D    CMP #$2D
+A3A3: 90 17    BCC $A3BC  ; branch if digit
+A3A5: C9 2D    CMP #$2D  ; '-'
 A3A7: F0 04    BEQ $A3AD
-A3A9: C9 CA    CMP #$CA
+A3A9: C9 CA    CMP #$CA  ; '-' token
 A3AB: D0 04    BNE $A3B1
-A3AD: 86 75    STX $75
-A3AF: F0 08    BEQ $A3B9
-A3B1: C9 2B    CMP #$2B
+A3AD: 86 75    STX $75  ; $75 = $FF
+A3AF: F0 08    BEQ $A3B9 ; always branches
+
+A3B1: C9 2B    CMP #$2B  ; '+'
 A3B3: F0 04    BEQ $A3B9
-A3B5: C9 C9    CMP #$C9
+A3B5: C9 C9    CMP #$C9  ; '+' token
 A3B7: D0 05    BNE $A3BE
+
 A3B9: 20 34 66 JSR $6634
 
-A3BC: 90 5B    BCC $A419
-A3BE: C9 2E    CMP #$2E
+A3BC: 90 5B    BCC $A419 ; branch if digit
+A3BE: C9 2E    CMP #$2E  ; '.'
 A3C0: F0 2E    BEQ $A3F0
-A3C2: C9 45    CMP #$45
+A3C2: C9 45    CMP #$45  ; 'E'
 A3C4: D0 30    BNE $A3F6
 A3C6: 20 34 66 JSR $6634
 A3C9: 90 17    BCC $A3E2
@@ -8492,6 +8498,7 @@ A424: 38       SEC
 A425: E9 30    SBC #$30
 A427: 20 2D A4 JSR $A42D
 A42A: 4C B9 A3 JMP $A3B9
+
 A42D: 48       PHA
 A42E: 20 D3 A1 JSR $A1D3
 A431: 68       PLA

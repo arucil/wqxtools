@@ -138,7 +138,7 @@ data:
             DATA pointer
 
 TODO:
-    数字字面量可以用空格分隔？
+    数字字面量可以用空格分隔？yes
     AND、OR、NOT 是 bitwise？
     GOTO 10 NOT EXECUTED
     FN 自变量可以是字符串 ?
@@ -149,7 +149,10 @@ TODO:
     STEP 0
     .BAS 文件结构
     lset 如果 rvalue 比 lvalue 长，会覆盖掉 string stack 上面的内容？
-    READ 读取的 data 字符串会保留前后的空格？
+    DATA如果不是数字，但READ要读数字，则直接返回 0，不读。并且要用 ':'、',' 或 $00 结尾
+    数字可以用 E 开头？
+
+    READ 读取的 data 字符串会保留后面的空格？
 
     input
     dim
