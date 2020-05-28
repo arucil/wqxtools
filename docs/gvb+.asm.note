@@ -27,6 +27,10 @@ subroutine:
     7679    find next $00
                 Y = offset of next $00
     7D2C    evaluate expression and assert result is number (float or int)
+    85C4    evaluate expression and assert result is 0~255
+                X = result
+    918E    syntax error
+    9999    report illegal quantity error
     9B43    C = if A is uppercase
     9B4D    C = if A is not digit
     9B58    read an identifier and store it in space starting with $B8DB,
@@ -76,7 +80,7 @@ data:
 
     $B80E   extra mantissa of FAC1
 
-    $77     exponenet of FAC2
+    $77     exponent of FAC2
 
     $78-$7B
             mantissa of FAC2 (including assuming bit)
@@ -144,6 +148,7 @@ TODO:
     RETURN 之后 GOSUB 行号后面的 token 就像 DATA 语句一样会被忽略？
     STEP 0
     .BAS 文件结构
+    lset 如果 rvalue 比 lvalue 长，会覆盖掉 string stack 上面的内容？
 
     input
     dim
@@ -162,17 +167,6 @@ TODO:
     field
     get
     put
-    lset
-    rset
-    locate
-    draw
-    line
-    box
-    circle
-    ellipse
-
-FOR 变量必须是 float
-
 
 ----------------------------------------------------
 未明用途的地址：

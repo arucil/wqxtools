@@ -2776,6 +2776,7 @@
 77EF: 4C 95 A1 JMP $A195
 
 77F2: 68       PLA
+
 77F3: A0 02    LDY #$02
 77F5: B1 72    LDA ($72),Y
 77F7: CD D0 B8 CMP $B8D0
@@ -3007,11 +3008,13 @@
 79F1: 30 04    BMI $79F7
 79F3: A0 FF    LDY #$FF
 79F5: D0 06    BNE $79FD
+
 79F7: AD 18 B8 LDA $B818
 79FA: AC 19 B8 LDY $B819
 79FD: 8D 14 B8 STA $B814
 7A00: 8C 15 B8 STY $B815
 7A03: 4C FD 9C JMP $9CFD
+
 7A06: 68       PLA
 7A07: 2C 10 B8 BIT $B810
 7A0A: 10 05    BPL $7A11
@@ -3100,6 +3103,7 @@
 7ACA: C9 03    CMP #$03
 7ACC: F0 03    BEQ $7AD1
 7ACE: 4C 54 7B JMP $7B54
+
 7AD1: 4C F6 74 JMP $74F6
 7AD4: A2 3F    LDX #$3F
 7AD6: 8E 27 B8 STX $B827
@@ -3167,12 +3171,16 @@
 ; READ statement
 7B4B: AE D5 B8 LDX $B8D5
 7B4E: AC D6 B8 LDY $B8D6
-7B51: A9 98    LDA #$98
-7B53: 2C A9 00 BIT $00A9
+7B51: A9 98    LDA #$98  ; set input mode = READ
+7B53: 2C       ; junk code: BIT $00A9
+
+7B54: A9 00    LDA #$00
+
 7B56: 8D 0C B8 STA $B80C
 7B59: 86 56    STX $56
 7B5B: 84 57    STY $57
-7B5D: 20 D8 96 JSR $96D8
+
+7B5D: 20 D8 96 JSR $96D8  ; get variable and data pointer
 7B60: 85 5C    STA $5C
 7B62: 84 5D    STY $5D
 7B64: A5 5E    LDA $5E
@@ -3184,10 +3192,11 @@
 7B72: 86 5E    STX $5E
 7B74: 84 5F    STY $5F
 7B76: 20 3A 66 JSR $663A
-7B79: D0 1F    BNE $7B9A
+7B79: D0 1F    BNE $7B9A  ; branch if not ':' or $00
 7B7B: 2C 0C B8 BIT $B80C
-7B7E: 50 0E    BVC $7B8E
-7B80: 20 19 67 JSR $6719
+7B7E: 50 0E    BVC $7B8E  ; always branch
+
+7B80: 20 19 67 JSR $6719  ; do nothing
 7B83: 29 7F    AND #$7F
 7B85: 8D 58 B8 STA $B858
 7B88: A2 57    LDX #$57
@@ -3195,25 +3204,29 @@
 7B8C: D0 08    BNE $7B96
 7B8E: 10 03    BPL $7B93
 7B90: 4C 1C 7C JMP $7C1C
+
 7B93: 20 D4 7A JSR $7AD4
 7B96: 86 5E    STX $5E
 7B98: 84 5F    STY $5F
+
 7B9A: 20 34 66 JSR $6634
 7B9D: 2C 08 B8 BIT $B808
-7BA0: 10 36    BPL $7BD8
+7BA0: 10 36    BPL $7BD8  ; branch if variable is number
 7BA2: 2C 0C B8 BIT $B80C
-7BA5: 50 0A    BVC $7BB1
+7BA5: 50 0A    BVC $7BB1  ; always branch
+
 7BA7: E8       INX
 7BA8: 86 5E    STX $5E
 7BAA: A9 00    LDA #$00
 7BAC: 8D 00 B8 STA $B800
 7BAF: F0 0E    BEQ $7BBF
+
 7BB1: 8D 00 B8 STA $B800
-7BB4: C9 22    CMP #$22
+7BB4: C9 22    CMP #$22  ; '"'
 7BB6: F0 08    BEQ $7BC0
-7BB8: A9 3A    LDA #$3A
+7BB8: A9 3A    LDA #$3A  ; ':'
 7BBA: 8D 00 B8 STA $B800
-7BBD: A9 2C    LDA #$2C
+7BBD: A9 2C    LDA #$2C  ; ','
 7BBF: 18       CLC
 7BC0: 8D 01 B8 STA $B801
 7BC3: A5 5E    LDA $5E
@@ -3221,10 +3234,13 @@
 7BC7: 69 00    ADC #$00
 7BC9: 90 01    BCC $7BCC
 7BCB: C8       INY
-7BCC: 20 D8 7E JSR $7ED8
+7BCC: 20 D8 7E JSR $7ED8  ; if is quoted string, read until next '"' or $00,
+                          ; else read until ':' or ',' or $00,
+                          ; and save its content in a newly allocated string
 7BCF: 20 02 86 JSR $8602
 7BD2: 20 F3 77 JSR $77F3
 7BD5: 4C E8 7B JMP $7BE8
+
 7BD8: 48       PHA
 7BD9: AD 58 B8 LDA $B858
 7BDC: F0 36    BEQ $7C14
@@ -3232,11 +3248,13 @@
 7BDF: 20 93 A3 JSR $A393
 7BE2: AD 09 B8 LDA $B809
 7BE5: 20 DB 77 JSR $77DB
+
 7BE8: 20 3A 66 JSR $663A
 7BEB: F0 07    BEQ $7BF4
-7BED: C9 2C    CMP #$2C
+7BED: C9 2C    CMP #$2C  ; ','
 7BEF: F0 03    BEQ $7BF4
-7BF1: 4C EC 79 JMP $79EC
+7BF1: 4C EC 79 JMP $79EC ; report syntax error
+
 7BF4: A5 5E    LDA $5E
 7BF6: A4 5F    LDY $5F
 7BF8: 85 56    STA $56
@@ -3247,26 +3265,31 @@
 7C04: 84 5F    STY $5F
 7C06: 20 3A 66 JSR $663A
 7C09: D0 03    BNE $7C0E
-7C0B: 4C 65 7C JMP $7C65
-7C0E: 20 F2 9C JSR $9CF2
+7C0B: 4C 65 7C JMP $7C65  ; save DATA pointer
+
+7C0E: 20 F2 9C JSR $9CF2  ; assert current token is ','
 7C11: 4C 5D 7B JMP $7B5D
+
 7C14: AD 0C B8 LDA $B80C
 7C17: D0 C5    BNE $7BDE
 7C19: 4C 06 7A JMP $7A06
-7C1C: 20 76 76 JSR $7676
+
+7C1C: 20 76 76 JSR $7676  ; find next unquoted ':' or $00
 7C1F: C8       INY
 7C20: AA       TAX
-7C21: D0 35    BNE $7C58
-7C23: A2 03    LDX #$03
+7C21: D0 35    BNE $7C58  ; branch if ':'
+7C23: A2 03    LDX #$03  ; out of data error
 7C25: C8       INY
 7C26: B1 5E    LDA ($5E),Y
 7C28: D0 21    BNE $7C4B
 7C2A: 2C 4E B9 BIT $B94E
 7C2D: 30 03    BMI $7C32
-7C2F: 4C 3E 7D JMP $7D3E
+7C2F: 4C 3E 7D JMP $7D3E  ; report 'out of data' error
+
 7C32: 2C 5B B9 BIT $B95B
 7C35: 10 03    BPL $7C3A
 7C37: 4C 3E 7D JMP $7D3E
+
 7C3A: 20 9B 66 JSR $669B
 7C3D: 20 1B 69 JSR $691B
 7C40: A9 00    LDA #$00
@@ -3274,6 +3297,7 @@
 7C44: A9 22    LDA #$22
 7C46: 85 5F    STA $5F
 7C48: 4C 1C 7C JMP $7C1C
+
 7C4B: C8       INY
 7C4C: B1 5E    LDA ($5E),Y
 7C4E: 8D 18 B8 STA $B818
@@ -3281,17 +3305,20 @@
 7C52: B1 5E    LDA ($5E),Y
 7C54: C8       INY
 7C55: 8D 19 B8 STA $B819
+
 7C58: B1 5E    LDA ($5E),Y
 7C5A: AA       TAX
-7C5B: 20 63 76 JSR $7663
-7C5E: E0 83    CPX #$83
+7C5B: 20 63 76 JSR $7663  ; skip to offset Y
+7C5E: E0 83    CPX #$83  ; token 'DATA'
 7C60: D0 BA    BNE $7C1C
 7C62: 4C 9A 7B JMP $7B9A
+
 7C65: A5 56    LDA $56
 7C67: A4 57    LDY $57
 7C69: AE 0C B8 LDX $B80C
 7C6C: 10 03    BPL $7C71
-7C6E: 4C C5 74 JMP $74C5
+7C6E: 4C C5 74 JMP $74C5 ; save A, Y in DATA pointer
+
 7C71: A0 00    LDY #$00
 7C73: B1 56    LDA ($56),Y
 7C75: F0 07    BEQ $7C7E
@@ -3630,10 +3657,13 @@
 7ECD: 85 6F    STA $6F
 7ECF: 60       RTS
 
-; get description of string into float accum
+; read and allocate a string
+; $6F = string length
+; $70, $71 = string pointer
 7ED0: A2 22    LDX #$22 ; '"'
 7ED2: 8E 00 B8 STX $B800
 7ED5: 8E 01 B8 STX $B801
+
 7ED8: 85 7D    STA $7D
 7EDA: 84 7E    STY $7E
 7EDC: 85 70    STA $70
@@ -3646,7 +3676,8 @@
 7EEA: F0 05    BEQ $7EF1
 7EEC: CD 01 B8 CMP $B801
 7EEF: D0 F1    BNE $7EE2
-7EF1: C9 22    CMP #$22
+
+7EF1: C9 22    CMP #$22  ; '"'
 7EF3: F0 01    BEQ $7EF6
 7EF5: 18       CLC
 7EF6: 84 6F    STY $6F
@@ -3658,11 +3689,11 @@
 7F01: E8       INX
 7F02: 86 53    STX $53
 
-7F04: 98       TYA
-7F05: 20 BE 7E JSR $7EBE
+7F04: 98       TYA  ; A = string length
+7F05: 20 BE 7E JSR $7EBE  ; allocate a string
 7F08: A6 7D    LDX $7D
 7F0A: A4 7E    LDY $7E
-7F0C: 20 98 84 JSR $8498
+7F0C: 20 98 84 JSR $8498  ; copy string
 
 ; push string descriptor at $6F-$71 onto string operand stack
 7F0F: A6 42    LDX $42
@@ -4374,6 +4405,7 @@
 8494: B1 7D    LDA ($7D),Y
 8496: A8       TAY
 8497: 68       PLA
+
 8498: 86 44    STX $44
 849A: 84 45    STY $45
 849C: A8       TAY
@@ -4392,6 +4424,7 @@
 84B0: E6 FF    INC $FF
 84B2: 60       RTS
 84B3: 20 31 7D JSR $7D31
+
 84B6: A5 72    LDA $72
 84B8: A4 73    LDY $73
 84BA: 85 44    STA $44
@@ -4555,11 +4588,13 @@
 
 85C1: 4C 99 99 JMP $9999
 
+; evaluate expression and assert result is 0~255
+; X = result
 85C4: 20 34 66 JSR $6634
-85C7: 20 2C 7D JSR $7D2C
-85CA: 20 A8 98 JSR $98A8
+85C7: 20 2C 7D JSR $7D2C ; evaluate expression and assert result is number
+85CA: 20 A8 98 JSR $98A8 ; convert to non-negative 2-byte integer
 85CD: A6 72    LDX $72
-85CF: D0 F0    BNE $85C1
+85CF: D0 F0    BNE $85C1 ; branch if integer > 255
 85D1: A6 73    LDX $73
 85D3: 4C 3A 66 JMP $663A
 
@@ -4583,11 +4618,13 @@
 85FA: 85 5F    STA $5F
 85FC: 20 3A 66 JSR $663A
 85FF: 20 93 A3 JSR $A393
+
 8602: A6 52    LDX $52
 8604: A4 53    LDY $53
 8606: 86 5E    STX $5E
 8608: 84 5F    STY $5F
 860A: 60       RTS
+
 860B: 20 2C 7D JSR $7D2C
 860E: 20 17 86 JSR $8617
 8611: 20 F2 9C JSR $9CF2
@@ -4676,41 +4713,46 @@
 
 86A3: 4C 42 77 JMP $7742
 86A6: 4C 42 77 JMP $7742
+
 86A9: F0 3F    BEQ $86EA
 86AB: AE B5 03 LDX $03B5
-86AE: 8E C5 B8 STX $B8C5
+86AE: 8E C5 B8 STX $B8C5  ; save current caret Y in $B8C5
 86B1: C9 2C    CMP #$2C
-86B3: F0 1E    BEQ $86D3
+86B3: F0 1E    BEQ $86D3  ; if row is not given, default to current row
 86B5: A5 5E    LDA $5E
 86B7: D0 02    BNE $86BB
 86B9: C6 5F    DEC $5F
 86BB: C6 5E    DEC $5E
-86BD: 20 C4 85 JSR $85C4
+86BD: 20 C4 85 JSR $85C4  ; evaluate row
 86C0: E0 06    CPX #$06
-86C2: B0 29    BCS $86ED
+86C2: B0 29    BCS $86ED  ; if row >= 6, report 'illegal quantity' error
 86C4: A8       TAY
 86C5: 8A       TXA
-86C6: F0 25    BEQ $86ED
+86C6: F0 25    BEQ $86ED  ; if row == 0, report 'illegal quantity'
 86C8: CA       DEX
 86C9: 8E C5 B8 STX $B8C5
 86CC: 98       TYA
-86CD: F0 14    BEQ $86E3
+86CD: F0 14    BEQ $86E3  ; if column is not given, column won't change
 86CF: C9 2C    CMP #$2C
 86D1: D0 17    BNE $86EA
-86D3: 20 C4 85 JSR $85C4
+86D3: 20 C4 85 JSR $85C4  ; evaluate column
 86D6: D0 12    BNE $86EA
 86D8: E0 15    CPX #$15
-86DA: B0 11    BCS $86ED
+86DA: B0 11    BCS $86ED  ; if column >= 21, report 'illegal quantity' error
 86DC: 8A       TXA
-86DD: F0 0E    BEQ $86ED
+86DD: F0 0E    BEQ $86ED  ; if column == 0, report 'illegal quantity' error
 86DF: CA       DEX
 86E0: 8E B4 03 STX $03B4
 86E3: AE C5 B8 LDX $B8C5
 86E6: 8E B5 03 STX $03B5
 86E9: 60       RTS
+
 86EA: 4C FD 9C JMP $9CFD
+
 86ED: 4C 99 99 JMP $9999
-86F0: F0 F8    BEQ $86EA
+
+; evaluate X and Y, separated by a comma
+86F0: F0 F8    BEQ $86EA  ; report syntax error
 86F2: A5 5E    LDA $5E
 86F4: D0 02    BNE $86F8
 86F6: C6 5F    DEC $5F
@@ -4731,32 +4773,33 @@
 8713: D0 02    BNE $8717
 8715: C6 5F    DEC $5F
 8717: C6 5E    DEC $5E
-8719: 20 C4 85 JSR $85C4
-871C: C9 2C    CMP #$2C
+8719: 20 C4 85 JSR $85C4  ; evaluate first argument
+871C: C9 2C    CMP #$2C   ; ','
 871E: D0 CA    BNE $86EA
 8720: 8E C7 03 STX $03C7
-8723: 20 C4 85 JSR $85C4
+8723: 20 C4 85 JSR $85C4  ; evaluate second argument
 8726: 08       PHP
-8727: A0 01    LDY #$01
+8727: A0 01    LDY #$01   ; third argument default to 1
 8729: 8E C8 03 STX $03C8
 872C: 28       PLP
-872D: F0 0C    BEQ $873B
-872F: C9 2C    CMP #$2C
+872D: F0 0C    BEQ $873B  ; branch if ':' or $00
+872F: C9 2C    CMP #$2C   ; ','
 8731: D0 B7    BNE $86EA
-8733: 20 C4 85 JSR $85C4
-8736: D0 B2    BNE $86EA
-8738: 20 1A 88 JSR $881A
+8733: 20 C4 85 JSR $85C4  ; evaluate third argument
+8736: D0 B2    BNE $86EA  ; branch if not ':' or $00
+8738: 20 1A 88 JSR $881A  ; bitwise-and third argument with $07, if result is $06,
+                          ; set to $01
 873B: 8C C9 03 STY $03C9
 873E: 00 04 CA INT $CA04
 8741: 60       RTS
 
-; 画线
-8742: 20 F0 86 JSR $86F0
-8745: 20 C4 85 JSR $85C4
+; LINE statement
+8742: 20 F0 86 JSR $86F0  ; evaluate X0, Y0
+8745: 20 C4 85 JSR $85C4  ; evaluate X1
 8748: C9 2C    CMP #$2C
 874A: D0 9E    BNE $86EA
 874C: 8E C5 03 STX $03C5
-874F: 20 C4 85 JSR $85C4
+874F: 20 C4 85 JSR $85C4  ; evaluate Y1
 8752: 08       PHP
 8753: A0 01    LDY #$01
 8755: 8E C6 03 STX $03C6
@@ -4764,27 +4807,27 @@
 8759: F0 0C    BEQ $8767
 875B: C9 2C    CMP #$2C
 875D: D0 8B    BNE $86EA
-875F: 20 C4 85 JSR $85C4
+875F: 20 C4 85 JSR $85C4  ; evaluate draw mode
 8762: D0 86    BNE $86EA
 8764: 20 1A 88 JSR $881A
 8767: 8C C9 03 STY $03C9
 876A: 00 0B CA INT $CA0B
 876D: 60       RTS
 
-; 画矩形
-876E: 20 F0 86 JSR $86F0
-8771: 20 C4 85 JSR $85C4
+; BOX statement
+876E: 20 F0 86 JSR $86F0  ; evaluate X0, Y0
+8771: 20 C4 85 JSR $85C4  ; evaluate X1
 8774: C9 2C    CMP #$2C
 8776: D0 25    BNE $879D
 8778: 8E C5 03 STX $03C5
-877B: 20 C4 85 JSR $85C4
+877B: 20 C4 85 JSR $85C4  ; evaluate Y1
 877E: 08       PHP
 877F: 8E C6 03 STX $03C6
-8782: A0 01    LDY #$01
-8784: A2 00    LDX #$00
+8782: A0 01    LDY #$01  ; draw mode default to 1
+8784: A2 00    LDX #$00  ; fill mode default to 0
 8786: 28       PLP
 8787: F0 03    BEQ $878C
-8789: 20 A0 87 JSR $87A0
+8789: 20 A0 87 JSR $87A0  ; evaluate fill mode and draw mode
 878C: 8E DA 03 STX $03DA
 878F: 8C C9 03 STY $03C9
 8792: 8A       TXA
@@ -4795,9 +4838,11 @@
 879C: 60       RTS
 
 879D: 4C FD 9C JMP $9CFD
+
+; evaluate fill mode and draw mode
 87A0: C9 2C    CMP #$2C
 87A2: D0 F9    BNE $879D
-87A4: 20 C4 85 JSR $85C4
+87A4: 20 C4 85 JSR $85C4  ; evaluate fill mode
 87A7: 08       PHP
 87A8: 8D C5 B8 STA $B8C5
 87AB: A0 01    LDY #$01
@@ -4810,22 +4855,22 @@
 87B7: C9 2C    CMP #$2C
 87B9: D0 E2    BNE $879D
 87BB: 8E C5 B8 STX $B8C5
-87BE: 20 C4 85 JSR $85C4
+87BE: 20 C4 85 JSR $85C4  ; evaluate draw mode
 87C1: D0 DA    BNE $879D
 87C3: 20 1A 88 JSR $881A
 87C6: AE C5 B8 LDX $B8C5
 87C9: 60       RTS
 
-; 画圆 circle
-87CA: 20 F0 86 JSR $86F0
-87CD: 20 C4 85 JSR $85C4
+; CIRCLE statement
+87CA: 20 F0 86 JSR $86F0  ; evaluate X, Y
+87CD: 20 C4 85 JSR $85C4  ; evaluate radius
 87D0: 08       PHP
 87D1: 8E D6 03 STX $03D6
 87D4: A0 01    LDY #$01
 87D6: A2 00    LDX #$00
 87D8: 28       PLP
 87D9: F0 03    BEQ $87DE
-87DB: 20 A0 87 JSR $87A0
+87DB: 20 A0 87 JSR $87A0  ; evaluate fill mode and draw mode
 87DE: 8C C9 03 STY $03C9
 87E1: 8A       TXA
 87E2: D0 04    BNE $87E8
@@ -4834,21 +4879,21 @@
 87E8: 00 10 CA INT $CA10
 87EB: 60       RTS
 
-; 画椭圆 ellipse
-87EC: 20 F0 86 JSR $86F0
-87EF: 20 C4 85 JSR $85C4
+; ELLIPSE statement
+87EC: 20 F0 86 JSR $86F0  ; evaluate X, Y
+87EF: 20 C4 85 JSR $85C4  ; evaluate X radius
 87F2: F0 A9    BEQ $879D
 87F4: C9 2C    CMP #$2C
 87F6: D0 A5    BNE $879D
 87F8: 8E DB 03 STX $03DB
-87FB: 20 C4 85 JSR $85C4
+87FB: 20 C4 85 JSR $85C4  ; evaluate Y radius
 87FE: 08       PHP
 87FF: 8E DC 03 STX $03DC
 8802: A0 01    LDY #$01
 8804: A2 00    LDX #$00
 8806: 28       PLP
 8807: F0 03    BEQ $880C
-8809: 20 A0 87 JSR $87A0
+8809: 20 A0 87 JSR $87A0  ; evaluate fill mode and draw mode
 880C: 8C C9 03 STY $03C9
 880F: 8A       TXA
 8810: D0 04    BNE $8816
@@ -4857,6 +4902,7 @@
 8816: 00 11 CA INT $CA11
 8819: 60       RTS
 
+; X -> Y, bitwise-and Y with $07, if Y is $06, set Y to $01
 881A: 8A       TXA
 881B: 29 07    AND #$07
 881D: A8       TAY
@@ -4864,6 +4910,8 @@
 8820: 90 02    BCC $8824
 8822: A0 01    LDY #$01
 8824: 60       RTS
+
+; PLAY statement
 8825: 4C 42 77 JMP $7742
 
 ; BEEP statement
@@ -5592,6 +5640,7 @@
 8E05: E6 45    INC $45
 8E07: A6 45    LDX $45
 8E09: 4C E9 8D JMP $8DE9
+
 8E0C: 20 C4 85 JSR $85C4
 8E0F: 8A       TXA
 8E10: A2 01    LDX #$01
@@ -5972,6 +6021,7 @@
 9187: 90 02    BCC $918B
 9189: E6 57    INC $57
 918B: 4C 28 91 JMP $9128
+
 918E: A2 01    LDX #$01
 9190: 4C 9F 67 JMP $679F
 
@@ -6251,9 +6301,11 @@
 940B: 60       RTS
 940C: A2 20    LDX #$20
 940E: 4C 9F 67 JMP $679F
+
+; RSET statement
 9411: 20 4F 94 JSR $944F
 9414: CD 00 B8 CMP $B800
-9417: B0 10    BCS $9429
+9417: B0 10    BCS $9429  ; branch if lvalue string length >= rvalue string length
 9419: 8D 00 B8 STA $B800
 941C: A0 00    LDY #$00
 941E: B1 44    LDA ($44),Y
@@ -6262,6 +6314,7 @@
 9423: CC 00 B8 CPY $B800
 9426: 90 F6    BCC $941E
 9428: 60       RTS
+
 9429: ED 00 B8 SBC $B800
 942C: F0 6F    BEQ $949D
 942E: 8E 00 B8 STX $B800
@@ -6279,22 +6332,26 @@
 9449: C6 45    DEC $45
 944B: 4C 1E 94 JMP $941E
 944E: 60       RTS
-944F: 20 D8 96 JSR $96D8
+
+; evaluate "<var> = <expr>" part in LSET and RSET
+; $B800 = rvalue string length
+; A = X = lvalue string length
+944F: 20 D8 96 JSR $96D8  ; get variable name and data pointer
 9452: 85 5C    STA $5C
 9454: 84 5D    STY $5D
 9456: AD 08 B8 LDA $B808
 9459: 30 03    BMI $945E
-945B: 4C 8E 91 JMP $918E
+945B: 4C 8E 91 JMP $918E  ; if variable is not string, report syntax error
 945E: A9 D1    LDA #$D1
-9460: 20 F4 9C JSR $9CF4
+9460: 20 F4 9C JSR $9CF4  ; assert token '='
 9463: AD 08 B8 LDA $B808
 9466: 48       PHA
-9467: 20 7A 9B JSR $9B7A
+9467: 20 7A 9B JSR $9B7A  ; evaluate expression
 946A: 68       PLA
 946B: 2A       ROL
-946C: 20 32 7D JSR $7D32
+946C: 20 32 7D JSR $7D32  ; check type match
 946F: 20 B6 84 JSR $84B6
-9472: 8D 00 B8 STA $B800
+9472: 8D 00 B8 STA $B800  ; save rvalue string length in $B800
 9475: A0 01    LDY #$01
 9477: B1 5C    LDA ($5C),Y
 9479: 85 60    STA $60
@@ -6304,17 +6361,26 @@
 9480: A0 00    LDY #$00
 9482: B1 5C    LDA ($5C),Y
 9484: D0 03    BNE $9489
+
+; if lvalue string is empty, pop the address of LSET / RSET, thus do nothing and
+; continue next statement.
 9486: 68       PLA
 9487: 68       PLA
 9488: 60       RTS
+
 9489: AA       TAX
 948A: 60       RTS
+
+; LSET statement
+; seems like buggy code
 948B: 20 4F 94 JSR $944F
 948E: CD 00 B8 CMP $B800
-9491: A9 00    LDA #$00
-9493: F0 03    BEQ $9498
+9491: A9 00    LDA #$00   ; it this a bug, should be removed ?
+9493: F0 03    BEQ $9498 ; always branch
+
 9495: 90 01    BCC $9498
 9497: 8A       TXA
+
 9498: 8D 01 B8 STA $B801
 949B: A0 00    LDY #$00
 949D: B1 44    LDA ($44),Y
@@ -6325,6 +6391,7 @@
 94A7: AD 01 B8 LDA $B801
 94AA: D0 01    BNE $94AD
 94AC: 60       RTS
+
 94AD: A9 20    LDA #$20
 94AF: 91 60    STA ($60),Y
 94B1: C8       INY
@@ -6826,9 +6893,12 @@
 
 98A2: 20 34 66 JSR $6634  ; read a character
 98A5: 20 2C 7D JSR $7D2C
-98A8: A5 74    LDA $74
-98AA: 30 0D    BMI $98B9
 
+; convert FAC1 to non-negative 2-byte integer
+98A8: A5 74    LDA $74
+98AA: 30 0D    BMI $98B9  ; branch if negative
+
+; convert FAC1 to 2-byte integer
 98AC: A5 6F    LDA $6F
 98AE: C9 90    CMP #$90
 98B0: 90 0C    BCC $98BE  ; branches if exponent < +16
@@ -7391,6 +7461,7 @@
 9CC6: A0 01    LDY #$01
 9CC8: 2C A0 00 BIT $00A0
 9CCB: 4C E0 7D JMP $7DE0
+
 9CCE: C9 A5    CMP #$A5  ; inkey$
 9CD0: D0 06    BNE $9CD8
 9CD2: 20 34 66 JSR $6634
