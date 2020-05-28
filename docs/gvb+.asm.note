@@ -149,6 +149,7 @@ TODO:
     STEP 0
     .BAS 文件结构
     lset 如果 rvalue 比 lvalue 长，会覆盖掉 string stack 上面的内容？
+    READ 读取的 data 字符串会保留前后的空格？
 
     input
     dim
