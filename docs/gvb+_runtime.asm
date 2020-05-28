@@ -1606,6 +1606,7 @@
 6F25: 20 BE 6F JSR $6FBE
 6F28: 20 9A AD JSR $AD9A
 6F2B: 60       RTS
+
 6F2C: AD C4 B8 LDA $B8C4
 6F2F: D0 0D    BNE $6F3E
 6F31: AD C5 B8 LDA $B8C5
@@ -2047,17 +2048,19 @@
 
 72A6: 20 EE 72 JSR $72EE  ; decrement $54,$55
 72A9: A9 00    LDA #$00
-72AB: 8D 68 B9 STA $B968
-72AE: D0 1B    BNE $72CB  ; never branches
+72AB: 8D 68 B9 STA $B968  ; set TEXT mode
+
+; CLEAR statement
+72AE: D0 1B    BNE $72CB
 
 72B0: 20 4A 68 JSR $684A  ; close all files opened by OPEN
-72B3: 20 CC 72 JSR $72CC
+72B3: 20 CC 72 JSR $72CC  ; clear all variables, restore DATA pointer
 72B6: A2 49    LDX #$49
-72B8: 86 42    STX $42
+72B8: 86 42    STX $42   ; initialize string operand stack pointer
 72BA: 68       PLA
 72BB: A8       TAY
 72BC: 68       PLA
-72BD: A2 F8    LDX #$F8
+72BD: A2 F8    LDX #$F8  ; clear all loops and GOSUBs
 72BF: 9A       TXS
 72C0: 48       PHA
 72C1: 98       TYA
@@ -2067,6 +2070,7 @@
 72C8: 8D 0B B8 STA $B80B
 72CB: 60       RTS
 
+; clear all variables, restore DATA pointer
 72CC: AD D1 B8 LDA $B8D1
 72CF: AC D2 B8 LDY $B8D2
 72D2: 8D CF B8 STA $B8CF
@@ -2078,7 +2082,7 @@
 72E4: 8D CB B8 STA $B8CB
 72E7: 8C CC B8 STY $B8CC
 72EA: 38       SEC
-72EB: 4C CC 74 JMP $74CC
+72EB: 4C CC 74 JMP $74CC  ; restore DATA pointer
 
 ; decrement $54,$55
 72EE: 18       CLC
@@ -2114,10 +2118,12 @@
 7320: EE C6 B8 INC $B8C6
 7323: EE C3 B8 INC $B8C3
 7326: 60       RTS
+
+; WHILE statement
 7327: 68       PLA
 7328: 68       PLA
 7329: A9 04    LDA #$04
-732B: 20 5F 67 JSR $675F
+732B: 20 5F 67 JSR $675F  ; make sure stack has enough space
 732E: AD 55 B9 LDA $B955
 7331: 48       PHA
 7332: AD 56 B9 LDA $B956
@@ -2132,10 +2138,12 @@
 7343: 48       PHA
 7344: A9 BB    LDA #$BB
 7346: 48       PHA
-7347: 20 7A 9B JSR $9B7A
-734A: A5 6F    LDA $6F
-734C: F0 03    BEQ $7351
-734E: 4C B7 73 JMP $73B7
+
+7347: 20 7A 9B JSR $9B7A  ; evaluate expression, doesn't check if result is number
+734A: A5 6F    LDA $6F    ; if result is string, what value will be in $6F ?
+734C: F0 03    BEQ $7351  ; branch if FAC1 is zero
+734E: 4C B7 73 JMP $73B7  ; execute loop body
+
 7351: 68       PLA
 7352: 68       PLA
 7353: 68       PLA
@@ -2144,12 +2152,12 @@
 7356: 68       PLA
 7357: 68       PLA
 7358: A9 00    LDA #$00
-735A: 85 80    STA $80
-735C: 20 76 76 JSR $7676
+735A: 85 80    STA $80   ; nested WHILE loops = 0
+735C: 20 76 76 JSR $7676  ; find next unquoted ':' or $00
 735F: 48       PHA
-7360: 20 63 76 JSR $7663
+7360: 20 63 76 JSR $7663  ; skip to next unquoted ':' or $00
 7363: 68       PLA
-7364: D0 37    BNE $739D
+7364: D0 37    BNE $739D  ; branch if not end of line
 7366: A0 02    LDY #$02
 7368: B1 5E    LDA ($5E),Y
 736A: D0 1A    BNE $7386
@@ -2177,24 +2185,26 @@
 7399: 90 02    BCC $739D
 739B: E6 5F    INC $5F
 739D: 20 34 66 JSR $6634
-73A0: C9 BB    CMP #$BB
+73A0: C9 BB    CMP #$BB  ; 'WHILE' token
 73A2: F0 07    BEQ $73AB
-73A4: C9 BC    CMP #$BC
+73A4: C9 BC    CMP #$BC  ; 'WEND' token
 73A6: F0 08    BEQ $73B0
 73A8: 4C 5C 73 JMP $735C
-73AB: E6 80    INC $80
+73AB: E6 80    INC $80  ; increment nested WHILEs
 73AD: 4C 5C 73 JMP $735C
-73B0: C6 80    DEC $80
+73B0: C6 80    DEC $80  ; decrement nested WHILEs
 73B2: 10 A8    BPL $735C
 73B4: 20 34 66 JSR $6634
 73B7: 4C F1 60 JMP $60F1
+
+; WEND statement
 73BA: BA       TSX
 73BB: E8       INX
 73BC: E8       INX
 73BD: BD 01 01 LDA $0101,X
-73C0: C9 BB    CMP #$BB
+73C0: C9 BB    CMP #$BB  ; WHILE
 73C2: F0 23    BEQ $73E7
-73C4: C9 81    CMP #$81
+73C4: C9 81    CMP #$81  ; FOR
 73C6: D0 0C    BNE $73D4
 73C8: 8A       TXA
 73C9: 18       CLC
@@ -2203,7 +2213,8 @@
 73CE: 4C FD 9C JMP $9CFD
 73D1: AA       TAX
 73D2: D0 E9    BNE $73BD
-73D4: C9 91    CMP #$91
+
+73D4: C9 91    CMP #$91  ; GOSUB
 73D6: F0 03    BEQ $73DB
 73D8: 4C FD 9C JMP $9CFD
 73DB: 8A       TXA
@@ -2213,7 +2224,8 @@
 73E1: 4C FD 9C JMP $9CFD
 73E4: AA       TAX
 73E5: D0 D6    BNE $73BD
-73E7: 9A       TXS
+
+73E7: 9A       TXS  ; pop all items atop
 73E8: BD 02 01 LDA $0102,X
 73EB: 8D 15 B8 STA $B815
 73EE: BD 03 01 LDA $0103,X
@@ -2319,7 +2331,7 @@
 74B7: 8D D6 B8 STA $B8D6
 74BA: 60       RTS
 
-; store ($54,$55) minus 1 in $B8D5, $B8D6
+; store ($54,$55) minus 1 in DATA pointer
 74BB: 38       SEC
 74BC: A5 54    LDA $54
 74BE: E9 01    SBC #$01
@@ -2330,12 +2342,13 @@
 74C8: 8C D6 B8 STY $B8D6
 74CB: 60       RTS
 
-74CC: B0 CF    BCS $749D
-74CE: 20 78 77 JSR $7778
+; RESTORE statement
+74CC: B0 CF    BCS $749D  ; branch if current token is digit
+74CE: 20 78 77 JSR $7778  ; read a line number into ($40, $41)
 74D1: 2C 4E B9 BIT $B94E
 74D4: 30 10    BMI $74E6
-74D6: 20 0A 6A JSR $6A0A
-74D9: 90 C2    BCC $749D
+74D6: 20 0A 6A JSR $6A0A  ; find line number
+74D9: 90 C2    BCC $749D  ; branch if not found
 74DB: 38       SEC
 74DC: A5 68    LDA $68
 74DE: E9 01    SBC #$01
@@ -2394,7 +2407,7 @@
 7545: 4C 32 88 JMP $8832
 
 7548: D0 24    BNE $756E
-754A: A2 0F    LDX #$0F
+754A: A2 0F    LDX #$0F  ; can't continue error
 754C: AC D4 B8 LDY $B8D4
 754F: D0 03    BNE $7554
 7551: 4C 9F 67 JMP $679F
@@ -3151,6 +3164,7 @@
 7B48: A0 02    LDY #$02  ; string
 7B4A: 60       RTS
 
+; READ statement
 7B4B: AE D5 B8 LDX $B8D5
 7B4E: AC D6 B8 LDY $B8D6
 7B51: A9 98    LDA #$98
@@ -3314,7 +3328,7 @@
 7CAB: D0 03    BNE $7CB0 ; never branches
 7CAD: 4C 3E 7D JMP $7D3E
 
-7CB0: 9A       TXS
+7CB0: 9A       TXS  ; pop all items atop
 7CB1: E8       INX
 7CB2: E8       INX
 7CB3: E8       INX
@@ -4578,9 +4592,10 @@
 860E: 20 17 86 JSR $8617
 8611: 20 F2 9C JSR $9CF2
 8614: 4C C7 85 JMP $85C7
+
 8617: A5 6F    LDA $6F
 8619: C9 91    CMP #$91
-861B: B0 A4    BCS $85C1
+861B: B0 A4    BCS $85C1  ; report 'illegal quantity' if exponent >= +17
 861D: 20 7B A2 JSR $A27B
 8620: A5 72    LDA $72
 8622: A4 73    LDY $73
@@ -4608,7 +4623,7 @@
 ; TRACE statement
 ; set TRACE flag
 8643: 38       SEC
-8644: 90            ; BCC $865E
+8644: 90       ; junk code: BCC $865E
 
 ; NOTRACE statement
 ; clear TRACE flag
@@ -4620,9 +4635,11 @@
 864A: A9 00    LDA #$00
 864C: F0 11    BEQ $865F
 
+; INVERSE statement
 864E: A9 01    LDA #$01
 8650: D0 05    BNE $8657
 
+; FLASH statement
 8652: A9 02    LDA #$02
 8654: 0D 12 B8 ORA $B812
 8657: AE 15 B8 LDX $B815
@@ -4884,6 +4901,7 @@
 8861: D0 F7    BNE $885A
 8863: 60       RTS
 
+; TEXT statement
 8864: F0 03    BEQ $8869
 8866: 4C FD 9C JMP $9CFD
 
@@ -4895,12 +4913,13 @@
 8876: 8D C4 B8 STA $B8C4
 8879: 4C 8C 88 JMP $888C
 
+; GRAPH statement
 887C: F0 03    BEQ $8881
 887E: 4C FD 9C JMP $9CFD
 8881: 20 E5 7D JSR $7DE5
 8884: A9 80    LDA #$80
 8886: 8D 68 B9 STA $B968
-8889: 8D B3 03 STA $03B3
+8889: 8D B3 03 STA $03B3  ; cursor mode
 
 ; CLS statement
 888C: 20 E2 AC JSR $ACE2  ; clear screen and text buffer
@@ -6929,9 +6948,12 @@
 9990: B1 68    LDA ($68),Y
 9992: 65 69    ADC $69
 9994: 90 A7    BCC $993D
-9996: A2 08    LDX #$08
-9998: 2C A2 04 BIT $04A2
+9996: A2 08    LDX #$08  ; bad subscript
+9998: 2C       ; junk code: BIT $04A2
+
+9999: A2 04    LDX #$04  ; illegal quantity
 999B: 4C 9F 67 JMP $679F
+
 999E: A2 09    LDX #$09
 99A0: AD 07 B8 LDA $B807
 99A3: D0 F6    BNE $999B
@@ -8166,7 +8188,7 @@ A274: 90 02    BCC $A278
 A276: 49 FF    EOR #$FF
 A278: 4C FA A1 JMP $A1FA
 
-; convert float  to a 4 byte signed integer
+; convert float to a 4 byte signed integer
 A27B: A5 6F    LDA $6F
 A27D: F0 4F    BEQ $A2CE
 A27F: 38       SEC
@@ -9759,8 +9781,9 @@ AF4A: D0 FB    BNE $AF47
 AF4C: C8       INY
 AF4D: 60       RTS
 
-AF4E: 20 2C 7D JSR $7D2C
-AF51: 20 17 86 JSR $8617
+; CALL statement
+AF4E: 20 2C 7D JSR $7D2C  ; evaluate expression and assert result is number
+AF51: 20 17 86 JSR $8617  ; convert float to
 AF54: 6C 40 00 JMP ($0040)
 AF57: 20 60 AF JSR $AF60
 AF5A: 8A       TXA

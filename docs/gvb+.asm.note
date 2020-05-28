@@ -102,6 +102,7 @@ data:
             starting address of variable table
 
     $B8CF, $B8D0
+            bottom of string stack
 
     $B8BB-$B8BF
             random number seed (float)
@@ -112,6 +113,25 @@ data:
     $B953, $B954
             last line number of current chunk of the .BAS file
             
+    $42     string operand stack pointer
+
+    $49-$51
+            string operand stack, 3 items, each item is:
+                1 byte    string length
+                2 bytes   string content pointer
+
+    $B968
+            bit7   = 0    TEXT mode
+                   = 1    GRAPH mode
+
+    $B812
+            = 0    NORMAL mode
+            = 1    INVERSE mode
+
+            bit1   = 1    FLASH mode
+
+    $B8D5, $B8D6
+            DATA pointer
 
 TODO:
     数字字面量可以用空格分隔？
@@ -122,27 +142,20 @@ TODO:
     FOR、FN、subscript 变量和常规 float 变量不认为是同一个类型？
     POP 后面的 token 就像 DATA 语句一样会被忽略？
     RETURN 之后 GOSUB 行号后面的 token 就像 DATA 语句一样会被忽略？
+    STEP 0
     .BAS 文件结构
 
     input
     dim
     read
-    run
     if
-    restore
     on
     def
     poke
     print
-    cont
-    clear
-    text
-    graph
-    system
     normal
     inverse
     flash
-    inkey$
     open
     close
     write
@@ -157,15 +170,13 @@ TODO:
     box
     circle
     ellipse
-    while
-    wend
-    call
 
 FOR 变量必须是 float
-GOSUB / GOTO 的行号不能用空格分隔
 
 
 ----------------------------------------------------
+未明用途的地址：
+
 $B98F, $B990  = $2000
 $B991, $B992  = $6000
 $B993, $B994  = $BD00
@@ -177,7 +188,6 @@ $B8D1, $B8D2  = $6000
 $B8C7, $B8C8  = end of .BAS chunk
 $B8CD, $B8CE  = end of .BAS chunk
 $B8CB, $B8CC  = end of .BAS chunk
-$B968  = 0
 $B8C4  = 0
 $B810  = 0
 $B92B ~ $B937  = 0
@@ -214,3 +224,8 @@ item:  (from high address to low address)
         2 bytes            pointer of line number following the GOSUB token
         2 bytes            line number of GOSUB statement
         1 byte             $91, the 'GOSUB' token
+    WHILE: (7 bytes)
+        2 bytes            offset of chunk
+        2 bytes            starting pointer of WHILE loop body
+        2 bytes            line number of WHILE statement
+        1 byte             $BB, the 'WHILE' token
