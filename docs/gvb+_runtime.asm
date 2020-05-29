@@ -1655,6 +1655,7 @@
 6F95: 9D 58 B8 STA $B858,X
 6F98: EE 01 B8 INC $B801
 6F9B: 60       RTS
+
 6F9C: AD C6 B8 LDA $B8C6
 6F9F: 8D C2 B8 STA $B8C2
 6FA2: A9 99    LDA #$99
@@ -1815,6 +1816,7 @@
 70DE: 91 6F    STA ($6F),Y
 70E0: F0 D0    BEQ $70B2
 70E2: 60       RTS
+
 70E3: AD B5 03 LDA $03B5
 70E6: 0A       ASL
 70E7: AA       TAX
@@ -2008,16 +2010,7 @@
 
 7252: .dw $02C0, $02d4, $02e8, $02fc, $0310
 
-725C: D3       ??
-725D: 02       ??
-725E: E7       ??
-725F: 02       ??
-7260: FB       ??
-7261: 02       ??
-7262: 0F       ??
-7263: 03       ??
-7264: 23       ??
-7265: 03       ??
+725C: .dw $02D3, $02E7, $02FB, $030F, $0323
 
 7266: 00 01 02 INT $0201
 7269: FF       ??
@@ -2844,28 +2837,32 @@
 ; PRINT statement
 784B: D0 03    BNE $7850
 784D: 4C AD 78 JMP $78AD
+
 7850: D0 03    BNE $7855
 7852: 4C BA 78 JMP $78BA
+
 7855: 48       PHA
 7856: A9 00    LDA #$00
 7858: 8D C6 B8 STA $B8C6
 785B: 68       PLA
-785C: C9 C0    CMP #$C0
+785C: C9 C0    CMP #$C0  ; TAB
 785E: D0 03    BNE $7863
 7860: 4C D6 78 JMP $78D6
-7863: C9 C3    CMP #$C3
+
+7863: C9 C3    CMP #$C3  ; SPC
 7865: 18       CLC
 7866: D0 03    BNE $786B
 7868: 4C D6 78 JMP $78D6
-786B: C9 2C    CMP #$2C
+
+786B: C9 2C    CMP #$2C  ; ','
 786D: 18       CLC
 786E: F0 4E    BEQ $78BE
-7870: C9 3B    CMP #$3B
+7870: C9 3B    CMP #$3B  ; ';'
 7872: F0 5C    BEQ $78D0
-7874: 20 7A 9B JSR $9B7A
+7874: 20 7A 9B JSR $9B7A  ; evaluate expression
 7877: 2C 08 B8 BIT $B808
-787A: 30 06    BMI $7882
-787C: 20 8E A4 JSR $A48E
+787A: 30 06    BMI $7882  ; branch if string
+787C: 20 8E A4 JSR $A48E  ; convert FAC1 to string
 787F: 20 D0 7E JSR $7ED0
 7882: 20 97 79 JSR $7997
 7885: 20 9C 6F JSR $6F9C
@@ -2889,11 +2886,11 @@
 78AA: 4C 50 78 JMP $7850
 
 78AD: AD B4 03 LDA $03B4
-78B0: F0 08    BEQ $78BA
-78B2: 20 4A 6E JSR $6E4A
+78B0: F0 08    BEQ $78BA  ; if caret X is 0, don't increment caret Y
+78B2: 20 4A 6E JSR $6E4A  ; increment caret Y, scroll screen conditionally
 78B5: A9 00    LDA #$00
 78B7: 8D B4 03 STA $03B4
-78BA: 20 9A AD JSR $AD9A
+78BA: 20 9A AD JSR $AD9A  ;  update screen
 78BD: 60       RTS
 
 78BE: AD B4 03 LDA $03B4
@@ -2987,6 +2984,7 @@
 7990: EE 01 B8 INC $B801
 7993: 4C 63 79 JMP $7963
 7996: 60       RTS
+
 7997: 20 B6 84 JSR $84B6
 799A: 8D 00 B8 STA $B800
 799D: EE 00 B8 INC $B800
@@ -2997,7 +2995,7 @@
 79AB: F0 2B    BEQ $79D8
 79AD: AC 01 B8 LDY $B801
 79B0: B1 44    LDA ($44),Y
-79B2: C9 1F    CMP #$1F
+79B2: C9 1F    CMP #$1F  ; skip character code $1F
 79B4: D0 19    BNE $79CF
 79B6: CE 00 B8 DEC $B800
 79B9: F0 1D    BEQ $79D8
@@ -4761,6 +4759,7 @@
 86A3: 4C 42 77 JMP $7742
 86A6: 4C 42 77 JMP $7742
 
+; LOCATE statement
 86A9: F0 3F    BEQ $86EA
 86AB: AE B5 03 LDX $03B5
 86AE: 8E C5 B8 STX $B8C5  ; save current caret Y in $B8C5
@@ -9783,6 +9782,7 @@ AD94: EC 02 B8 CPX $B802
 AD97: 90 C9    BCC $AD62
 AD99: 60       RTS
 
+; update text buffer to screen
 AD9A: A0 0C    LDY #$0C
 AD9C: B9 2B B9 LDA $B92B,Y
 AD9F: 99 96 03 STA $0396,Y
@@ -9803,7 +9803,8 @@ ADC0: A9 FF    LDA #$FF
 ADC2: 8D B0 03 STA $03B0
 ADC5: 00 19 C7 INT $C719
 ADC8: 60       RTS
-ADC9: 4C 6C AE JMP $AE6C
+ADC9: 4C 6C AE JMP $AE6C  ; render text buffer to screen,
+                          ; doesn't update the area where corresponding character code is $00
 
 ADCC: .dw $19C0, $19d4, $19e8, $19fc, $1a10, $1a24, $1a38, $1a4c, $1a60, $1a74
 ADE0: .dw $1a88, $1a9c, $1ab0, $1ac4, $1ad8, $1aec, $1b00, $1b14, $1b28, $1b3c
@@ -9831,7 +9832,7 @@ AE85: C0 14    CPY #$14
 AE87: F0 4F    BEQ $AED8
 AE89: 84 66    STY $66
 AE8B: B1 88    LDA ($88),Y
-AE8D: F0 F3    BEQ $AE82
+AE8D: F0 F3    BEQ $AE82  ; if $00, don't draw character
 AE8F: 10 26    BPL $AEB7
 AE91: 85 92    STA $92
 AE93: C8       INY
@@ -9846,7 +9847,7 @@ AEA3: A5 88    LDA $88
 AEA5: 48       PHA
 AEA6: A5 89    LDA $89
 AEA8: 48       PHA
-AEA9: 00 0C C7 INT $C70C
+AEA9: 00 0C C7 INT $C70C  ; draw 16x16 character
 AEAC: 68       PLA
 AEAD: 85 89    STA $89
 AEAF: 68       PLA
@@ -9865,12 +9866,13 @@ AEC6: 48       PHA
 AEC7: A5 89    LDA $89
 AEC9: 48       PHA
 AECA: A5 80    LDA $80
-AECC: 00 13 C7 INT $C713
+AECC: 00 13 C7 INT $C713  ; draw ASCII character
 AECF: 68       PLA
 AED0: 85 89    STA $89
 AED2: 68       PLA
 AED3: 85 88    STA $88
 AED5: 4C 82 AE JMP $AE82
+
 AED8: A6 65    LDX $65
 AEDA: E8       INX
 AEDB: E0 05    CPX #$05
