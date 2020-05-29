@@ -2601,14 +2601,15 @@
 769B: D0 F2    BNE $768F
 769D: F0 E4    BEQ $7683
 
-769F: A2 8F    LDX #$8F
+; find matching ELSE
+769F: A2 8F    LDX #$8F  ; IF
 76A1: 86 81    STX $81
-76A3: A2 C5    LDX #$C5
+76A3: A2 C5    LDX #$C5  ; ELSE
 76A5: 86 83    STX $83
 76A7: A2 00    LDX #$00
 76A9: 86 80    STX $80
 76AB: 86 82    STX $82
-76AD: 86 84    STX $84
+76AD: 86 84    STX $84  ; nested IFs = 0
 76AF: A0 00    LDY #$00
 76B1: A5 81    LDA $81
 76B3: A6 80    LDX $80
@@ -2625,43 +2626,53 @@
 76C9: C5 82    CMP $82
 76CB: F0 10    BEQ $76DD
 76CD: C8       INY
-76CE: C9 22    CMP #$22
+76CE: C9 22    CMP #$22  ; '"'
 76D0: D0 EF    BNE $76C1
 76D2: F0 DD    BEQ $76B1
+
 76D4: 60       RTS
-76D5: A5 FF    LDA $FF
+
+76D5: A5 FF    LDA $FF  ; ??
 76D7: E6 84    INC $84
 76D9: C8       INY
 76DA: 4C C1 76 JMP $76C1
+
 76DD: C8       INY
 76DE: C6 84    DEC $84
 76E0: 30 F2    BMI $76D4
 76E2: 4C C1 76 JMP $76C1
-76E5: 20 7A 9B JSR $9B7A
+
+; IF statement
+76E5: 20 7A 9B JSR $9B7A  ; evaluate expression, doesn't check result type
 76E8: 20 3A 66 JSR $663A
-76EB: C9 8D    CMP #$8D
+76EB: C9 8D    CMP #$8D  ; GOTO
 76ED: F0 05    BEQ $76F4
 76EF: A9 C4    LDA #$C4
-76F1: 20 F4 9C JSR $9CF4
+76F1: 20 F4 9C JSR $9CF4 ; assert 'THEN' token
 76F4: A5 6F    LDA $6F
-76F6: D0 0A    BNE $7702
-76F8: 20 9F 76 JSR $769F
+76F6: D0 0A    BNE $7702  ; branch if condition not zero
+                          ; what will happen if condition is string ?
+
+76F8: 20 9F 76 JSR $769F  ; find matching ELSE, or $00
 76FB: 48       PHA
-76FC: 20 63 76 JSR $7663
+76FC: 20 63 76 JSR $7663  ; skip to ELSE or $00
 76FF: 68       PLA
-7700: F0 3F    BEQ $7741
+7700: F0 3F    BEQ $7741  ; branch if $00
+
 7702: 20 3A 66 JSR $663A
-7705: B0 03    BCS $770A
-7707: 4C BE 75 JMP $75BE
-770A: C9 91    CMP #$91
+7705: B0 03    BCS $770A  ; branch if not digit
+7707: 4C BE 75 JMP $75BE  ; if digit, perform GOTO
+
+770A: C9 91    CMP #$91  ; GOSUB
 770C: F0 0C    BEQ $771A
-770E: C9 8D    CMP #$8D
+770E: C9 8D    CMP #$8D  ; GOTO
 7710: F0 08    BEQ $771A
-7712: C9 95    CMP #$95
+7712: C9 95    CMP #$95  ; ON
 7714: F0 04    BEQ $771A
-7716: C9 8F    CMP #$8F
+7716: C9 8F    CMP #$8F  ; IF
 7718: D0 03    BNE $771D
 771A: 4C A7 61 JMP $61A7
+
 771D: 38       SEC
 771E: 20 A4 61 JSR $61A4
 7721: 20 3A 66 JSR $663A
@@ -2691,20 +2702,23 @@
 774F: 4C BE 75 JMP $75BE
 7752: 4C A4 61 JMP $61A4
 
-7755: 20 C7 85 JSR $85C7
+; ON statement
+7755: 20 C7 85 JSR $85C7  ; evaluate expression and assert result is 0~255
 7758: 48       PHA
-7759: C9 91    CMP #$91
+7759: C9 91    CMP #$91  ; GOSUB
 775B: F0 07    BEQ $7764
-775D: C9 8D    CMP #$8D
+775D: C9 8D    CMP #$8D  ; GOTO
 775F: F0 03    BEQ $7764
 7761: 4C 26 76 JMP $7626  ; report syntax error
+
 7764: C6 73    DEC $73
 7766: D0 04    BNE $776C
 7768: 68       PLA
 7769: 4C A7 61 JMP $61A7
+
 776C: 20 34 66 JSR $6634
-776F: 20 78 77 JSR $7778
-7772: C9 2C    CMP #$2C
+776F: 20 78 77 JSR $7778  ; read a line number
+7772: C9 2C    CMP #$2C  ; ','
 7774: F0 EE    BEQ $7764
 7776: 68       PLA
 7777: 60       RTS
@@ -3503,11 +3517,12 @@
 7DBB: F0 02    BEQ $7DBF
 7DBD: A9 01    LDA #$01
 7DBF: 4C 05 A2 JMP $A205
-7DC2: 20 F2 9C JSR $9CF2
+
+7DC2: 20 F2 9C JSR $9CF2  ; assert ',' token
 
 ; DIM statement
 7DC5: AA       TAX
-7DC6: 20 DB 96 JSR $96DB
+7DC6: 20 DB 96 JSR $96DB  ; get name and variable
 7DC9: 20 3A 66 JSR $663A
 7DCC: D0 F4    BNE $7DC2
 7DCE: 60       RTS
@@ -4633,6 +4648,8 @@
 8611: 20 F2 9C JSR $9CF2
 8614: 4C C7 85 JMP $85C7
 
+; convert FAC1 to 2-byte integer
+; $40, $41 = result
 8617: A5 6F    LDA $6F
 8619: C9 91    CMP #$91
 861B: B0 A4    BCS $85C1  ; report 'illegal quantity' if exponent >= +17
@@ -9863,12 +9880,15 @@ AF4D: 60       RTS
 AF4E: 20 2C 7D JSR $7D2C  ; evaluate expression and assert result is number
 AF51: 20 17 86 JSR $8617  ; convert float to
 AF54: 6C 40 00 JMP ($0040)
+
+; POKE statement
 AF57: 20 60 AF JSR $AF60
 AF5A: 8A       TXA
 AF5B: A0 00    LDY #$00
 AF5D: 91 40    STA ($40),Y
 AF5F: 60       RTS
-AF60: 20 2C 7D JSR $7D2C
-AF63: 20 17 86 JSR $8617
-AF66: 20 F2 9C JSR $9CF2
-AF69: 4C C7 85 JMP $85C7
+
+AF60: 20 2C 7D JSR $7D2C  ; evaluate expression and assert result is number
+AF63: 20 17 86 JSR $8617  ; convert to 2-byte number
+AF66: 20 F2 9C JSR $9CF2  ; assert ',' token
+AF69: 4C C7 85 JMP $85C7  ; evaluate expression and assert result is 0-255
