@@ -10,6 +10,7 @@
 | CALL `<expr>` | 调用 `<expr>` 地址的机器码。<br>`<expr>` 转换为整数，如果是负数则取补码；地址必须小于 65536 |
 | CIRCLE `<X expr>` , `<Y expr>` , `<radius expr>` [ , `<fill mode expr>` [ , `<draw mode expr>` ] ] | 画圆。X、Y、radius、fill mode、draw mode 必须在 0~255 之间。<br>如果 fill mode 的 bit0 为 1，则画实心圆，否则画空心圆。<br>draw mode 的值在下面的注解中说明。 |
 | CLEAR   | 关闭所有文件、清空所有变量、重置 DATA 指针、清空所有循环和子程序 |
+| CLOSE [ # ] `<file number expr>` | 关闭文件。file number 的结果必须在 1~3 之间。 |
 | CLS     | 清空屏幕和文字缓冲区 |
 | CONT    | 不做任何操作 |
 | COPY    | 和 REM 一样 |
@@ -25,7 +26,8 @@
 | GOSUB [ `<integer>` ] | 跳转子程序。如果后面有跟上行号（行号的数字中间没有空格），则跳转到行号，<br>否则跳转到行号为 `0` 的行；如果没有行号为 `0` 的行，则报错 `UNDEF'D STATEMENT`。<br>执行 RETURN 返回到 GOSUB 语句后，行号后面的字符会被忽略，和 DATA 语句一样（这是为了把处理 GOSUB 的代码重用于 ON ... GOSUB 语句中）。 |
 | GOTO [ `<integer>` ] | <p>无条件跳转。如果后面有跟上行号（行号的数字中间没有空格），则跳转到行号，<br>否则跳转到行号为 `0` 的行；如果没有行号为 `0` 的行，则报错 `UNDEF'D STATEMENT`。</p><p>由于在判断行号之后就立即跳转到目标行号继续执行，因此 GOTO 语句后面的内容不会被检查。<br>例：`10 GOTO 20 something wrong` 这个 GOTO 语句后面的 `something wrong` 不会被检查。</p> |
 | GRAPH   | 设置为图形模式，隐藏光标。然后清空屏幕和文字缓冲 |
-| INKEY$  | 等待按键。按键值（长度为 1 的字符串）会保存到用于表达式计算的字符串操作数栈中，这个栈只能保存 3 个元素，因此在连续执行 4 次 INKEY$ 语句后就栈溢出了，发生 `formula too complex` 错误。<br>如果要避免这个错误，就要使用赋值语句把按键值赋值给某个变量，这样就会把字符串操作数栈的内容消耗掉。 |
+| IF `<cond expr>` ( THEN \| GOTO ) `<then statements>` [ ELSE `<else statements>` ]... | 当 cond 不为 0 时，执行 THEN / GOTO 后面的语句（THEN 和 GOTO 等价，GOTO 后面不一定要跟上行号），否则如果有 ELSE 的话，执行 ELSE 后面的语句。<br>不会判断 cond 是否是数字，如果是字符串，该语句的行为未知。<br>可以有多个 ELSE，这是为了处理多个 IF 语句嵌套的情况，但是 GVBASIC 并没有判断 IF 和 ELSE 是否匹配，ELSE 的个数可以多于 IF。在按顺序执行 then 或 else 中的语句时，如果碰到 ELSE，则直接跳过这一行剩下的内容，继续执行下一行。<br>then 开头不能是冒号，结尾可以有一个冒号；语句之间只能用一个冒号分隔。<br/>else 开头不能是冒号，如果不是最后一个 ELSE，则结尾可以有一个冒号；语句之间只能用一个冒号分隔。<br>如果 then 和 else 其中的语句是一个行号，则跳转到指定的行号。<br>在 then 或 else 中如果出现 GOSUB 或 ON ... GOSUB 语句，在使用 RETURN 回到这个 IF 语句中继续执行时，如果碰到 ELSE 或者行号语句就会报错 syntax error。 |
+| INKEY$  | 等待按键。按键值（长度为 1 的字符串）会保存到用于表达式计算的字符串操作数栈中，这个栈只能保存 3 个元素，因此在连续执行 4 次 INKEY$ 语句后就栈溢出了，发生 `formula too complex` 错误。<br>如果要避免这个错误，要使用赋值语句把按键值赋值给某个变量，这样就会把字符串操作数栈的内容消耗掉。 |
 | KILL    | 和 REM 一样 |
 | [LET] `<lvalue>` = `<expr>` | 赋值。LET 关键字可以省略 |
 | LINE `<X0 expr>` , `<Y0 expr>` , `<X1 expr>` , `<Y1 expr>` [ , `<draw mode expr>` ] | 画线。X0、Y0、X1、Y1、draw mode 必须在 0~255 之间。<br>draw mode 的值在下面的注解中说明。 |
@@ -37,6 +39,7 @@
 | NEXT [ `<var>` [ , `<another var>` ]... ] | 继续执行 FOR 循环。如果有 `<var>`，则继续执行最近的 `<var>` 相同的 FOR 循环。<br>在 `<var>` 对应的 FOR 循环结束后，继续执行 `<another var>` 对应的循环，以此类推。 |
 | NOTRACE | 关闭 tracing |
 | ON `<expr>` ( GOTO \| GOSUB ) [ `<integer>` [ , [ `<integer>` ] ]... ] | 根据 `<expr>` 的结果跳转到对应的行号。如果结果取整之后为 1，则跳转到第一个行号；为 2 则跳转到第二个行号，以此类推。如果没有对应的行号则往后面继续执行。<br>`<expr>` 的结果必须在 0~255 之间。<br>行号可以省略，如果省略某个行号，则默认为 `0`。甚至所有行号都能省略，例如 `ON <expr> GOTO` 等价于 `ON <expr> GOTO 0`。 |
+| OPEN `<filename expr>` [ FOR ] [ INPUT \| OUTPUT \| APPEND \| RANDOM ] AS [ # ] `<file number>` [ LEN = `<len expr>` ] | 打开文件。filename 结果必须是字符串，不能为空，不能包含`/`字符。filename 中的 `U+001F` 字符会被删除，经过处理的 filename 最长 14 字节，超出的部分将被截断。<br>如果省略 INPUT / OUTPUT / APPEND / RANDOM，则默认为 RANDOM。<br>OUTPUT、APPEND、RANDOM 不是关键字。<br>AS 中间可以有空格，并且可以和前面的文件打开模式连起来，例如 `APPENDA  S`。<br>file number 必须在 1~3 之间。<br>LEN 只能用于 RANDOM 模式，len 必须在 0~255 之间，如果 len 等于 0 或大于 128，则改为 32。如果省略 LEN 则 len 默认为 32。 |
 | PLAY    | 和 REM 一样 |
 | POKE `<addr expr>` , `<value expr>` | 把 addr 地址的字节设置为 value。<br>addr 转换为整数，如果是负数则取补码；addr 必须小于 65536。<br>value 必须在 0~255 之间。 |
 | POP     | 最近的 GOSUB 记录出栈，然后跳过 POP 后面的部分字符，则 DATA 语句一样。 |

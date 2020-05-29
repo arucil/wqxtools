@@ -27,6 +27,8 @@ subroutine:
     7679    find next $00
                 Y = offset of next $00
     7D2C    evaluate expression and assert result is number (float or int)
+    7DE5    assert current mode is not direct mode (interactive mode), otherwise
+                report "illegal direct" error
     85C4    evaluate expression and assert result is 0~255
                 X = result
     918E    syntax error
@@ -55,7 +57,9 @@ subroutine:
                 $FF = negative
     A23A    compare FAC1 with (A, Y)
     ACE2    clear screen and text buffer
+    ACF2    clear bottom text row on screen and in text buffer
     AD06    clear screen
+    AD32    clear bottom text row on screen
 
 data:
     $B808   variable type flag, $00 = numeric, $FF = string
@@ -137,6 +141,9 @@ data:
     $B8D5, $B8D6
             DATA pointer
 
+    $B95E
+            $4C (JMP)
+
 TODO:
     数字字面量可以用空格分隔？yes
     AND、OR、NOT 是 bitwise？
@@ -156,14 +163,11 @@ TODO:
     READ 读取的 data 字符串会保留后面的空格？
 
     input
-    if
     def
     print
     normal
     inverse
     flash
-    open
-    close
     write
     field
     get

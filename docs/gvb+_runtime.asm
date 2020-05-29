@@ -202,7 +202,7 @@
 6189: 00 06 C0 INT $C006
 
 618C: 20 34 66 JSR $6634 ; read a character
-618F: 20 A4 61 JSR $61A4 ; execute statement
+618F: 20 A4 61 JSR $61A4 ; execute statement if not ':' or $00
 6192: 4C F1 60 JMP $60F1 ; continue executing statements
 
 6195: C9 3A    CMP #$3A ; ':'
@@ -266,7 +266,6 @@
 61ED: .dw $7754 ; $7755 on
 61EF: .dw $7dF9 ; $7dfa def
 61F1: .dw $af56 ; $af57 poke
-61F3: .dw $784A ; $784b print
 61F5: .dw $7547 ; $7548 cont
 61F7: .dw $72FB ; $72fc list
 61F9: .dw $72AD ; $72ae clear
@@ -1505,6 +1504,8 @@
 6E46: 8C A0 B4 STY $B4A0
 6E49: C8       INY
 
+; increment caret Y, scroll conditionally
+; $6F, $70 = new pointer to text buffer
 6E4A: AD B4 03 LDA $03B4
 6E4D: F0 1C    BEQ $6E6B
 6E4F: AE B5 03 LDX $03B5
@@ -1833,7 +1834,7 @@
 7100: A9 50    LDA #$50
 7102: E0 05    CPX #$05
 7104: F0 02    BEQ $7108
-7106: A9 3C    LDA #$3C
+7106: A9 3C    LDA #$3C  ; 60
 7108: 8D 02 B8 STA $B802
 710B: A2 00    LDX #$00
 710D: BD D4 02 LDA $02D4,X
@@ -1841,10 +1842,10 @@
 7113: E8       INX
 7114: EC 02 B8 CPX $B802
 7117: 90 F4    BCC $710D
-7119: 20 25 71 JSR $7125
+7119: 20 25 71 JSR $7125  ; clear last text row
 711C: AD 68 B9 LDA $B968
 711F: F0 03    BEQ $7124
-7121: 20 32 71 JSR $7132
+7121: 20 32 71 JSR $7132  ; scroll screen
 7124: 60       RTS
 
 7125: AD 02 B8 LDA $B802
@@ -1859,7 +1860,7 @@
 7137: E0 3C    CPX #$3C
 7139: F0 02    BEQ $713D
 713B: A9 40    LDA #$40
-713D: 20 5D AD JSR $AD5D
+713D: 20 5D AD JSR $AD5D  ; scroll screen
 7140: 60       RTS
 
 7141: AA       TAX
@@ -1917,6 +1918,7 @@
 71B4: B0 F2    BCS $71A8
 71B6: EE C3 B8 INC $B8C3
 71B9: 60       RTS
+
 71BA: A2 00    LDX #$00
 71BC: 18       CLC
 71BD: 8A       TXA
@@ -1948,6 +1950,7 @@
 71E8: 1D 38 B9 ORA $B938,X
 71EB: 9D 38 B9 STA $B938,X
 71EE: 4C 0F 72 JMP $720F
+
 71F1: A9 F0    LDA #$F0
 71F3: 39 2B B9 AND $B92B,Y
 71F6: 4A       LSR
@@ -1964,6 +1967,7 @@
 7208: 4A       LSR
 7209: 1D 38 B9 ORA $B938,X
 720C: 9D 38 B9 STA $B938,X
+
 720F: 68       PLA
 7210: AA       TAX
 7211: E8       INX
@@ -2671,24 +2675,25 @@
 7714: F0 04    BEQ $771A
 7716: C9 8F    CMP #$8F  ; IF
 7718: D0 03    BNE $771D
-771A: 4C A7 61 JMP $61A7
+771A: 4C A7 61 JMP $61A7  ; execute statement
 
 771D: 38       SEC
-771E: 20 A4 61 JSR $61A4
+771E: 20 A4 61 JSR $61A4  ; execute statement
 7721: 20 3A 66 JSR $663A
 7724: C9 00    CMP #$00
 7726: F0 19    BEQ $7741
-7728: C9 C5    CMP #$C5
+7728: C9 C5    CMP #$C5  ; ELSE
 772A: F0 0F    BEQ $773B
-772C: C9 3A    CMP #$3A
-772E: D0 0B    BNE $773B
+772C: C9 3A    CMP #$3A  ; ':'
+772E: D0 0B    BNE $773B  ; if not ':', skip rest tokens until $00
 7730: 20 34 66 JSR $6634
-7733: C9 C5    CMP #$C5
+7733: C9 C5    CMP #$C5  ; ELSE
 7735: F0 04    BEQ $773B
 7737: 38       SEC
 7738: 4C 02 77 JMP $7702
-773B: 20 79 76 JSR $7679
-773E: 20 63 76 JSR $7663
+
+773B: 20 79 76 JSR $7679  ; find next $00
+773E: 20 63 76 JSR $7663  ; skip to next $00
 7741: 60       RTS
 
 ; REM statement
@@ -2836,6 +2841,7 @@
 7848: 91 5C    STA ($5C),Y
 784A: 60       RTS
 
+; PRINT statement
 784B: D0 03    BNE $7850
 784D: 4C AD 78 JMP $78AD
 7850: D0 03    BNE $7855
@@ -2881,6 +2887,7 @@
 78A6: 4C 0C 79 JMP $790C
 78A9: 28       PLP
 78AA: 4C 50 78 JMP $7850
+
 78AD: AD B4 03 LDA $03B4
 78B0: F0 08    BEQ $78BA
 78B2: 20 4A 6E JSR $6E4A
@@ -2888,6 +2895,7 @@
 78B7: 8D B4 03 STA $03B4
 78BA: 20 9A AD JSR $AD9A
 78BD: 60       RTS
+
 78BE: AD B4 03 LDA $03B4
 78C1: F0 0D    BEQ $78D0
 78C3: 20 4A 6E JSR $6E4A
@@ -3539,14 +3547,18 @@
 7DDD: AC B4 03 LDY $03B4
 7DE0: A9 00    LDA #$00
 7DE2: 38       SEC
-7DE3: F0 EA    BEQ $7DCF
+7DE3: F0 EA    BEQ $7DCF  ; always branches
 
+; assert not direct mode (interactive mode)
 7DE5: AE 15 B8 LDX $B815
 7DE8: E8       INX
 7DE9: D0 E3    BNE $7DCE
-7DEB: A2 0B    LDX #$0B
-7DED: 2C A2 10 BIT $10A2
+7DEB: A2 0B    LDX #$0B  ; illegal direct
+7DED: 2C       ; junk code: BIT $10A2
+
+7DEE: A2 10    LDX #$10  ; undef'd function
 7DF0: 4C 9F 67 JMP $679F
+
 7DF3: AE 15 B8 LDX $B815
 7DF6: E8       INX
 7DF7: D0 F2    BNE $7DEB
@@ -4044,6 +4056,7 @@
 81B8: 20 11 82 JSR $8211
 81BB: 4C B3 81 JMP $81B3
 81BE: 60       RTS
+
 81BF: A5 61    LDA $61
 81C1: A6 62    LDX $62
 81C3: EC CC B8 CPX $B8CC
@@ -4051,10 +4064,12 @@
 81C8: F0 02    BEQ $81CC
 81CA: 18       CLC
 81CB: 60       RTS
+
 81CC: CD CB B8 CMP $B8CB
 81CF: 90 02    BCC $81D3
 81D1: 18       CLC
 81D2: 60       RTS
+
 81D3: 85 44    STA $44
 81D5: 86 45    STX $45
 81D7: A0 00    LDY #$00
@@ -4107,9 +4122,11 @@
 822B: E6 45    INC $45
 822D: A6 45    LDX $45
 822F: D0 E2    BNE $8213
+
 8231: 20 78 82 JSR $8278
 8234: B0 01    BCS $8237
 8236: 60       RTS
+
 8237: A0 00    LDY #$00
 8239: B1 44    LDA ($44),Y
 823B: 29 0F    AND #$0F
@@ -4137,6 +4154,7 @@
 8262: E6 45    INC $45
 8264: A6 45    LDX $45
 8266: 4C 31 82 JMP $8231
+
 8269: 18       CLC
 826A: 8A       TXA
 826B: 6D 04 B8 ADC $B804
@@ -4145,16 +4163,20 @@
 8272: 90 02    BCC $8276
 8274: E6 45    INC $45
 8276: A6 45    LDX $45
+
 8278: EC CE B8 CPX $B8CE
 827B: F0 02    BEQ $827F
 827D: 38       SEC
 827E: 60       RTS
+
 827F: CD CD B8 CMP $B8CD
 8282: F0 02    BEQ $8286
 8284: 38       SEC
 8285: 60       RTS
+
 8286: 18       CLC
 8287: 60       RTS
+
 8288: B1 44    LDA ($44),Y
 828A: D0 03    BNE $828F
 828C: A2 03    LDX #$03
@@ -4242,15 +4264,18 @@
 832B: 20 C7 83 JSR $83C7
 832E: 4C 1E 83 JMP $831E
 8331: 60       RTS
+
 8332: B1 44    LDA ($44),Y
 8334: F0 03    BEQ $8339
 8336: A2 03    LDX #$03
 8338: 60       RTS
+
 8339: 20 44 83 JSR $8344
 833C: A2 00    LDX #$00
 833E: A9 00    LDA #$00
 8340: 8D 04 B8 STA $B804
 8343: 60       RTS
+
 8344: A5 44    LDA $44
 8346: A4 45    LDY $45
 8348: 85 65    STA $65
@@ -4316,6 +4341,7 @@
 83C1: B0 03    BCS $83C6
 83C3: CE CE B8 DEC $B8CE
 83C6: 60       RTS
+
 83C7: A0 00    LDY #$00
 83C9: E4 62    CPX $62
 83CB: D0 10    BNE $83DD
@@ -4327,6 +4353,7 @@
 83D8: A6 45    LDX $45
 83DA: 86 62    STX $62
 83DC: 60       RTS
+
 83DD: B1 44    LDA ($44),Y
 83DF: F0 01    BEQ $83E2
 83E1: 60       RTS
@@ -5002,11 +5029,12 @@
 88A2: 10 FA    BPL $889E
 88A4: 60       RTS
 
-88A5: 20 D5 89 JSR $89D5
+; process file name
+88A5: 20 D5 89 JSR $89D5  ; clear file name buffer
 88A8: A2 00    LDX #$00
 88AA: A0 00    LDY #$00
 88AC: B1 44    LDA ($44),Y
-88AE: C9 1F    CMP #$1F
+88AE: C9 1F    CMP #$1F  ; skip $1F character (Han character prefix)
 88B0: F0 04    BEQ $88B6
 88B2: 9D 0A B9 STA $B90A,X
 88B5: E8       INX
@@ -5016,6 +5044,7 @@
 88BC: 4C C3 88 JMP $88C3
 88BF: E0 0E    CPX #$0E
 88C1: 90 E9    BCC $88AC
+
 88C3: E0 05    CPX #$05
 88C5: 90 1A    BCC $88E1
 88C7: 8A       TXA
@@ -5030,6 +5059,7 @@
 88D5: 10 F5    BPL $88CC
 88D7: 68       PLA
 88D8: 60       RTS
+
 88D9: 68       PLA
 88DA: AA       TAX
 88DB: E0 0A    CPX #$0A
@@ -5043,12 +5073,16 @@
 88EB: C0 04    CPY #$04
 88ED: 90 F4    BCC $88E3
 88EF: 60       RTS
-88F0: 00 00 00 INT $0000
-88F3: 00 AD 0A INT $0AAD
-88F6: B9 F0 19 LDA $19F0,Y
+
+; 原先是 ".DAT" ?
+88F0: .db $00, $00, $00, $00
+
+; check if file name contains '/'
+88F4: AD 0A B9 LDA $B90A
+88F6: F0 19    BEQ $8912
 88F9: A2 0D    LDX #$0D
 88FB: BD 0A B9 LDA $B90A,X
-88FE: C9 2F    CMP #$2F
+88FE: C9 2F    CMP #$2F  ; '/'
 8900: F0 10    BEQ $8912
 8902: CA       DEX
 8903: 10 F6    BPL $88FB
@@ -5059,8 +5093,11 @@
 890D: 10 FA    BPL $8909
 890F: 09 00    ORA #$00
 8911: 60       RTS
+
 8912: A9 FF    LDA #$FF
 8914: 60       RTS
+
+; LOAD statement
 8915: 4C 42 77 JMP $7742
 
 ; open and read .BAS file
@@ -5135,7 +5172,7 @@
 89A7: 8D DA B8 STA $B8DA
 89AA: 4C 9F 67 JMP $679F
 
-89AD: A2 25    LDX #$25
+89AD: A2 25    LDX #$25  ; illegal file name
 89AF: 4C 9F 67 JMP $679F
 
 ; length of .BAS files exceeds 8KB
@@ -5158,44 +5195,58 @@
 89D1: AA       TAX
 89D2: 4C 9F 67 JMP $679F
 
+; clear file name buffer
 89D5: A9 00    LDA #$00
 89D7: A2 11    LDX #$11
 89D9: 9D 0A B9 STA $B90A,X
 89DC: CA       DEX
 89DD: 10 FA    BPL $89D9
 89DF: 60       RTS
+
 89E0: 4C 42 77 JMP $7742
 89E3: 4C 42 77 JMP $7742
-89E6: 20 E5 7D JSR $7DE5
+
+; OPEN statement
+89E6: 20 E5 7D JSR $7DE5  ; assert not direct mode
 89E9: 48       PHA
 89EA: 68       PLA
 89EB: D0 06    BNE $89F3
-89ED: A2 01    LDX #$01
+89ED: A2 01    LDX #$01  ; syntax error
 89EF: 4C 9F 67 JMP $679F
 89F2: 60       RTS
-89F3: 20 7A 9B JSR $9B7A
+
+89F3: 20 7A 9B JSR $9B7A  ; evaluate expression
 89F6: 2C 08 B8 BIT $B808
-89F9: 30 05    BMI $8A00
+89F9: 30 05    BMI $8A00  ; branch if string
 89FB: A2 01    LDX #$01
 89FD: 4C 9F 67 JMP $679F
+
 8A00: 20 B6 84 JSR $84B6
 8A03: 8D 00 B8 STA $B800
 8A06: AD 00 B8 LDA $B800
 8A09: D0 03    BNE $8A0E
-8A0B: 4C FB 89 JMP $89FB
+8A0B: 4C FB 89 JMP $89FB  ; if string is empty, report syntax error
+
 8A0E: 20 A5 88 JSR $88A5
-8A11: 20 F4 88 JSR $88F4
+8A11: 20 F4 88 JSR $88F4  ; check if file name contains '/'
 8A14: 10 03    BPL $8A19
-8A16: 4C AD 89 JMP $89AD
-8A19: 20 20 8A JSR $8A20
+8A16: 4C AD 89 JMP $89AD  ; report illegal file name error
+
+8A19: 20 20 8A JSR $8A20  ; get file mode
 8A1C: 20 92 8A JSR $8A92
 8A1F: 60       RTS
+
+; get file mode
+; $6A = 1  INPUT
+;     = 2  OUTPUT
+;     = 3  APPEND
+;     = 4  RANDOM
 8A20: A5 5E    LDA $5E
 8A22: D0 02    BNE $8A26
 8A24: C6 5F    DEC $5F
 8A26: C6 5E    DEC $5E
 8A28: 20 34 66 JSR $6634
-8A2B: C9 81    CMP #$81
+8A2B: C9 81    CMP #$81  ; FOR
 8A2D: D0 03    BNE $8A32
 8A2F: 20 34 66 JSR $6634
 8A32: 48       PHA
@@ -5204,10 +5255,11 @@
 8A37: A5 5F    LDA $5F
 8A39: 85 81    STA $81
 8A3B: 68       PLA
-8A3C: A2 01    LDX #$01
-8A3E: C9 84    CMP #$84
+8A3C: A2 01    LDX #$01  ; INPUT mode
+8A3E: C9 84    CMP #$84  ; INPUT
 8A40: D0 03    BNE $8A45
 8A42: 4C 7C 8A JMP $8A7C
+
 8A45: A9 7F    LDA #$7F
 8A47: 85 6F    STA $6F
 8A49: A9 8A    LDA #$8A
@@ -5220,7 +5272,7 @@
 8A55: F0 17    BEQ $8A6E
 8A57: D1 80    CMP ($80),Y
 8A59: F0 F7    BEQ $8A52
-8A5B: E9 80    SBC #$80
+8A5B: E9 80    SBC #$80  ; C is always 1, why not use EOR #$80 ?
 8A5D: D1 80    CMP ($80),Y
 8A5F: F0 11    BEQ $8A72
 8A61: 18       CLC
@@ -5229,9 +5281,11 @@
 8A66: 85 6F    STA $6F
 8A68: 90 E5    BCC $8A4F
 8A6A: E6 70    INC $70
-8A6C: D0 E1    BNE $8A4F
-8A6E: A2 04    LDX #$04
+8A6C: D0 E1    BNE $8A4F  ; always branches
+
+8A6E: A2 04    LDX #$04  ; file mode defaults to RANDOM
 8A70: A0 00    LDY #$00
+
 8A72: 98       TYA
 8A73: 18       CLC
 8A74: 65 5E    ADC $5E
@@ -5241,43 +5295,37 @@
 8A7C: 86 6A    STX $6A
 8A7E: 60       RTS
 
-8A7F: 4F       ??
-8A80: 55 54    EOR $54,X
-8A82: 50 55    BVC $8AD9
-8A84: D4       ??
-8A85: 41 50    EOR ($50,X)
-8A87: 50 45    BVC $8ACE
-8A89: 4E C4 52 LSR $52C4
-8A8C: 41 4E    EOR ($4E,X)
-8A8E: 44       ??
-8A8F: 4F       ??
-8A90: CD 00 20 CMP $2000
-8A93: 34       ??
-8A94: 66 C9    ROR $C9
-8A96: 41 F0    EOR ($F0,X)
-8A98: 03       ??
+; each ends with $80 bit mask
+8A7F: .db "OUTPUT"
+8A85: .db "APPEND"
+8A8B: .db "RANDOM"
+8A90: .db $00
 
-8A99: 4C FB 89 JMP $89FB
+8A92: 20 34 66 JSR $6634
+8A95: C9 41    CMP #$41  ; 'A'
+8A97: F0 03    BEQ $8A9C
+
+8A99: 4C FB 89 JMP $89FB  ; syntax error
 8A9C: 20 34 66 JSR $6634
-8A9F: C9 53    CMP #$53
+8A9F: C9 53    CMP #$53  ; 'S'
 8AA1: F0 03    BEQ $8AA6
-8AA3: 4C FB 89 JMP $89FB
+8AA3: 4C FB 89 JMP $89FB  ; syntax error
 8AA6: 20 34 66 JSR $6634
-8AA9: C9 23    CMP #$23
+8AA9: C9 23    CMP #$23  ; '#'
 8AAB: D0 03    BNE $8AB0
 8AAD: 20 34 66 JSR $6634
-8AB0: C9 31    CMP #$31
-8AB2: 90 2B    BCC $8ADF
-8AB4: C9 34    CMP #$34
-8AB6: B0 27    BCS $8ADF
+8AB0: C9 31    CMP #$31  ; '1'
+8AB2: 90 2B    BCC $8ADF  ; syntax error
+8AB4: C9 34    CMP #$34  ; '3'
+8AB6: B0 27    BCS $8ADF  ; syntax error
 8AB8: 38       SEC
 8AB9: E9 31    SBC #$31
 8ABB: AA       TAX
 8ABC: 0A       ASL
 8ABD: A8       TAY
 8ABE: B9 EC B8 LDA $B8EC,Y
-8AC1: D0 19    BNE $8ADC
-8AC3: A5 6A    LDA $6A
+8AC1: D0 19    BNE $8ADC  ; report file open error
+8AC3: A5 6A    LDA $6A  ; file mode
 8AC5: 9D F2 B8 STA $B8F2,X
 8AC8: 86 6A    STX $6A
 8ACA: 0A       ASL
@@ -5288,16 +5336,19 @@
 8AD5: 8D 60 B9 STA $B960
 8AD8: 20 5E B9 JSR $B95E
 8ADB: 60       RTS
-8ADC: A2 14    LDX #$14
-8ADE: 2C A2 01 BIT $01A2
+
+8ADC: A2 14    LDX #$14  ; file open
+8ADE: 2C       ; junk code: BIT $01A2
+
+8ADF: A2 01    LDX #$01
 8AE1: 4C 9F 67 JMP $679F
 8AE4: 60       RTS
 
-8AE5: 00 00 3B INT $3B00
-8AE8: 8B       ??
-8AE9: A0 8B    LDY #$8B
-8AEB: 12       ??
-8AEC: 8C A9 8C STY $8CA9
+8AE5: .dw $0000
+8AE7: .dw $8B3B  ; open file as INPUT
+8AE9: .dw $8BA0  ; OUTPUT
+8AEB: .dw $8C12  ; APPEND
+8AEC: .dw $8CA9  ; RANDOM
 
 8AEF: A9 00    LDA #$00
 8AF1: 8D 00 B8 STA $B800
@@ -5342,28 +5393,31 @@
 8B36: C0 04    CPY #$04
 8B38: 90 F7    BCC $8B31
 8B3A: 60       RTS
+
+; open file as INPUT mode
 8B3B: A2 0E    LDX #$0E
 8B3D: BD 09 B9 LDA $B909,X
 8B40: 9D 8C 08 STA $088C,X
 8B43: CA       DEX
 8B44: D0 F7    BNE $8B3D
-8B46: A9 80    LDA #$80
+8B46: A9 80    LDA #$80  ; INPUT mode
 8B48: 8D C9 08 STA $08C9
 8B4B: 00 15 05 INT $0515
 8B4E: 90 15    BCC $8B65
 8B50: AD CC 08 LDA $08CC
 8B53: C9 1A    CMP #$1A
 8B55: D0 05    BNE $8B5C
-8B57: A2 27    LDX #$27
+8B57: A2 27    LDX #$27  ; file reopen
 8B59: 4C 9F 67 JMP $679F
 8B5C: C9 02    CMP #$02
 8B5E: D0 0D    BNE $8B6D
-8B60: A2 1E    LDX #$1E
+8B60: A2 1E    LDX #$1E  ; file not exist
 8B62: 4C 9F 67 JMP $679F
+
 8B65: 00 14 05 INT $0514
 8B68: 90 08    BCC $8B72
 8B6A: 00 17 05 INT $0517
-8B6D: A2 14    LDX #$14
+8B6D: A2 14    LDX #$14  ; file open error
 8B6F: 4C 9F 67 JMP $679F
 8B72: AD FD 08 LDA $08FD
 8B75: 0D FE 08 ORA $08FE
@@ -5385,6 +5439,8 @@
 8B99: 9D FC B8 STA $B8FC,X
 8B9C: 20 34 66 JSR $6634
 8B9F: 60       RTS
+
+; open file as OUTPUT
 8BA0: A2 0E    LDX #$0E
 8BA2: BD 09 B9 LDA $B909,X
 8BA5: 9D 8C 08 STA $088C,X
@@ -5397,11 +5453,11 @@
 8BB5: AD CC 08 LDA $08CC
 8BB8: C9 1A    CMP #$1A
 8BBA: D0 05    BNE $8BC1
-8BBC: A2 27    LDX #$27
+8BBC: A2 27    LDX #$27  ; file reopen
 8BBE: 4C 9F 67 JMP $679F
-8BC1: A2 14    LDX #$14
+8BC1: A2 14    LDX #$14  ; file open error
 8BC3: C9 02    CMP #$02
-8BC5: F0 03    BEQ $8BCA
+8BC5: F0 03    BEQ $8BCA  ; if file does not exist, create one
 8BC7: 4C 9F 67 JMP $679F
 8BCA: A9 EF    LDA #$EF
 8BCC: 8D CA 08 STA $08CA
@@ -5411,11 +5467,11 @@
 8BD6: 8D C9 08 STA $08C9
 8BD9: 00 15 05 INT $0515
 8BDC: 90 0E    BCC $8BEC
-8BDE: A2 13    LDX #$13
+8BDE: A2 13    LDX #$13  ; file create error
 8BE0: AD CC 08 LDA $08CC
 8BE3: C9 0E    CMP #$0E
 8BE5: D0 02    BNE $8BE9
-8BE7: A2 12    LDX #$12
+8BE7: A2 12    LDX #$12  ; out of space error
 8BE9: 4C 9F 67 JMP $679F
 8BEC: AD C8 08 LDA $08C8
 8BEF: 18       CLC
@@ -5434,6 +5490,8 @@
 8C0B: 9D FC B8 STA $B8FC,X
 8C0E: 20 34 66 JSR $6634
 8C11: 60       RTS
+
+; open file as APPEND
 8C12: A2 0E    LDX #$0E
 8C14: BD 09 B9 LDA $B909,X
 8C17: 9D 8C 08 STA $088C,X
@@ -5443,14 +5501,14 @@
 8C1F: 8D C9 08 STA $08C9
 8C22: 00 15 05 INT $0515
 8C25: 90 41    BCC $8C68
-8C27: A2 27    LDX #$27
+8C27: A2 27    LDX #$27  ; file reopen
 8C29: AD CC 08 LDA $08CC
 8C2C: C9 1A    CMP #$1A
 8C2E: D0 03    BNE $8C33
 8C30: 4C 9F 67 JMP $679F
-8C33: A2 14    LDX #$14
+8C33: A2 14    LDX #$14  ; file open error
 8C35: C9 02    CMP #$02
-8C37: F0 03    BEQ $8C3C
+8C37: F0 03    BEQ $8C3C  ; if file does not exist, create one
 8C39: 4C 9F 67 JMP $679F
 8C3C: A9 EF    LDA #$EF
 8C3E: 8D CA 08 STA $08CA
@@ -5464,22 +5522,22 @@
 8C53: A9 00    LDA #$00
 8C55: 8D FC 08 STA $08FC
 8C58: 90 2B    BCC $8C85
-8C5A: A2 13    LDX #$13
+8C5A: A2 13    LDX #$13  ; file create error
 8C5C: AD CC 08 LDA $08CC
 8C5F: C9 0E    CMP #$0E
 8C61: D0 02    BNE $8C65
-8C63: A2 12    LDX #$12
+8C63: A2 12    LDX #$12  ; out of space error
 8C65: 4C 9F 67 JMP $679F
 8C68: 00 14 05 INT $0514
 8C6B: 90 08    BCC $8C75
 8C6D: 00 17 05 INT $0517
-8C70: A2 14    LDX #$14
+8C70: A2 14    LDX #$14  ; file open error
 8C72: 4C 9F 67 JMP $679F
 8C75: AD FD 08 LDA $08FD
 8C78: 0D FE 08 ORA $08FE
 8C7B: F0 08    BEQ $8C85
 8C7D: 00 17 05 INT $0517
-8C80: A2 24    LDX #$24
+8C80: A2 24    LDX #$24  ; file length read error
 8C82: 4C 9F 67 JMP $679F
 8C85: A6 6A    LDX $6A
 8C87: 8A       TXA
@@ -5497,7 +5555,9 @@
 8CA2: 9D FC B8 STA $B8FC,X
 8CA5: 20 34 66 JSR $6634
 8CA8: 60       RTS
-8CA9: 20 12 8C JSR $8C12
+
+; open file as RANDOM
+8CA9: 20 12 8C JSR $8C12  ; open file as APPEND
 8CAC: A6 6A    LDX $6A
 8CAE: 8E 0A B9 STX $B90A
 8CB1: 8A       TXA
@@ -5508,18 +5568,20 @@
 8CB9: 9D FC B8 STA $B8FC,X
 8CBC: A2 14    LDX #$14
 8CBE: 20 3A 66 JSR $663A
-8CC1: C9 E0    CMP #$E0
+8CC1: C9 E0    CMP #$E0  ; 'LEN' token
 8CC3: D0 16    BNE $8CDB
 8CC5: 20 34 66 JSR $6634
-8CC8: C9 D1    CMP #$D1
+8CC8: C9 D1    CMP #$D1  ; '=' token
 8CCA: F0 03    BEQ $8CCF
-8CCC: 4C 9F 67 JMP $679F
-8CCF: 20 C4 85 JSR $85C4
+8CCC: 4C 9F 67 JMP $679F  ; syntax error
+8CCF: 20 C4 85 JSR $85C4  ; evaluate expression and assert result is 0~255
 8CD2: E0 01    CPX #$01
 8CD4: 90 05    BCC $8CDB
 8CD6: E0 81    CPX #$81
-8CD8: B0 01    BCS $8CDB
-8CDA: 2C A2 20 BIT $20A2
+8CD8: B0 01    BCS $8CDB  ; if LEN < 1 or LEN > 128, set LEN to 32
+8CDA: 2C       ; junk code BIT $20A2
+
+8CDB: A2 20    LDX #$20  ; LEN defaults to 32
 8CDD: AD 0A B9 LDA $B90A
 8CE0: 0A       ASL
 8CE1: 18       CLC
@@ -5538,19 +5600,21 @@
 8D00: AD 0C B9 LDA $B90C
 8D03: 99 02 B9 STA $B902,Y
 8D06: 60       RTS
+
+; CLOSE statement
 8D07: 08       PHP
-8D08: 20 E5 7D JSR $7DE5
+8D08: 20 E5 7D JSR $7DE5  ; assert not direct mode
 8D0B: 28       PLP
 8D0C: D0 05    BNE $8D13
 8D0E: A2 01    LDX #$01
 8D10: 4C 9F 67 JMP $679F
-8D13: C9 23    CMP #$23
+8D13: C9 23    CMP #$23  ; '#'
 8D15: F0 08    BEQ $8D1F
 8D17: A5 5E    LDA $5E
 8D19: D0 02    BNE $8D1D
 8D1B: C6 5F    DEC $5F
 8D1D: C6 5E    DEC $5E
-8D1F: 20 C4 85 JSR $85C4
+8D1F: 20 C4 85 JSR $85C4  ; evaluate expression as assert result is 0~255
 8D22: 8A       TXA
 8D23: A2 01    LDX #$01
 8D25: C9 04    CMP #$04
@@ -5619,10 +5683,11 @@
 8DB3: 9D EC B8 STA $B8EC,X
 8DB6: 9D ED B8 STA $B8ED,X
 8DB9: 00 17 05 INT $0517
-8DBC: A2 15    LDX #$15
+8DBC: A2 15    LDX #$15  ; file close error
 8DBE: 90 03    BCC $8DC3
 8DC0: 4C 9F 67 JMP $679F
 8DC3: 60       RTS
+
 8DC4: B1 44    LDA ($44),Y
 8DC6: F0 1E    BEQ $8DE6
 8DC8: C8       INY
@@ -9617,11 +9682,13 @@ ACE5: A2 00    LDX #$00
 ACE7: A0 64    LDY #$64
 ACE9: D0 0E    BNE $ACF9
 
+; clear 4th text row on screen and in text buffer
 ACEB: 20 26 AD JSR $AD26
 ACEE: A2 3C    LDX #$3C
 ACF0: D0 05    BNE $ACF7
 
-ACF2: 20 32 AD JSR $AD32
+; clear 5th text row on screen and in text buffer
+ACF2: 20 32 AD JSR $AD32  ; clear bottom text row on screen
 ACF5: A2 50    LDX #$50
 ACF7: A0 14    LDY #$14
 
@@ -9656,12 +9723,14 @@ AD2C: 85 81    STA $81
 AD2E: A2 00    LDX #$00
 AD30: F0 16    BEQ $AD48
 
+; clear bottom text row on screen
 AD32: A9 C0    LDA #$C0
 AD34: 85 80    STA $80
 AD36: A9 1E    LDA #$1E
 AD38: 85 81    STA $81
 AD3A: A2 00    LDX #$00
 AD3C: F0 0A    BEQ $AD48
+
 AD3E: A5 80    LDA $80
 AD40: 69 14    ADC #$14
 AD42: 85 80    STA $80
@@ -9680,6 +9749,8 @@ AD57: E8       INX
 AD58: E0 10    CPX #$10
 AD5A: 90 E2    BCC $AD3E
 AD5C: 60       RTS
+
+; scroll screen upward by one text row
 AD5D: 8D 02 B8 STA $B802
 AD60: A2 00    LDX #$00
 AD62: 8A       TXA
@@ -9782,6 +9853,7 @@ AEAF: 68       PLA
 AEB0: 85 88    STA $88
 AEB2: E6 66    INC $66
 AEB4: 4C 82 AE JMP $AE82
+
 AEB7: 85 80    STA $80
 AEB9: A5 65    LDA $65
 AEBB: 0A       ASL
@@ -9807,14 +9879,7 @@ AEDF: B0 03    BCS $AEE4
 AEE1: 4C 70 AE JMP $AE70
 AEE4: 60       RTS
 
-AEE5: C0 02    CPY #$02
-AEE7: D4       ??
-AEE8: 02       ??
-AEE9: E8       INX
-AEEA: 02       ??
-AEEB: FC       ??
-AEEC: 02       ??
-AEED: 10 03    BPL $AEF2
+AEE5: .dw $02C0, $02D4, $02E8, $02FC, $0310
 
 ; 清空 $2000-$4000
 AEEF: A9 00    LDA #$00
