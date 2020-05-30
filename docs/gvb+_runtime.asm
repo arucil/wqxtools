@@ -1396,6 +1396,7 @@
 6D58: C0 14    CPY #$14
 6D5A: 90 F1    BCC $6D4D
 6D5C: B0 11    BCS $6D6F
+
 6D5E: A9 20    LDA #$20
 6D60: AE C1 B8 LDX $B8C1
 6D63: F0 EF    BEQ $6D54
@@ -1403,6 +1404,7 @@
 6D68: 8C C2 B8 STY $B8C2
 6D6B: 8C C3 B8 STY $B8C3
 6D6E: 60       RTS
+
 6D6F: A0 14    LDY #$14
 6D71: A9 00    LDA #$00
 6D73: 99 57 B8 STA $B857,Y
@@ -1665,8 +1667,9 @@
 6FAA: A9 00    LDA #$00
 6FAC: 8D 01 B8 STA $B801
 6FAF: 8D 00 B8 STA $B800
-6FB2: 20 E3 70 JSR $70E3
+6FB2: 20 E3 70 JSR $70E3  ; get current pointer to text buffer
 6FB5: 4C C9 6F JMP $6FC9
+
 6FB8: AD C2 B8 LDA $B8C2
 6FBB: 8D 01 B8 STA $B801
 
@@ -1675,14 +1678,17 @@
 6FC2: A9 B8    LDA #$B8
 6FC4: 85 61    STA $61
 6FC6: 20 E3 70 JSR $70E3
+
 6FC9: AC 01 B8 LDY $B801
 6FCC: B1 60    LDA ($60),Y
-6FCE: 10 24    BPL $6FF4
-6FD0: 20 41 71 JSR $7141
-6FD3: 90 07    BCC $6FDC
+6FCE: 10 24    BPL $6FF4  ; branch if ASCII
+6FD0: 20 41 71 JSR $7141  ; check if current column is last column
+6FD3: 90 07    BCC $6FDC  ; branch if not last column
 6FD5: CE 01 B8 DEC $B801
 6FD8: A9 20    LDA #$20
-6FDA: D0 18    BNE $6FF4
+6FDA: D0 18    BNE $6FF4  ; if current column is last column, fill this column
+                          ; with a space, to make the han character displayed
+                          ; at next line
 6FDC: A0 00    LDY #$00
 6FDE: 91 6F    STA ($6F),Y
 6FE0: 20 7B 70 JSR $707B
@@ -1693,12 +1699,13 @@
 6FED: E6 70    INC $70
 6FEF: AC 01 B8 LDY $B801
 6FF2: B1 60    LDA ($60),Y
+
 6FF4: A0 00    LDY #$00
 6FF6: 91 6F    STA ($6F),Y
 6FF8: 48       PHA
 6FF9: 68       PLA
 6FFA: F0 30    BEQ $702C
-6FFC: 20 7B 70 JSR $707B
+6FFC: 20 7B 70 JSR $707B  ; set INVERSE / FLASH flag for this character
 6FFF: 20 30 70 JSR $7030
 7002: EE 01 B8 INC $B801
 7005: E6 6F    INC $6F
@@ -1714,6 +1721,7 @@
 701A: C9 24    CMP #$24
 701C: 90 AB    BCC $6FC9
 701E: 60       RTS
+
 701F: A5 70    LDA $70
 7021: C9 03    CMP #$03
 7023: D0 04    BNE $7029
@@ -1721,18 +1729,23 @@
 7027: C9 10    CMP #$10
 7029: 90 9E    BCC $6FC9
 702B: 60       RTS
-702C: 20 B0 70 JSR $70B0
+
+702C: 20 B0 70 JSR $70B0  ; clear following bytes until $00 or end of text buffer
 702F: 60       RTS
+
 7030: AD 01 B8 LDA $B801
 7033: CD C2 B8 CMP $B8C2
 7036: 90 01    BCC $7039
 7038: 60       RTS
+
+; increment caret X and Y, if overflow, scroll screen and text buffer
 7039: AE B4 03 LDX $03B4
 703C: E8       INX
 703D: E0 14    CPX #$14
 703F: F0 04    BEQ $7045
 7041: 8E B4 03 STX $03B4
 7044: 60       RTS
+
 7045: A9 00    LDA #$00
 7047: 8D B4 03 STA $03B4
 704A: AE B5 03 LDX $03B5
@@ -1747,6 +1760,7 @@
 705D: A9 02    LDA #$02
 705F: 85 70    STA $70
 7061: 4C 70 70 JMP $7070
+
 7064: E0 05    CPX #$05
 7066: 90 0F    BCC $7077
 7068: A9 0F    LDA #$0F
@@ -1758,6 +1772,8 @@
 7076: 60       RTS
 7077: 8E B5 03 STX $03B5
 707A: 60       RTS
+
+; set INVERSE / FLASH bit flag for current character
 707B: AD 12 B8 LDA $B812
 707E: 29 03    AND #$03
 7080: F0 24    BEQ $70A6
@@ -1784,13 +1800,11 @@
 70A3: 99 38 B9 STA $B938,Y
 70A6: 60       RTS
 
-70A7: 80       ??
-70A8: 40       RTI
-70A9: 20 10 08 JSR $0810
-70AC: 04       ??
-70AD: 02       ??
-70AE: 01 60    ORA ($60,X)
+70A7: .db $80, $40, $20, $10, $08, $04, $02, $01
 
+70AF: 60       RTS
+
+; clear all following bytes, until end of text buffer or $00 is found
 70B0: A0 00    LDY #$00
 70B2: E6 6F    INC $6F
 70B4: D0 02    BNE $70B8
@@ -1815,8 +1829,11 @@
 70DC: A9 00    LDA #$00
 70DE: 91 6F    STA ($6F),Y
 70E0: F0 D0    BEQ $70B2
+
 70E2: 60       RTS
 
+; get pointer to text buffer according to caret X and caret Y
+; $6F, $70 = pointer
 70E3: AD B5 03 LDA $03B5
 70E6: 0A       ASL
 70E7: AA       TAX
@@ -1833,6 +1850,7 @@
 70FD: E6 70    INC $70
 70FF: 60       RTS
 
+; scroll screen and text buffer
 7100: A9 50    LDA #$50
 7102: E0 05    CPX #$05
 7104: F0 02    BEQ $7108
@@ -1865,6 +1883,7 @@
 713D: 20 5D AD JSR $AD5D  ; scroll screen
 7140: 60       RTS
 
+; check if current column is last column
 7141: AA       TAX
 7142: A0 00    LDY #$00
 7144: A5 6F    LDA $6F
@@ -1880,6 +1899,7 @@
 7158: 18       CLC
 7159: 8A       TXA
 715A: 60       RTS
+
 715B: AD B5 03 LDA $03B5
 715E: 8D C0 B8 STA $B8C0
 7161: 0A       ASL
@@ -2865,13 +2885,13 @@
 787C: 20 8E A4 JSR $A48E  ; convert FAC1 to string
 787F: 20 D0 7E JSR $7ED0
 7882: 20 97 79 JSR $7997
-7885: 20 9C 6F JSR $6F9C
+7885: 20 9C 6F JSR $6F9C  ; print to text buffer
 7888: 20 3A 66 JSR $663A
 788B: F0 20    BEQ $78AD
 788D: 08       PHP
-788E: C9 2C    CMP #$2C
+788E: C9 2C    CMP #$2C  ; ','
 7890: F0 17    BEQ $78A9
-7892: C9 3B    CMP #$3B
+7892: C9 3B    CMP #$3B  ; ';'
 7894: F0 13    BEQ $78A9
 7896: 28       PLP
 7897: A5 5E    LDA $5E
@@ -2881,7 +2901,8 @@
 789F: A9 00    LDA #$00
 78A1: 8D C6 B8 STA $B8C6
 78A4: A2 01    LDX #$01
-78A6: 4C 0C 79 JMP $790C
+78A6: 4C 0C 79 JMP $790C  ; print a space
+
 78A9: 28       PLP
 78AA: 4C 50 78 JMP $7850
 
@@ -2902,31 +2923,32 @@
 78CE: D0 57    BNE $7927
 78D0: 20 34 66 JSR $6634
 78D3: 4C 50 78 JMP $7850
+
 78D6: 08       PHP
 78D7: E6 5E    INC $5E
 78D9: D0 02    BNE $78DD
 78DB: E6 5F    INC $5F
-78DD: 20 C4 85 JSR $85C4
-78E0: C9 29    CMP #$29
+78DD: 20 C4 85 JSR $85C4  ; evaluate expression and assert result is 0~255
+78E0: C9 29    CMP #$29  ; ')'
 78E2: F0 03    BEQ $78E7
-78E4: 4C FD 9C JMP $9CFD
+78E4: 4C FD 9C JMP $9CFD  ; syntax error
 78E7: 28       PLP
-78E8: 90 22    BCC $790C
+78E8: 90 22    BCC $790C  ; branch if SPC
 78EA: E0 15    CPX #$15
 78EC: 90 03    BCC $78F1
-78EE: 4C 99 99 JMP $9999
+78EE: 4C 99 99 JMP $9999  ; illegal quantity error
 78F1: E0 00    CPX #$00
 78F3: D0 03    BNE $78F8
-78F5: 4C 99 99 JMP $9999
+78F5: 4C 99 99 JMP $9999  ; illegal quantity error
 78F8: CA       DEX
 78F9: 8A       TXA
 78FA: EC B4 03 CPX $03B4
-78FD: B0 09    BCS $7908
-78FF: 69 14    ADC #$14
+78FD: B0 09    BCS $7908  ; branch if TAB >= caret X
+78FF: 69 14    ADC #$14  ; if TAB < caret X, move to next row
 7901: 38       SEC
 7902: ED B4 03 SBC $03B4
 7905: AA       TAX
-7906: D0 04    BNE $790C
+7906: D0 04    BNE $790C  ; always branches
 7908: ED B4 03 SBC $03B4
 790B: AA       TAX
 790C: 8E 00 B8 STX $B800
@@ -2936,6 +2958,7 @@
 7917: A9 20    LDA #$20
 7919: 20 1A 73 JSR $731A
 791C: 4C 12 79 JMP $7912
+
 791F: A9 00    LDA #$00
 7921: 20 1A 73 JSR $731A
 7924: 20 9C 6F JSR $6F9C
@@ -4726,7 +4749,7 @@
 8654: 0D 12 B8 ORA $B812
 8657: AE 15 B8 LDX $B815
 865A: E0 FF    CPX #$FF
-865C: D0 01    BNE $865F
+865C: D0 01    BNE $865F  ; branch if not direct mode
 865E: 60       RTS
 
 865F: 8D 12 B8 STA $B812
@@ -7358,7 +7381,7 @@
 9B65: 99 DB B8 STA $B8DB,Y
 
 9B68: C8       INY
-9B69: C0 11    CPY #$11 ; max variable length = 17
+9B69: C0 11    CPY #$11 ; max variable length = 16
 9B6B: F0 0C    BEQ $9B79
 
 9B6D: B1 5E    LDA ($5E),Y

@@ -135,8 +135,7 @@ data:
     $B812
             = 0    NORMAL mode
             = 1    INVERSE mode
-
-            bit1   = 1    FLASH mode
+            = 2    FLASH mode
 
     $B8D5, $B8D6
             DATA pointer
@@ -144,12 +143,18 @@ data:
     $B95E
             $4C (JMP)
 
+    $B92B-$B937 (13 bytes)
+            INVERSE / FLASH flag for all characters (100bit),
+            for example, bit7 in the first byte indicates that first character
+            in text buffer is in INVERSE / FLASH mode, bit6 is second character, etc.
+            $B937 only highest 4bits are used.
+
 TODO:
     数字字面量可以用空格分隔？yes
-    AND、OR、NOT 是 bitwise？
+    AND、OR、NOT 是 bitwise？no
     GOTO 10 NOT EXECUTED   为了重用于 ON .. GOTO 语句
     FN 自变量可以是字符串 ?
-    空格隔开的两个变量名会认为是一个变量名？
+    空格隔开的两个变量名会认为是一个变量名？no
     FOR、FN、subscript 变量和常规 float 变量不认为是同一个类型？
     POP 后面的 token 就像 DATA 语句一样会被忽略？
     RETURN 之后 GOSUB 行号后面的 token 就像 DATA 语句一样会被忽略？为了重用于 ON ... GOSUB 语句
@@ -160,12 +165,12 @@ TODO:
     数字可以用 E 开头？
     IF ... THEN 和 IF ... GOTO 等价，后面可以接表达式或行号
     PRINT 没有参数的情况，如果X不为0，则Y+1，否则Y不变
+    如果一个字符串中间出现 $00, 只 PRINT 前面的部分？yes
 
     READ 读取的 data 字符串会保留后面的空格？
 
     input
     def
-    print
     normal
     inverse
     flash
@@ -182,7 +187,6 @@ $B991, $B992  = $6000
 $B993, $B994  = $BD00
 $B995, $B996  = $BF00
 $B8D9 ~ $B92A = 0
-$B812    normal, inverse, ... ?
 $B804  = 0
 $B8D1, $B8D2  = $6000
 $B8C7, $B8C8  = end of .BAS chunk
@@ -190,7 +194,7 @@ $B8CD, $B8CE  = end of .BAS chunk
 $B8CB, $B8CC  = end of .BAS chunk
 $B8C4  = 0
 $B810  = 0
-$B92B ~ $B937  = 0
+$B938 ~ 13bytes = FLASH mode ?
 $B8D4  = 0
 
 ----------------------------------
