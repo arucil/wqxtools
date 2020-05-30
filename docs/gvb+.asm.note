@@ -29,7 +29,7 @@ subroutine:
     7D2C    evaluate expression and assert result is number (float or int)
     7DE5    assert current mode is not direct mode (interactive mode), otherwise
                 report "illegal direct" error
-    85C4    evaluate expression and assert result is 0~255
+    85C4    evaluate expression and assert result is in 0~255
                 X = result
     918E    syntax error
     9999    report illegal quantity error
@@ -171,11 +171,7 @@ TODO:
 
     input
     def
-    normal
-    inverse
-    flash
     write
-    field
     get
     put
 
