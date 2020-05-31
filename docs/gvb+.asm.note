@@ -178,6 +178,12 @@ $B810  = 0
 $B938 ~ 13bytes = FLASH mode ? never used
 $B8D4  = 0
 
+INPUT:
+b858 (95 bytes)  prompt buffer
+b8c2 = 0
+b8c3 = 0
+b8c6 = 0
+
 ----------------------------------
 variable table
 entry:
