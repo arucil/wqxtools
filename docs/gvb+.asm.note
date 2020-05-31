@@ -165,15 +165,11 @@ TODO:
     数字可以用 E 开头？
     IF ... THEN 和 IF ... GOTO 等价，后面可以接表达式或行号
     PRINT 没有参数的情况，如果X不为0，则Y+1，否则Y不变
-    如果一个字符串中间出现 $00, 只 PRINT 前面的部分？yes
+    取整？
 
     READ 读取的 data 字符串会保留后面的空格？
 
     input
-    def
-    write
-    get
-    put
 
 ----------------------------------------------------
 未明用途的地址：
@@ -206,6 +202,10 @@ entry:
                            if float, 5 bytes
                            if str, 3 bytes   (string length, string pointer)
                            if int, 2 bytes
+                           if function, 5 bytes:
+                                2 bytes    function body pointer
+                                2 bytes    function parameter variable data pointer
+                                1 byte     first token of function body (dummy)
 
 ----------------------------------
 control flow stack

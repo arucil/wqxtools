@@ -3,9 +3,10 @@
   <head></head>
   <body style="width: 100%">
     <div style="width: 200px; margin-left: auto; margin-right: 0;">
-      <canvas id="canvas" width=16 height=32 style="border: solid 1px green"></canvas>
+        <input value="ascii8.dat" id="file"/>
+      <canvas id="canvas" height=48 style="border: solid 1px green"></canvas>
       <br/>
-      <input id="offset" style="width: 40px"></input> / <span id="total"></span>
+      <input id="offset" style="width: 60px"></input> / <span id="total"></span>
       <br/>
       <button id="sub1">-1</button>
       <button id="add1">+1</button>
@@ -15,6 +16,9 @@
       <br/>
       <button id="sub32">-32</button>
       <button id="add32">+32</button>
+      <br/>
+      <button id="sub256">-256</button>
+      <button id="add256">+256</button>
       <br/>
       <button id="widthadd1">width+1</button>
       <button id="widthsub1">width-1</button>
@@ -46,6 +50,14 @@
         i += 32
         update()
       })
+      document.querySelector('#sub256').addEventListener('click', () => {
+        i -= 256
+        update()
+      })
+      document.querySelector('#add256').addEventListener('click', () => {
+        i += 256
+        update()
+      })
       document.querySelector('#widthsub1').addEventListener('click', () => {
         --w
         update()
@@ -61,28 +73,48 @@
           update()
         }
       })
+      document.querySelector('#file').addEventListener('keydown', (e) => {
+        console.log(e.keyCode)
+        if (e.keyCode == 13 && e.target.value!=='') {
+          load()
+        }
+      })
       let data
-      fetch('./nd2.bin')
+      load()
+      function load() {
+      fetch(document.querySelector('#file').value)
         .then(resp => resp.blob())
         .then(blob => {
           data = blob
           document.querySelector('#total').textContent = blob.size
           update()
         })
+        }
       async function update() {
+        const C = 4
         document.querySelector('#offset').value = i
         const c = document.querySelector('#canvas')
-        c.width = w * 8 * 2
+        c.width = w * 8 * C
+        c.height = 16 * C
         const ctx = c.getContext('2d')
         const chunk = new Uint8Array(await data.slice(i, (i + 1) * w * 16).arrayBuffer())
+        ctx.fillStyle = 'white'
+        ctx.fillRect(0, 0, c.width, c.height)
+        ctx.strokeStyle = 'lightgray'
+        ctx.lineWidth = 1
+        
         for (let y = 0; y < 16; ++y) {
+          
           for (let x = 0; x < w * 8; ++x) {
-            if (chunk[y + (x >>> w * 3)] & 1 << (7 - (x & 7))) {
+            if (chunk[y * w + (x >>> 3)] & 1 << (7 - (x & 7))) {
               ctx.fillStyle = 'black'
+            
+            ctx.fillRect(x * C, y * C, C, C)
             } else {
-              ctx.fillStyle = 'white'
+                ctx.fillStyle = 'green'
+            
+            ctx.fillRect(x * C + C/2, y * C + C/2, 1, 1)
             }
-            ctx.fillRect(x * 2, y * 2, 2, 2)
           }
         }
       }
