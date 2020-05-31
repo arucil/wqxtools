@@ -151,23 +151,12 @@ data:
 
 TODO:
     数字字面量可以用空格分隔？yes
-    AND、OR、NOT 是 bitwise？no
-    GOTO 10 NOT EXECUTED   为了重用于 ON .. GOTO 语句
-    FN 自变量可以是字符串 ?
-    空格隔开的两个变量名会认为是一个变量名？no
     FOR、FN、subscript 变量和常规 float 变量不认为是同一个类型？
     POP 后面的 token 就像 DATA 语句一样会被忽略？
-    RETURN 之后 GOSUB 行号后面的 token 就像 DATA 语句一样会被忽略？为了重用于 ON ... GOSUB 语句
-    STEP 0
     .BAS 文件结构
-    lset 如果 rvalue 比 lvalue 长，会覆盖掉 string stack 上面的内容？
-    DATA如果不是数字，但READ要读数字，则直接返回 0，不读。并且要用 ':'、',' 或 $00 结尾
     数字可以用 E 开头？
-    IF ... THEN 和 IF ... GOTO 等价，后面可以接表达式或行号
-    PRINT 没有参数的情况，如果X不为0，则Y+1，否则Y不变
     取整？
-
-    READ 读取的 data 字符串会保留后面的空格？
+    不同地方的转换为 16bit 整数是 -32768 ~ 32767 还是 -65535 ~ 65535 ？
 
     input
 
@@ -186,7 +175,7 @@ $B8CD, $B8CE  = end of .BAS chunk
 $B8CB, $B8CC  = end of .BAS chunk
 $B8C4  = 0
 $B810  = 0
-$B938 ~ 13bytes = FLASH mode ?
+$B938 ~ 13bytes = FLASH mode ? never used
 $B8D4  = 0
 
 ----------------------------------

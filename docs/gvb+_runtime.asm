@@ -4720,7 +4720,7 @@
 8611: 20 F2 9C JSR $9CF2
 8614: 4C C7 85 JMP $85C7
 
-; convert FAC1 to 2-byte integer
+; convert FAC1 to unsigned 2-byte integer
 ; $40, $41 = result
 8617: A5 6F    LDA $6F
 8619: C9 91    CMP #$91
@@ -5773,7 +5773,7 @@
 8E09: 4C E9 8D JMP $8DE9
 
 ; INPUT from file
-8E0C: 20 C4 85 JSR $85C4
+8E0C: 20 C4 85 JSR $85C4  ; evaluate file number
 8E0F: 8A       TXA
 8E10: A2 01    LDX #$01
 8E12: C9 04    CMP #$04
@@ -5828,7 +5828,7 @@
 8E8A: 4C F6 8E JMP $8EF6  ; out of data
 8E8D: 20 28 96 JSR $9628  ; read a byte
 8E90: 2C 08 B8 BIT $B808
-8E93: 10 1B    BPL $8EB0
+8E93: 10 1B    BPL $8EB0  ; branch if read number
 8E95: 8D 00 B8 STA $B800
 8E98: C9 22    CMP #$22  ; '"'
 8E9A: F0 08    BEQ $8EA4
@@ -5837,21 +5837,23 @@
 8EA1: A9 2C    LDA #$2C  ; ','
 8EA3: 18       CLC
 8EA4: 8D 01 B8 STA $B801
-8EA7: 20 FE 8E JSR $8EFE
+8EA7: 20 FE 8E JSR $8EFE  ; read string and push onto string operand stack
 8EAA: 20 F3 77 JSR $77F3
 8EAD: 4C BC 8E JMP $8EBC
+
 8EB0: 20 1A 96 JSR $961A  ; read a byte
-8EB3: 20 D8 A2 JSR $A2D8
+8EB3: 20 D8 A2 JSR $A2D8  ; convert string to float
 8EB6: AD 09 B8 LDA $B809
-8EB9: 20 DB 77 JSR $77DB
-8EBC: 20 04 96 JSR $9604
+8EB9: 20 DB 77 JSR $77DB  ; store number
+8EBC: 20 04 96 JSR $9604  ; check if offset >= file length
 8EBF: F0 0E    BEQ $8ECF
 8EC1: AD 2A B9 LDA $B92A
 8EC4: C9 FF    CMP #$FF
 8EC6: F0 07    BEQ $8ECF
-8EC8: C9 2C    CMP #$2C
+8EC8: C9 2C    CMP #$2C  ; ','
 8ECA: F0 03    BEQ $8ECF
 8ECC: 4C F9 8E JMP $8EF9
+
 8ECF: AD 05 B8 LDA $B805
 8ED2: AC 06 B8 LDY $B806
 8ED5: 85 5E    STA $5E
@@ -5875,8 +5877,8 @@
 8EF9: A2 0C    LDX #$0C
 8EFB: 4C 9F 67 JMP $679F
 
-8EFE: 90 03    BCC $8F03
-8F00: 20 1A 96 JSR $961A
+8EFE: 90 03    BCC $8F03  ; branch if read unquoted string
+8F00: 20 1A 96 JSR $961A  ; read a byte
 8F03: AD 24 B9 LDA $B924
 8F06: 85 56    STA $56
 8F08: AD 25 B9 LDA $B925
@@ -5895,27 +5897,27 @@
 8F29: 8E 25 B9 STX $B925
 8F2C: 85 56    STA $56
 8F2E: AD 02 B8 LDA $B802
-8F31: 20 BE 7E JSR $7EBE
-8F34: 20 DE 95 JSR $95DE
+8F31: 20 BE 7E JSR $7EBE  ; allocate a string
+8F34: 20 DE 95 JSR $95DE  ; fseek
 8F37: A0 00    LDY #$00
 8F39: 8C 00 B8 STY $B800
-8F3C: 20 1A 96 JSR $961A
+8F3C: 20 1A 96 JSR $961A  ; read a byte
 8F3F: AC 00 B8 LDY $B800
 8F42: 91 70    STA ($70),Y
 8F44: C8       INY
 8F45: CC 02 B8 CPY $B802
 8F48: 90 EF    BCC $8F39
 8F4A: A5 56    LDA $56
-8F4C: C9 22    CMP #$22
-8F4E: D0 03    BNE $8F53
+8F4C: C9 22    CMP #$22  ; '"'
+8F4E: D0 03    BNE $8F53  ; branch if read unquoted string
 8F50: 20 1A 96 JSR $961A
 8F53: 20 1A 96 JSR $961A
-8F56: A6 42    LDX $42
+8F56: A6 42    LDX $42  ; string operand stack
 8F58: E0 52    CPX #$52
 8F5A: D0 05    BNE $8F61
-8F5C: A2 0E    LDX #$0E
+8F5C: A2 0E    LDX #$0E  ; formula too complex
 8F5E: 4C 9F 67 JMP $679F
-8F61: 20 1A 7F JSR $7F1A
+8F61: 20 1A 7F JSR $7F1A  ; push string onto string operand stack
 8F64: 60       RTS
 
 ; WRITE statement
@@ -6225,7 +6227,7 @@
 91FF: AD 08 B8 LDA $B808
 9202: 10 03    BPL $9207
 9204: 4C 8E 91 JMP $918E  ; syntax error if string
-9207: 20 E3 A1 JSR $A1E3  ; found FAC1
+9207: 20 E3 A1 JSR $A1E3  ; round FAC1
 920A: 20 AC 98 JSR $98AC  ; convert to 2-byte integer
 920D: AE 00 B8 LDX $B800
 9210: BD 01 B9 LDA $B901,X
@@ -7736,7 +7738,7 @@
 9D8C: 64       ??
 9D8D: 56 7D    LSR $7D,X
 
-; add 0.5 to float accum
+; add 0.5 to FAC1
 9D8F: A9 BE    LDA #$BE
 9D91: A0 A5    LDY #$A5
 9D93: 4C AD 9D JMP $9DAD
@@ -8473,7 +8475,7 @@ A2C6: A5 73    LDA $73
 A2C8: 8D 00 B8 STA $B800
 A2CB: 4C 20 9E JMP $9E20
 
-; clear float accum
+; clear FAC1 mantissa
 A2CE: 85 70    STA $70
 A2D0: 85 71    STA $71
 A2D2: 85 72    STA $72
@@ -8481,7 +8483,7 @@ A2D4: 85 73    STA $73
 A2D6: A8       TAY
 A2D7: 60       RTS
 
-; convert string to float in float accum
+; read string from file and convert to float in FAC1
 A2D8: A0 00    LDY #$00
 A2DA: A2 03    LDX #$03
 A2DC: 94 66    STY $66,X
@@ -10032,7 +10034,7 @@ AF4D: 60       RTS
 
 ; CALL statement
 AF4E: 20 2C 7D JSR $7D2C  ; evaluate expression and assert result is number
-AF51: 20 17 86 JSR $8617  ; convert float to 2-byte integer
+AF51: 20 17 86 JSR $8617  ; convert float to unsigned 2-byte integer
 AF54: 6C 40 00 JMP ($0040)
 
 ; POKE statement
@@ -10043,6 +10045,6 @@ AF5D: 91 40    STA ($40),Y
 AF5F: 60       RTS
 
 AF60: 20 2C 7D JSR $7D2C  ; evaluate expression and assert result is number
-AF63: 20 17 86 JSR $8617  ; convert to 2-byte number
+AF63: 20 17 86 JSR $8617  ; convert to unsigned 2-byte number
 AF66: 20 F2 9C JSR $9CF2  ; assert ',' token
 AF69: 4C C7 85 JMP $85C7  ; evaluate expression and assert result is 0-255

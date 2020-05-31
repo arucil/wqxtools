@@ -9,7 +9,7 @@
 | AUTO    | 和 REM 一样 |
 | BEEP    | beep |
 | BOX `<X0 expr>` , `<Y0 expr>` , `<X1 expr>` , `<Y1 expr>` [ , `<fill mode expr>` [ , `<draw mode expr>` ] ] | 画矩形。X0、Y0、X1、Y1、fill mode、draw mode 必须在 0~255 之间。<br>如果 fill mode 的 bit0 为 1，则画实心矩形，否则画空心矩形。<br>draw mode 的值在下面的注解中说明。 |
-| CALL `<expr>` | 调用 `<expr>` 地址的机器码。<br>`<expr>` 转换为 2 字节整数，如果是负数则取补码；地址必须小于 65536 |
+| CALL `<expr>` | 调用 `<expr>` 地址的机器码。<br>`<expr>` 在 -65535 ~ 65535 之间，如果是负数则取补码。 |
 | CIRCLE `<X expr>` , `<Y expr>` , `<radius expr>` [ , `<fill mode expr>` [ , `<draw mode expr>` ] ] | 画圆。X、Y、radius、fill mode、draw mode 必须在 0~255 之间。<br>如果 fill mode 的 bit0 为 1，则画实心圆，否则画空心圆。<br>draw mode 的值在下面的注解中说明。 |
 | CLEAR   | 关闭所有文件、清空所有变量、重置 DATA 指针、清空所有循环和子程序 |
 | CLOSE [ # ] `<file number expr>` | 关闭文件。file number 的结果必须在 1~3 之间。 |
@@ -49,7 +49,7 @@
 | ON `<expr>` ( GOTO \| GOSUB ) [ `<integer>` [ , [ `<integer>` ] ]* ] | 根据 `<expr>` 的结果跳转到对应的行号。如果结果取整之后为 1，则跳转到第一个行号；为 2 则跳转到第二个行号，以此类推。如果没有对应的行号则往后面继续执行。<br>`<expr>` 的结果必须在 0~255 之间。<br>行号可以省略，如果省略某个行号，则默认为 `0`。甚至所有行号都能省略，例如 `ON <expr> GOTO` 等价于 `ON <expr> GOTO 0`。 |
 | OPEN `<filename expr>` [ FOR ] [ INPUT \| OUTPUT \| APPEND \| RANDOM ] AS [ # ] `<file number>` [ LEN = `<len expr>` ] | 打开文件。filename 结果必须是字符串，不能为空，不能包含`/`字符。filename 中的 `0x1F` 字符会被删除，经过处理的 filename 最长 14 字节，超出的部分将被截断。<br>如果省略 INPUT / OUTPUT / APPEND / RANDOM，则要用一个任意的非空格字符代替，在这种情况下默认为 RANDOM，例如 `OPEN A$ FOR @ AS 1`。<br>OUTPUT、APPEND、RANDOM 不是关键字。<br>AS 中间可以有空格，并且可以和前面的文件打开模式连起来，例如 `APPENDA  S`；不需要和后面的变量名用空格分隔。<br>file number 必须在 1~3 之间。<br>LEN 只能用于 RANDOM 模式，len 必须在 0~255 之间，如果 len 等于 0 或大于 128，则改为 32。如果省略 LEN 则 len 默认为 32。 |
 | PLAY    | 和 REM 一样 |
-| POKE `<addr expr>` , `<value expr>` | 把 addr 地址的字节设置为 value。<br>addr 转换为整数，如果是负数则取补码；addr 必须小于 65536。<br>value 必须在 0~255 之间。 |
+| POKE `<addr expr>` , `<value expr>` | 把 addr 地址的字节设置为 value。<br>addr 在 -65535 ~ 65535 之间，如果是负数则取补码。<br>value 必须在 0~255 之间。 |
 | POP     | 最近的 GOSUB 记录出栈，然后跳过 POP 后面的部分字符，则 DATA 语句一样。 |
 | PRINT [ `<expr>` \| `,` \| `;` \| SPC(`<spc expr`) \| TAB(`<tab expr>`) ]* | 打印文字。<br>* `;` 不做操作<br>* `,` 可能换行<br>* `<expr>` 打印表达式的结果。如果 `<expr>` 之后 PRINT 语句结束，则可能换行；否则如果 `<expr>` 后面跟上的不是`;` 和 `,`，则打印一个空格。<br>* `SPC` 打印 spc 个空格。spc 必须在 0~255 之间。`SPC` 后面不一定要跟上左括号，只要是一个非空格的字符就行，例如 `SPC A 1 )` 也是合法的。<br>* `TAB` 把光标向右移动到 tab 列，同时用空格填充间隙。如果光标当前横坐标大于 tab，则先用空格填充到换行为止，再移动到 tab 列，同时用空格填充间隙。spc 必须在 1~20 之间。TAB 后面不一定要跟上左括号，只要是一个非空格的字符就行。<br>**注**：上面 `可能换行` 的意思是，如果光标当前横坐标不在第一列，则换行。<br>在打印汉字时，如果光标当前横坐标在最后一列，此时必须换行才有足够的屏幕空间打印出完整的汉字，先打印一个空格，换行，然后打印汉字。<br>在每次打印 `<expr>`、SPC 或 TAB 之后，会把从光标当前位置直到其后出现的第一个 `0x00` 为止的字符设置为 `0x00`。<br>对于字符串，如果字符串中间出现了 `0x00`，则从此位置截断，只打印前面的部分。<br>如果字符串中出现了 `0x1F`，则忽略这个字符，并且把其后的两个字节直接输出，而不管其中是否有 `0x1F` 字节；如果其后不足两个字节，则有多少字节就打印多少字节。<br>在打印时如果发生滚屏，在 GRAPH 模式下，屏幕上原先绘制的图形也会滚动。 |
 | PUT [ # ] `<file number expr>` , `<record number expr>` | 向 RANDOM 文件写入一条记录（record）。file number 在 1~3 之间。<br/>record number 在 -32768~32767 之间，不能为 0，如果是负数则取补码，因此最终得到的 record number 在 1~65535 之间。<br/>可以在文件末尾追加记录，除此之外写入的记录不能超过文件长度。<br>写入文件之后文件长度不能超过 65535。 |
