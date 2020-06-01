@@ -157,6 +157,8 @@ TODO:
     数字可以用 E 开头？
     取整？
     不同地方的转换为 16bit 整数是 -32768 ~ 32767 还是 -65535 ~ 65535 ？
+    AB XY$ 和 AB DEF$ 是同一个变量？
+    write 中间有 0x00，后面的 datum 会输出？
 
     input
 
@@ -179,10 +181,27 @@ $B938 ~ 13bytes = FLASH mode ? never used
 $B8D4  = 0
 
 INPUT:
+b829 (47 bytes)
 b858 (95 bytes)  prompt buffer
-b8c2 = 0
-b8c3 = 0
+b8c2 = 0  prompt len  exclude 0x1f
+b8c3 = 0  prompt len exclude 0x1f
 b8c6 = 0
+
+读取文件：
+    INPUT # expr  [ ,  lvalue ]+
+
+    如果要读数字，但数据不是数字，会消耗一个字节，返回 0
+    如果要读字符串，如果有引号，则读取到引号为止（如果没有引号则无限循环）；如果没有引号，则读取到逗号或 0xff 为止
+    文件中*一个*数据必须以逗号或 0xff 结尾
+
+读取键盘输入：
+    输出 input prompt 会剔除 0x1f prefix
+    input prompt、输入的内容会受 INVERSE/FLASH 影响
+    再次输入时会保留原先 input prompt 左边的文字？
+
+    6D37  所在行从左至右扫描，遇到 0x00 则 填空格进 b858，遇到非空字符时，继续填字符进 b858，直到遇到
+        第一个 0x00，记录长度到 b8c1, b8c2, b8c3。
+        如果非空字符后面没有 0x00，或没有非空字符，则清空 b858，长度=0
 
 ----------------------------------
 variable table

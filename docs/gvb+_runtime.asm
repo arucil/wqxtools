@@ -1147,7 +1147,7 @@
 6AF7: 20 37 6D JSR $6D37
 6AFA: AD B5 03 LDA $03B5
 6AFD: 8D C0 B8 STA $B8C0
-6B00: 20 9A AD JSR $AD9A
+6B00: 20 9A AD JSR $AD9A  ; update text buffer to screen
 6B03: AD 47 04 LDA $0447
 6B06: C9 02    CMP #$02
 6B08: D0 03    BNE $6B0D
@@ -1599,6 +1599,7 @@
 6EED: 00 07 07 INT $0707
 6EF0: B0 01    BCS $6EF3
 6EF2: 60       RTS
+
 6EF3: 20 2C 6F JSR $6F2C
 6EF6: 18       CLC
 6EF7: 6D C3 B8 ADC $B8C3
@@ -1661,6 +1662,7 @@
 6F73: BD 6B 72 LDA $726B,X
 6F76: 85 81    STA $81
 6F78: 6C 80 00 JMP ($0080)
+
 6F7B: AE C2 B8 LDX $B8C2
 6F7E: 8E 01 B8 STX $B801
 6F81: EE 01 B8 INC $B801
@@ -1945,6 +1947,7 @@
 7199: 60       RTS
 719A: 20 A0 71 JSR $71A0
 719D: 4C A0 71 JMP $71A0
+
 71A0: AE C3 B8 LDX $B8C3
 71A3: EC C2 B8 CPX $B8C2
 71A6: F0 0E    BEQ $71B6
@@ -2049,16 +2052,12 @@
 
 725C: .dw $02D3, $02E7, $02FB, $030F, $0323
 
-7266: 00 01 02 INT $0201
-7269: FF       ??
-726A: 09 6A    ORA #$6A
-726C: A0 71    LDY #$71
-726E: 9A       TXS
-726F: 71 87    ADC ($87),Y
-7271: 71 D0    ADC ($D0),Y
-7273: 16 A2    ASL $A2,X
-7275: 0F       ??
+7266: .db $00, $01, $02, $ff
 
+726A: .dw $6a09, $71a0, $719a, $7187
+
+7272: D0 16    BNE $728A
+7274: A2 0F    LDX #$0F
 7276: AC D4 B8 LDY $B8D4
 7279: D0 03    BNE $727E
 727B: 4C 9F 67 JMP $679F
@@ -2133,7 +2132,7 @@
 72FF: AE C6 B8 LDX $B8C6
 7302: 48       PHA
 7303: 68       PLA
-7304: 10 05    BPL $730B
+7304: 10 05    BPL $730B  ; branch if ASCII
 7306: E0 5D    CPX #$5D
 7308: 90 06    BCC $7310
 730A: 60       RTS
@@ -2997,6 +2996,7 @@
 794E: EE 01 B8 INC $B801
 7951: 4C 3E 79 JMP $793E
 7954: 60       RTS
+
 7955: 20 B6 84 JSR $84B6
 7958: 8D 00 B8 STA $B800
 795B: EE 00 B8 INC $B800
@@ -3127,8 +3127,8 @@
 7A71: D0 0E    BNE $7A81
 7A73: 20 AB 9C JSR $9CAB
 7A76: A9 3B    LDA #$3B  ; ';'
-7A78: 20 F4 9C JSR $9CF4
-7A7B: 20 55 79 JSR $7955
+7A78: 20 F4 9C JSR $9CF4  ; assert ';' token
+7A7B: 20 55 79 JSR $7955  ; set input prompt
 7A7E: 4C 84 7A JMP $7A84
 
 7A81: 20 E1 79 JSR $79E1  ; set input prompt to '?'
@@ -3138,7 +3138,7 @@
 7A89: 8D 01 B8 STA $B801
 7A8C: AD C3 B8 LDA $B8C3
 7A8F: 8D C2 B8 STA $B8C2
-7A92: 20 BE 6F JSR $6FBE
+7A92: 20 BE 6F JSR $6FBE  ; print prompt to text buffer
 7A95: 20 9A AD JSR $AD9A  ; print prompt to screen
 7A98: A5 5E    LDA $5E
 7A9A: 48       PHA
@@ -3149,8 +3149,8 @@
 7AA2: 85 5F    STA $5F
 7AA4: 68       PLA
 7AA5: 85 5E    STA $5E
-7AA7: 20 F1 7A JSR $7AF1  ; setup input mode
-7AAA: 20 F4 6A JSR $6AF4  ; clear prompt buffer
+7AA7: 20 F1 7A JSR $7AF1  ; set up input mode
+7AAA: 20 F4 6A JSR $6AF4  ; read input
 7AAD: A9 57    LDA #$57
 7AAF: A0 B8    LDY #$B8
 7AB1: 18       CLC
@@ -3160,7 +3160,7 @@
 7AB8: AA       TAX
 7AB9: 86 6F    STX $6F
 7ABB: 84 70    STY $70
-7ABD: A9 3F    LDA #$3F
+7ABD: A9 3F    LDA #$3F  ; '?'
 7ABF: A0 00    LDY #$00
 7AC1: 91 6F    STA ($6F),Y
 7AC3: A6 6F    LDX $6F
@@ -3168,9 +3168,10 @@
 7AC7: AD 58 B8 LDA $B858
 7ACA: C9 03    CMP #$03
 7ACC: F0 03    BEQ $7AD1
-7ACE: 4C 54 7B JMP $7B54
+7ACE: 4C 54 7B JMP $7B54  ; perform READ
 
 7AD1: 4C F6 74 JMP $74F6
+
 7AD4: A2 3F    LDX #$3F
 7AD6: 8E 27 B8 STX $B827
 7AD9: 20 5B 71 JSR $715B
@@ -5845,6 +5846,7 @@
 8EB3: 20 D8 A2 JSR $A2D8  ; convert string to float
 8EB6: AD 09 B8 LDA $B809
 8EB9: 20 DB 77 JSR $77DB  ; store number
+
 8EBC: 20 04 96 JSR $9604  ; check if offset >= file length
 8EBF: F0 0E    BEQ $8ECF
 8EC1: AD 2A B9 LDA $B92A
@@ -5852,7 +5854,7 @@
 8EC6: F0 07    BEQ $8ECF
 8EC8: C9 2C    CMP #$2C  ; ','
 8ECA: F0 03    BEQ $8ECF
-8ECC: 4C F9 8E JMP $8EF9
+8ECC: 4C F9 8E JMP $8EF9  ; type mismatch
 
 8ECF: AD 05 B8 LDA $B805
 8ED2: AC 06 B8 LDY $B806
@@ -5860,8 +5862,9 @@
 8ED7: 84 5F    STY $5F
 8ED9: 20 3A 66 JSR $663A
 8EDC: F0 06    BEQ $8EE4
-8EDE: 20 F2 9C JSR $9CF2
+8EDE: 20 F2 9C JSR $9CF2  ; assert ',' token
 8EE1: 4C 74 8E JMP $8E74
+
 8EE4: AD 28 B9 LDA $B928
 8EE7: 0A       ASL
 8EE8: AA       TAX
@@ -5874,7 +5877,7 @@
 8EF6: A2 03    LDX #$03  ; out of data
 8EF8: 2C       ; junk code: BIT $0CA2
 
-8EF9: A2 0C    LDX #$0C
+8EF9: A2 0C    LDX #$0C  ; type mismatch
 8EFB: 4C 9F 67 JMP $679F
 
 8EFE: 90 03    BCC $8F03  ; branch if read unquoted string
@@ -6723,6 +6726,7 @@
 9619: 60       RTS
 
 ; read a byte from file, if EOF, returns $FF
+; A = $B92A = the byte read from file
 961A: 20 31 96 JSR $9631
 961D: EE 24 B9 INC $B924
 9620: D0 03    BNE $9625
@@ -7620,8 +7624,9 @@
 9CAF: 69 00    ADC #$00
 9CB1: 90 01    BCC $9CB4
 9CB3: C8       INY
-9CB4: 20 D0 7E JSR $7ED0
+9CB4: 20 D0 7E JSR $7ED0  ; read and allocate a string
 9CB7: 4C 02 86 JMP $8602
+
 9CBA: C9 C7    CMP #$C7
 9CBC: D0 10    BNE $9CCE
 9CBE: A0 18    LDY #$18
