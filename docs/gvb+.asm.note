@@ -149,6 +149,11 @@ data:
             in text buffer is in INVERSE / FLASH mode, bit6 is second character, etc.
             $B937 only highest 4bits are used.
 
+    $B8C4
+            keyboard INPUT mode
+            = 0  insert mode
+            = 1  replace mode
+
 TODO:
     数字字面量可以用空格分隔？yes
     FOR、FN、subscript 变量和常规 float 变量不认为是同一个类型？
