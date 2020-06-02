@@ -160,12 +160,11 @@ data:
             = $00  READ from keyboard
 
 TODO:
-    数字字面量可以用空格分隔？yes
-    FOR、FN、subscript 变量和常规 float 变量不认为是同一个类型？
     .BAS 文件结构
     数字可以用 E 开头？
-    取整？
-    不同地方的转换为 16bit 整数是 -32768 ~ 32767 还是 -65535 ~ 65535 ？
+    取整？truncate
+    0~255 负数取补码？no
+    READ、字面值、INPUT 的数字都支持空格？
 
 ----------------------------------------------------
 未明用途的地址：
@@ -199,7 +198,7 @@ entry:
         byte0   bit7,bit6  = 11 int
                            = 00 float
                            = 01 str
-                           = 10 subscript / FOR / FN ??
+                           = 10 function ?
                 bit0~bit3  variable length - 1
         N bytes            variable name
         data               if subscript / FOR / FN, 5 bytes

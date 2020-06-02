@@ -3592,7 +3592,7 @@
 7DCC: D0 F4    BNE $7DC2
 7DCE: 60       RTS
 
-; convert integer to float
+; convert 2-byte integer to float
 7DCF: A2 00    LDX #$00
 7DD1: 8E 08 B8 STX $B808  ; clear type flag
 7DD4: 85 70    STA $70  ; mantissa 1
@@ -3653,6 +3653,7 @@
 7E38: 84 6B    STY $6B
 7E3A: 4C 2F 7D JMP $7D2F  ; assert type of function name is number
 
+; evaluate FN
 7E3D: 20 29 7E JSR $7E29
 7E40: A5 6A    LDA $6A
 7E42: 48       PHA
@@ -3722,8 +3723,9 @@
 7EAB: 91 6A    STA ($6A),Y
 7EAD: 60       RTS
 
-7EAE: 20 2F 7D JSR $7D2F
-7EB1: 20 8E A4 JSR $A48E
+; STR$ function
+7EAE: 20 2F 7D JSR $7D2F  ; assert number
+7EB1: 20 8E A4 JSR $A48E  ; convert FAC1 to string
 7EB4: 68       PLA
 7EB5: 68       PLA
 7EB6: A9 99    LDA #$99
@@ -4511,6 +4513,7 @@
 
 8498: 86 44    STX $44
 849A: 84 45    STY $45
+
 849C: A8       TAY
 849D: F0 0A    BEQ $84A9
 849F: 48       PHA
@@ -4526,10 +4529,12 @@
 84AE: 90 02    BCC $84B2
 84B0: E6 FF    INC $FF
 84B2: 60       RTS
+
 84B3: 20 31 7D JSR $7D31
 
 84B6: A5 72    LDA $72
 84B8: A4 73    LDY $73
+
 84BA: 85 44    STA $44
 84BC: 84 45    STY $45
 84BE: 20 F0 84 JSR $84F0
@@ -4582,7 +4587,7 @@
 850F: 4C 0F 7F JMP $7F0F ; push string onto string operand stack
 
 ; CHR$ function
-8512: 20 CA 85 JSR $85CA
+8512: 20 CA 85 JSR $85CA  ; assert argument in 0~255
 8515: 8A       TXA
 8516: 48       PHA
 8517: A9 01    LDA #$01
@@ -4598,14 +4603,14 @@
 8526: 20 85 85 JSR $8585
 8529: D1 6C    CMP ($6C),Y
 852B: 98       TYA
-852C: 90 04    BCC $8532
+852C: 90 04    BCC $8532  ; branch if second argument < string length
 852E: B1 6C    LDA ($6C),Y
 8530: AA       TAX
 8531: 98       TYA
 8532: 48       PHA
 8533: 8A       TXA
 8534: 48       PHA
-8535: 20 C6 7E JSR $7EC6
+8535: 20 C6 7E JSR $7EC6  ; allocate a string
 8538: A5 6C    LDA $6C
 853A: A4 6D    LDY $6D
 853C: 20 BA 84 JSR $84BA
@@ -4619,23 +4624,23 @@
 8549: E6 45    INC $45
 854B: 98       TYA
 854C: 20 9C 84 JSR $849C
-854F: 4C 0F 7F JMP $7F0F
+854F: 4C 0F 7F JMP $7F0F  ; push string onto string operand stack
 
 ; RIGHT$ function
 8552: 20 85 85 JSR $8585
 8555: 18       CLC
 8556: F1 6C    SBC ($6C),Y
-8558: 49 FF    EOR #$FF
+8558: 49 FF    EOR #$FF  ; A = string length - second argument
 855A: 4C 2C 85 JMP $852C
 
 ; MID$ function
-855D: A9 FF    LDA #$FF
+855D: A9 FF    LDA #$FF  ; if third argument is ommited, default get rest string
 855F: 85 73    STA $73
 8561: 20 3A 66 JSR $663A
-8564: C9 29    CMP #$29
+8564: C9 29    CMP #$29  ; ')'
 8566: F0 06    BEQ $856E
-8568: 20 F2 9C JSR $9CF2
-856B: 20 C7 85 JSR $85C7
+8568: 20 F2 9C JSR $9CF2  ; assert ',' token
+856B: 20 C7 85 JSR $85C7  ; evaluate expression and assert result is 0~255
 856E: 20 85 85 JSR $8585
 8571: CA       DEX
 8572: 8A       TXA
@@ -4643,13 +4648,14 @@
 8574: 18       CLC
 8575: A2 00    LDX #$00
 8577: F1 6C    SBC ($6C),Y
-8579: B0 B8    BCS $8533
+8579: B0 B8    BCS $8533  ; branch if second argument > string length
 857B: 49 FF    EOR #$FF
-857D: C5 73    CMP $73
+857D: C5 73    CMP $73  ; if rest string length < third argument, use rest string length
 857F: 90 B3    BCC $8534
-8581: A5 73    LDA $73
+8581: A5 73    LDA $73  ; if rest string length >= third argument, use third argument
 8583: B0 AF    BCS $8534
-8585: 20 EC 9C JSR $9CEC
+
+8585: 20 EC 9C JSR $9CEC  ; assert token ')'
 8588: 68       PLA
 8589: A8       TAY
 858A: 68       PLA
@@ -4668,7 +4674,7 @@
 859D: 48       PHA
 859E: A0 00    LDY #$00
 85A0: 8A       TXA
-85A1: F0 1E    BEQ $85C1
+85A1: F0 1E    BEQ $85C1  ; report illegal quantity if second argument is 0
 85A3: 60       RTS
 
 ; LEN function
@@ -4683,7 +4689,7 @@
 
 ; ASC function
 85B4: 20 AA 85 JSR $85AA
-85B7: F0 08    BEQ $85C1
+85B7: F0 08    BEQ $85C1  ; report illegal quantity if string is empty
 85B9: A0 00    LDY #$00
 85BB: B1 44    LDA ($44),Y
 85BD: A8       TAY
@@ -4695,15 +4701,18 @@
 ; X = result
 85C4: 20 34 66 JSR $6634
 85C7: 20 2C 7D JSR $7D2C ; evaluate expression and assert result is number
+
 85CA: 20 A8 98 JSR $98A8 ; convert to non-negative 2-byte integer
 85CD: A6 72    LDX $72
 85CF: D0 F0    BNE $85C1 ; branch if integer > 255
 85D1: A6 73    LDX $73
 85D3: 4C 3A 66 JMP $663A
 
+; VAL function
 85D6: 20 AA 85 JSR $85AA
 85D9: D0 03    BNE $85DE
-85DB: 4C 47 9E JMP $9E47
+85DB: 4C 47 9E JMP $9E47  ; return 0 if string is empty
+
 85DE: A6 5E    LDX $5E
 85E0: A4 5F    LDY $5F
 85E2: 86 52    STX $52
@@ -4711,6 +4720,7 @@
 85E6: A8       TAY
 85E7: A9 00    LDA #$00
 85E9: 4C EE 85 JMP $85EE
+
 85EC: B1 44    LDA ($44),Y
 85EE: 99 99 B9 STA $B999,Y
 85F1: 88       DEY
@@ -6190,7 +6200,7 @@
 918E: A2 01    LDX #$01
 9190: 4C 9F 67 JMP $679F
 
-9193: A2 21    LDX #$21
+9193: A2 21    LDX #$21  ; file number error
 9195: 4C 9F 67 JMP $679F
 
 ; GET statement
@@ -6208,7 +6218,7 @@
 91AE: 20 C4 85 JSR $85C4  ; evaluate file number expression
 91B1: E0 04    CPX #$04
 91B3: 90 03    BCC $91B8
-91B5: 4C 93 91 JMP $9193
+91B5: 4C 93 91 JMP $9193  ; file number error
 91B8: E0 01    CPX #$01
 91BA: B0 03    BCS $91BF
 91BC: 4C 93 91 JMP $9193
@@ -6569,23 +6579,25 @@
 94B5: 90 F8    BCC $94AF
 94B7: 60       RTS
 
-94B8: 20 2F 7D JSR $7D2F
+; MKS$ function
+94B8: 20 2F 7D JSR $7D2F  ; assert number
 94BB: A9 03    LDA #$03
 94BD: 20 5F 67 JSR $675F
 94C0: A2 99    LDX #$99
 94C2: A0 B9    LDY #$B9
 94C4: 86 7D    STX $7D
 94C6: 84 7E    STY $7E
-94C8: 20 99 A1 JSR $A199
+94C8: 20 99 A1 JSR $A199  ; store FAC1 into $B999
 94CB: 68       PLA
 94CC: 68       PLA
 94CD: A0 05    LDY #$05
 94CF: 20 04 7F JSR $7F04
 94D2: 60       RTS
 
-94D3: 20 2F 7D JSR $7D2F
-94D6: 20 E3 A1 JSR $A1E3
-94D9: 20 AC 98 JSR $98AC
+; MKI$ function
+94D3: 20 2F 7D JSR $7D2F  ; assert number
+94D6: 20 E3 A1 JSR $A1E3  ; round FAC1
+94D9: 20 AC 98 JSR $98AC  ; convert to 2-byte integer
 94DC: A9 01    LDA #$01
 94DE: 20 5F 67 JSR $675F
 94E1: A0 00    LDY #$00
@@ -6603,14 +6615,17 @@
 94F8: A0 02    LDY #$02
 94FA: 4C 04 7F JMP $7F04
 
-94FD: 20 31 7D JSR $7D31
+; CVS$ function
+94FD: 20 31 7D JSR $7D31  ; assert string
 9500: 20 B6 84 JSR $84B6
 9503: D0 01    BNE $9506
-9505: 60       RTS
+9505: 60       RTS  ; if string is empty, do nothing
+
 9506: C9 05    CMP #$05
 9508: F0 05    BEQ $950F
 950A: A2 01    LDX #$01
-950C: 4C 9F 67 JMP $679F
+950C: 4C 9F 67 JMP $679F  ; if string length != 5, report syntax error
+
 950F: A9 00    LDA #$00
 9511: 8D 08 B8 STA $B808
 9514: 8D 09 B8 STA $B809
@@ -6618,10 +6633,13 @@
 9519: A4 45    LDY $45
 951B: 20 66 A1 JSR $A166
 951E: 60       RTS
-951F: 20 31 7D JSR $7D31
+
+; CVI$ function
+951F: 20 31 7D JSR $7D31  ; assert string
 9522: 20 B6 84 JSR $84B6
 9525: D0 01    BNE $9528
 9527: 60       RTS
+
 9528: C9 02    CMP #$02
 952A: F0 05    BEQ $9531
 952C: A2 01    LDX #$01
@@ -6639,15 +6657,16 @@
 9544: 8A       TXA
 9545: 4C CF 7D JMP $7DCF
 
+; LOF function
 9548: 08       PHP
-9549: 20 E5 7D JSR $7DE5
+9549: 20 E5 7D JSR $7DE5  ; assert not direct mode
 954C: 28       PLP
-954D: 20 2F 7D JSR $7D2F
-9550: 20 E3 A1 JSR $A1E3
-9553: 20 AC 98 JSR $98AC
+954D: 20 2F 7D JSR $7D2F  ; assert number
+9550: 20 E3 A1 JSR $A1E3  ; round FAC1
+9553: 20 AC 98 JSR $98AC  ; convert to 2-byte integer
 9556: A5 72    LDA $72
 9558: F0 03    BEQ $955D
-955A: 4C 93 91 JMP $9193
+955A: 4C 93 91 JMP $9193  ; report file number error
 955D: A5 73    LDA $73
 955F: C9 04    CMP #$04
 9561: 90 03    BCC $9566
@@ -6660,7 +6679,7 @@
 9570: BD F2 B8 LDA $B8F2,X
 9573: C9 04    CMP #$04
 9575: F0 03    BEQ $957A
-9577: 4C D9 95 JMP $95D9
+9577: 4C D9 95 JMP $95D9  ; file mode error
 957A: 8A       TXA
 957B: 0A       ASL
 957C: AA       TAX
@@ -6671,12 +6690,13 @@
 9586: 84 71    STY $71
 9588: 4C 22 A2 JMP $A222
 
+; EOF function
 958B: 08       PHP
-958C: 20 E5 7D JSR $7DE5
+958C: 20 E5 7D JSR $7DE5  ; assert not direct mode
 958F: 28       PLP
-9590: 20 2F 7D JSR $7D2F
-9593: 20 E3 A1 JSR $A1E3
-9596: 20 AC 98 JSR $98AC
+9590: 20 2F 7D JSR $7D2F  ; assert number
+9593: 20 E3 A1 JSR $A1E3  ; round FAC1
+9596: 20 AC 98 JSR $98AC  ; convert to 2-byte integer
 9599: A5 72    LDA $72
 959B: F0 03    BEQ $95A0
 959D: 4C 93 91 JMP $9193
@@ -6706,6 +6726,7 @@
 95D2: A0 01    LDY #$01
 95D4: A9 00    LDA #$00
 95D6: 4C CF 7D JMP $7DCF
+
 95D9: A2 22    LDX #$22
 95DB: 20 9F 67 JSR $679F
 
@@ -7483,7 +7504,7 @@
 9B87: 48       PHA
 9B88: A9 09    LDA #$09
 9B8A: 20 5F 67 JSR $675F  ; check out of memory error
-9B8D: 20 82 9C JSR $9C82
+9B8D: 20 82 9C JSR $9C82  ; read an operand
 9B90: A9 00    LDA #$00
 9B92: 8D 03 B8 STA $B803
 9B95: 20 3A 66 JSR $663A
@@ -7509,9 +7530,12 @@
 9BBC: CD 03 B8 CMP $B803
 9BBF: B0 03    BCS $9BC4
 9BC1: 4C FD 9C JMP $9CFD
+
 9BC4: 8D 03 B8 STA $B803
 9BC7: 20 34 66 JSR $6634
 9BCA: 4C 98 9B JMP $9B98
+
+; evaluate non-comparison operation
 9BCD: AE 03 B8 LDX $B803
 9BD0: D0 32    BNE $9C04
 9BD2: 90 03    BCC $9BD7
@@ -7531,6 +7555,7 @@
 9BEF: B0 69    BCS $9C5A
 9BF1: 20 2F 7D JSR $7D2F
 9BF4: 48       PHA
+
 9BF5: 20 1F 9C JSR $9C1F
 9BF8: 68       PLA
 9BF9: AC 05 B8 LDY $B805
@@ -7551,6 +7576,7 @@
 9C18: D9 71 9D CMP $9D71,Y
 9C1B: B0 47    BCS $9C64
 9C1D: 90 D5    BCC $9BF4
+
 9C1F: B9 73 9D LDA $9D73,Y
 9C22: 48       PHA
 9C23: B9 72 9D LDA $9D72,Y
@@ -7558,6 +7584,7 @@
 9C27: 20 30 9C JSR $9C30
 9C2A: AD 03 B8 LDA $B803
 9C2D: 4C 85 9B JMP $9B85
+
 9C30: A5 74    LDA $74
 9C32: BE 71 9D LDX $9D71,Y
 
@@ -7614,21 +7641,21 @@
 9C82: A9 00    LDA #$00
 9C84: 8D 08 B8 STA $B808
 9C87: 20 34 66 JSR $6634  ; read a character
-9C8A: B0 04    BCS $9C90  ; branch if character >= '0'
-9C8C: 20 93 A3 JSR $A393
+9C8A: B0 04    BCS $9C90  ; branch if character is not digit
+9C8C: 20 93 A3 JSR $A393  ; convert string to float
 9C8F: 60       RTS
 
-9C90: 20 43 9B JSR $9B43
+9C90: 20 43 9B JSR $9B43  ; test if A is uppercase letter
 9C93: 90 03    BCC $9C98
-9C95: 4C 09 9D JMP $9D09
-9C98: C9 2E    CMP #$2E
+9C95: 4C 09 9D JMP $9D09  ; evaluate identifier
+9C98: C9 2E    CMP #$2E  ; '.'
 9C9A: F0 F0    BEQ $9C8C
-9C9C: C9 CA    CMP #$CA
+9C9C: C9 CA    CMP #$CA  ; '-' token
 9C9E: D0 03    BNE $9CA3
 9CA0: 4C 02 9D JMP $9D02
-9CA3: C9 C9    CMP #$C9
+9CA3: C9 C9    CMP #$C9  ; '+' token
 9CA5: F0 E0    BEQ $9C87
-9CA7: C9 22    CMP #$22
+9CA7: C9 22    CMP #$22  ; '"'
 9CA9: D0 0F    BNE $9CBA
 
 9CAB: A5 5E    LDA $5E
@@ -7639,10 +7666,11 @@
 9CB4: 20 D0 7E JSR $7ED0  ; read and allocate a string
 9CB7: 4C 02 86 JMP $8602
 
-9CBA: C9 C7    CMP #$C7
+9CBA: C9 C7    CMP #$C7  ; NOT
 9CBC: D0 10    BNE $9CCE
 9CBE: A0 18    LDY #$18
 9CC0: D0 42    BNE $9D04
+
 9CC2: A5 6F    LDA $6F
 9CC4: D0 03    BNE $9CC9
 9CC6: A0 01    LDY #$01
@@ -7653,17 +7681,21 @@
 9CD0: D0 06    BNE $9CD8
 9CD2: 20 34 66 JSR $6634
 9CD5: 4C 01 85 JMP $8501
+
 9CD8: C9 C2    CMP #$C2  ; FN
 9CDA: D0 03    BNE $9CDF
 9CDC: 4C 3D 7E JMP $7E3D
-9CDF: C9 D3    CMP #$D3
-9CE1: 90 03    BCC $9CE6
+
+9CDF: C9 D3    CMP #$D3  ; SGN
+9CE1: 90 03    BCC $9CE6  ; branch if not function invocation
 9CE3: 4C 30 9D JMP $9D30
-9CE6: 20 EF 9C JSR $9CEF
+
+9CE6: 20 EF 9C JSR $9CEF  ; assert token '('
 9CE9: 20 7A 9B JSR $9B7A
 
 9CEC: A9 29    LDA #$29  ; ')'
 9CEE: 2C       ; junk code BIT $28A9
+
 9CEF: A9 28    LDA #$28  ; '('
 9CF1: 2C       ; junk code BIT $2CA9
 
@@ -7680,21 +7712,25 @@
 9CFD: A2 01    LDX #$01
 9CFF: 4C 9F 67 JMP $679F
 
+; push NEGATE operation onto stack
 9D02: A0 15    LDY #$15
 9D04: 68       PLA
 9D05: 68       PLA
 9D06: 4C F5 9B JMP $9BF5
-9D09: 20 D8 96 JSR $96D8
+
+9D09: 20 D8 96 JSR $96D8  ; get variable name and data pointer
 9D0C: 85 72    STA $72
 9D0E: 84 73    STY $73
 9D10: AE 08 B8 LDX $B808
-9D13: F0 06    BEQ $9D1B
+9D13: F0 06    BEQ $9D1B  ; branch if number
 9D15: A2 00    LDX #$00
 9D17: 8E 0E B8 STX $B80E
 9D1A: 60       RTS
+
 9D1B: AE 09 B8 LDX $B809
-9D1E: 30 03    BMI $9D23
-9D20: 4C 66 A1 JMP $A166
+9D1E: 30 03    BMI $9D23  ; branch if integer
+9D20: 4C 66 A1 JMP $A166  ; unpack float into FAC1
+
 9D23: A0 00    LDY #$00
 9D25: B1 72    LDA ($72),Y
 9D27: AA       TAX
@@ -7709,11 +7745,11 @@
 9D32: AA       TAX
 9D33: 20 34 66 JSR $6634
 9D36: E0 D5    CPX #$D5
-9D38: 90 20    BCC $9D5A
-9D3A: 20 EF 9C JSR $9CEF
-9D3D: 20 7A 9B JSR $9B7A
-9D40: 20 F2 9C JSR $9CF2
-9D43: 20 31 7D JSR $7D31
+9D38: 90 20    BCC $9D5A  ; branch if not LEFT$, RIGHT$, or MID$
+9D3A: 20 EF 9C JSR $9CEF  ; assert token '('
+9D3D: 20 7A 9B JSR $9B7A  ; evaluate argument
+9D40: 20 F2 9C JSR $9CF2  ; assert token ','
+9D43: 20 31 7D JSR $7D31  ; assert first argument is string
 9D46: 68       PLA
 9D47: AA       TAX
 9D48: A5 73    LDA $73
@@ -7722,14 +7758,15 @@
 9D4D: 48       PHA
 9D4E: 8A       TXA
 9D4F: 48       PHA
-9D50: 20 C7 85 JSR $85C7
+9D50: 20 C7 85 JSR $85C7  ; evaluate expression and assert result in 0~255
 9D53: 68       PLA
 9D54: A8       TAY
 9D55: 8A       TXA
 9D56: 48       PHA
 9D57: 4C 5F 9D JMP $9D5F
 
-9D5A: 20 E6 9C JSR $9CE6
+; evaluate single argument function
+9D5A: 20 E6 9C JSR $9CE6  ; evaluate function argument
 9D5D: 68       PLA
 9D5E: A8       TAY
 9D5F: B9 9D 61 LDA $619D,Y
@@ -7737,7 +7774,7 @@
 9D65: B9 9E 61 LDA $619E,Y
 9D68: 8D 60 B9 STA $B960
 9D6B: 20 5E B9 JSR $B95E
-9D6E: 4C 2F 7D JMP $7D2F
+9D6E: 4C 2F 7D JMP $7D2F  ; assert result is number
 
 9D71: 79 AF 9D ADC $9DAF,Y
 9D74: 79 98 9D ADC $9D98,Y
@@ -8057,6 +8094,7 @@
 9FC2: 20 2D A4 JSR $A42D
 9FC5: A9 86    LDA #$86
 9FC7: A0 9F    LDY #$9F
+
 9FC9: 20 3F A0 JSR $A03F
 
 ; * operator
@@ -8478,7 +8516,7 @@ A2AE: 60       RTS
 
 ; INT function
 A2AF: A5 6F    LDA $6F
-A2B1: C9 A0    CMP #$A0
+A2B1: C9 A0    CMP #$A0  ; exponent +32
 A2B3: B0 22    BCS $A2D7
 A2B5: 20 7B A2 JSR $A27B
 A2B8: 8C 0E B8 STY $B80E
@@ -8737,17 +8775,18 @@ A485: 20 12 A2 JSR $A212
 A488: 20 8E A4 JSR $A48E
 A48B: 4C 2D 79 JMP $792D
 
+; convert FAC1 to string
 A48E: A0 01    LDY #$01
-A490: A9 2D    LDA #$2D
+A490: A9 2D    LDA #$2D  ; '-'
 A492: 88       DEY
 A493: 24 74    BIT $74
-A495: 10 04    BPL $A49B
+A495: 10 04    BPL $A49B  ; branch if positive
 A497: C8       INY
 A498: 99 98 B9 STA $B998,Y
 A49B: 85 74    STA $74
 A49D: 84 52    STY $52
 A49F: C8       INY
-A4A0: A9 30    LDA #$30
+A4A0: A9 30    LDA #$30  ; '0'
 A4A2: A6 6F    LDX $6F
 A4A4: D0 03    BNE $A4A9
 A4A6: 4C B1 A5 JMP $A5B1
@@ -8909,7 +8948,7 @@ A5DB: .db $FF, $ff, $ff, $9c  ; -100
 A5DF: .db $00, $00, $00, $0a  ; +10
 A5E3: .db $FF, $ff, $ff, $ff  ; -1
 
-; SQR function
+; SQR function (identical to expr^0.5)
 A5E7: 20 D3 A1 JSR $A1D3
 A5EA: A9 BE    LDA #$BE
 A5EC: A0 A5    LDY #$A5
@@ -9008,6 +9047,7 @@ A6B5: 85 7D    STA $7D
 A6B7: 68       PLA
 A6B8: 20 6C A0 JSR $A06C
 A6BB: 60       RTS
+
 A6BC: 85 52    STA $52
 A6BE: 84 53    STY $53
 A6C0: 20 8F A1 JSR $A18F
@@ -9018,6 +9058,7 @@ A6CA: 20 D8 A6 JSR $A6D8
 A6CD: A9 60    LDA #$60
 A6CF: A0 00    LDY #$00
 A6D1: 4C C9 9F JMP $9FC9
+
 A6D4: 85 52    STA $52
 A6D6: 84 53    STY $53
 A6D8: 20 8C A1 JSR $A18C
@@ -9047,24 +9088,26 @@ A705: D0 E4    BNE $A6EB
 A707: 60       RTS
 
 ; float numbers for RND
-A708: .DB $98, $35, $44, $7a
-A70C: .DB $68, $28, $b1, $46
+A708: .DB $98, $35, $44, $7a  ; 11879546.4
+A70C: .DB $68, $28, $b1, $46  ; 3.92767778e-8
 
 ; RND function
 A710: 20 F4 A1 JSR $A1F4
 A713: AA       TAX
-A714: 30 18    BMI $A72E
+A714: 30 18    BMI $A72E  ; branch if argument is negative
 A716: A9 BB    LDA #$BB
 A718: A0 B8    LDY #$B8
-A71A: 20 66 A1 JSR $A166
+A71A: 20 66 A1 JSR $A166  ; unpack seed into FAC1
 A71D: 8A       TXA
-A71E: F0 E7    BEQ $A707
+A71E: F0 E7    BEQ $A707  ; branch if argument is zero (return last random number)
+
 A720: A9 08    LDA #$08
 A722: A0 A7    LDY #$A7
-A724: 20 C9 9F JSR $9FC9
+A724: 20 C9 9F JSR $9FC9  ; unpack multiplier into FAC1 and multiply FAC1 with FAC2
 A727: A9 0C    LDA #$0C
 A729: A0 A7    LDY #$A7
-A72B: 20 AD 9D JSR $9DAD
+A72B: 20 AD 9D JSR $9DAD  ; add float (A, Y) to FAC1
+
 A72E: A6 73    LDX $73
 A730: A5 70    LDA $70
 A732: 85 73    STA $73
@@ -9075,10 +9118,10 @@ A73A: A5 6F    LDA $6F
 A73C: 8D 0E B8 STA $B80E
 A73F: A9 80    LDA #$80
 A741: 85 6F    STA $6F
-A743: 20 25 9E JSR $9E25
+A743: 20 25 9E JSR $9E25  ; normalize FAC1
 A746: A2 BB    LDX #$BB
 A748: A0 B8    LDY #$B8
-A74A: 4C 99 A1 JMP $A199
+A74A: 4C 99 A1 JMP $A199  ; save RND seed
 
 ; COS function
 A74D: A9 CD    LDA #$CD
