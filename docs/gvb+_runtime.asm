@@ -980,6 +980,7 @@
 69C6: CA       DEX
 69C7: D0 F2    BNE $69BB
 69C9: 60       RTS
+
 69CA: A0 00    LDY #$00
 69CC: A9 01    LDA #$01
 69CE: 91 68    STA ($68),Y
@@ -1275,6 +1276,7 @@
 6C25: 38       SEC
 6C26: A9 00    LDA #$00
 6C28: 4C 06 75 JMP $7506
+
 6C2B: AE C2 B8 LDX $B8C2
 6C2E: EC C3 B8 CPX $B8C3
 6C31: B0 55    BCS $6C88
@@ -1320,6 +1322,8 @@
 
 6C88: 20 12 E0 JSR $E012
 6C8B: 4C 00 6B JMP $6B00
+
+; press left key during INPUT
 6C8E: AE C2 B8 LDX $B8C2
 6C91: EC C1 B8 CPX $B8C1
 6C94: F0 F2    BEQ $6C88
@@ -1334,6 +1338,7 @@
 6CAA: AD C2 B8 LDA $B8C2
 6CAD: E9 13    SBC #$13
 6CAF: 4C B7 6C JMP $6CB7
+
 6CB2: AD C2 B8 LDA $B8C2
 6CB5: E9 14    SBC #$14
 6CB7: AE 01 B8 LDX $B801
@@ -1343,9 +1348,11 @@
 6CC2: 8D 01 B8 STA $B801
 6CC5: 20 BE 6F JSR $6FBE
 6CC8: 4C CE 6C JMP $6CCE
+
 6CCB: 20 B5 6D JSR $6DB5
 6CCE: 20 9A AD JSR $AD9A
 6CD1: 4C 00 6B JMP $6B00
+
 6CD4: AD B4 03 LDA $03B4
 6CD7: 48       PHA
 6CD8: AD B5 03 LDA $03B5
@@ -1460,6 +1467,7 @@
 6DCE: CE C2 B8 DEC $B8C2
 6DD1: 20 E8 6D JSR $6DE8
 6DD4: 60       RTS
+
 6DD5: A2 00    LDX #$00
 6DD7: A0 FF    LDY #$FF
 6DD9: BD 58 B8 LDA $B858,X
@@ -1927,6 +1935,7 @@
 7159: 8A       TXA
 715A: 60       RTS
 
+; if caret X is not zero, move to next line. print a '?'.
 715B: AD B5 03 LDA $03B5
 715E: 8D C0 B8 STA $B8C0
 7161: 0A       ASL
@@ -3078,7 +3087,7 @@
 79EB: 60       RTS
 
 79EC: AD 0C B8 LDA $B80C
-79EF: F0 16    BEQ $7A07
+79EF: F0 16    BEQ $7A07  ; report '?REENTER' and continue if inputing from keyboard
 79F1: 30 04    BMI $79F7
 79F3: A0 FF    LDY #$FF
 79F5: D0 06    BNE $79FD
@@ -3102,7 +3111,7 @@
 7A1C: 20 2C 72 JSR $722C
 7A1F: A9 8E    LDA #$8E
 7A21: A0 7C    LDY #$7C
-7A23: 20 2D 79 JSR $792D
+7A23: 20 2D 79 JSR $792D  ; report '?REENTER' and return
 7A26: A9 00    LDA #$00
 7A28: 8D 01 B8 STA $B801
 7A2B: AD C3 B8 LDA $B8C3
@@ -3118,6 +3127,7 @@
 7A48: 85 5E    STA $5E
 7A4A: 84 5F    STY $5F
 7A4C: 60       RTS
+
 7A4D: A0 00    LDY #$00
 7A4F: B9 58 B8 LDA $B858,Y
 7A52: F0 05    BEQ $7A59
@@ -3184,11 +3194,11 @@
 
 7AD1: 4C F6 74 JMP $74F6
 
-7AD4: A2 3F    LDX #$3F
+7AD4: A2 3F    LDX #$3F  ; '?'
 7AD6: 8E 27 B8 STX $B827
-7AD9: 20 5B 71 JSR $715B
-7ADC: 20 F1 7A JSR $7AF1
-7ADF: 20 F4 6A JSR $6AF4
+7AD9: 20 5B 71 JSR $715B  ;  print a '?'
+7ADC: 20 F1 7A JSR $7AF1  ; set up input mode
+7ADF: 20 F4 6A JSR $6AF4  ; read input
 7AE2: A9 57    LDA #$57
 7AE4: A0 B8    LDY #$B8
 7AE6: 18       CLC
@@ -3252,10 +3262,10 @@
 ; READ statement
 7B4B: AE D5 B8 LDX $B8D5
 7B4E: AC D6 B8 LDY $B8D6
-7B51: A9 98    LDA #$98  ; set input mode = READ
+7B51: A9 98    LDA #$98  ; set READ mode = READ
 7B53: 2C       ; junk code: BIT $00A9
 
-7B54: A9 00    LDA #$00
+7B54: A9 00    LDA #$00  ; set READ mode = INPUT from keyboard
 
 7B56: 8D 0C B8 STA $B80C
 7B59: 86 56    STX $56
@@ -3284,10 +3294,10 @@
 7B8A: A0 B8    LDY #$B8
 7B8C: D0 08    BNE $7B96
 
-7B8E: 10 03    BPL $7B93
+7B8E: 10 03    BPL $7B93  ; branch if READ from keyboard INPUT
 7B90: 4C 1C 7C JMP $7C1C
 
-7B93: 20 D4 7A JSR $7AD4
+7B93: 20 D4 7A JSR $7AD4  ; input from keyboard
 7B96: 86 5E    STX $5E
 7B98: 84 5F    STY $5F
 
@@ -3336,7 +3346,7 @@
 7BEB: F0 07    BEQ $7BF4
 7BED: C9 2C    CMP #$2C  ; ','
 7BEF: F0 03    BEQ $7BF4
-7BF1: 4C EC 79 JMP $79EC ; report syntax error
+7BF1: 4C EC 79 JMP $79EC ; report syntax error or '?REENTER'
 
 7BF4: A5 5E    LDA $5E
 7BF6: A4 5F    LDY $5F
@@ -3347,7 +3357,7 @@
 7C02: 85 5E    STA $5E
 7C04: 84 5F    STY $5F
 7C06: 20 3A 66 JSR $663A
-7C09: D0 03    BNE $7C0E  ; brach if not ':' or $00
+7C09: D0 03    BNE $7C0E  ; branch if not ':' or $00
 7C0B: 4C 65 7C JMP $7C65  ; save DATA pointer
 
 7C0E: 20 F2 9C JSR $9CF2  ; assert current token is ','
@@ -3399,7 +3409,7 @@
 7C65: A5 56    LDA $56
 7C67: A4 57    LDY $57
 7C69: AE 0C B8 LDX $B80C
-7C6C: 10 03    BPL $7C71
+7C6C: 10 03    BPL $7C71  ; branch if inputing from keyboard
 7C6E: 4C C5 74 JMP $74C5 ; save A, Y in DATA pointer
 
 7C71: A0 00    LDY #$00
@@ -3407,22 +3417,11 @@
 7C75: F0 07    BEQ $7C7E
 7C77: A9 7F    LDA #$7F
 7C79: A0 7C    LDY #$7C
-7C7B: 4C 2D 79 JMP $792D
+7C7B: 4C 2D 79 JMP $792D  ; report '?EXTRA IGNORED' and return
 7C7E: 60       RTS
 
-7C7F: 3F       ??
-7C80: 45 58    EOR $58
-7C82: 54       ??
-7C83: 52       ??
-7C84: 41 20    EOR ($20,X)
-7C86: 49 47    EOR #$47
-7C88: 4E 4F 52 LSR $524F
-7C8B: 45 44    EOR $44
-7C8D: 00 3F 52 INT $523F
-7C90: 45 45    EOR $45
-7C92: 4E 54 45 LSR $4554
-7C95: 52       ??
-7C96: 00
+7C7F: .db "?EXTRA IGNORED", $00
+7C8E: .db "?REENTER", $00
 
 ; NEXT statement
 7C97: D0 04    BNE $7C9D
@@ -8568,7 +8567,9 @@ A354: D0 F9    BNE $A34F
 A356: A5 75    LDA $75
 A358: 30 01    BMI $A35B
 A35A: 60       RTS
+
 A35B: 4C 2B A6 JMP $A62B
+
 A35E: 48       PHA
 A35F: 24 68    BIT $68
 A361: 10 02    BPL $A365
