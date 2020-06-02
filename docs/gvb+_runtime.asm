@@ -7506,7 +7506,7 @@
 9B8A: 20 5F 67 JSR $675F  ; check out of memory error
 9B8D: 20 82 9C JSR $9C82  ; read an operand
 9B90: A9 00    LDA #$00
-9B92: 8D 03 B8 STA $B803
+9B92: 8D 03 B8 STA $B803  ; bit0 = '>', bit1 = '=', bit2 = '<'
 9B95: 20 3A 66 JSR $663A
 9B98: 38       SEC
 9B99: E9 D0    SBC #$D0
@@ -7516,11 +7516,12 @@
 9BA1: AA       TAX
 9BA2: AD 03 B8 LDA $B803
 9BA5: 29 02    AND #$02
-9BA7: D0 18    BNE $9BC1
+9BA7: D0 18    BNE $9BC1  ; if '=' occurs before, report syntax error, since
+                          ; no multi-char relational operator starts with '='
 9BA9: AD 03 B8 LDA $B803
 9BAC: 4A       LSR
 9BAD: 90 04    BCC $9BB3
-9BAF: E0 02    CPX #$02
+9BAF: E0 02    CPX #$02  ; '><' is invalid
 9BB1: F0 0E    BEQ $9BC1
 9BB3: 8A       TXA
 9BB4: C9 01    CMP #$01
@@ -7535,7 +7536,6 @@
 9BC7: 20 34 66 JSR $6634
 9BCA: 4C 98 9B JMP $9B98
 
-; evaluate non-comparison operation
 9BCD: AE 03 B8 LDX $B803
 9BD0: D0 32    BNE $9C04
 9BD2: 90 03    BCC $9BD7
@@ -7563,6 +7563,7 @@
 9BFE: AA       TAX
 9BFF: D0 63    BNE $9C64
 9C01: 4C 7F 9C JMP $9C7F
+
 9C04: 4E 08 B8 LSR $B808
 9C07: 8A       TXA
 9C08: 2A       ROL
@@ -7573,6 +7574,7 @@
 9C11: A0 1B    LDY #$1B
 9C13: 8D 03 B8 STA $B803
 9C16: D0 D3    BNE $9BEB
+
 9C18: D9 71 9D CMP $9D71,Y
 9C1B: B0 47    BCS $9C64
 9C1D: 90 D5    BCC $9BF4
