@@ -4607,9 +4607,9 @@
 852E: B1 6C    LDA ($6C),Y
 8530: AA       TAX
 8531: 98       TYA
-8532: 48       PHA
+8532: 48       PHA  ; push offset
 8533: 8A       TXA
-8534: 48       PHA
+8534: 48       PHA  ; push len
 8535: 20 C6 7E JSR $7EC6  ; allocate a string
 8538: A5 6C    LDA $6C
 853A: A4 6D    LDY $6D
