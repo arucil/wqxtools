@@ -21,6 +21,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "bin_dasm"
+version = "0.1.0"
+dependencies = [
+ "clap",
+ "encoding",
+]
+
+[[package]]
 name = "bitflags"
 version = "1.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -39,14 +47,6 @@ dependencies = [
  "textwrap",
  "unicode-width",
  "vec_map",
-]
-
-[[package]]
-name = "dasm"
-version = "0.1.0"
-dependencies = [
- "clap",
- "encoding",
 ]
 
 [[package]]
@@ -114,6 +114,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a246d82be1c9d791c5dfde9a2bd045fc3cbba3fa2b11ad558f27d01712f00569"
 
 [[package]]
+name = "gvb_interp"
+version = "0.1.0"
+
+[[package]]
 name = "hermit-abi"
 version = "0.1.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -127,10 +131,6 @@ name = "libc"
 version = "0.2.69"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "99e85c08494b21a9054e7fe1374a732aeadaff3980b6990b94bfd3a70f690005"
-
-[[package]]
-name = "mbf5"
-version = "0.1.0"
 
 [[package]]
 name = "strsim"

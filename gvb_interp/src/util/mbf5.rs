@@ -23,3 +23,8 @@ pub struct Mbf5([u8; 5]);
 
 /// Used for perform floating point calculations.
 pub struct Mbf5Accum(f64);
+
+impl From<Mbf5> for Mbf5Accum {
+  fn from(x: Mbf5) -> Self {
+  }
+}
