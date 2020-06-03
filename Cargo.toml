@@ -1,5 +1,5 @@
 [workspace]
 members = [
-  "dasm",
-  "mbf5",
+  "bin_dasm",
+  "gvb_interp",
 ]

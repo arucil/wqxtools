@@ -1,5 +1,5 @@
 [package]
-name = "mbf5"
+name = "gvb_interp"
 version = "0.1.0"
 authors = ["amlo <xplzjwz@gmail.com>"]
 edition = "2018"

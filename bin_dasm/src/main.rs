@@ -6,7 +6,7 @@ use std::io::{BufReader, BufWriter, Read};
 use std::error::Error;
 use std::num::IntErrorKind;
 use std::path::{Path, PathBuf};
-use dasm::DasmOptions;
+use bin_dasm::DasmOptions;
 
 fn main() -> Result<(), Box<dyn Error>> {
   let matches = App::new("dasm")
