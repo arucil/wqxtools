@@ -44,7 +44,7 @@ fn main() -> Result<(), Box<dyn Error>> {
   BufReader::new(File::open(file)?).read_to_end(&mut bytes)?;
   let output = BufWriter::new(File::create(output)?);
 
-  ::dasm::disassemble(&bytes, output, DasmOptions {
+  ::bin_dasm::disassemble(&bytes, output, DasmOptions {
     starting_address: origin,
   })?;
 

@@ -8397,7 +8397,7 @@ A1E2: 60       RTS
 A1E3: A5 6F    LDA $6F
 A1E5: F0 FB    BEQ $A1E2 ; exit if zero
 A1E7: 0E 0E B8 ASL $B80E
-A1EA: 90 F6    BCC $A1E2 ; exit if no overflow
+A1EA: 90 F6    BCC $A1E2 ; exit if no rounding
 A1EC: 20 C6 9E JSR $9EC6 ; increment mantissa
 A1EF: D0 F1    BNE $A1E2 ; exit if no overflow
 A1F1: 4C 8B 9E JMP $9E8B ; right bit shift mantissa
