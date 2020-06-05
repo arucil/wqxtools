@@ -252,7 +252,7 @@ impl Mbf5Accum {
   }
 
   pub fn tan(&self) -> CalcResult {
-    Self::try_from(self.0.sin())
+    Self::try_from(self.0.tan())
   }
 
   pub fn atan(&self) -> Self {
@@ -392,8 +392,230 @@ mod tests {
   }
 
   #[test]
-  fn fmt_mbf5_3_92767774_E_neg_8() {
+  fn fmt_mbf5_3_92767774_e_neg_8() {
     assert_eq!("3.92767774E-8", &Mbf5([ 0x68, 0x28, 0xb1, 0x46, 0x00 ]).to_string());
   }
 
+  #[test]
+  fn pos_is_pos() {
+    let a = Mbf5Accum::try_from(41.73).unwrap();
+    assert_eq!(true, a.is_positive());
+  }
+
+  #[test]
+  fn zero_is_pos() {
+    let a = Mbf5Accum::try_from(0.0).unwrap();
+    assert_eq!(false, a.is_positive());
+  }
+
+  #[test]
+  fn neg_is_pos() {
+    let a = Mbf5Accum::try_from(-41.73).unwrap();
+    assert_eq!(false, a.is_positive());
+  }
+
+  #[test]
+  fn pos_is_neg() {
+    let a = Mbf5Accum::try_from(41.73).unwrap();
+    assert_eq!(false, a.is_negative());
+  }
+
+  #[test]
+  fn zero_is_neg() {
+    let a = Mbf5Accum::try_from(0.0).unwrap();
+    assert_eq!(false, a.is_negative());
+  }
+
+  #[test]
+  fn neg_is_neg() {
+    let a = Mbf5Accum::try_from(-41.73).unwrap();
+    assert_eq!(true, a.is_negative());
+  }
+
+  #[test]
+  fn pos_is_zero() {
+    let a = Mbf5Accum::try_from(41.73).unwrap();
+    assert_eq!(false, a.is_zero());
+  }
+
+  #[test]
+  fn zero_is_zero() {
+    let a = Mbf5Accum::try_from(0.0).unwrap();
+    assert_eq!(true, a.is_zero());
+  }
+
+  #[test]
+  fn neg_is_zero() {
+    let a = Mbf5Accum::try_from(-41.73).unwrap();
+    assert_eq!(false, a.is_zero());
+  }
+
+  #[test]
+  fn neg_pos() {
+    let a = Mbf5Accum::try_from(41.73).unwrap();
+    assert_eq!(-41.73, a.negate().0);
+  }
+
+  #[test]
+  fn neg_0() {
+    let a = Mbf5Accum::try_from(0.0).unwrap();
+    assert_eq!(0.0, a.negate().0);
+  }
+
+  #[test]
+  fn neg_neg() {
+    let a = Mbf5Accum::try_from(-41.73).unwrap();
+    assert_eq!(41.73, a.negate().0);
+  }
+
+  #[test]
+  fn add_normal() {
+    let a = Mbf5Accum::try_from(41.73).unwrap();
+    let b = Mbf5Accum::try_from(-7.1342).unwrap();
+    assert_eq!(Ok(a.0 + b.0), a.add(&b).map(|x| x.0));
+  }
+
+  #[test]
+  fn add_overflow() {
+    let a = Mbf5Accum::try_from(1.70141183e+38).unwrap();
+    let b = Mbf5Accum::try_from(0.00000001e+38).unwrap();
+    assert_eq!(Err(FloatError::Infinite), a.add(&b).map(|x| x.0));
+  }
+
+  #[test]
+  fn add_neg_overflow() {
+    let a = Mbf5Accum::try_from(-1.70141183e+38).unwrap();
+    let b = Mbf5Accum::try_from(-0.00000001e+38).unwrap();
+    assert_eq!(Err(FloatError::Infinite), a.add(&b).map(|x| x.0));
+  }
+
+  #[test]
+  fn sub_normal() {
+    let a = Mbf5Accum::try_from(41.73).unwrap();
+    let b = Mbf5Accum::try_from(-7.1342).unwrap();
+    assert_eq!(Ok(a.0 - b.0), a.sub(&b).map(|x| x.0));
+  }
+
+  #[test]
+  fn sub_overflow() {
+    let a = Mbf5Accum::try_from(1.70141183e+38).unwrap();
+    let b = Mbf5Accum::try_from(-0.00000001e+38).unwrap();
+    assert_eq!(Err(FloatError::Infinite), a.sub(&b).map(|x| x.0));
+  }
+
+  #[test]
+  fn sub_neg_overflow() {
+    let a = Mbf5Accum::try_from(-1.70141183e+38).unwrap();
+    let b = Mbf5Accum::try_from(0.00000001e+38).unwrap();
+    assert_eq!(Err(FloatError::Infinite), a.sub(&b).map(|x| x.0));
+  }
+
+  #[test]
+  fn mul_normal() {
+    let a = Mbf5Accum::try_from(41.73).unwrap();
+    let b = Mbf5Accum::try_from(-7.1342).unwrap();
+    assert_eq!(Ok(a.0 * b.0), a.mul(&b).map(|x| x.0));
+  }
+
+  #[test]
+  fn mul_overflow() {
+    let a = Mbf5Accum::try_from(1e34).unwrap();
+    let b = Mbf5Accum::try_from(2e4).unwrap();
+    assert_eq!(Err(FloatError::Infinite), a.mul(&b).map(|x| x.0));
+  }
+
+  #[test]
+  fn mul_neg_overflow() {
+    let a = Mbf5Accum::try_from(1e34).unwrap();
+    let b = Mbf5Accum::try_from(-2e4).unwrap();
+    assert_eq!(Err(FloatError::Infinite), a.mul(&b).map(|x| x.0));
+  }
+
+  #[test]
+  fn div_normal() {
+    let a = Mbf5Accum::try_from(41.73).unwrap();
+    let b = Mbf5Accum::try_from(-7.1342).unwrap();
+    assert_eq!(Ok(a.0 / b.0), a.div(&b).map(|x| x.0));
+  }
+
+  #[test]
+  fn div_by_0() {
+    let a = Mbf5Accum::try_from(41.73).unwrap();
+    let b = Mbf5Accum::try_from(0.0).unwrap();
+    assert_eq!(Err(FloatError::Infinite), a.div(&b).map(|x| x.0));
+  }
+
+  #[test]
+  fn div_nan() {
+    let a = Mbf5Accum::try_from(0.0).unwrap();
+    let b = Mbf5Accum::try_from(0.0).unwrap();
+    assert_eq!(Err(FloatError::Nan), a.div(&b).map(|x| x.0));
+  }
+
+  #[test]
+  fn div_overflow() {
+    let a = Mbf5Accum::try_from(1.70141184e+37).unwrap();
+    let b = Mbf5Accum::try_from(0.1).unwrap();
+    assert_eq!(Err(FloatError::Infinite), a.div(&b).map(|x| x.0));
+  }
+
+  #[test]
+  fn abs_pos() {
+    let a = Mbf5Accum::try_from(1.74).unwrap();
+    assert_eq!(1.74, a.abs().0);
+  }
+
+  #[test]
+  fn abs_zero() {
+    let a = Mbf5Accum::try_from(0.0).unwrap();
+    assert_eq!(0.0, a.abs().0);
+  }
+
+  #[test]
+  fn abs_neg() {
+    let a = Mbf5Accum::try_from(-54.8).unwrap();
+    assert_eq!(54.8, a.abs().0);
+  }
+
+  #[test]
+  fn sin_normal() {
+    let a = Mbf5Accum::try_from(617849.13).unwrap();
+    assert_eq!(a.0.sin(), a.sin().0);
+  }
+
+  #[test]
+  fn cos_normal() {
+    let a = Mbf5Accum::try_from(617849.13).unwrap();
+    assert_eq!(a.0.cos(), a.cos().0);
+  }
+
+  #[test]
+  fn tan_normal() {
+    let a = Mbf5Accum::try_from(1.74).unwrap();
+    assert_eq!(Ok(1.74f64.tan()), a.tan().map(|x| x.0));
+  }
+
+  #[test]
+  fn tan_large() {
+    let a = Mbf5Accum::try_from(std::f64::consts::FRAC_PI_2).unwrap();
+    assert_eq!(Ok(16331239353195370.0), a.tan().map(|x| x.0));
+  }
+
+  #[test]
+  fn ln_normal() {
+    let a = Mbf5Accum::try_from(135.16).unwrap();
+    assert_eq!(Ok(a.0.ln()), a.ln().map(|x| x.0));
+  }
+
+  #[test]
+  fn ln_zero() {
+    let a = Mbf5Accum::try_from(0.0).unwrap();
+    assert_eq!(Err(FloatError::Infinite), a.ln().map(|x| x.0));
+  }
+
+  #[test]
+  fn ln_neg() {
+    let a = Mbf5Accum::try_from(-14.1).unwrap();
+    assert_eq!(Err(FloatError::Nan), a.ln().map(|x| x.0));
+  }
 }
