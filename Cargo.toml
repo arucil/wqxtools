@@ -2,4 +2,5 @@
 members = [
   "bin_dasm",
   "gvb_interp",
+  "make_font",
 ]
