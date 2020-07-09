@@ -10,33 +10,90 @@ const notdefGlyph = new opentype.Glyph({
   path: new opentype.Path()
 })
 
-const aPath = new opentype.Path()
-aPath.moveTo(0, 0)
-aPath.lineTo(150, 700)
-aPath.lineTo(300, 0)
-aPath.lineTo(150, 400)
-// more drawing instructions...
-const aGlyph = new opentype.Glyph({
-  name: 'A',
-  unicode: 65,
-  advanceWidth: 500,
-  path: aPath
-})
+// gb2312
+{
+  console.log('generating gb2312...')
+  const glyphs = [
+    notdefGlyph,
+    ...makeAsciiGlyphs(),
+    ...makeGb2312Glyphs()
+  ]
+  const font = new opentype.Font({
+    familyName: 'WenQuXing-GB2312',
+    styleName: 'Medium',
+    unitsPerEm: 16,
+    ascender: 16,
+    descender: 0,
+    glyphs,
+  })
+  font.download('WenQuXing-GB2312.woff')
+}
 
-const glyphs = [
-  notdefGlyph,
-  ...makeAsciiGlyphs(),
-  ...makeGb2312Glyphs()
-]
-const font = new opentype.Font({
-  familyName: 'WenQuXing-GB2312',
-  styleName: 'Medium',
-  unitsPerEm: 16,
-  ascender: 16,
-  descender: 0,
-  glyphs,
-})
-font.download('WenQuXing-GB2312.ttf')
+// old icons
+{
+  console.log('generating old icons...')
+  const glyphs = [
+    notdefGlyph,
+    ...makeIconGlyphs(i => {
+      let byte1: number
+      let byte2: number
+      if (i < 57 + 94) {
+        byte1 = 0xfa
+        byte2 = i + 70
+      } else if (i < 57 + 94) {
+        byte1 = 0xfa
+        byte2 = i - 57 + 161
+      } else if (i < (57 + 94) + 63) {
+        byte1 = 0xfb
+        byte2 = i - (57 + 94) + 64
+      } else if (i < (57 + 94) + (63 + 94)) {
+        byte1 = 0xfb
+        byte2 = i - ((57 + 94) + 63) + 161
+      } else if (i < (57 + 94) + (63 + 94) + 63) {
+        byte1 = 0xfc
+        byte2 = i - ((57 + 94) + (63 + 94)) + 64
+      } else if (i < (57 + 94) + (63 + 94) + (63 + 94)) {
+        byte1 = 0xfc
+        byte2 = i - ((57 + 94) + (63 + 94) + 63) + 161
+      } else {
+        byte1 = 0xfd
+        byte2 = i - ((57 + 94) + (63 + 94) + (63 + 94)) + 64
+      }
+      return 0x10000 + (byte1 << 8) + byte2
+    }),
+  ]
+  const font = new opentype.Font({
+    familyName: 'WenQuXing-Icons-Old',
+    styleName: 'Medium',
+    unitsPerEm: 16,
+    ascender: 16,
+    descender: 0,
+    glyphs,
+  })
+  font.download('WenQuXing-Icons-Old.woff')
+}
+
+// new icons
+{
+  console.log('generating new icons...')
+  const glyphs = [
+    notdefGlyph,
+    ...makeIconGlyphs(i => {
+      const byte1 = 0xf8 + (i / 94 | 0)
+      const byte2 = i % 94 + 161
+      return 0x10000 + (byte1 << 8) + byte2
+    }),
+  ]
+  const font = new opentype.Font({
+    familyName: 'WenQuXing-Icons-New',
+    styleName: 'Medium',
+    unitsPerEm: 16,
+    ascender: 16,
+    descender: 0,
+    glyphs,
+  })
+  font.download('WenQuXing-Icons-New.woff')
+}
 
 function makeAsciiGlyphs(): opentype.Glyph[] {
   const data = fs.readFileSync('../data/ascii8.dat')
@@ -63,6 +120,18 @@ function makeGb2312Glyphs(): opentype.Glyph[] {
     if (cp === 0xfffd) {
       continue
     }
+    glyphs.push(makeGlyph(cp, data.slice(i * 32, i * 32 + 32), 16, 16))
+  }
+
+  return glyphs
+}
+
+function makeIconGlyphs(mapCodepoint: (index: number) => number): opentype.Glyph[] {
+  const data = fs.readFileSync('../data/icon16.dat')
+  const glyphs = []
+
+  for (let i = 0; i < 527; ++i) {
+    const cp = mapCodepoint(i)
     glyphs.push(makeGlyph(cp, data.slice(i * 32, i * 32 + 32), 16, 16))
   }
 
