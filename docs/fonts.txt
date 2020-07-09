@@ -1,4 +1,4 @@
-wqx built-in images (527 in total):
+wqx built-in icons (527 in total):
   PC1000A:
     byte1       byte2
      250     70-126,161-254
