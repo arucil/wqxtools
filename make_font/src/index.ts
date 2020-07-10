@@ -10,6 +10,8 @@ const notdefGlyph = new opentype.Glyph({
   path: new opentype.Path()
 })
 
+const SCALE = 100
+
 // gb2312
 {
   console.log('generating gb2312...')
@@ -21,8 +23,8 @@ const notdefGlyph = new opentype.Glyph({
   const font = new opentype.Font({
     familyName: 'WenQuXing-GB2312',
     styleName: 'Medium',
-    unitsPerEm: 16,
-    ascender: 16,
+    unitsPerEm: 16 * SCALE,
+    ascender: 16 * SCALE,
     descender: 0,
     glyphs,
   })
@@ -65,8 +67,8 @@ const notdefGlyph = new opentype.Glyph({
   const font = new opentype.Font({
     familyName: 'WenQuXing-Icons-Old',
     styleName: 'Medium',
-    unitsPerEm: 16,
-    ascender: 16,
+    unitsPerEm: 16 * SCALE,
+    ascender: 16 * SCALE,
     descender: 0,
     glyphs,
   })
@@ -87,8 +89,8 @@ const notdefGlyph = new opentype.Glyph({
   const font = new opentype.Font({
     familyName: 'WenQuXing-Icons-New',
     styleName: 'Medium',
-    unitsPerEm: 16,
-    ascender: 16,
+    unitsPerEm: 16 * SCALE,
+    ascender: 16 * SCALE,
     descender: 0,
     glyphs,
   })
@@ -137,6 +139,7 @@ function makeIconGlyphs(mapCodepoint: (index: number) => number): opentype.Glyph
 
   return glyphs
 }
+
 
 function makeGlyph(
   codepoint: number,
@@ -234,17 +237,17 @@ function makeGlyph(
       segments.pop()
     }
 
-    path.moveTo(segments[0][0] % 100, segments[0][0] / 100 | 0)
+    path.moveTo(segments[0][0] % 100 * SCALE, (segments[0][0] / 100 | 0) * SCALE)
 
     for (const [, to] of segments) {
-      path.lineTo(to % 100, to / 100 | 0)
+      path.lineTo(to % 100 * SCALE, (to / 100 | 0) * SCALE)
     }
   }
 
   return new opentype.Glyph({
     name: 'U+' + codepoint.toString(16).padStart(4),
     unicode: codepoint,
-    advanceWidth: width,
+    advanceWidth: width * SCALE,
     path,
   })
 }
