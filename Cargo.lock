@@ -21,35 +21,12 @@ dependencies = [
 ]
 
 [[package]]
-name = "bdf"
-version = "0.5.5"
-source = "git+https://github.com/arucil/rust-bdf#a2124bf7db4be6d5d785bcbd500bc6763aadf816"
-dependencies = [
- "bit-set",
-]
-
-[[package]]
 name = "bin_dasm"
 version = "0.1.0"
 dependencies = [
  "clap",
  "encoding",
 ]
-
-[[package]]
-name = "bit-set"
-version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "84527c7b0452f22545cc010e72d366a435561d2b28b978035550b3778c4d428d"
-dependencies = [
- "bit-vec",
-]
-
-[[package]]
-name = "bit-vec"
-version = "0.6.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5f0dc55f2d8a1a85650ac47858bb001b4c0dd73d79e3c455a842925e68d29cd3"
 
 [[package]]
 name = "bitflags"
@@ -174,14 +151,6 @@ name = "libc"
 version = "0.2.72"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a9f8082297d534141b30c8d39e9b1773713ab50fdbe4ff30f750d063b3bfd701"
-
-[[package]]
-name = "make_font_old"
-version = "0.1.0"
-dependencies = [
- "bdf",
- "encoding",
-]
 
 [[package]]
 name = "ppv-lite86"

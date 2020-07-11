@@ -98,7 +98,7 @@ const SCALE = 100
 }
 
 function makeAsciiGlyphs(): opentype.Glyph[] {
-  const data = fs.readFileSync('../data/ascii8.dat')
+  const data = fs.readFileSync('../data/ascii_16.dat')
   const glyphs = []
 
   for (let i = 1; i < 128; ++i) {
@@ -109,7 +109,7 @@ function makeAsciiGlyphs(): opentype.Glyph[] {
 }
 
 function makeGb2312Glyphs(): opentype.Glyph[] {
-  const data = fs.readFileSync('../data/gb16.dat')
+  const data = fs.readFileSync('../data/gb2312_16.dat')
   const glyphs = []
 
   for (let i = 0; i < 7614; ++i) {
@@ -129,7 +129,7 @@ function makeGb2312Glyphs(): opentype.Glyph[] {
 }
 
 function makeIconGlyphs(mapCodepoint: (index: number) => number): opentype.Glyph[] {
-  const data = fs.readFileSync('../data/icon16.dat')
+  const data = fs.readFileSync('../data/icon_16.dat')
   const glyphs = []
 
   for (let i = 0; i < 527; ++i) {
