@@ -3,6 +3,8 @@
     + react
     + monaco editor
     + dock-spawn-ts
+- 窗口：
+    + float、dock、移动、打开、关闭窗口时实时保存当前 layout 到 local storage
 - 菜单：
     + 窗口：屏幕、键盘、编辑器、目录树、变量表
 - 设置窗口：
