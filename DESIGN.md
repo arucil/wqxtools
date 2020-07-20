@@ -3,12 +3,9 @@
     + react
     + monaco editor
     + dock-spawn-ts
-
     
 - 窗口：
-    
     + float、dock、移动、打开、关闭窗口时实时保存当前 layout 到 local storage
-    
 - 菜单：
     
     + 窗口：屏幕、键盘、编辑器、目录树、变量表、错误列表
@@ -25,9 +22,10 @@
 - toolbar：
     + 运行、停止、暂停
     + 上传、下载、打包下载
+    + 打开（file tree中选中的文件）、保存、另存为
     + 重做、撤销
     + 剪切、复制、粘贴
-    
+
 - 编辑器：
     + 编辑器可以有多个窗口，每个窗口可以有多个 tab。每个窗口是一个 monaco editor 实例。
         - 从目录树打开文件时，从 last active 编辑器窗口创建一个 tab
@@ -37,6 +35,11 @@
         - 切换字体（前端）
         - 修改 bas 源码的 machine 指令（language server 端）
         - peek/poke地址、\[中断表]（language server 端）
+    + 右键菜单：
+        - 保存
+        - 另存为
+        - 运行
+    + 编辑 .bas 文件时如果写了扩展语法则不允许保存，只能另存为 .bas.txt 文件
     
 - 保存：language server 检查是否符合 bas 格式（语句类型、文件大小等），如果不是则拒绝保存，提示是否保存为 .bas.txt 格式，如果是则打开 .bas.txt 文件，同时清除原文件的 dirty 标记。
 
@@ -78,4 +81,3 @@
     - POINT(x, y)
 
 # 问题
-- web assembly 在两个 call 之间 保存状态？或者 web assembly 中可以直接监听 onmessage？
