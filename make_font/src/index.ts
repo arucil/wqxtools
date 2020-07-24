@@ -61,7 +61,8 @@ const SCALE = 100
         byte1 = 0xfd
         byte2 = i - ((57 + 94) + (63 + 94) + (63 + 94)) + 64
       }
-      return 0x10000 + (byte1 << 8) + byte2
+      // make use of one of Unicode Private Use Areas (U+E000 - U+F8FF)
+      return 0xe000 + ((byte1 - 0xfa) << 8) + byte2
     }),
   ]
   const font = new opentype.Font({
@@ -83,7 +84,7 @@ const SCALE = 100
     ...makeIconGlyphs(i => {
       const byte1 = 0xf8 + (i / 94 | 0)
       const byte2 = i % 94 + 161
-      return 0x10000 + (byte1 << 8) + byte2
+      return 0xe000 + ((byte1 - 0xf8) << 8) + byte2
     }),
   ]
   const font = new opentype.Font({
