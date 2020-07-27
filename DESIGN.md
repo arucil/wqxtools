@@ -63,6 +63,7 @@
 - 屏幕：
     + requestAnimationFrame：如果有 dirty area 或 caret 显示/位置变化则刷新。
     + setInterval：如果 caret 显示则显示 caret。接收到 ShowCaret、HideCaret 之后重置 interval，显示 caret。
+    + 状态：正在运行、已暂停、已结束、出错：xxx（点击出错位置直接跳转到编辑器的指定位置，或者出错时直接跳转到编辑器指定位置）
     
 - 键盘：
     + 接收到按键事件或者鼠标点击后按下
