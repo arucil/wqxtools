@@ -3,12 +3,13 @@
     + react
     + monaco editor
     + dock-spawn-ts
+    + webgl 比 canvas api 渲染快
     
 - 窗口：
     + float、dock、移动、打开、关闭窗口时实时保存当前 layout 到 local storage
     + 用手机打开是gvb/lava模拟器
 - 菜单：
-    
+  
     + 窗口：屏幕、键盘、编辑器、目录树、变量表、错误列表
 
 - 错误列表：
