@@ -4,6 +4,7 @@
     + monaco editor
     + dock-spawn-ts
     + webgl 比 canvas api 渲染快
+    + rust启动本地服务器
     
 - 窗口：
     + float、dock、移动、打开、关闭窗口时实时保存当前 layout 到 local storage
