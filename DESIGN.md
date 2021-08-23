@@ -44,11 +44,13 @@
         - 插入文曲星图标
     + 编辑 .bas 文件时如果写了扩展语法则不允许保存，只能另存为 .bas.txt 文件
     + 编辑 .bas 文件时要在第一行写 rem ext 才能使用扩展语法
-    + 如果写了 rem machine:XXX，但没有用到机型特定的特性，则给出警告
+    + 如果第一行写了 rem machine:XXX，但没有用到机型特定的特性，则给出警告
     
 - 保存：language server 检查是否符合 bas 格式（语句类型、文件大小等），如果不是则拒绝保存，提示是否保存为 .bas.txt 格式，如果是则打开 .bas.txt 文件，同时清除原文件的 dirty 标记。
 
-- 运行：从 language server 得到 Program 数据（raw pointer?），启动模拟器 web worker，发送 Program 和执行的指令数量 counter
+- 运行：
+    + 从 language server 得到 Program 数据（raw pointer?），启动模拟器 web worker，发送 Program 和执行的指令数量 counter
+    + 每个程序写入的文件的名称都会带上程序名作为前缀。
 
 - 模拟器 web worker：得到 Program，运行 rust。
     + 运行：

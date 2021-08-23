@@ -23,11 +23,14 @@ use std::fmt::Display;
 use std::fmt;
 use std::fmt::Write;
 use std::convert::TryFrom;
+use std::ops::{Neg, Add, Sub, Mul, Div};
 
 /// Used for store floating point value of a variable.
+#[derive(Debug, Clone, Copy)]
 pub struct Mbf5([u8; 5]);
 
 /// Used for perform floating point calculations.
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Mbf5Accum(f64);
 
 const MANTISSA_BITS: usize = 31;
@@ -68,7 +71,7 @@ impl Into<f64> for Mbf5Accum {
   }
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FloatError {
   Nan,
   Infinite,
@@ -206,6 +209,46 @@ impl Mbf5 {
 
 pub type CalcResult = Result<Mbf5Accum, FloatError>;
 
+impl Add for Mbf5Accum {
+  type Output = CalcResult;
+
+  fn add(self, rhs: Self) -> Self::Output {
+    Self::try_from(self.0 + rhs.0)
+  }
+}
+
+impl Sub for Mbf5Accum {
+  type Output = CalcResult;
+
+  fn sub(self, rhs: Self) -> Self::Output {
+    Self::try_from(self.0 - rhs.0)
+  }
+}
+
+impl Mul for Mbf5Accum {
+  type Output = CalcResult;
+
+  fn mul(self, rhs: Self) -> Self::Output {
+    Self::try_from(self.0 * rhs.0)
+  }
+}
+
+impl Div for Mbf5Accum {
+  type Output = CalcResult;
+
+  fn div(self, rhs: Self) -> Self::Output {
+    Self::try_from(self.0 / rhs.0)
+  }
+}
+
+impl Neg for Mbf5Accum {
+  type Output = Self;
+
+  fn neg(self) -> Self::Output {
+    Self(-self.0)
+  }
+}
+
 impl Mbf5Accum {
   pub fn is_positive(&self) -> bool {
     self.0 > 0.0
@@ -217,26 +260,6 @@ impl Mbf5Accum {
 
   pub fn is_zero(&self) -> bool {
     self.0 == 0.0
-  }
-
-  pub fn negate(&self) -> Self {
-    Self(-self.0)
-  }
-
-  pub fn add(&self, other: &Self) -> CalcResult {
-    Self::try_from(self.0 + other.0)
-  }
-
-  pub fn sub(&self, other: &Self) -> CalcResult {
-    Self::try_from(self.0 - other.0)
-  }
-
-  pub fn mul(&self, other: &Self) -> CalcResult {
-    Self::try_from(self.0 * other.0)
-  }
-
-  pub fn div(&self, other: &Self) -> CalcResult {
-    Self::try_from(self.0 / other.0)
   }
 
   pub fn abs(&self) -> Self {
@@ -453,110 +476,110 @@ mod tests {
   #[test]
   fn neg_pos() {
     let a = Mbf5Accum::try_from(41.73).unwrap();
-    assert_eq!(-41.73, a.negate().0);
+    assert_eq!(-41.73, (-a).0);
   }
 
   #[test]
   fn neg_0() {
     let a = Mbf5Accum::try_from(0.0).unwrap();
-    assert_eq!(0.0, a.negate().0);
+    assert_eq!(0.0, (-a).0);
   }
 
   #[test]
   fn neg_neg() {
     let a = Mbf5Accum::try_from(-41.73).unwrap();
-    assert_eq!(41.73, a.negate().0);
+    assert_eq!(41.73, (-a).0);
   }
 
   #[test]
   fn add_normal() {
     let a = Mbf5Accum::try_from(41.73).unwrap();
     let b = Mbf5Accum::try_from(-7.1342).unwrap();
-    assert_eq!(Ok(a.0 + b.0), a.add(&b).map(|x| x.0));
+    assert_eq!(Ok(a.0 + b.0), (a + b).map(|x| x.0));
   }
 
   #[test]
   fn add_overflow() {
     let a = Mbf5Accum::try_from(1.70141183e+38).unwrap();
     let b = Mbf5Accum::try_from(0.00000001e+38).unwrap();
-    assert_eq!(Err(FloatError::Infinite), a.add(&b).map(|x| x.0));
+    assert_eq!(Err(FloatError::Infinite), (a + b).map(|x| x.0));
   }
 
   #[test]
   fn add_neg_overflow() {
     let a = Mbf5Accum::try_from(-1.70141183e+38).unwrap();
     let b = Mbf5Accum::try_from(-0.00000001e+38).unwrap();
-    assert_eq!(Err(FloatError::Infinite), a.add(&b).map(|x| x.0));
+    assert_eq!(Err(FloatError::Infinite), (a + b).map(|x| x.0));
   }
 
   #[test]
   fn sub_normal() {
     let a = Mbf5Accum::try_from(41.73).unwrap();
     let b = Mbf5Accum::try_from(-7.1342).unwrap();
-    assert_eq!(Ok(a.0 - b.0), a.sub(&b).map(|x| x.0));
+    assert_eq!(Ok(a.0 - b.0), (a - b).map(|x| x.0));
   }
 
   #[test]
   fn sub_overflow() {
     let a = Mbf5Accum::try_from(1.70141183e+38).unwrap();
     let b = Mbf5Accum::try_from(-0.00000001e+38).unwrap();
-    assert_eq!(Err(FloatError::Infinite), a.sub(&b).map(|x| x.0));
+    assert_eq!(Err(FloatError::Infinite), (a - b).map(|x| x.0));
   }
 
   #[test]
   fn sub_neg_overflow() {
     let a = Mbf5Accum::try_from(-1.70141183e+38).unwrap();
     let b = Mbf5Accum::try_from(0.00000001e+38).unwrap();
-    assert_eq!(Err(FloatError::Infinite), a.sub(&b).map(|x| x.0));
+    assert_eq!(Err(FloatError::Infinite), (a - b).map(|x| x.0));
   }
 
   #[test]
   fn mul_normal() {
     let a = Mbf5Accum::try_from(41.73).unwrap();
     let b = Mbf5Accum::try_from(-7.1342).unwrap();
-    assert_eq!(Ok(a.0 * b.0), a.mul(&b).map(|x| x.0));
+    assert_eq!(Ok(a.0 * b.0), (a * b).map(|x| x.0));
   }
 
   #[test]
   fn mul_overflow() {
     let a = Mbf5Accum::try_from(1e34).unwrap();
     let b = Mbf5Accum::try_from(2e4).unwrap();
-    assert_eq!(Err(FloatError::Infinite), a.mul(&b).map(|x| x.0));
+    assert_eq!(Err(FloatError::Infinite), (a * b).map(|x| x.0));
   }
 
   #[test]
   fn mul_neg_overflow() {
     let a = Mbf5Accum::try_from(1e34).unwrap();
     let b = Mbf5Accum::try_from(-2e4).unwrap();
-    assert_eq!(Err(FloatError::Infinite), a.mul(&b).map(|x| x.0));
+    assert_eq!(Err(FloatError::Infinite), (a * b).map(|x| x.0));
   }
 
   #[test]
   fn div_normal() {
     let a = Mbf5Accum::try_from(41.73).unwrap();
     let b = Mbf5Accum::try_from(-7.1342).unwrap();
-    assert_eq!(Ok(a.0 / b.0), a.div(&b).map(|x| x.0));
+    assert_eq!(Ok(a.0 / b.0), (a / b).map(|x| x.0));
   }
 
   #[test]
   fn div_by_0() {
     let a = Mbf5Accum::try_from(41.73).unwrap();
     let b = Mbf5Accum::try_from(0.0).unwrap();
-    assert_eq!(Err(FloatError::Infinite), a.div(&b).map(|x| x.0));
+    assert_eq!(Err(FloatError::Infinite), (a / b).map(|x| x.0));
   }
 
   #[test]
   fn div_nan() {
     let a = Mbf5Accum::try_from(0.0).unwrap();
     let b = Mbf5Accum::try_from(0.0).unwrap();
-    assert_eq!(Err(FloatError::Nan), a.div(&b).map(|x| x.0));
+    assert_eq!(Err(FloatError::Nan), (a / b).map(|x| x.0));
   }
 
   #[test]
   fn div_overflow() {
     let a = Mbf5Accum::try_from(1.70141184e+37).unwrap();
     let b = Mbf5Accum::try_from(0.1).unwrap();
-    assert_eq!(Err(FloatError::Infinite), a.div(&b).map(|x| x.0));
+    assert_eq!(Err(FloatError::Infinite), (a / b).map(|x| x.0));
   }
 
   #[test]
