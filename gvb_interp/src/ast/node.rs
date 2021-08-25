@@ -1,4 +1,3 @@
-
 #[derive(Debug, Clone)]
 pub struct Range {
   pub start: usize,
@@ -13,7 +12,7 @@ pub struct Node {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct NodeKind(pub(in super) u16);
+pub struct NodeKind(pub(super) u16);
 
 #[derive(Debug, Clone)]
 pub enum NodeData {

@@ -1,7 +1,7 @@
 //! Microsoft Binary Format, Extended Precision (5 bytes)
 //!
 //! # Binary Format
-//! 
+//!
 //! ```ignored
 //!   byte 0  |      byte 1      |  byte 2  |  byte 3  |  byte 4
 //!           | bit7   bit0~bit6 |
@@ -19,11 +19,11 @@
 //! 0x7a represents a exponent of -6, 0x84 represents a exponent of +4, etc.
 //! 0x00 means the number is zero, and the mantissa doesn't matter.
 
-use std::fmt::Display;
-use std::fmt;
-use std::fmt::Write;
 use std::convert::TryFrom;
-use std::ops::{Neg, Add, Sub, Mul, Div};
+use std::fmt;
+use std::fmt::Display;
+use std::fmt::Write;
+use std::ops::{Add, Div, Mul, Neg, Sub};
 
 /// Used for store floating point value of a variable.
 #[derive(Debug, Clone, Copy)]
@@ -54,12 +54,14 @@ impl From<&Mbf5> for Mbf5Accum {
   fn from(x: &Mbf5) -> Self {
     let sign = (x.0[1] >> 7) as u64;
     let exp = (x.0[0] as i32 - EXPONENT_BIAS + F64_EXPONENT_BIAS) as u64;
-    let mant = (((x.0[1] & 0x7f) as u64) << 24) | ((x.0[2] as u64) << 16) |
-      ((x.0[3] as u64) << 8) | x.0[4] as u64;
+    let mant = (((x.0[1] & 0x7f) as u64) << 24)
+      | ((x.0[2] as u64) << 16)
+      | ((x.0[3] as u64) << 8)
+      | x.0[4] as u64;
 
-    let bits = (sign << (F64_MANTISSA_BITS + F64_EXPONENT_BITS)) |
-      (exp << F64_MANTISSA_BITS) |
-      (mant << MANTISSA_BITS_DIFF);
+    let bits = (sign << (F64_MANTISSA_BITS + F64_EXPONENT_BITS))
+      | (exp << F64_MANTISSA_BITS)
+      | (mant << MANTISSA_BITS_DIFF);
 
     Self(f64::from_bits(bits))
   }
@@ -121,7 +123,7 @@ impl TryFrom<Mbf5Accum> for Mbf5 {
     let mant3 = (mant >> 8) as u8;
     let mant4 = mant as u8;
 
-    Ok(Self([ exp, mant1, mant2, mant3, mant4 ]))
+    Ok(Self([exp, mant1, mant2, mant3, mant4]))
   }
 }
 
@@ -300,8 +302,7 @@ impl Mbf5Accum {
 }
 
 fn f64_exponent(x: u64) -> i32 {
-  ((x >> F64_MANTISSA_BITS) & F64_EXPONENT_MASK) as i32 -
-    F64_EXPONENT_BIAS
+  ((x >> F64_MANTISSA_BITS) & F64_EXPONENT_MASK) as i32 - F64_EXPONENT_BIAS
 }
 
 #[cfg(test)]
@@ -316,7 +317,10 @@ mod tests {
 
   #[test]
   fn f64_to_mbf5_accum_max() {
-    assert_eq!(Ok(1.70141183e38), Mbf5Accum::try_from(1.70141183e38).map(|x| x.0));
+    assert_eq!(
+      Ok(1.70141183e38),
+      Mbf5Accum::try_from(1.70141183e38).map(|x| x.0)
+    );
   }
 
   #[test]
@@ -331,92 +335,125 @@ mod tests {
 
   #[test]
   fn f64_to_mbf5_accum_exp_too_large() {
-    assert_eq!(Err(FloatError::Infinite), Mbf5Accum::try_from(1.7e39).map(|x| x.0));
+    assert_eq!(
+      Err(FloatError::Infinite),
+      Mbf5Accum::try_from(1.7e39).map(|x| x.0)
+    );
   }
 
   #[test]
   fn f64_to_mbf5_accum_too_large() {
-    assert_eq!(Err(FloatError::Infinite), Mbf5Accum::try_from(1.70141184e38).map(|x| x.0));
+    assert_eq!(
+      Err(FloatError::Infinite),
+      Mbf5Accum::try_from(1.70141184e38).map(|x| x.0)
+    );
   }
 
   #[test]
   fn f64_to_mbf5_accum_nan() {
-    assert_eq!(Err(FloatError::Nan), Mbf5Accum::try_from(0.0 / 0.0).map(|x| x.0));
+    assert_eq!(
+      Err(FloatError::Nan),
+      Mbf5Accum::try_from(0.0 / 0.0).map(|x| x.0)
+    );
   }
 
   #[test]
   fn fmt_mbf5_zero() {
-    assert_eq!("0", &Mbf5([ 0, 0, 0, 0, 0 ]).to_string());
+    assert_eq!("0", &Mbf5([0, 0, 0, 0, 0]).to_string());
   }
 
   #[test]
   fn fmt_mbf5_one() {
-    assert_eq!("1", &Mbf5([ 0x81, 0, 0, 0, 0 ]).to_string());
+    assert_eq!("1", &Mbf5([0x81, 0, 0, 0, 0]).to_string());
   }
 
   #[test]
   fn fmt_mbf5_neg_one() {
-    assert_eq!("-1", &Mbf5([ 0x81, 0x80, 0, 0, 0 ]).to_string());
+    assert_eq!("-1", &Mbf5([0x81, 0x80, 0, 0, 0]).to_string());
   }
 
   #[test]
   fn fmt_mbf5_max() {
-    assert_eq!("1.70141183E+38", &Mbf5([ 0xff, 0x7f, 0xff, 0xff, 0xff ]).to_string());
+    assert_eq!(
+      "1.70141183E+38",
+      &Mbf5([0xff, 0x7f, 0xff, 0xff, 0xff]).to_string()
+    );
   }
 
   #[test]
   fn fmt_mbf5_neg_max() {
-    assert_eq!("-1.70141183E+38", &Mbf5([ 0xff, 0xff, 0xff, 0xff, 0xff ]).to_string());
+    assert_eq!(
+      "-1.70141183E+38",
+      &Mbf5([0xff, 0xff, 0xff, 0xff, 0xff]).to_string()
+    );
   }
 
   #[test]
   fn fmt_mbf5_neg_0_5() {
-    assert_eq!("-0.5", &Mbf5([ 0x80, 0x80, 0x00, 0x00, 0x00 ]).to_string());
+    assert_eq!("-0.5", &Mbf5([0x80, 0x80, 0x00, 0x00, 0x00]).to_string());
   }
 
   #[test]
   fn fmt_mbf5_sqr_2() {
-    assert_eq!("1.41421356", &Mbf5([ 0x81, 0x35, 0x04, 0xf3, 0x34 ]).to_string());
+    assert_eq!(
+      "1.41421356",
+      &Mbf5([0x81, 0x35, 0x04, 0xf3, 0x34]).to_string()
+    );
   }
 
   #[test]
   fn fmt_mbf5_1_000_000_000() {
-    assert_eq!("1E+9", &Mbf5([ 0x9e, 0x6e, 0x6b, 0x28, 0x00 ]).to_string());
+    assert_eq!("1E+9", &Mbf5([0x9e, 0x6e, 0x6b, 0x28, 0x00]).to_string());
   }
 
   #[test]
   fn fmt_mbf5_neg_1_000_000_000() {
-    assert_eq!("-1E+9", &Mbf5([ 0x9e, 0xee, 0x6b, 0x28, 0x00 ]).to_string());
+    assert_eq!("-1E+9", &Mbf5([0x9e, 0xee, 0x6b, 0x28, 0x00]).to_string());
   }
 
   #[test]
   fn fmt_mbf5_999_999_999() {
-    assert_eq!("999999999", &Mbf5([ 0x9e, 0x6e, 0x6b, 0x27, 0xfc ]).to_string());
+    assert_eq!(
+      "999999999",
+      &Mbf5([0x9e, 0x6e, 0x6b, 0x27, 0xfc]).to_string()
+    );
   }
 
   #[test]
   fn fmt_mbf5_neg_999_999_999() {
-    assert_eq!("-999999999", &Mbf5([ 0x9e, 0xee, 0x6b, 0x27, 0xfc ]).to_string());
+    assert_eq!(
+      "-999999999",
+      &Mbf5([0x9e, 0xee, 0x6b, 0x27, 0xfc]).to_string()
+    );
   }
 
   #[test]
   fn fmt_mbf5_0_01() {
-    assert_eq!("0.01", &Mbf5([ 0x7a, 0x23, 0xd7, 0x0a, 0x3e ]).to_string());
+    assert_eq!("0.01", &Mbf5([0x7a, 0x23, 0xd7, 0x0a, 0x3e]).to_string());
   }
 
   #[test]
   fn fmt_mbf5_0_0003765() {
-    assert_eq!("3.765E-4", &Mbf5([ 0x75, 0x45, 0x64, 0xf9, 0x7e ]).to_string());
+    assert_eq!(
+      "3.765E-4",
+      &Mbf5([0x75, 0x45, 0x64, 0xf9, 0x7e]).to_string()
+    );
   }
 
   #[test]
   fn fmt_mbf5_11879546_4() {
-    assert_eq!("11879546", &Mbf5([ 0x98, 0x35, 0x44, 0x7a, 0x00 ]).to_string());
+    assert_eq!(
+      "11879546",
+      &Mbf5([0x98, 0x35, 0x44, 0x7a, 0x00]).to_string()
+    );
   }
 
   #[test]
   fn fmt_mbf5_3_92767774_e_neg_8() {
-    assert_eq!("3.92767774E-8", &Mbf5([ 0x68, 0x28, 0xb1, 0x46, 0x00 ]).to_string());
+    assert_eq!(
+      "3.92767774E-8",
+      &Mbf5([0x68, 0x28, 0xb1, 0x46, 0x00]).to_string()
+    );
   }
 
   #[test]

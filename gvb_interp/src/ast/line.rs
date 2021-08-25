@@ -1,5 +1,5 @@
-use indextree::{Arena, NodeId};
 use super::node::Node;
+use indextree::{Arena, NodeId};
 
 #[derive(Debug, Clone)]
 pub struct ProgramLine {

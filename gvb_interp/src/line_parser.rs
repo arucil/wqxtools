@@ -19,7 +19,4 @@ pub enum Severity {
   Error,
 }
 
-pub fn parse_line(
-  line: &str,
-) -> ParseResult {
-}
+pub fn parse_line(line: &str) -> ParseResult {}

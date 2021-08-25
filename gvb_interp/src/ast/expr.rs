@@ -1,7 +1,7 @@
 use super::node::Range;
 use indextree::NodeId;
-use smallvec::SmallVec;
 use num_derive::{FromPrimitive, ToPrimitive};
+use smallvec::SmallVec;
 
 #[derive(Debug, Clone)]
 pub enum Expr {

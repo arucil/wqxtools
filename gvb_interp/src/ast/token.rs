@@ -1,8 +1,8 @@
-use std::convert::TryFrom;
 use super::expr::SysFuncKind;
 use super::node::NodeKind;
 use num_derive::{FromPrimitive, ToPrimitive};
 use num_traits::{FromPrimitive, ToPrimitive};
+use std::convert::TryFrom;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TokenKind {
@@ -38,7 +38,9 @@ impl TryFrom<NodeKind> for TokenKind {
       1 => Ok(Self::Int),
       2 => Ok(Self::Real),
       3 => Ok(Self::String),
-      100..200 => Punc::from_u16(value.0).map_or(Err(()), |n| Ok(Self::Punc(n))),
+      100..200 => {
+        Punc::from_u16(value.0).map_or(Err(()), |n| Ok(Self::Punc(n)))
+      }
     }
   }
 }

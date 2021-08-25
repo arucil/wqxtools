@@ -8,13 +8,21 @@ pub struct DasmOptions {
   pub starting_address: Option<u16>,
 }
 
-pub fn disassemble<W>(mut bytes: &[u8], mut output: W, options: DasmOptions) -> io::Result<()>
-  where W: Write,
+pub fn disassemble<W>(
+  mut bytes: &[u8],
+  mut output: W,
+  options: DasmOptions,
+) -> io::Result<()>
+where
+  W: Write,
 {
   let mut header = [0u8; 16];
 
   if bytes.read(&mut header)? < 16 {
-    return Err(io::Error::new(io::ErrorKind::InvalidData, "missing 16-byte header"));
+    return Err(io::Error::new(
+      io::ErrorKind::InvalidData,
+      "missing 16-byte header",
+    ));
   }
 
   let entry = header[8] as u16 + ((header[9] as u16) << 8);
@@ -79,7 +87,7 @@ enum AddressMode {
   Zpg,
   /// ZeroPage, X-indexed
   ZpgX,
-  /// ZeroPage, 
+  /// ZeroPage,
   ZpgY,
 }
 
@@ -108,7 +116,6 @@ static INSTRUCTION_TABLE: [Option<Instruction>; 256] = [
   inst!("ORA" Abs),
   inst!("ASL" Abs),
   None,
-
   // 10-1f
   inst!("BPL" Rel),
   inst!("ORA" IndY),
@@ -126,7 +133,6 @@ static INSTRUCTION_TABLE: [Option<Instruction>; 256] = [
   inst!("ORA" AbsX),
   inst!("ASL" AbsX),
   None,
-
   // 20-2f
   inst!("JSR" Abs),
   inst!("AND" XInd),
@@ -144,7 +150,6 @@ static INSTRUCTION_TABLE: [Option<Instruction>; 256] = [
   inst!("AND" Abs),
   inst!("ROL" Abs),
   None,
-
   // 30-3f
   inst!("BMI" Rel),
   inst!("AND" IndY),
@@ -162,7 +167,6 @@ static INSTRUCTION_TABLE: [Option<Instruction>; 256] = [
   inst!("AND" AbsX),
   inst!("ROL" AbsX),
   None,
-
   // 40-4f
   inst!("RTI" Impl),
   inst!("EOR" XInd),
@@ -180,7 +184,6 @@ static INSTRUCTION_TABLE: [Option<Instruction>; 256] = [
   inst!("EOR" Abs),
   inst!("LSR" Abs),
   None,
-
   // 50-5f
   inst!("BVC" Rel),
   inst!("EOR" IndY),
@@ -198,7 +201,6 @@ static INSTRUCTION_TABLE: [Option<Instruction>; 256] = [
   inst!("EOR" AbsX),
   inst!("LSR" AbsX),
   None,
-
   // 60-6f
   inst!("RTS" Impl),
   inst!("ADC" XInd),
@@ -216,7 +218,6 @@ static INSTRUCTION_TABLE: [Option<Instruction>; 256] = [
   inst!("ADC" Abs),
   inst!("ROR" Abs),
   None,
-
   // 70-7f
   inst!("BVS" Rel),
   inst!("ADC" IndY),
@@ -234,7 +235,6 @@ static INSTRUCTION_TABLE: [Option<Instruction>; 256] = [
   inst!("ADC" AbsX),
   inst!("ROR" AbsX),
   None,
-
   // 80-8f
   None,
   inst!("STA" XInd),
@@ -252,7 +252,6 @@ static INSTRUCTION_TABLE: [Option<Instruction>; 256] = [
   inst!("STA" Abs),
   inst!("STX" Abs),
   None,
-
   // 90-9f
   inst!("BCC" Rel),
   inst!("STA" IndY),
@@ -270,7 +269,6 @@ static INSTRUCTION_TABLE: [Option<Instruction>; 256] = [
   inst!("STA" AbsX),
   None,
   None,
-
   // a0-af
   inst!("LDY" Imm),
   inst!("LDA" XInd),
@@ -288,7 +286,6 @@ static INSTRUCTION_TABLE: [Option<Instruction>; 256] = [
   inst!("LDA" Abs),
   inst!("LDX" Abs),
   None,
-
   // b0-bf
   inst!("BCS" Rel),
   inst!("LDA" IndY),
@@ -306,7 +303,6 @@ static INSTRUCTION_TABLE: [Option<Instruction>; 256] = [
   inst!("LDA" AbsX),
   inst!("LDX" AbsY),
   None,
-
   // c0-cf
   inst!("CPY" Imm),
   inst!("CMP" XInd),
@@ -324,7 +320,6 @@ static INSTRUCTION_TABLE: [Option<Instruction>; 256] = [
   inst!("CMP" Abs),
   inst!("DEC" Abs),
   None,
-
   // d0-df
   inst!("BNE" Rel),
   inst!("CMP" IndY),
@@ -342,7 +337,6 @@ static INSTRUCTION_TABLE: [Option<Instruction>; 256] = [
   inst!("CMP" AbsX),
   inst!("DEC" AbsX),
   None,
-
   // e0-ef
   inst!("CPX" Imm),
   inst!("SBC" XInd),
@@ -360,7 +354,6 @@ static INSTRUCTION_TABLE: [Option<Instruction>; 256] = [
   inst!("SBC" Abs),
   inst!("INC" Abs),
   None,
-  
   // f0-ff
   inst!("BEQ" Rel),
   inst!("SBC" IndY),
@@ -379,7 +372,6 @@ static INSTRUCTION_TABLE: [Option<Instruction>; 256] = [
   inst!("INC" AbsX),
   None,
 ];
-
 
 impl AddressMode {
   fn instruction_size(self) -> usize {
@@ -402,7 +394,12 @@ impl AddressMode {
     }
   }
 
-  fn write<W: Write>(self, pc: u16, operand: &[u8], w: &mut W) -> io::Result<()> {
+  fn write<W: Write>(
+    self,
+    pc: u16,
+    operand: &[u8],
+    w: &mut W,
+  ) -> io::Result<()> {
     use AddressMode::*;
 
     match self {
@@ -415,7 +412,11 @@ impl AddressMode {
       Ind => write!(w, " (${:02X}{:02X})", operand[1], operand[0]),
       XInd => write!(w, " (${:02X},X)", operand[0]),
       IndY => write!(w, " (${:02X}),Y", operand[0]),
-      Rel => write!(w, " ${:04X}", (Wrapping(pc) + Wrapping(operand[0] as i8 as u16)).0),
+      Rel => write!(
+        w,
+        " ${:04X}",
+        (Wrapping(pc) + Wrapping(operand[0] as i8 as u16)).0
+      ),
       Zpg => write!(w, " ${:02X}", operand[0]),
       ZpgX => write!(w, " ${:02X},X", operand[0]),
       ZpgY => write!(w, " ${:02X},Y", operand[0]),
