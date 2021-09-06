@@ -69,7 +69,7 @@
 | TRACE   | 启用 tracing。启用 tracing 后，每执行一条语句之前，都会打印出当前的行号，执行完一条语句之后等待按键。 |
 | WEND    | 跳转到最近的 WHILE 循环的位置后继续执行。<br>注意，如果 WHILE 循环结束，则会从和 WHILE 语句匹配的 WEND 语句后面继续执行，而不一定是当前的这个 WEND 语句。具体请看下面的注解。 |
 | WHILE `<expr>` | 当前 `<expr>` 不为 0 时，执行循环。<br>不会检查 `<expr>` 的结果是否是数字；如果结果是字符串，该语句的行为未知。<br>当循环结束时，查找和这个 WHILE 语句匹配的 WEND 语句，然后从 WEND 语句后面继续执行。<br>查找匹配的 WEND 语句的具体方法请看下面的注解。 |
-| WRITE [ # `<file number expr>` ] [ [ , ] `<datum expr>` ] [ , ] | 输出数据到屏幕或文件。如果有 file number 则是输出到文件。<br>file number 在 1~3 之间。<br>如果 datum 是字符串则加上引号；如果字符串中有 `0x00` 则只输出 `0x00` 前面的部分（包括开头的引号，不包括末尾的引号），例如 `WRITE "ABC" + CHR$(0) + "DEF"` 输出 `"ABC`。<br>datum 之间的逗号可以省略，在这种情况下，忽略前面的 datum，只输出后面的 datum；例如 `WRITE "ABC" "DEF" "GHJ"` 输出 `"GHJ"`。<br>如果不省略 datum 之间的逗号则输出的结果中也有逗号，例如 `WRITE "ABC", "DEF"` 输出 `"ABC","DEF"`。<br>语句末尾额外的逗号不会输出。<br>在执行完该语句后，如果是输出到屏幕，则**不会**换行；如果是输出到文件，则输出一个额外的 `0xff` 字节。 |
+| WRITE [ # `<file number expr>` , ] `<datum expr>` [ [ , ] `<datum expr>` ]* [ , ] | 输出数据到屏幕或文件。如果有 file number 则是输出到文件。<br>file number 在 1~3 之间。<br>如果 datum 是字符串则加上引号；如果字符串中有 `0x00` 则只输出 `0x00` 前面的部分（包括开头的引号，不包括末尾的引号），例如 `WRITE "ABC" + CHR$(0) + "DEF"` 输出 `"ABC`。<br>datum 之间的逗号可以省略，在这种情况下，忽略前面的 datum，只输出后面的 datum；例如 `WRITE "ABC" "DEF" "GHJ"` 输出 `"GHJ"`。<br>如果不省略 datum 之间的逗号则输出的结果中也有逗号，例如 `WRITE "ABC", "DEF"` 输出 `"ABC","DEF"`。<br>语句末尾额外的逗号不会输出。<br>在执行完该语句后，如果是输出到屏幕，则**不会**换行；如果是输出到文件，则输出一个额外的 `0xff` 字节。 |
 
 注：
 - 以上的语句如果没有特别说明，都不能跟上参数。

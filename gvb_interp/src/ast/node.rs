@@ -1,20 +1,17 @@
-#[derive(Debug, Clone)]
-pub struct Range {
-  pub start: usize,
-  pub end: usize,
-}
+use super::Range;
+use id_arena::Id;
+
+pub type NodeId = Id<Node>;
 
 #[derive(Debug, Clone)]
 pub struct Node {
   pub kind: NodeKind,
   pub range: Range,
-  pub data: NodeData,
+  pub is_recovered: bool,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct NodeKind(pub(super) u16);
-
 #[derive(Debug, Clone)]
-pub enum NodeData {
+pub enum NodeKind {
   Expr(super::expr::Expr),
+  Stmt(super::stmt::Stmt),
 }

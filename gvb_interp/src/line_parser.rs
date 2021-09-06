@@ -1,7 +1,8 @@
-use super::ast::Range;
+use super::ast::{Range, Program};
 
 #[derive(Debug, Clone)]
 pub struct ParseResult {
+  pub program: Program,
   pub diagnostics: Vec<Diagnostic>,
 }
 
@@ -17,6 +18,10 @@ pub enum Severity {
   Info,
   Warning,
   Error,
+}
+
+struct State {
+  diagnostics: Vec<Diagnostic>,
 }
 
 pub fn parse_line(line: &str) -> ParseResult {}

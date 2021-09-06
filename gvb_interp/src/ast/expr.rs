@@ -1,7 +1,4 @@
-use super::node::Range;
-use indextree::NodeId;
-use num_derive::{FromPrimitive, ToPrimitive};
-use smallvec::SmallVec;
+use super::{Range, NodeId, NonEmptyVec};
 
 #[derive(Debug, Clone)]
 pub enum Expr {
@@ -10,12 +7,12 @@ pub enum Expr {
   NumberLit,
   SysFuncCall {
     func: (Range, SysFuncKind),
-    args: SmallVec<[NodeId; 1]>,
+    args: NonEmptyVec<[NodeId; 1]>,
   },
   UserFuncCall {
     /// ident
-    func: NodeId,
-    args: SmallVec<[NodeId; 1]>,
+    func: Range,
+    arg: NodeId,
   },
   Binary {
     lhs: NodeId,
@@ -27,17 +24,13 @@ pub enum Expr {
     arg: NodeId,
   },
   Index {
-    /// ident
-    name: NodeId,
-    indices: SmallVec<[NodeId; 1]>,
-  },
-  Paren {
-    expr: NodeId,
+    name: Range,
+    indices: NonEmptyVec<[NodeId; 1]>,
   },
   Inkey,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, FromPrimitive, ToPrimitive)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SysFuncKind {
   Abs,
   Asc,
