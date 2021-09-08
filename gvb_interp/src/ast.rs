@@ -20,7 +20,7 @@ pub struct Program {
 
 pub struct NonEmptyVec<T: Array>(pub SmallVec<T>);
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Range {
   pub start: usize,
   pub end: usize,
@@ -43,5 +43,12 @@ where
 {
   fn fmt(&self, f: &mut Formatter) -> fmt::Result {
     self.0.fmt(f)
+  }
+}
+
+impl Range {
+  pub fn new(start: usize, end: usize) -> Self {
+    assert!(start <= end);
+    Self { start, end }
   }
 }

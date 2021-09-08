@@ -1,5 +1,6 @@
-#![feature(exclusive_range_pattern)]
+#![feature(exclusive_range_pattern, let_chains)]
 
 mod ast;
-mod line_parser;
+mod parser;
 mod util;
+mod diagnostic;

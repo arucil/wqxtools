@@ -9,6 +9,7 @@ pub enum TokenKind {
   Punc(Punc),
   Keyword(Keyword),
   SysFunc(SysFuncKind),
+  Eof,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
