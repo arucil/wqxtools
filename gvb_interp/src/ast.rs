@@ -3,15 +3,15 @@ use std::fmt::{self, Debug, Formatter};
 
 pub mod expr;
 pub mod line;
-pub mod node;
 pub mod stmt;
 pub mod token;
+pub mod node;
 
-pub use self::node::*;
 pub use self::line::*;
 pub use self::expr::*;
 pub use self::stmt::*;
 pub use self::token::*;
+pub use self::node::*;
 
 #[derive(Debug, Clone)]
 pub struct Program {
@@ -50,5 +50,9 @@ impl Range {
   pub fn new(start: usize, end: usize) -> Self {
     assert!(start <= end);
     Self { start, end }
+  }
+
+  pub fn is_empty(&self) -> bool {
+    self.start == self.end
   }
 }

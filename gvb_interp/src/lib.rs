@@ -1,3 +1,4 @@
+#![allow(incomplete_features)]
 #![feature(exclusive_range_pattern, let_chains)]
 
 mod ast;

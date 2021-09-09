@@ -1,33 +1,39 @@
-use super::{Range, NodeId, NonEmptyVec};
+use super::{Range, NonEmptyVec, ExprId, StmtId};
 use smallvec::SmallVec;
 
 #[derive(Debug, Clone)]
-pub enum Stmt {
+pub struct Stmt {
+  pub kind: StmtKind,
+  pub range: Range,
+  pub is_recovered: bool,
+}
+
+#[derive(Debug, Clone)]
+pub enum StmtKind {
   /// identical to REM
   Auto(Range),
   Beep,
   Box {
-    x1: NodeId,
-    y1: NodeId,
-    x2: NodeId,
-    y2: NodeId,
-    fill_mode: Option<NodeId>,
-    draw_mode: Option<NodeId>,
+    x1: ExprId,
+    y1: ExprId,
+    x2: ExprId,
+    y2: ExprId,
+    fill_mode: Option<ExprId>,
+    draw_mode: Option<ExprId>,
   },
   Call {
-    addr: NodeId,
+    addr: ExprId,
   },
   Circle {
-    x: NodeId,
-    y: NodeId,
-    r: NodeId,
-    fill_mode: Option<NodeId>,
-    draw_mode: Option<NodeId>,
+    x: ExprId,
+    y: ExprId,
+    r: ExprId,
+    fill_mode: Option<ExprId>,
+    draw_mode: Option<ExprId>,
   },
   Clear,
   Close {
-    /// expr
-    filenum: NodeId,
+    filenum: ExprId,
   },
   Cls,
   Cont,
@@ -39,32 +45,30 @@ pub enum Stmt {
     name: Range,
     /// ident
     param: Range,
-    /// expr
-    body: NodeId,
+    body: ExprId,
   },
   /// identical to REM
   Del(Range),
   /// lvalue list
-  Dim(NonEmptyVec<[NodeId; 1]>),
+  Dim(NonEmptyVec<[ExprId; 1]>),
   Draw {
-    x: NodeId,
-    y: NodeId,
-    draw_mode: Option<NodeId>,
+    x: ExprId,
+    y: ExprId,
+    draw_mode: Option<ExprId>,
   },
   /// identical to REM
   Edit(Range),
   Ellipse {
-    x: NodeId,
-    y: NodeId,
-    rx: NodeId,
-    ry: NodeId,
-    fill_mode: Option<NodeId>,
-    draw_mode: Option<NodeId>,
+    x: ExprId,
+    y: ExprId,
+    rx: ExprId,
+    ry: ExprId,
+    fill_mode: Option<ExprId>,
+    draw_mode: Option<ExprId>,
   },
   End,
   Field {
-    /// expr
-    filenum: NodeId,
+    filenum: ExprId,
     fields: NonEmptyVec<[FieldSpec; 1]>
   },
   /// identical to REM
@@ -73,63 +77,58 @@ pub enum Stmt {
   For {
     /// ident
     var: Range,
-    start: NodeId,
-    end: NodeId,
-    step: Option<NodeId>,
+    start: ExprId,
+    end: ExprId,
+    step: Option<ExprId>,
   },
   Get {
-    /// expr
-    filenum: NodeId,
-    /// expr
-    record: NodeId,
+    filenum: ExprId,
+    record: ExprId,
   },
-  GoSub(Option<Range>),
+  GoSub(Option<(Range, u16)>),
   GoTo {
-    has_keyword: bool,
-    label: Option<Range>
+    has_goto_keyword: bool,
+    label: Option<(Range, u16)>
   },
   Graph,
   If {
-    /// expr
-    cond: NodeId,
-    /// stmt list
-    conseq: NonEmptyVec<[NodeId; 1]>,
-    /// stmt list
-    alt: NonEmptyVec<[NodeId; 1]>,
+    cond: ExprId,
+    conseq: SmallVec<[StmtId; 1]>,
+    alt: SmallVec<[StmtId; 1]>,
   },
   InKey,
   Input {
     source: InputSource,
     /// lvalue list
-    fields: NonEmptyVec<[NodeId; 1]>,
+    fields: NonEmptyVec<[ExprId; 1]>,
   },
   Inverse,
   /// identical to REM
   Kill(Range),
   Let {
     /// lvalue
-    field: NodeId,
-    value: NodeId,
+    field: ExprId,
+    value: ExprId,
   },
   Line {
-    x1: NodeId,
-    y1: NodeId,
-    x2: NodeId,
-    y2: NodeId,
-    draw_mode: Option<NodeId>,
+    x1: ExprId,
+    y1: ExprId,
+    x2: ExprId,
+    y2: ExprId,
+    draw_mode: Option<ExprId>,
   },
   /// identical to REM
   List(Range),
   /// identical to REM
   Load(Range),
   Locate {
-    row: Option<NodeId>,
-    column: Option<NodeId>,
+    row: Option<ExprId>,
+    column: Option<ExprId>,
   },
   LSet {
     /// lvalue
-    field: NodeId,
-    value: NodeId,
+    field: ExprId,
+    value: ExprId,
   },
   /// identical to REM
   New(Range),
@@ -140,43 +139,39 @@ pub enum Stmt {
   Normal,
   NoTrace,
   On {
-    cond: NodeId,
-    labels: NonEmptyVec<[Range; 2]>,
+    cond: ExprId,
+    labels: NonEmptyVec<[(Range, u16); 2]>,
     is_sub: bool,
   },
   Open {
-    /// expr
-    filename: NodeId,
+    filename: ExprId,
     mode: FileMode,
     /// integer
     filenum: Range,
-    /// expr
-    len: Option<NodeId>
+    len: Option<ExprId>
   },
-  /// expr
-  Play(NodeId),
+  Play(ExprId),
   Poke {
-    addr: NodeId,
-    value: NodeId,
+    addr: ExprId,
+    value: ExprId,
   },
   Pop,
   Print(SmallVec<[PrintElement; 2]>),
   Put {
-    /// expr
-    filenum: NodeId,
-    /// expr
-    record: NodeId,
+    filenum: ExprId,
+    record: ExprId,
   },
-  Read(NonEmptyVec<[NodeId; 1]>),
+  /// lvalue list
+  Read(NonEmptyVec<[ExprId; 1]>),
   Rem(Range),
   /// identical to REM
   Rename(Range),
-  Restore(Option<Range>),
+  Restore(Option<(Range, u16)>),
   Return,
   RSet {
     /// lvalue
-    field: NodeId,
-    value: NodeId,
+    field: ExprId,
+    value: ExprId,
   },
   Run,
   /// identical to REM
@@ -184,35 +179,33 @@ pub enum Stmt {
   /// identical to REM
   Stop(Range),
   Swap {
-    left: NodeId,
-    right: NodeId,
+    left: ExprId,
+    right: ExprId,
   },
   System,
   Text,
   Trace,
   Wend,
-  /// expr
-  While(NodeId),
+  While(ExprId),
   Write {
-    /// expr
-    filenum: Option<NodeId>,
+    filenum: Option<ExprId>,
     fields: NonEmptyVec<[WriteElement; 1]>,
   }
 }
 
 #[derive(Debug, Clone)]
 pub struct FieldSpec {
-  pub len: NodeId,
+  pub len: ExprId,
   /// lvalue
-  pub name: NodeId,
+  pub name: ExprId,
 }
 
 #[derive(Debug, Clone)]
 pub enum InputSource {
   /// file num expr
-  File(NodeId),
+  File(ExprId),
   /// prompt string literal
-  Keyboard(NodeId),
+  Keyboard(ExprId),
 }
 
 #[derive(Debug, Clone)]
@@ -225,15 +218,15 @@ pub enum FileMode {
 
 #[derive(Debug, Clone)]
 pub enum PrintElement {
-  Expr(NodeId),
+  Expr(ExprId),
   Comma,
   Semicolon,
-  Spc(NodeId),
-  Tab(NodeId),
+  Spc(ExprId),
+  Tab(ExprId),
 }
 
 #[derive(Debug, Clone)]
 pub struct WriteElement {
-  value: NodeId,
+  value: ExprId,
   comma: bool,
 }

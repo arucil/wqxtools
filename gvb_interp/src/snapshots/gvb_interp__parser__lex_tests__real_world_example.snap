@@ -1,0 +1,248 @@
+---
+source: gvb_interp/src/parser.rs
+expression: tokens
+
+---
+[
+    (
+        Range {
+            start: 0,
+            end: 6,
+        },
+        Keyword(
+            Locate,
+        ),
+    ),
+    (
+        Range {
+            start: 7,
+            end: 8,
+        },
+        Number,
+    ),
+    (
+        Range {
+            start: 8,
+            end: 9,
+        },
+        Punc(
+            Comma,
+        ),
+    ),
+    (
+        Range {
+            start: 9,
+            end: 10,
+        },
+        Number,
+    ),
+    (
+        Range {
+            start: 10,
+            end: 11,
+        },
+        Punc(
+            Colon,
+        ),
+    ),
+    (
+        Range {
+            start: 11,
+            end: 16,
+        },
+        Keyword(
+            Print,
+        ),
+    ),
+    (
+        Range {
+            start: 17,
+            end: 23,
+        },
+        String,
+    ),
+    (
+        Range {
+            start: 23,
+            end: 24,
+        },
+        Punc(
+            Colon,
+        ),
+    ),
+    (
+        Range {
+            start: 24,
+            end: 30,
+        },
+        Keyword(
+            Locate,
+        ),
+    ),
+    (
+        Range {
+            start: 31,
+            end: 32,
+        },
+        Number,
+    ),
+    (
+        Range {
+            start: 32,
+            end: 33,
+        },
+        Punc(
+            Comma,
+        ),
+    ),
+    (
+        Range {
+            start: 33,
+            end: 35,
+        },
+        Number,
+    ),
+    (
+        Range {
+            start: 35,
+            end: 36,
+        },
+        Punc(
+            Minus,
+        ),
+    ),
+    (
+        Range {
+            start: 36,
+            end: 39,
+        },
+        SysFunc(
+            Len,
+        ),
+    ),
+    (
+        Range {
+            start: 39,
+            end: 40,
+        },
+        Punc(
+            LParen,
+        ),
+    ),
+    (
+        Range {
+            start: 40,
+            end: 44,
+        },
+        SysFunc(
+            Str,
+        ),
+    ),
+    (
+        Range {
+            start: 44,
+            end: 45,
+        },
+        Punc(
+            LParen,
+        ),
+    ),
+    (
+        Range {
+            start: 45,
+            end: 47,
+        },
+        Ident,
+    ),
+    (
+        Range {
+            start: 47,
+            end: 48,
+        },
+        Punc(
+            RParen,
+        ),
+    ),
+    (
+        Range {
+            start: 48,
+            end: 49,
+        },
+        Punc(
+            RParen,
+        ),
+    ),
+    (
+        Range {
+            start: 49,
+            end: 50,
+        },
+        Punc(
+            Colon,
+        ),
+    ),
+    (
+        Range {
+            start: 50,
+            end: 55,
+        },
+        Keyword(
+            Print,
+        ),
+    ),
+    (
+        Range {
+            start: 56,
+            end: 58,
+        },
+        Ident,
+    ),
+    (
+        Range {
+            start: 58,
+            end: 59,
+        },
+        Punc(
+            Colon,
+        ),
+    ),
+    (
+        Range {
+            start: 59,
+            end: 63,
+        },
+        Keyword(
+            Draw,
+        ),
+    ),
+    (
+        Range {
+            start: 64,
+            end: 67,
+        },
+        Number,
+    ),
+    (
+        Range {
+            start: 67,
+            end: 68,
+        },
+        Punc(
+            Comma,
+        ),
+    ),
+    (
+        Range {
+            start: 68,
+            end: 70,
+        },
+        Number,
+    ),
+    (
+        Range {
+            start: 70,
+            end: 70,
+        },
+        Eof,
+    ),
+]

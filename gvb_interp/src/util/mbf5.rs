@@ -308,7 +308,6 @@ fn f64_exponent(x: u64) -> i32 {
 #[cfg(test)]
 mod tests {
   use super::*;
-  use std::convert::TryFrom;
 
   #[test]
   fn f64_to_mbf5_accum_valid() {

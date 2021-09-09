@@ -1,17 +1,10 @@
-use super::Range;
+use super::{Expr, Stmt};
 use id_arena::Id;
 
-pub type NodeId = Id<Node>;
+pub type ExprId = Id<Expr>;
+pub type StmtId = Id<Stmt>;
 
-#[derive(Debug, Clone)]
-pub struct Node {
-  pub kind: NodeKind,
-  pub range: Range,
-  pub is_recovered: bool,
-}
-
-#[derive(Debug, Clone)]
-pub enum NodeKind {
-  Expr(super::expr::Expr),
-  Stmt(super::stmt::Stmt),
+pub(crate) trait NodeBuilder {
+  fn new_stmt(&mut self, stmt: Stmt) -> StmtId;
+  fn new_expr(&mut self, expr: Expr) -> ExprId;
 }

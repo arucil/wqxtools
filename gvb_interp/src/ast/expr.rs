@@ -1,31 +1,39 @@
-use super::{Range, NodeId, NonEmptyVec};
+use super::{ExprId, NonEmptyVec, Range};
+use std::str::FromStr;
 
 #[derive(Debug, Clone)]
-pub enum Expr {
+pub struct Expr {
+  pub kind: ExprKind,
+  pub range: Range,
+  pub is_recovered: bool,
+}
+
+#[derive(Debug, Clone)]
+pub enum ExprKind {
   Ident,
   StringLit,
   NumberLit,
   SysFuncCall {
     func: (Range, SysFuncKind),
-    args: NonEmptyVec<[NodeId; 1]>,
+    args: NonEmptyVec<[ExprId; 1]>,
   },
   UserFuncCall {
     /// ident
     func: Range,
-    arg: NodeId,
+    arg: ExprId,
   },
   Binary {
-    lhs: NodeId,
+    lhs: ExprId,
     op: (Range, BinaryOpKind),
-    rhs: NodeId,
+    rhs: ExprId,
   },
   Unary {
     op: (Range, UnaryOpKind),
-    arg: NodeId,
+    arg: ExprId,
   },
   Index {
     name: Range,
-    indices: NonEmptyVec<[NodeId; 1]>,
+    indices: NonEmptyVec<[ExprId; 1]>,
   },
   Inkey,
 }
@@ -83,4 +91,40 @@ pub enum UnaryOpKind {
   Not,
   Neg,
   Pos,
+}
+
+impl FromStr for SysFuncKind {
+  type Err = ();
+  fn from_str(s: &str) -> Result<Self, ()> {
+    match s {
+      "abs" => Ok(Self::Abs),
+      "asc" => Ok(Self::Asc),
+      "atn" => Ok(Self::Atn),
+      "chr$" => Ok(Self::Chr),
+      "cos" => Ok(Self::Cos),
+      "cvi$" => Ok(Self::Cvi),
+      "cvs$" => Ok(Self::Cvs),
+      "eof" => Ok(Self::Eof),
+      "exp" => Ok(Self::Exp),
+      "int" => Ok(Self::Int),
+      "left$" => Ok(Self::Left),
+      "len" => Ok(Self::Len),
+      "lof" => Ok(Self::Lof),
+      "log" => Ok(Self::Log),
+      "mid$" => Ok(Self::Mid),
+      "mki$" => Ok(Self::Mki),
+      "mks$" => Ok(Self::Mks),
+      "peek" => Ok(Self::Peek),
+      "pos" => Ok(Self::Pos),
+      "right$" => Ok(Self::Right),
+      "rnd" => Ok(Self::Rnd),
+      "sgn" => Ok(Self::Sgn),
+      "sin" => Ok(Self::Sin),
+      "sqr" => Ok(Self::Sqr),
+      "str$" => Ok(Self::Str),
+      "tan" => Ok(Self::Tan),
+      "val" => Ok(Self::Val),
+      _ => Err(()),
+    }
+  }
 }

@@ -1,14 +1,15 @@
 use crate::diagnostic::Diagnostic;
-use super::node::{Node, NodeId};
 use id_arena::Arena;
+use super::*;
 
 #[derive(Debug, Clone)]
 pub struct ProgramLine {
   /// Includes newline.
   pub source_len: usize,
   pub label: Option<u16>,
-  pub arena: Arena<Node>,
-  pub stmts: Vec<NodeId>,
+  pub stmt_arena: Arena<Stmt>,
+  pub expr_arena: Arena<Expr>,
+  pub stmts: Vec<StmtId>,
   pub eol: Eol,
   pub diagnostics: Vec<Diagnostic>,
 }
