@@ -6,7 +6,7 @@ use super::*;
 pub struct ProgramLine {
   /// Includes newline.
   pub source_len: usize,
-  pub label: Option<u16>,
+  pub label: Option<Label>,
   pub stmt_arena: Arena<Stmt>,
   pub expr_arena: Arena<Expr>,
   pub stmts: Vec<StmtId>,

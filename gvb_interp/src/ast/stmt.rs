@@ -1,4 +1,4 @@
-use super::{Range, NonEmptyVec, ExprId, StmtId};
+use super::{Range, NonEmptyVec, ExprId, StmtId, Label};
 use smallvec::SmallVec;
 
 #[derive(Debug, Clone)]
@@ -85,10 +85,10 @@ pub enum StmtKind {
     filenum: ExprId,
     record: ExprId,
   },
-  GoSub(Option<(Range, u16)>),
+  GoSub(Option<(Range, Label)>),
   GoTo {
     has_goto_keyword: bool,
-    label: Option<(Range, u16)>
+    label: Option<(Range, Label)>
   },
   Graph,
   If {
@@ -140,7 +140,7 @@ pub enum StmtKind {
   NoTrace,
   On {
     cond: ExprId,
-    labels: NonEmptyVec<[(Range, u16); 2]>,
+    labels: NonEmptyVec<[(Range, Label); 2]>,
     is_sub: bool,
   },
   Open {
@@ -166,7 +166,7 @@ pub enum StmtKind {
   Rem(Range),
   /// identical to REM
   Rename(Range),
-  Restore(Option<(Range, u16)>),
+  Restore(Option<(Range, Label)>),
   Return,
   RSet {
     /// lvalue
@@ -190,7 +190,8 @@ pub enum StmtKind {
   Write {
     filenum: Option<ExprId>,
     fields: NonEmptyVec<[WriteElement; 1]>,
-  }
+  },
+  NoOp,
 }
 
 #[derive(Debug, Clone)]

@@ -6,12 +6,14 @@ pub mod line;
 pub mod stmt;
 pub mod token;
 pub mod node;
+pub mod label;
 
 pub use self::line::*;
 pub use self::expr::*;
 pub use self::stmt::*;
 pub use self::token::*;
 pub use self::node::*;
+pub use self::label::*;
 
 #[derive(Debug, Clone)]
 pub struct Program {

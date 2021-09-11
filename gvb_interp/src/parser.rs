@@ -1,7 +1,4 @@
-use crate::ast::{
-  Eol, Expr, ExprId, Keyword, NodeBuilder, Program, ProgramLine, Punc, Range,
-  Stmt, StmtId, StmtKind, SysFuncKind, TokenKind,
-};
+use crate::ast::{Eol, Expr, ExprId, ExprKind, Keyword, Label, NodeBuilder, ParseLabelError, Program, ProgramLine, Punc, Range, Stmt, StmtId, StmtKind, SysFuncKind, TokenKind, UnaryOpKind};
 use crate::diagnostic::Diagnostic;
 use id_arena::Arena;
 
@@ -42,16 +39,22 @@ pub fn parse_line(line_with_eol: &str) -> ProgramLine {
   };
   let mut parser = LineParser::new(line, node_builder);
 
-  let label = match parser.read_label(false) {
-    (_, Ok(label)) => Some(label),
-    (mut range, Err(err)) => {
-      if range.is_empty() {
-        range = Range::new(0, line_with_eol.len());
+  let mut label = None;
+  if matches!(line.as_bytes().first(), Some(b' ')) {
+    parser.read_token(true);
+    if let TokenKind::Label(l) = parser.token.1.clone() {
+      parser.read_token(false);
+      match l {
+        Ok(l) => label = Some(l),
+        Err(err) => parser.report_label_error(err, parser.token.0.clone()),
       }
-      parser.report_label_error(err, range);
-      None
+    } else {
+      parser.report_label_error(
+        ParseLabelError::NotALabel,
+        Range::new(0, line_with_eol.len()),
+      );
     }
-  };
+  }
 
   let stmts = parser.parse_stmts(false);
 
@@ -81,11 +84,6 @@ struct LineParser<'a, T: NodeBuilder> {
   diagnostics: Vec<Diagnostic>,
 }
 
-enum ReadLabelError {
-  OutOfBound,
-  NoLabel,
-}
-
 impl<'a, T: NodeBuilder> LineParser<'a, T> {
   fn new(input: &'a str, node_builder: T) -> Self {
     Self {
@@ -112,52 +110,14 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
     self.input = &self.input[count..];
   }
 
-  fn report_label_error(&mut self, err: ReadLabelError, range: Range) {
+  fn report_label_error(&mut self, err: ParseLabelError, range: Range) {
     match err {
-      ReadLabelError::NoLabel => {
+      ParseLabelError::NotALabel => {
         self.add_error(range, "缺少行号");
       }
-      ReadLabelError::OutOfBound => {
+      ParseLabelError::OutOfBound => {
         self.add_error(range, "行号必须在0~9999之间");
       }
-    }
-  }
-
-  fn read_label(
-    &mut self,
-    skip_space: bool,
-  ) -> (Range, Result<u16, ReadLabelError>) {
-    let start = self.offset;
-    if skip_space {
-      self.skip_space()
-    }
-    if self.input.is_empty() {
-      return (Range::new(start, start), Err(ReadLabelError::NoLabel));
-    }
-    let mut i = 0;
-    loop {
-      match self.input.as_bytes().get(i) {
-        Some(c) if c.is_ascii_digit() => i += 1,
-        _ => break,
-      }
-    }
-    if i != 0 {
-      self.advance(i);
-      self.input[..i].parse::<u16>().map_or_else(
-        |_| (Range::new(start, start), Err(ReadLabelError::OutOfBound)),
-        |label| {
-          if label < 10000 {
-            (Range::new(start, start + i), Ok(label))
-          } else {
-            (
-              Range::new(start, start + i),
-              Err(ReadLabelError::OutOfBound),
-            )
-          }
-        },
-      )
-    } else {
-      (Range::new(start, start), Err(ReadLabelError::NoLabel))
     }
   }
 
@@ -165,11 +125,16 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
     self.advance(count_space(self.input.as_bytes(), 0));
   }
 
+  fn skip_line(&mut self) {
+    self.offset += self.input.len();
+    self.input = "";
+  }
+
   fn set_token(&mut self, start: usize, kind: TokenKind) {
     self.token = (Range::new(start, self.offset), kind);
   }
 
-  fn read_token(&mut self) {
+  fn read_token(&mut self, read_label: bool) {
     self.skip_space();
     let start = self.offset;
     let c;
@@ -192,19 +157,25 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
         self.set_token(start, TokenKind::String);
       }
       b'0'..=b'9' | b'.' => {
-        let len = read_number(self.input.as_bytes(), true);
+        let (len, is_nat) = read_number(self.input.as_bytes(), true);
         let start = self.offset;
-        self.advance(len);
-        self.set_token(start, TokenKind::Number);
+        if is_nat && read_label {
+          let label = self.input[..len].parse::<Label>();
+          self.advance(len);
+          self.set_token(start, TokenKind::Label(label));
+        } else {
+          self.advance(len);
+          self.set_token(start, TokenKind::Float);
+        }
       }
       b'a'..=b'z' | b'A'..=b'Z' => {
         let start = self.offset;
         let mut i = 0;
-        loop {
-          match self.input.as_bytes().get(i) {
-            Some(c) if c.is_ascii_alphanumeric() => i += 1,
-            _ => break,
-          }
+        while matches!(
+          self.input.as_bytes().get(i),
+          Some(c) if c.is_ascii_alphanumeric()
+        ) {
+          i += 1;
         }
         let mut sigil = false;
         if let Some(b'%' | b'$') = self.input.as_bytes().get(i) {
@@ -257,7 +228,7 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
             format!("非法字符：U+{:06X}", c as u32)
           },
         );
-        self.read_token();
+        self.read_token(read_label);
       }
     }
   }
@@ -280,50 +251,158 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
   fn parse_stmts(&mut self, in_if_branch: bool) -> Vec<StmtId> {
     let mut stmts = vec![];
     loop {
-      self.skip_space();
-
-      if let Some(b':') = self.input.as_bytes().first() {
-        if in_if_branch {
-          self.add_error(
-            Range::new(self.offset, self.offset + 1),
-            "IF语句的分支中不能出现多余的冒号",
-          );
-        }
-        self.advance(1);
-        continue;
-      }
-
-      match self.read_label(false) {
-        (range, label@(Ok(_) | Err(ReadLabelError::OutOfBound))) => {
-          let label = match label {
-            Ok(label) => Some((range, label)),
-            Err(_) => None
-          };
-          stmts.push(self.node_builder.new_stmt(Stmt {
-            kind: StmtKind::GoTo {
-              has_goto_keyword: false,
-              label,
-            },
-            range,
-            is_recovered: false,
-          }));
-          if !in_if_branch {
+      match self.token.1.clone() {
+        TokenKind::Punc(Punc::Colon) => {
+          if in_if_branch {
             self.add_error(
               Range::new(self.offset, self.offset + 1),
-              "缺少 GOTO 或 GOSUB 关键字",
+              "IF 语句的分支中不能出现多余的冒号",
             );
+          } else {
+            stmts.push(self.node_builder.new_stmt(Stmt {
+              kind: StmtKind::NoOp,
+              range: self.token.0.clone(),
+              is_recovered: false,
+            }));
           }
+          self.read_token(in_if_branch);
         }
-        (range, Err(ReadLabelError::NoLabel)) => {
-          self.read_token();
-          stmts.push(self.parse_stmt());
+        TokenKind::Eof => return stmts,
+        TokenKind::Keyword(Keyword::Else) => {}
+        _ => {
+          stmts.push(self.parse_stmt(in_if_branch));
+          if let TokenKind::Punc(Punc::Colon) = self.token.1.clone() {
+            self.read_token(in_if_branch);
+          }
+          if matches!(self.token.1.clone(), TokenKind::Keyword(Keyword::Else)) {
+            if in_if_branch {
+              return stmts;
+            } else {
+              self
+                .add_error(self.token.0.clone(), "ELSE 不能出现在 IF 语句之外");
+              self.read_token(in_if_branch);
+            }
+          }
         }
       }
     }
-    stmts
   }
 
-  fn parse_stmt(&mut self) -> StmtId {}
+  fn parse_stmt(&mut self, in_if_branch: bool) -> StmtId {
+    match self.token.1.clone() {
+      TokenKind::Keyword(Keyword::Auto) => {
+        self.parse_rem_like(StmtKind::Auto, in_if_branch)
+      }
+      TokenKind::Keyword(Keyword::Beep) => self.node_builder.new_stmt(Stmt {
+        kind: StmtKind::Beep,
+        range: self.token.0.clone(),
+        is_recovered: false,
+      }),
+      TokenKind::Keyword(Keyword::Box) => {
+        let start = self.token.0.start;
+        self.read_token(false);
+      }
+      TokenKind::Eof => unreachable!(),
+    }
+  }
+
+  fn parse_rem_like(
+    &mut self,
+    ctor: fn(Range) -> StmtKind,
+    in_if_branch: bool,
+  ) -> StmtId {
+    let start = self.offset;
+    self.skip_line();
+    let id = self.node_builder.new_stmt(Stmt {
+      kind: ctor(Range::new(start, self.offset)),
+      range: Range::new(self.token.0.start, self.offset),
+      is_recovered: false,
+    });
+    self.read_token(in_if_branch);
+    id
+  }
+
+  fn parse_prec(&mut self, prec: Prec) -> ExprId {
+    match self.token.1.clone() {
+      TokenKind::Float => {
+        let id = self.node_builder.new_expr(Expr {
+          kind: ExprKind::NumberLit,
+          range: self.token.0.clone(),
+          is_recovered: false,
+        });
+        self.read_token(false);
+        id
+      }
+      TokenKind::String => {
+        let id = self.node_builder.new_expr(Expr {
+          kind: ExprKind::StringLit,
+          range: self.token.0.clone(),
+          is_recovered: false,
+        });
+        self.read_token(false);
+        id
+      }
+      TokenKind::Keyword(Keyword::Inkey) => {
+        let id = self.node_builder.new_expr(Expr {
+          kind: ExprKind::Inkey,
+          range: self.token.0.clone(),
+          is_recovered: false,
+        });
+        self.read_token(false);
+        id
+      }
+      TokenKind::Punc(op@(Punc::Plus | Punc::Minus)) => {
+        let start = self.token.0.start;
+        let op_range = self.token.0.clone();
+        self.read_token(false);
+        let arg = self.parse_prec(Prec::Neg);
+        let op = match op {
+          Punc::Plus => UnaryOpKind::Pos,
+          Punc::Minus => UnaryOpKind::Neg,
+          _ => unreachable!(),
+        };
+        self.node_builder.new_expr(Expr {
+          kind: ExprKind::Unary {
+            op: (op_range, op),
+            arg,
+          },
+          range: Range::new(start, self.offset),
+          is_recovered: false,
+        })
+      }
+      TokenKind::Keyword(Keyword::Not) => {
+        let start = self.token.0.start;
+        let op_range = self.token.0.clone();
+        self.read_token(false);
+        let arg = self.parse_prec(Prec::Not);
+        self.node_builder.new_expr(Expr {
+          kind: ExprKind::Unary {
+            op: (op_range, UnaryOpKind::Not),
+            arg,
+          },
+          range: Range::new(start, self.offset),
+          is_recovered: false,
+        })
+      }
+      TokenKind::Punc(Punc::LParen) => {
+        self.read_token(false);
+        let expr = self.parse_prec(Prec::None);
+        todo!("match )")
+      }
+    }
+  }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+enum Prec {
+  None,
+  Log,
+  Rel,
+  Add,
+  Mul,
+  Neg,
+  Pow,
+  Not,
 }
 
 impl<'a> LineParser<'a, ArenaNodeBuilder> {
@@ -331,7 +410,7 @@ impl<'a> LineParser<'a, ArenaNodeBuilder> {
     self,
     line: &str,
     eol: Eol,
-    label: Option<u16>,
+    label: Option<Label>,
     stmts: Vec<StmtId>,
   ) -> ProgramLine {
     ProgramLine {
@@ -354,11 +433,15 @@ fn count_space(input: &[u8], start: usize) -> usize {
   i - start
 }
 
+/// ```regexp
 /// [-+]?\d*(\.\d*)?(E[-+]?\d*)?
-pub fn read_number(input: &[u8], allow_space: bool) -> usize {
+/// ```
+pub fn read_number(input: &[u8], allow_space: bool) -> (usize, bool) {
   let mut i = 0;
+  let mut is_nat = true;
 
   if let Some(b'+' | b'-') = input.first() {
+    is_nat = false;
     i += 1;
   }
   if allow_space {
@@ -374,6 +457,7 @@ pub fn read_number(input: &[u8], allow_space: bool) -> usize {
   }
 
   if let Some(b'.') = input.get(i) {
+    is_nat = false;
     i += 1;
     loop {
       match input.get(i) {
@@ -385,6 +469,7 @@ pub fn read_number(input: &[u8], allow_space: bool) -> usize {
   }
 
   if let Some(b'e' | b'E') = input.get(i) {
+    is_nat = false;
     i += 1;
     if allow_space {
       i += count_space(input, i);
@@ -407,7 +492,7 @@ pub fn read_number(input: &[u8], allow_space: bool) -> usize {
     }
   }
 
-  i
+  (i, is_nat)
 }
 
 #[cfg(test)]
@@ -434,7 +519,7 @@ mod lex_tests {
     let mut parser = LineParser::new(input, DummyNodeBuilder);
     let mut tokens = vec![];
     loop {
-      parser.read_token();
+      parser.read_token(false);
       tokens.push(parser.token.clone());
       if parser.token.1 == TokenKind::Eof {
         break;
@@ -480,9 +565,9 @@ mod lex_tests {
       assert_eq!(
         read_tokens(r#"  134A$ 0"#),
         vec![
-          (Range::new(2, 5), TokenKind::Number),
+          (Range::new(2, 5), TokenKind::Float),
           (Range::new(5, 7), TokenKind::Ident),
-          (Range::new(8, 9), TokenKind::Number),
+          (Range::new(8, 9), TokenKind::Float),
           (Range::new(9, 9), TokenKind::Eof),
         ]
       );
@@ -493,10 +578,10 @@ mod lex_tests {
       assert_eq!(
         read_tokens(r#"  0.14   -147.  .1"#),
         vec![
-          (Range::new(2, 6), TokenKind::Number),
+          (Range::new(2, 6), TokenKind::Float),
           (Range::new(9, 10), TokenKind::Punc(Punc::Minus)),
-          (Range::new(10, 14), TokenKind::Number),
-          (Range::new(16, 18), TokenKind::Number),
+          (Range::new(10, 14), TokenKind::Float),
+          (Range::new(16, 18), TokenKind::Float),
           (Range::new(18, 18), TokenKind::Eof),
         ]
       );
@@ -507,14 +592,14 @@ mod lex_tests {
       assert_eq!(
         read_tokens(r#"  5E+17 .E3 , 1.e-14 , 12.3e45 , .E+  "#),
         vec![
-          (Range::new(2, 7), TokenKind::Number),
-          (Range::new(8, 11), TokenKind::Number),
+          (Range::new(2, 7), TokenKind::Float),
+          (Range::new(8, 11), TokenKind::Float),
           (Range::new(12, 13), TokenKind::Punc(Punc::Comma)),
-          (Range::new(14, 20), TokenKind::Number),
+          (Range::new(14, 20), TokenKind::Float),
           (Range::new(21, 22), TokenKind::Punc(Punc::Comma)),
-          (Range::new(23, 30), TokenKind::Number),
+          (Range::new(23, 30), TokenKind::Float),
           (Range::new(31, 32), TokenKind::Punc(Punc::Comma)),
-          (Range::new(33, 36), TokenKind::Number),
+          (Range::new(33, 36), TokenKind::Float),
           (Range::new(38, 38), TokenKind::Eof),
         ]
       );
@@ -525,13 +610,13 @@ mod lex_tests {
       assert_eq!(
         read_tokens(r#"  123 456  7   8 , 12 . 3 , 12 . 3 E + 4 5, . e  -  "#),
         vec![
-          (Range::new(2, 16), TokenKind::Number),
+          (Range::new(2, 16), TokenKind::Float),
           (Range::new(17, 18), TokenKind::Punc(Punc::Comma)),
-          (Range::new(19, 25), TokenKind::Number),
+          (Range::new(19, 25), TokenKind::Float),
           (Range::new(26, 27), TokenKind::Punc(Punc::Comma)),
-          (Range::new(28, 42), TokenKind::Number),
+          (Range::new(28, 42), TokenKind::Float),
           (Range::new(42, 43), TokenKind::Punc(Punc::Comma)),
-          (Range::new(44, 50), TokenKind::Number),
+          (Range::new(44, 50), TokenKind::Float),
           (Range::new(52, 52), TokenKind::Eof),
         ]
       );
