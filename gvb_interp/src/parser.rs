@@ -1,6 +1,11 @@
-use crate::ast::{Eol, Expr, ExprId, ExprKind, Keyword, Label, NodeBuilder, ParseLabelError, Program, ProgramLine, Punc, Range, Stmt, StmtId, StmtKind, SysFuncKind, TokenKind, UnaryOpKind};
+use crate::ast::{
+  Datum, Eol, Expr, ExprId, ExprKind, Keyword, Label, NodeBuilder, NonEmptyVec,
+  ParseLabelError, Program, ProgramLine, Punc, Range, Stmt, StmtId, StmtKind,
+  SysFuncKind, TokenKind, UnaryOpKind,
+};
 use crate::diagnostic::Diagnostic;
 use id_arena::Arena;
+use smallvec::Array;
 
 pub fn parse(input: &str) -> Program {
   let mut line_start = 0;
@@ -42,9 +47,9 @@ pub fn parse_line(line_with_eol: &str) -> ProgramLine {
   let mut label = None;
   if matches!(line.as_bytes().first(), Some(b' ')) {
     parser.read_token(true);
-    if let TokenKind::Label(l) = parser.token.1.clone() {
+    if parser.token.1 == TokenKind::Label {
       parser.read_token(false);
-      match l {
+      match parser.label_value.take().unwrap() {
         Ok(l) => label = Some(l),
         Err(err) => parser.report_label_error(err, parser.token.0.clone()),
       }
@@ -74,12 +79,21 @@ impl NodeBuilder for ArenaNodeBuilder {
   fn new_expr(&mut self, expr: Expr) -> ExprId {
     self.expr_arena.alloc(expr)
   }
+
+  fn stmt_range(&self, stmt: StmtId) -> Range {
+    self.stmt_arena[stmt].range.clone()
+  }
+
+  fn expr_range(&self, expr: ExprId) -> Range {
+    self.expr_arena[expr].range.clone()
+  }
 }
 
 struct LineParser<'a, T: NodeBuilder> {
   offset: usize,
   input: &'a str,
   token: (Range, TokenKind),
+  label_value: Option<Result<Label, ParseLabelError>>,
   node_builder: T,
   diagnostics: Vec<Diagnostic>,
 }
@@ -90,6 +104,7 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
       offset: 0,
       input,
       token: (Range::new(0, 0), TokenKind::Eof),
+      label_value: None,
       node_builder,
       diagnostics: vec![],
     }
@@ -135,6 +150,8 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
   }
 
   fn read_token(&mut self, read_label: bool) {
+    self.label_value = None;
+
     self.skip_space();
     let start = self.offset;
     let c;
@@ -162,7 +179,8 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
         if is_nat && read_label {
           let label = self.input[..len].parse::<Label>();
           self.advance(len);
-          self.set_token(start, TokenKind::Label(label));
+          self.label_value = Some(label);
+          self.set_token(start, TokenKind::Label);
         } else {
           self.advance(len);
           self.set_token(start, TokenKind::Float);
@@ -248,10 +266,20 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
     i
   }
 
+  fn match_token(&mut self, token: TokenKind, read_label: bool) -> Range {
+    if self.token.1 == token {
+      let range = self.token.0.clone();
+      self.read_token(read_label);
+      range
+    } else {
+      todo!("skip tokens")
+    }
+  }
+
   fn parse_stmts(&mut self, in_if_branch: bool) -> Vec<StmtId> {
     let mut stmts = vec![];
     loop {
-      match self.token.1.clone() {
+      match self.token.1 {
         TokenKind::Punc(Punc::Colon) => {
           if in_if_branch {
             self.add_error(
@@ -270,11 +298,16 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
         TokenKind::Eof => return stmts,
         TokenKind::Keyword(Keyword::Else) => {}
         _ => {
-          stmts.push(self.parse_stmt(in_if_branch));
-          if let TokenKind::Punc(Punc::Colon) = self.token.1.clone() {
+          let stmt = self.parse_stmt(in_if_branch);
+          stmts.push(stmt);
+          let mut stmt_end = false;
+          if let TokenKind::Punc(Punc::Colon) = self.token.1 {
             self.read_token(in_if_branch);
+            stmt_end = true;
+          } else if self.token.1 == TokenKind::Eof {
+            stmt_end = true;
           }
-          if matches!(self.token.1.clone(), TokenKind::Keyword(Keyword::Else)) {
+          if matches!(self.token.1, TokenKind::Keyword(Keyword::Else)) {
             if in_if_branch {
               return stmts;
             } else {
@@ -282,6 +315,11 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
                 .add_error(self.token.0.clone(), "ELSE 不能出现在 IF 语句之外");
               self.read_token(in_if_branch);
             }
+          } else if !stmt_end {
+            self.add_error(
+              self.node_builder.stmt_range(stmt),
+              "语句之后必须是行尾或跟上冒号",
+            );
           }
         }
       }
@@ -289,21 +327,116 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
   }
 
   fn parse_stmt(&mut self, in_if_branch: bool) -> StmtId {
-    match self.token.1.clone() {
+    match self.token.1 {
       TokenKind::Keyword(Keyword::Auto) => {
         self.parse_rem_like(StmtKind::Auto, in_if_branch)
       }
-      TokenKind::Keyword(Keyword::Beep) => self.node_builder.new_stmt(Stmt {
-        kind: StmtKind::Beep,
-        range: self.token.0.clone(),
-        is_recovered: false,
-      }),
-      TokenKind::Keyword(Keyword::Box) => {
+      TokenKind::Keyword(Keyword::Beep) => {
+        self.parse_nullary_cmd(StmtKind::Beep)
+      }
+      TokenKind::Keyword(Keyword::Box) => self.parse_cmd(StmtKind::Box),
+      TokenKind::Keyword(Keyword::Call) => {
         let start = self.token.0.start;
         self.read_token(false);
+        let addr = self.parse_expr(Prec::None);
+        let end = self.node_builder.expr_range(addr).end;
+        self.node_builder.new_stmt(Stmt {
+          kind: StmtKind::Call { addr },
+          range: Range::new(start, end),
+          is_recovered: false,
+        })
+      }
+      TokenKind::Keyword(Keyword::Circle) => self.parse_cmd(StmtKind::Circle),
+      TokenKind::Keyword(Keyword::Clear) => {
+        self.parse_nullary_cmd(StmtKind::Clear)
+      }
+      TokenKind::Keyword(Keyword::Close) => {
+        let start = self.token.0.start;
+        self.read_token(false);
+        if self.token.1 == TokenKind::Punc(Punc::Hash) {
+          self.read_token(false);
+        }
+        let filenum = self.parse_expr(Prec::None);
+        let end = self.node_builder.expr_range(filenum).end;
+        self.node_builder.new_stmt(Stmt {
+          kind: StmtKind::Close { filenum },
+          range: Range::new(start, end),
+          is_recovered: false,
+        })
+      }
+      TokenKind::Keyword(Keyword::Cls) => self.parse_nullary_cmd(StmtKind::Cls),
+      TokenKind::Keyword(Keyword::Cont) => {
+        self.parse_nullary_cmd(StmtKind::Cont)
+      }
+      TokenKind::Keyword(Keyword::Copy) => {
+        self.parse_rem_like(StmtKind::Copy, in_if_branch)
+      }
+      TokenKind::Keyword(Keyword::Data) => {
+        let start = self.token.0.start;
+        let mut data = NonEmptyVec::<[Datum; 1]>::new();
+        loop {
+          self.skip_space();
+          let datum_start = self.offset;
+          if let Some(b'"') = self.input.as_bytes().first() {
+          } else {
+            let mut i = 0;
+            while !matches!(
+              self.input.as_bytes().get(i),
+              Some(b',' | b':') | None
+            ) {
+              i += 1;
+            }
+            self.advance(i);
+            data.push(Datum {
+              range: Range::new(datum_start, self.offset),
+              is_quoted: false,
+            })
+          }
+
+          match self.input.as_bytes().first() {
+            Some(b':') | None => break,
+            Some(b',') => self.advance(1),
+            _ => {
+              self.add_error(
+                Range::new(self.offset, self.offset + 1),
+                "缺少逗号",
+              );
+            }
+          }
+        }
+        self.node_builder.new_stmt(Stmt {
+          kind: StmtKind::Data(data),
+          range: Range::new(start, self.offset),
+          is_recovered: false,
+        })
       }
       TokenKind::Eof => unreachable!(),
     }
+  }
+
+  fn parse_cmd<A: Array<Item = ExprId>>(
+    &mut self,
+    ctor: fn(NonEmptyVec<A>) -> StmtKind,
+  ) -> StmtId {
+    let start = self.token.0.start;
+    self.read_token(false);
+    let mut args = NonEmptyVec::<A>::new();
+    let Range { end, .. } = self.parse_cmd_args(&mut args.0);
+    self.node_builder.new_stmt(Stmt {
+      kind: ctor(args),
+      range: Range::new(start, end),
+      is_recovered: false,
+    })
+  }
+
+  fn parse_nullary_cmd(&mut self, kind: StmtKind) -> StmtId {
+    let range = self.token.0.clone();
+    self.read_token(false);
+    self.node_builder.new_stmt(Stmt {
+      kind,
+      range,
+      is_recovered: false,
+    })
   }
 
   fn parse_rem_like(
@@ -322,8 +455,10 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
     id
   }
 
-  fn parse_prec(&mut self, prec: Prec) -> ExprId {
-    match self.token.1.clone() {
+  fn parse_expr(&mut self, prec: Prec) -> ExprId {}
+
+  fn parse_atom(&mut self) -> ExprId {
+    match self.token.1 {
       TokenKind::Float => {
         let id = self.node_builder.new_expr(Expr {
           kind: ExprKind::NumberLit,
@@ -351,22 +486,23 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
         self.read_token(false);
         id
       }
-      TokenKind::Punc(op@(Punc::Plus | Punc::Minus)) => {
+      TokenKind::Punc(op @ (Punc::Plus | Punc::Minus)) => {
         let start = self.token.0.start;
         let op_range = self.token.0.clone();
         self.read_token(false);
-        let arg = self.parse_prec(Prec::Neg);
+        let arg = self.parse_expr(Prec::Neg);
         let op = match op {
           Punc::Plus => UnaryOpKind::Pos,
           Punc::Minus => UnaryOpKind::Neg,
           _ => unreachable!(),
         };
+        let end = self.node_builder.expr_range(arg).end;
         self.node_builder.new_expr(Expr {
           kind: ExprKind::Unary {
             op: (op_range, op),
             arg,
           },
-          range: Range::new(start, self.offset),
+          range: Range::new(start, end),
           is_recovered: false,
         })
       }
@@ -374,20 +510,138 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
         let start = self.token.0.start;
         let op_range = self.token.0.clone();
         self.read_token(false);
-        let arg = self.parse_prec(Prec::Not);
+        let arg = self.parse_expr(Prec::Not);
+        let end = self.node_builder.expr_range(arg).end;
         self.node_builder.new_expr(Expr {
           kind: ExprKind::Unary {
             op: (op_range, UnaryOpKind::Not),
             arg,
           },
-          range: Range::new(start, self.offset),
+          range: Range::new(start, end),
           is_recovered: false,
         })
       }
       TokenKind::Punc(Punc::LParen) => {
         self.read_token(false);
-        let expr = self.parse_prec(Prec::None);
-        todo!("match )")
+        let expr = self.parse_expr(Prec::None);
+        self.match_token(TokenKind::Punc(Punc::RParen), false);
+        expr
+      }
+      TokenKind::Keyword(Keyword::Fn) => {
+        let start = self.token.0.start;
+        self.read_token(false);
+        let id_range = self.match_token(TokenKind::Ident, false);
+        self.match_token(TokenKind::Punc(Punc::LParen), false);
+        let arg = self.parse_expr(Prec::None);
+        let Range { end, .. } =
+          self.match_token(TokenKind::Punc(Punc::RParen), false);
+        self.node_builder.new_expr(Expr {
+          kind: ExprKind::UserFuncCall {
+            func: id_range,
+            arg,
+          },
+          range: Range::new(start, end),
+          is_recovered: false,
+        })
+      }
+      TokenKind::SysFunc(kind) => {
+        let name_range = self.token.0.clone();
+        self.read_token(false);
+        let mut args = NonEmptyVec::<[ExprId; 1]>::new();
+        let Range { end, .. } = self.parse_paren_args(&mut args.0);
+        let range = Range::new(name_range.start, end);
+        self.node_builder.new_expr(Expr {
+          kind: ExprKind::SysFuncCall {
+            func: (name_range, kind),
+            args,
+          },
+          range,
+          is_recovered: false,
+        })
+      }
+      TokenKind::Ident => self.parse_lvalue(),
+      _ => {
+        todo!("expect expr, skip tokens")
+      }
+    }
+  }
+
+  fn parse_lvalue(&mut self) -> ExprId {
+    let id_range = self.match_token(TokenKind::Ident, false);
+    if self.token.1 == TokenKind::Punc(Punc::LParen) {
+      let mut args = NonEmptyVec::<[ExprId; 1]>::new();
+      let Range { end, .. } = self.parse_paren_args(&mut args.0);
+      let range = Range::new(id_range.start, end);
+      self.node_builder.new_expr(Expr {
+        kind: ExprKind::Index {
+          name: id_range,
+          indices: args,
+        },
+        range,
+        is_recovered: false,
+      })
+    } else {
+      self.node_builder.new_expr(Expr {
+        kind: ExprKind::Ident,
+        range: id_range,
+        is_recovered: false,
+      })
+    }
+  }
+
+  fn parse_paren_args<U>(&mut self, args: &mut U) -> Range
+  where
+    U: Extend<ExprId>,
+  {
+    let start = self.token.0.start;
+    self.match_token(TokenKind::Punc(Punc::LParen), false);
+    loop {
+      if self.token.1 == TokenKind::Punc(Punc::RParen) {
+        // TODO eof
+        let end = self.token.0.end;
+        let range = Range::new(start, end);
+        self.read_token(false);
+        break range;
+      }
+
+      loop {
+        let arg = self.parse_expr(Prec::None);
+        args.extend_one(arg);
+
+        if self.token.1 == TokenKind::Punc(Punc::Comma) {
+          self.read_token(false);
+        } else {
+          break;
+        }
+      }
+    }
+  }
+
+  fn parse_cmd_args<U>(&mut self, args: &mut U) -> Range
+  where
+    U: Extend<ExprId>,
+  {
+    let start = self.token.0.start;
+    let mut end = start;
+    loop {
+      if let TokenKind::Punc(Punc::Colon)
+      | TokenKind::Keyword(Keyword::Else)
+      | TokenKind::Eof = self.token.1
+      {
+        // TODO eof
+        break Range::new(start, end);
+      }
+
+      loop {
+        let arg = self.parse_expr(Prec::None);
+        end = self.node_builder.expr_range(arg).end;
+        args.extend_one(arg);
+
+        if self.token.1 == TokenKind::Punc(Punc::Comma) {
+          self.read_token(false);
+        } else {
+          break;
+        }
       }
     }
   }
@@ -505,6 +759,14 @@ impl NodeBuilder for DummyNodeBuilder {
   }
 
   fn new_stmt(&mut self, _stmt: Stmt) -> StmtId {
+    unimplemented!()
+  }
+
+  fn stmt_range(&self, _stmt: StmtId) -> Range {
+    unimplemented!()
+  }
+
+  fn expr_range(&self, _expr: ExprId) -> Range {
     unimplemented!()
   }
 }

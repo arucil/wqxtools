@@ -28,7 +28,7 @@ const SCALE = 100
     descender: 0,
     glyphs,
   })
-  font.download('WenQuXing-GB2312.woff')
+  font.download('WenQuXing-GB2312.ttf')
 }
 
 // old icons
@@ -73,7 +73,7 @@ const SCALE = 100
     descender: 0,
     glyphs,
   })
-  font.download('WenQuXing-Icons-Old.woff')
+  font.download('WenQuXing-Icons-Old.ttf')
 }
 
 // new icons
@@ -95,7 +95,7 @@ const SCALE = 100
     descender: 0,
     glyphs,
   })
-  font.download('WenQuXing-Icons-New.woff')
+  font.download('WenQuXing-Icons-New.ttf')
 }
 
 function makeAsciiGlyphs(): opentype.Glyph[] {

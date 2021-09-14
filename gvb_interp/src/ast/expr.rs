@@ -36,6 +36,7 @@ pub enum ExprKind {
     indices: NonEmptyVec<[ExprId; 1]>,
   },
   Inkey,
+  Error,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

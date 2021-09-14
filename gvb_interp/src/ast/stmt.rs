@@ -13,24 +13,11 @@ pub enum StmtKind {
   /// identical to REM
   Auto(Range),
   Beep,
-  Box {
-    x1: ExprId,
-    y1: ExprId,
-    x2: ExprId,
-    y2: ExprId,
-    fill_mode: Option<ExprId>,
-    draw_mode: Option<ExprId>,
-  },
+  Box(NonEmptyVec<[ExprId; 4]>),
   Call {
     addr: ExprId,
   },
-  Circle {
-    x: ExprId,
-    y: ExprId,
-    r: ExprId,
-    fill_mode: Option<ExprId>,
-    draw_mode: Option<ExprId>,
-  },
+  Circle(NonEmptyVec<[ExprId; 3]>),
   Clear,
   Close {
     filenum: ExprId,
@@ -39,7 +26,7 @@ pub enum StmtKind {
   Cont,
   /// identical to REM
   Copy(Range),
-  Data(Range),
+  Data(NonEmptyVec<[Datum; 1]>),
   Def {
     /// ident
     name: Range,
@@ -51,21 +38,10 @@ pub enum StmtKind {
   Del(Range),
   /// lvalue list
   Dim(NonEmptyVec<[ExprId; 1]>),
-  Draw {
-    x: ExprId,
-    y: ExprId,
-    draw_mode: Option<ExprId>,
-  },
+  Draw(NonEmptyVec<[ExprId; 2]>),
   /// identical to REM
   Edit(Range),
-  Ellipse {
-    x: ExprId,
-    y: ExprId,
-    rx: ExprId,
-    ry: ExprId,
-    fill_mode: Option<ExprId>,
-    draw_mode: Option<ExprId>,
-  },
+  Ellipse(NonEmptyVec<[ExprId; 4]>),
   End,
   Field {
     filenum: ExprId,
@@ -110,13 +86,7 @@ pub enum StmtKind {
     field: ExprId,
     value: ExprId,
   },
-  Line {
-    x1: ExprId,
-    y1: ExprId,
-    x2: ExprId,
-    y2: ExprId,
-    draw_mode: Option<ExprId>,
-  },
+  Line(NonEmptyVec<[ExprId; 4]>),
   /// identical to REM
   List(Range),
   /// identical to REM
@@ -192,6 +162,13 @@ pub enum StmtKind {
     fields: NonEmptyVec<[WriteElement; 1]>,
   },
   NoOp,
+}
+
+#[derive(Debug, Clone)]
+pub struct Datum {
+  /// Does not include quotes.
+  pub range: Range,
+  pub is_quoted: bool,
 }
 
 #[derive(Debug, Clone)]

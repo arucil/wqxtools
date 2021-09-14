@@ -1,11 +1,11 @@
 use std::str::FromStr;
 
-use super::{Label, ParseLabelError, SysFuncKind};
+use super::SysFuncKind;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TokenKind {
   Ident,
-  Label(Result<Label, ParseLabelError>),
+  Label,
   Float,
   String,
   Punc(Punc),

@@ -1,19 +1,20 @@
 use smallvec::{Array, SmallVec};
 use std::fmt::{self, Debug, Formatter};
+use std::ops::{Deref, DerefMut};
 
 pub mod expr;
+pub mod label;
 pub mod line;
+pub mod node;
 pub mod stmt;
 pub mod token;
-pub mod node;
-pub mod label;
 
-pub use self::line::*;
 pub use self::expr::*;
+pub use self::label::*;
+pub use self::line::*;
+pub use self::node::*;
 pub use self::stmt::*;
 pub use self::token::*;
-pub use self::node::*;
-pub use self::label::*;
 
 #[derive(Debug, Clone)]
 pub struct Program {
@@ -45,6 +46,25 @@ where
 {
   fn fmt(&self, f: &mut Formatter) -> fmt::Result {
     self.0.fmt(f)
+  }
+}
+
+impl<T: Array> NonEmptyVec<T> {
+  pub fn new() -> Self {
+    Self(SmallVec::new())
+  }
+}
+
+impl<T: Array> Deref for NonEmptyVec<T> {
+  type Target = SmallVec<T>;
+  fn deref(&self) -> &Self::Target {
+    &self.0
+  }
+}
+
+impl<T: Array> DerefMut for NonEmptyVec<T> {
+  fn deref_mut(&mut self) -> &mut Self::Target {
+    &mut self.0
   }
 }
 
