@@ -1,7 +1,7 @@
 use crate::ast::{
-  Datum, Eol, Expr, ExprId, ExprKind, Keyword, Label, NodeBuilder, NonEmptyVec,
-  ParseLabelError, Program, ProgramLine, Punc, Range, Stmt, StmtId, StmtKind,
-  SysFuncKind, TokenKind, UnaryOpKind,
+  BinaryOpKind, Datum, Eol, Expr, ExprId, ExprKind, FieldSpec, Keyword, Label,
+  NodeBuilder, NonEmptyVec, ParseLabelError, Program, ProgramLine, Punc, Range,
+  Stmt, StmtId, StmtKind, SysFuncKind, TokenKind, UnaryOpKind,
 };
 use crate::diagnostic::Diagnostic;
 use id_arena::Arena;
@@ -149,6 +149,17 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
     self.token = (Range::new(start, self.offset), kind);
   }
 
+  fn put_back_token(&mut self) {
+    let len = self.token.0.len();
+    self.offset -= len;
+    self.input = unsafe {
+      std::str::from_utf8_unchecked(std::slice::from_raw_parts(
+        self.input.as_ptr().sub(len),
+        self.input.len() + len,
+      ))
+    };
+  }
+
   fn read_token(&mut self, read_label: bool) {
     self.label_value = None;
 
@@ -210,8 +221,6 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
         } else if sigil {
           return self.set_token(start, TokenKind::Ident);
         }
-
-        let first_frag_end = self.offset;
 
         let mut i = count_space(self.input.as_bytes(), 0);
 
@@ -410,7 +419,108 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
           is_recovered: false,
         })
       }
+      TokenKind::Keyword(Keyword::Def) => {
+        let start = self.token.0.start;
+        self.read_token(false);
+        self.match_token(TokenKind::Keyword(Keyword::Fn), false);
+        let name_range = self.match_token(TokenKind::Ident, false);
+        self.match_token(TokenKind::Punc(Punc::LParen), false);
+        let param_range = self.match_token(TokenKind::Ident, false);
+        self.match_token(TokenKind::Punc(Punc::RParen), false);
+        self.match_token(TokenKind::Punc(Punc::Eq), false);
+        let body = self.parse_expr(Prec::None);
+        let end = self.node_builder.expr_range(body).end;
+        self.node_builder.new_stmt(Stmt {
+          kind: StmtKind::Def {
+            name: name_range,
+            param: param_range,
+            body,
+          },
+          range: Range::new(start, end),
+          is_recovered: false,
+        })
+      }
+      TokenKind::Keyword(Keyword::Del) => {
+        self.parse_rem_like(StmtKind::Del, in_if_branch)
+      }
+      TokenKind::Keyword(Keyword::Dim) => {
+        let start = self.token.0.start;
+        self.read_token(false);
+        let mut vars = NonEmptyVec::<[ExprId; 1]>::new();
+        let var = self.parse_lvalue();
+        let mut end = self.node_builder.expr_range(var).end;
+        vars.push(var);
+        while self.token.1 == TokenKind::Punc(Punc::Comma) {
+          self.read_token(false);
+
+          let var = self.parse_lvalue();
+          end = self.node_builder.expr_range(var).end;
+          vars.push(var);
+        }
+        self.node_builder.new_stmt(Stmt {
+          kind: StmtKind::Dim(vars),
+          range: Range::new(start, end),
+          is_recovered: false,
+        })
+      }
+      TokenKind::Keyword(Keyword::Draw) => self.parse_cmd(StmtKind::Draw),
+      TokenKind::Keyword(Keyword::Edit) => {
+        self.parse_rem_like(StmtKind::Edit, in_if_branch)
+      }
+      TokenKind::Keyword(Keyword::Ellipse) => self.parse_cmd(StmtKind::Ellipse),
+      TokenKind::Keyword(Keyword::End) => self.parse_nullary_cmd(StmtKind::End),
+      TokenKind::Keyword(Keyword::Field) => {
+        let start = self.token.0.start;
+        self.read_token(false);
+        if let TokenKind::Punc(Punc::Hash) = self.token.1 {
+          self.read_token(false);
+        }
+        let filenum = self.parse_expr(Prec::None);
+        let mut fields = NonEmptyVec::<[FieldSpec; 1]>::new();
+        self.match_token(TokenKind::Punc(Punc::Comma), false);
+        let field = self.parse_field_spec();
+        let mut end = field.range.end;
+        fields.push(field);
+        while self.token.1 == TokenKind::Punc(Punc::Comma) {
+          self.read_token(false);
+          let field = self.parse_field_spec();
+          end = field.range.end;
+          fields.push(field);
+        }
+        self.node_builder.new_stmt(Stmt {
+          kind: StmtKind::Field { filenum, fields },
+          range: Range::new(start, end),
+          is_recovered: false,
+        })
+      }
       TokenKind::Eof => unreachable!(),
+      _ => {
+        todo!("expect stmt")
+      }
+    }
+  }
+
+  fn parse_field_spec(&mut self) -> FieldSpec {
+    let start = self.token.0.start;
+    let len = self.parse_expr(Prec::None);
+    self.put_back_token();
+    if let Some(b'A' | b'a') = self.input.as_bytes().first() {
+      self.advance(1);
+    } else {
+      todo!("expect A")
+    }
+    if let Some(b'S' | b's') = self.input.as_bytes().first() {
+      self.advance(1);
+    } else {
+      todo!("expect S")
+    }
+    self.read_token(false);
+    let var = self.parse_lvalue();
+    let end = self.node_builder.expr_range(var).end;
+    FieldSpec {
+      range: Range::new(start, end),
+      len,
+      var,
     }
   }
 
@@ -455,7 +565,55 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
     id
   }
 
-  fn parse_expr(&mut self, prec: Prec) -> ExprId {}
+  fn parse_expr(&mut self, prec: Prec) -> ExprId {
+    let mut lhs = self.parse_atom();
+    while token_prec(self.token.1) > prec {
+      let op = self.read_binary_op();
+      let rhs = self.parse_expr(token_prec(self.token.1));
+      let start = self.node_builder.expr_range(lhs).start;
+      let end = self.node_builder.expr_range(rhs).end;
+      lhs = self.node_builder.new_expr(Expr {
+        kind: ExprKind::Binary { lhs, op, rhs },
+        range: Range::new(start, end),
+        is_recovered: false,
+      })
+    }
+    lhs
+  }
+
+  fn read_binary_op(&mut self) -> (Range, BinaryOpKind) {
+    let range = self.token.0.clone();
+    let op = match self.token.1 {
+      TokenKind::Punc(Punc::Eq) => BinaryOpKind::Eq,
+      TokenKind::Punc(Punc::Lt) => {
+        self.read_token(false);
+        match self.token.1 {
+          TokenKind::Punc(Punc::Eq) => BinaryOpKind::Le,
+          TokenKind::Punc(Punc::Gt) => BinaryOpKind::Ne,
+          _ => return (range, BinaryOpKind::Lt),
+        }
+      }
+      TokenKind::Punc(Punc::Gt) => {
+        self.read_token(false);
+        if self.token.1 == TokenKind::Punc(Punc::Eq) {
+          BinaryOpKind::Ge
+        } else {
+          return (range, BinaryOpKind::Gt);
+        }
+      }
+      TokenKind::Punc(Punc::Plus) => BinaryOpKind::Add,
+      TokenKind::Punc(Punc::Minus) => BinaryOpKind::Sub,
+      TokenKind::Punc(Punc::Times) => BinaryOpKind::Mul,
+      TokenKind::Punc(Punc::Slash) => BinaryOpKind::Div,
+      TokenKind::Punc(Punc::Caret) => BinaryOpKind::Pow,
+      TokenKind::Keyword(Keyword::And) => BinaryOpKind::And,
+      TokenKind::Keyword(Keyword::Or) => BinaryOpKind::Or,
+      _ => unreachable!(),
+    };
+    let end = self.token.0.end;
+    self.read_token(false);
+    (Range::new(range.start, end), op)
+  }
 
   fn parse_atom(&mut self) -> ExprId {
     match self.token.1 {
@@ -595,25 +753,21 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
   {
     let start = self.token.0.start;
     self.match_token(TokenKind::Punc(Punc::LParen), false);
-    loop {
-      if self.token.1 == TokenKind::Punc(Punc::RParen) {
-        // TODO eof
-        let end = self.token.0.end;
-        let range = Range::new(start, end);
-        self.read_token(false);
-        break range;
-      }
+    let arg = self.parse_expr(Prec::None);
+    args.extend_one(arg);
+    while self.token.1 == TokenKind::Punc(Punc::Comma) {
+      self.read_token(false);
 
-      loop {
-        let arg = self.parse_expr(Prec::None);
-        args.extend_one(arg);
+      let arg = self.parse_expr(Prec::None);
+      args.extend_one(arg);
+    }
 
-        if self.token.1 == TokenKind::Punc(Punc::Comma) {
-          self.read_token(false);
-        } else {
-          break;
-        }
-      }
+    if self.token.1 == TokenKind::Punc(Punc::RParen) {
+      let end = self.token.0.end;
+      self.read_token(false);
+      Range::new(start, end)
+    } else {
+      todo!("expect ) or ,")
     }
   }
 
@@ -622,27 +776,24 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
     U: Extend<ExprId>,
   {
     let start = self.token.0.start;
-    let mut end = start;
-    loop {
-      if let TokenKind::Punc(Punc::Colon)
-      | TokenKind::Keyword(Keyword::Else)
-      | TokenKind::Eof = self.token.1
-      {
-        // TODO eof
-        break Range::new(start, end);
-      }
+    let arg = self.parse_expr(Prec::None);
+    let mut end = self.node_builder.expr_range(arg).end;
+    args.extend_one(arg);
+    while self.token.1 == TokenKind::Punc(Punc::Comma) {
+      self.read_token(false);
 
-      loop {
-        let arg = self.parse_expr(Prec::None);
-        end = self.node_builder.expr_range(arg).end;
-        args.extend_one(arg);
+      let arg = self.parse_expr(Prec::None);
+      end = self.node_builder.expr_range(arg).end;
+      args.extend_one(arg);
+    }
 
-        if self.token.1 == TokenKind::Punc(Punc::Comma) {
-          self.read_token(false);
-        } else {
-          break;
-        }
-      }
+    if let TokenKind::Punc(Punc::Colon)
+    | TokenKind::Keyword(Keyword::Else)
+    | TokenKind::Eof = self.token.1
+    {
+      Range::new(start, end)
+    } else {
+      todo!("expect : or , or ELSE")
     }
   }
 }
@@ -657,6 +808,17 @@ enum Prec {
   Neg,
   Pow,
   Not,
+}
+
+fn token_prec(kind: TokenKind) -> Prec {
+  match kind {
+    TokenKind::Punc(Punc::Eq | Punc::Lt | Punc::Gt) => Prec::Rel,
+    TokenKind::Punc(Punc::Plus | Punc::Minus) => Prec::Add,
+    TokenKind::Punc(Punc::Times | Punc::Slash) => Prec::Mul,
+    TokenKind::Punc(Punc::Caret) => Prec::Pow,
+    TokenKind::Keyword(Keyword::And | Keyword::Or) => Prec::Log,
+    _ => Prec::None,
+  }
 }
 
 impl<'a> LineParser<'a, ArenaNodeBuilder> {
@@ -943,7 +1105,7 @@ mod lex_tests {
     #[test]
     fn sysfunc() {
       assert_eq!(
-        read_tokens(r#"  asc chr$ leti%  "#),
+        read_tokens(r#"  AsC cHr$ leti%  "#),
         vec![
           (Range::new(2, 5), TokenKind::SysFunc(SysFuncKind::Asc)),
           (Range::new(6, 10), TokenKind::SysFunc(SysFuncKind::Chr)),

@@ -77,4 +77,8 @@ impl Range {
   pub fn is_empty(&self) -> bool {
     self.start == self.end
   }
+
+  pub fn len(&self) -> usize {
+    self.end - self.start
+  }
 }

@@ -173,9 +173,10 @@ pub struct Datum {
 
 #[derive(Debug, Clone)]
 pub struct FieldSpec {
+  pub range: Range,
   pub len: ExprId,
   /// lvalue
-  pub name: ExprId,
+  pub var: ExprId,
 }
 
 #[derive(Debug, Clone)]
