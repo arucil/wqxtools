@@ -5683,7 +5683,7 @@
 8D19: D0 02    BNE $8D1D
 8D1B: C6 5F    DEC $5F
 8D1D: C6 5E    DEC $5E
-8D1F: 20 C4 85 JSR $85C4  ; evaluate expression as assert result is 0~255
+8D1F: 20 C4 85 JSR $85C4  ; evaluate expression and assert result is 0~255
 8D22: 8A       TXA
 8D23: A2 01    LDX #$01
 8D25: C9 04    CMP #$04

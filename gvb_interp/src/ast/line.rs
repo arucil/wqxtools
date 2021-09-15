@@ -9,7 +9,7 @@ pub struct ProgramLine {
   pub label: Option<Label>,
   pub stmt_arena: Arena<Stmt>,
   pub expr_arena: Arena<Expr>,
-  pub stmts: Vec<StmtId>,
+  pub stmts: SmallVec<[StmtId; 1]>,
   pub eol: Eol,
   pub diagnostics: Vec<Diagnostic>,
 }

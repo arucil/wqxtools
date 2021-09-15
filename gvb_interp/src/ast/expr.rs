@@ -5,7 +5,6 @@ use std::str::FromStr;
 pub struct Expr {
   pub kind: ExprKind,
   pub range: Range,
-  pub is_recovered: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -92,6 +91,12 @@ pub enum UnaryOpKind {
   Not,
   Neg,
   Pos,
+}
+
+impl Expr {
+  pub fn new(kind: ExprKind, range: Range) -> Self {
+    Self { kind, range }
+  }
 }
 
 impl FromStr for SysFuncKind {

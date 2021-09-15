@@ -1,4 +1,7 @@
-use std::str::FromStr;
+use std::{
+  fmt::{self, Debug, Formatter},
+  str::FromStr,
+};
 
 use super::SysFuncKind;
 
@@ -14,7 +17,7 @@ pub enum TokenKind {
   Eof,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Keyword {
   Auto,
   Beep,
@@ -111,7 +114,7 @@ pub enum Punc {
   Colon,
   LParen,
   RParen,
-  Semi,
+  Semicolon,
   Comma,
   Hash,
 }
@@ -219,10 +222,99 @@ impl From<u8> for Punc {
       b':' => Self::Colon,
       b'(' => Self::LParen,
       b')' => Self::RParen,
-      b';' => Self::Semi,
+      b';' => Self::Semicolon,
       b',' => Self::Comma,
       b'#' => Self::Hash,
       _ => panic!("invalid char {}", c),
     }
+  }
+}
+
+impl Debug for Keyword {
+  fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+    use Keyword::*;
+    let kw = match self {
+      Auto => "AUTO",
+      Beep => "BEEP",
+      Box => "BOX",
+      Call => "CALL",
+      Circle => "CIRCLE",
+      Clear => "CLEAR",
+      Close => "CLOSE",
+      Cls => "CLS",
+      Cont => "CONT",
+      Copy => "COPY",
+      Data => "DATA",
+      Def => "DEF",
+      Del => "DEL",
+      Dim => "DIM",
+      Draw => "DRAW",
+      Edit => "EDIT",
+      Ellipse => "ELLIPSE",
+      End => "END",
+      Field => "FIELD",
+      Files => "FILES",
+      Flash => "FLASH",
+      For => "FOR",
+      Get => "GET",
+      Gosub => "GOSUB",
+      Goto => "GOTO",
+      Graph => "GRAPH",
+      If => "IF",
+      Inkey => "INKEY$",
+      Input => "INPUT",
+      Inverse => "INVERSE",
+      Kill => "KILL",
+      Let => "LET",
+      Line => "LINE",
+      List => "LIST",
+      Load => "LOAD",
+      Locate => "LOCATE",
+      Lset => "LSET",
+      New => "NEW",
+      Next => "NEXT",
+      Normal => "NORMAL",
+      Notrace => "NOTRACE",
+      On => "On",
+      Open => "OPEN",
+      Play => "PLAY",
+      Poke => "POKE",
+      Pop => "POP",
+      Print => "PRINT",
+      Put => "PUT",
+      Read => "READ",
+      Rem => "REM",
+      Rename => "RENAME",
+      Restore => "RESTORE",
+      Return => "RETURN",
+      Rset => "RSET",
+      Run => "RUN",
+      Save => "SAVE",
+      Stop => "STOP",
+      Swap => "SWAP",
+      System => "SYSTEM",
+      Text => "TEXT",
+      Trace => "TRACE",
+      Wend => "WEND",
+      While => "WHILE",
+      Write => "WRITE",
+
+      Then => "THEN",
+      Else => "ELSE",
+      To => "TU",
+      Step => "STEP",
+      Fn => "FN",
+      And => "AND",
+      Or => "OR",
+      Not => "NOT",
+
+      Sleep => "SLEEP",
+      Paint => "PAINT",
+      Fputc => "FPUTC",
+      Fread => "FREAD",
+      Fwrite => "FWRITE",
+      Fseek => "FSEEK",
+    };
+    write!(f, "{}", kw)
   }
 }

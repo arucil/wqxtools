@@ -1,4 +1,4 @@
-use super::{Range, NonEmptyVec, ExprId, StmtId, Label};
+use super::{ExprId, Label, NonEmptyVec, Range, StmtId};
 use smallvec::SmallVec;
 
 #[derive(Debug, Clone)]
@@ -14,9 +14,7 @@ pub enum StmtKind {
   Auto(Range),
   Beep,
   Box(NonEmptyVec<[ExprId; 4]>),
-  Call {
-    addr: ExprId,
-  },
+  Call(ExprId),
   Circle(NonEmptyVec<[ExprId; 3]>),
   Clear,
   Close {
@@ -45,7 +43,7 @@ pub enum StmtKind {
   End,
   Field {
     filenum: ExprId,
-    fields: NonEmptyVec<[FieldSpec; 1]>
+    fields: NonEmptyVec<[FieldSpec; 1]>,
   },
   /// identical to REM
   Files(Range),
@@ -64,26 +62,26 @@ pub enum StmtKind {
   GoSub(Option<(Range, Label)>),
   GoTo {
     has_goto_keyword: bool,
-    label: Option<(Range, Label)>
+    label: Option<(Range, Label)>,
   },
   Graph,
   If {
     cond: ExprId,
     conseq: SmallVec<[StmtId; 1]>,
-    alt: SmallVec<[StmtId; 1]>,
+    alt: Option<SmallVec<[StmtId; 1]>>,
   },
   InKey,
   Input {
     source: InputSource,
     /// lvalue list
-    fields: NonEmptyVec<[ExprId; 1]>,
+    vars: NonEmptyVec<[ExprId; 1]>,
   },
   Inverse,
   /// identical to REM
   Kill(Range),
   Let {
     /// lvalue
-    field: ExprId,
+    var: ExprId,
     value: ExprId,
   },
   Line(NonEmptyVec<[ExprId; 4]>),
@@ -97,7 +95,7 @@ pub enum StmtKind {
   },
   LSet {
     /// lvalue
-    field: ExprId,
+    var: ExprId,
     value: ExprId,
   },
   /// identical to REM
@@ -116,9 +114,8 @@ pub enum StmtKind {
   Open {
     filename: ExprId,
     mode: FileMode,
-    /// integer
-    filenum: Range,
-    len: Option<ExprId>
+    filenum: ExprId,
+    len: Option<ExprId>,
   },
   Play(ExprId),
   Poke {
@@ -140,7 +137,7 @@ pub enum StmtKind {
   Return,
   RSet {
     /// lvalue
-    field: ExprId,
+    var: ExprId,
     value: ExprId,
   },
   Run,
@@ -159,7 +156,7 @@ pub enum StmtKind {
   While(ExprId),
   Write {
     filenum: Option<ExprId>,
-    fields: NonEmptyVec<[WriteElement; 1]>,
+    data: NonEmptyVec<[WriteElement; 1]>,
   },
   NoOp,
 }
@@ -185,6 +182,7 @@ pub enum InputSource {
   File(ExprId),
   /// prompt string literal
   Keyboard(ExprId),
+  Error,
 }
 
 #[derive(Debug, Clone)]
@@ -192,7 +190,8 @@ pub enum FileMode {
   Input,
   Output,
   Append,
-  Random
+  Random,
+  Error,
 }
 
 #[derive(Debug, Clone)]
@@ -200,12 +199,10 @@ pub enum PrintElement {
   Expr(ExprId),
   Comma,
   Semicolon,
-  Spc(ExprId),
-  Tab(ExprId),
 }
 
 #[derive(Debug, Clone)]
 pub struct WriteElement {
-  value: ExprId,
-  comma: bool,
+  pub datum: ExprId,
+  pub comma: bool,
 }

@@ -10,7 +10,7 @@ expression: tokens
             end: 6,
         },
         Keyword(
-            Locate,
+            LOCATE,
         ),
     ),
     (
@@ -18,7 +18,7 @@ expression: tokens
             start: 7,
             end: 8,
         },
-        Number,
+        Float,
     ),
     (
         Range {
@@ -34,7 +34,7 @@ expression: tokens
             start: 9,
             end: 10,
         },
-        Number,
+        Float,
     ),
     (
         Range {
@@ -51,7 +51,7 @@ expression: tokens
             end: 16,
         },
         Keyword(
-            Print,
+            PRINT,
         ),
     ),
     (
@@ -76,7 +76,7 @@ expression: tokens
             end: 30,
         },
         Keyword(
-            Locate,
+            LOCATE,
         ),
     ),
     (
@@ -84,7 +84,7 @@ expression: tokens
             start: 31,
             end: 32,
         },
-        Number,
+        Float,
     ),
     (
         Range {
@@ -100,7 +100,7 @@ expression: tokens
             start: 33,
             end: 35,
         },
-        Number,
+        Float,
     ),
     (
         Range {
@@ -187,7 +187,7 @@ expression: tokens
             end: 55,
         },
         Keyword(
-            Print,
+            PRINT,
         ),
     ),
     (
@@ -212,7 +212,7 @@ expression: tokens
             end: 63,
         },
         Keyword(
-            Draw,
+            DRAW,
         ),
     ),
     (
@@ -220,7 +220,7 @@ expression: tokens
             start: 64,
             end: 67,
         },
-        Number,
+        Float,
     ),
     (
         Range {
@@ -236,7 +236,7 @@ expression: tokens
             start: 68,
             end: 70,
         },
-        Number,
+        Float,
     ),
     (
         Range {
