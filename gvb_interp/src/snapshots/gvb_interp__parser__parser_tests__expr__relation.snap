@@ -1,0 +1,12 @@
+---
+source: gvb_interp/src/parser.rs
+expression: parse_line(line).to_string(line)
+
+---
+label: Some(Label(10))
+len: 67
+eol: None
+diagnostics: 
+-----------------
+3..65     LET <ID: A b$> = (((<ID: b> * <NUM: 3>) > <NUM: 5>) <> (<NUM: 1 2 . 3 e - 5 6> <= (NOT CHR$((<STR: "1"> = <INKEY$>)))))
+

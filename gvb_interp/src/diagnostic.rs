@@ -1,6 +1,8 @@
+use std::fmt::{self, Debug, Formatter};
+
 use crate::ast::Range;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct Diagnostic {
   pub severity: Severity,
   pub message: String,
@@ -28,5 +30,11 @@ impl Diagnostic {
       range,
       message: message.to_string()
     }
+  }
+}
+
+impl Debug for Diagnostic {
+  fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+    write!(f, "{:?}<{:?}>: {}", self.severity, self.range, self.message)
   }
 }

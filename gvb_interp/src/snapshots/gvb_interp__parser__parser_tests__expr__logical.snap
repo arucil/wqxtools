@@ -1,0 +1,12 @@
+---
+source: gvb_interp/src/parser.rs
+expression: parse_line(line).to_string(line)
+
+---
+label: Some(Label(10))
+len: 46
+eol: None
+diagnostics: 
+-----------------
+3..46     LET <ID: A b %> = ((<ID: a> AND ((NOT <NUM: 4>) + <NUM: 2>)) OR (- ASC(LEFT$(<ID: f$>, <ID: k>))))
+

@@ -5,244 +5,157 @@ expression: tokens
 ---
 [
     (
-        Range {
-            start: 0,
-            end: 6,
-        },
+        0..6,
         Keyword(
             LOCATE,
         ),
     ),
     (
-        Range {
-            start: 7,
-            end: 8,
-        },
+        7..8,
         Float,
     ),
     (
-        Range {
-            start: 8,
-            end: 9,
-        },
+        8..9,
         Punc(
             Comma,
         ),
     ),
     (
-        Range {
-            start: 9,
-            end: 10,
-        },
+        9..10,
         Float,
     ),
     (
-        Range {
-            start: 10,
-            end: 11,
-        },
+        10..11,
         Punc(
             Colon,
         ),
     ),
     (
-        Range {
-            start: 11,
-            end: 16,
-        },
+        11..16,
         Keyword(
             PRINT,
         ),
     ),
     (
-        Range {
-            start: 17,
-            end: 23,
-        },
+        17..23,
         String,
     ),
     (
-        Range {
-            start: 23,
-            end: 24,
-        },
+        23..24,
         Punc(
             Colon,
         ),
     ),
     (
-        Range {
-            start: 24,
-            end: 30,
-        },
+        24..30,
         Keyword(
             LOCATE,
         ),
     ),
     (
-        Range {
-            start: 31,
-            end: 32,
-        },
+        31..32,
         Float,
     ),
     (
-        Range {
-            start: 32,
-            end: 33,
-        },
+        32..33,
         Punc(
             Comma,
         ),
     ),
     (
-        Range {
-            start: 33,
-            end: 35,
-        },
+        33..35,
         Float,
     ),
     (
-        Range {
-            start: 35,
-            end: 36,
-        },
+        35..36,
         Punc(
             Minus,
         ),
     ),
     (
-        Range {
-            start: 36,
-            end: 39,
-        },
+        36..39,
         SysFunc(
-            Len,
+            LEN,
         ),
     ),
     (
-        Range {
-            start: 39,
-            end: 40,
-        },
+        39..40,
         Punc(
             LParen,
         ),
     ),
     (
-        Range {
-            start: 40,
-            end: 44,
-        },
+        40..44,
         SysFunc(
-            Str,
+            STR$,
         ),
     ),
     (
-        Range {
-            start: 44,
-            end: 45,
-        },
+        44..45,
         Punc(
             LParen,
         ),
     ),
     (
-        Range {
-            start: 45,
-            end: 47,
-        },
+        45..47,
         Ident,
     ),
     (
-        Range {
-            start: 47,
-            end: 48,
-        },
+        47..48,
         Punc(
             RParen,
         ),
     ),
     (
-        Range {
-            start: 48,
-            end: 49,
-        },
+        48..49,
         Punc(
             RParen,
         ),
     ),
     (
-        Range {
-            start: 49,
-            end: 50,
-        },
+        49..50,
         Punc(
             Colon,
         ),
     ),
     (
-        Range {
-            start: 50,
-            end: 55,
-        },
+        50..55,
         Keyword(
             PRINT,
         ),
     ),
     (
-        Range {
-            start: 56,
-            end: 58,
-        },
+        56..58,
         Ident,
     ),
     (
-        Range {
-            start: 58,
-            end: 59,
-        },
+        58..59,
         Punc(
             Colon,
         ),
     ),
     (
-        Range {
-            start: 59,
-            end: 63,
-        },
+        59..63,
         Keyword(
             DRAW,
         ),
     ),
     (
-        Range {
-            start: 64,
-            end: 67,
-        },
+        64..67,
         Float,
     ),
     (
-        Range {
-            start: 67,
-            end: 68,
-        },
+        67..68,
         Punc(
             Comma,
         ),
     ),
     (
-        Range {
-            start: 68,
-            end: 70,
-        },
+        68..70,
         Float,
     ),
     (
-        Range {
-            start: 70,
-            end: 70,
-        },
+        70..70,
         Eof,
     ),
 ]

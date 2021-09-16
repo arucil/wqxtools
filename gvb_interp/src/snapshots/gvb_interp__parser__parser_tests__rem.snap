@@ -1,0 +1,13 @@
+---
+source: gvb_interp/src/parser.rs
+expression: parse_line(line).to_string(line)
+
+---
+label: Some(Label(10))
+len: 25
+eol: None
+diagnostics: 
+-----------------
+3..6      CLS
+7..25     REM ["machine: tc808"]
+

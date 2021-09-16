@@ -1,0 +1,12 @@
+---
+source: gvb_interp/src/parser.rs
+expression: parse_line(line).to_string(line)
+
+---
+label: Some(Label(10))
+len: 19
+eol: None
+diagnostics: 
+-----------------
+3..19     LET <ID: A b$> = (<STR: ""> + <STR: "ab cd E>)
+

@@ -1,4 +1,7 @@
-use super::{ExprId, Label, NonEmptyVec, Range, StmtId};
+use std::fmt::{self, Write, Debug, Formatter};
+
+use super::{Expr, ExprId, Label, NonEmptyVec, Range, StmtId};
+use id_arena::Arena;
 use smallvec::SmallVec;
 
 #[derive(Debug, Clone)]
@@ -163,7 +166,7 @@ pub enum StmtKind {
 
 #[derive(Debug, Clone)]
 pub struct Datum {
-  /// Does not include quotes.
+  /// Includes quotes.
   pub range: Range,
   pub is_quoted: bool,
 }
@@ -185,7 +188,7 @@ pub enum InputSource {
   Error,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub enum FileMode {
   Input,
   Output,
@@ -205,4 +208,476 @@ pub enum PrintElement {
 pub struct WriteElement {
   pub datum: ExprId,
   pub comma: bool,
+}
+
+impl Debug for FileMode {
+  fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+    let kind = match self {
+      Self::Input => "INPUT",
+      Self::Output => "OUTPUT",
+      Self::Append => "APPEND",
+      Self::Random => "RANDOM",
+      Self::Error => "ERROR",
+    };
+    write!(f, "{}", kind)
+  }
+}
+
+impl Stmt {
+  pub fn print(
+    &self,
+    stmt_arena: &Arena<Stmt>,
+    expr_arena: &Arena<Expr>,
+    text: &str,
+    f: &mut impl Write,
+  ) -> fmt::Result {
+    print_stmt(self, 0, stmt_arena, expr_arena, text, f)
+  }
+}
+
+fn print_stmt(
+  stmt: &Stmt,
+  indent: usize,
+  stmt_arena: &Arena<Stmt>,
+  expr_arena: &Arena<Expr>,
+  text: &str,
+  f: &mut impl Write,
+) -> fmt::Result {
+  write!(f, "{:<1$}{2:<10?}", "", indent, stmt.range)?;
+  match &stmt.kind {
+    StmtKind::Auto(range) => {
+      writeln!(f, "AUTO [{:?}]", &text[range.start..range.end])
+    }
+    StmtKind::Beep => writeln!(f, "BEEP"),
+    StmtKind::Box(args) => {
+      write!(f, "BOX ")?;
+      let mut comma = false;
+      for &arg in args.iter() {
+        if comma {
+          write!(f, ", ")?;
+        }
+        comma = true;
+        expr_arena[arg].print(expr_arena, text, f)?;
+      }
+      writeln!(f)
+    }
+    StmtKind::Call(arg) => {
+      write!(f, "CALL ")?;
+      expr_arena[*arg].print(expr_arena, text, f)?;
+      writeln!(f)
+    }
+    StmtKind::Circle(args) => {
+      write!(f, "CIRCLE ")?;
+      let mut comma = false;
+      for &arg in args.iter() {
+        if comma {
+          write!(f, ", ")?;
+        }
+        comma = true;
+        expr_arena[arg].print(expr_arena, text, f)?;
+      }
+      writeln!(f)
+    }
+    StmtKind::Clear => writeln!(f, "CLEAR"),
+    StmtKind::Close { filenum } => {
+      write!(f, "CLOSE # ")?;
+      expr_arena[*filenum].print(expr_arena, text, f)?;
+      writeln!(f)
+    }
+    StmtKind::Cls => writeln!(f, "CLS"),
+    StmtKind::Cont => writeln!(f, "CONT"),
+    StmtKind::Copy(range) => {
+      writeln!(f, "COPY [{:?}]", &text[range.start..range.end])
+    }
+    StmtKind::Data(data) => {
+      write!(f, "DATA ")?;
+      let mut comma = false;
+      for datum in data.iter() {
+        if comma {
+          write!(f, ", ")?;
+        }
+        comma = true;
+        if datum.is_quoted {
+          write!(f, "\"[{}]\"", &text[datum.range.start..datum.range.end])?;
+        } else {
+          write!(f, "[{}]", &text[datum.range.start..datum.range.end])?;
+        }
+      }
+      writeln!(f)
+    }
+    StmtKind::Def { name, param, body } => {
+      write!(
+        f,
+        "DEF FN {}({}) = ",
+        &text[name.start..name.end],
+        &text[param.start..param.end]
+      )?;
+      expr_arena[*body].print(expr_arena, text, f)?;
+      writeln!(f)
+    }
+    StmtKind::Del(range) => {
+      writeln!(f, "DEL [{:?}]", &text[range.start..range.end])
+    }
+    StmtKind::Dim(vars) => {
+      write!(f, "DIM ")?;
+      let mut comma = false;
+      for &arg in vars.iter() {
+        if comma {
+          write!(f, ", ")?;
+        }
+        comma = true;
+        expr_arena[arg].print(expr_arena, text, f)?;
+      }
+      writeln!(f)
+    }
+    StmtKind::Draw(args) => {
+      write!(f, "DRAW ")?;
+      let mut comma = false;
+      for &arg in args.iter() {
+        if comma {
+          write!(f, ", ")?;
+        }
+        comma = true;
+        expr_arena[arg].print(expr_arena, text, f)?;
+      }
+      writeln!(f)
+    }
+    StmtKind::Edit(range) => {
+      writeln!(f, "EDIT [{:?}]", &text[range.start..range.end])
+    }
+    StmtKind::Ellipse(args) => {
+      write!(f, "ELLIPSE ")?;
+      let mut comma = false;
+      for &arg in args.iter() {
+        if comma {
+          write!(f, ", ")?;
+        }
+        comma = true;
+        expr_arena[arg].print(expr_arena, text, f)?;
+      }
+      writeln!(f)
+    }
+    StmtKind::End => writeln!(f, "END"),
+    StmtKind::Field { filenum, fields } => {
+      write!(f, "FIELD # ")?;
+      expr_arena[*filenum].print(expr_arena, text, f)?;
+      for field in fields.iter() {
+        write!(f, "<{:?}> ", field.range)?;
+        expr_arena[field.len].print(expr_arena, text, f)?;
+        write!(f, " AS ")?;
+        expr_arena[field.var].print(expr_arena, text, f)?;
+      }
+      writeln!(f)
+    }
+    StmtKind::Files(range) => {
+      writeln!(f, "FILES [{:?}]", &text[range.start..range.end])
+    }
+    StmtKind::Flash => writeln!(f, "FLASH"),
+    StmtKind::For {
+      var,
+      start,
+      end,
+      step,
+    } => {
+      write!(f, "FOR {} = ", &text[var.start..var.end])?;
+      expr_arena[*start].print(expr_arena, text, f)?;
+      write!(f, " TO ")?;
+      expr_arena[*end].print(expr_arena, text, f)?;
+      if let Some(step) = step {
+        write!(f, " STEP ")?;
+        expr_arena[*step].print(expr_arena, text, f)?;
+      }
+      writeln!(f)
+    }
+    StmtKind::Get { filenum, record } => {
+      write!(f, "GET # ")?;
+      expr_arena[*filenum].print(expr_arena, text, f)?;
+      write!(f, ", ")?;
+      expr_arena[*record].print(expr_arena, text, f)?;
+      writeln!(f)
+    }
+    StmtKind::GoSub(label) => {
+      if let Some((range, label)) = label {
+        assert_eq!(text[range.start..range.end].parse::<Label>(), Ok(*label));
+        writeln!(f, "GOSUB {}", label.0)
+      } else {
+        writeln!(f, "GOSUB")
+      }
+    }
+    StmtKind::GoTo {
+      has_goto_keyword,
+      label,
+    } => {
+      let goto = if *has_goto_keyword { "GOTO" } else { "[GOTO]" };
+      if let Some((range, label)) = label {
+        assert_eq!(text[range.start..range.end].parse::<Label>(), Ok(*label));
+        writeln!(f, "{} {}", goto, label.0)
+      } else {
+        writeln!(f, "{}", goto)
+      }
+    }
+    StmtKind::Graph => writeln!(f, "GRAPH"),
+    StmtKind::If { cond, conseq, alt } => {
+      write!(f, "IF ")?;
+      expr_arena[*cond].print(expr_arena, text, f)?;
+      writeln!(f, " THEN")?;
+      for &stmt in conseq.iter() {
+        print_stmt(
+          &stmt_arena[stmt],
+          indent + 2,
+          stmt_arena,
+          expr_arena,
+          text,
+          f,
+        )?;
+      }
+      if let Some(alt) = alt {
+        writeln!(f, "{:1$}", "ELSE", indent)?;
+        for &stmt in alt.iter() {
+          print_stmt(
+            &stmt_arena[stmt],
+            indent + 2,
+            stmt_arena,
+            expr_arena,
+            text,
+            f,
+          )?;
+        }
+      }
+      Ok(())
+    }
+    StmtKind::InKey => writeln!(f, "INKEY$"),
+    StmtKind::Input { source, vars } => {
+      write!(f, "INPUT ")?;
+      match source {
+        InputSource::Keyboard(s) => {
+          expr_arena[*s].print(expr_arena, text, f)?;
+          write!(f, "; ")?;
+        }
+        InputSource::File(filenum) => {
+          expr_arena[*filenum].print(expr_arena, text, f)?;
+          write!(f, ", ")?;
+        }
+        InputSource::Error => write!(f, "<ERROR>, ")?,
+      }
+      let mut comma = false;
+      for &arg in vars.iter() {
+        if comma {
+          write!(f, ", ")?;
+        }
+        comma = true;
+        expr_arena[arg].print(expr_arena, text, f)?;
+      }
+      writeln!(f)
+    }
+    StmtKind::Inverse => writeln!(f, "INVERSE"),
+    StmtKind::Kill(range) => {
+      writeln!(f, "KILL [{:?}]", &text[range.start..range.end])
+    }
+    StmtKind::Let { var, value } => {
+      write!(f, "LET ")?;
+      expr_arena[*var].print(expr_arena, text, f)?;
+      write!(f, " = ")?;
+      expr_arena[*value].print(expr_arena, text, f)?;
+      writeln!(f)
+    }
+    StmtKind::Line(args) => {
+      write!(f, "LINE ")?;
+      let mut comma = false;
+      for &arg in args.iter() {
+        if comma {
+          write!(f, ", ")?;
+        }
+        comma = true;
+        expr_arena[arg].print(expr_arena, text, f)?;
+      }
+      writeln!(f)
+    }
+    StmtKind::List(range) => {
+      writeln!(f, "LIST [{:?}]", &text[range.start..range.end])
+    }
+    StmtKind::Load(range) => {
+      writeln!(f, "LOAD [{:?}]", &text[range.start..range.end])
+    }
+    StmtKind::Locate { row, column } => {
+      write!(f, "LOCATE ")?;
+      if let Some(row) = row {
+        expr_arena[*row].print(expr_arena, text, f)?;
+      }
+      if let Some(column) = column {
+        write!(f, ", ")?;
+        expr_arena[*column].print(expr_arena, text, f)?;
+      }
+      writeln!(f)
+    }
+    StmtKind::LSet { var, value } => {
+      write!(f, "LSET ")?;
+      expr_arena[*var].print(expr_arena, text, f)?;
+      write!(f, " = ")?;
+      expr_arena[*value].print(expr_arena, text, f)?;
+      writeln!(f)
+    }
+    StmtKind::New(range) => {
+      writeln!(f, "NEW [{:?}]", &text[range.start..range.end])
+    }
+    StmtKind::Next { vars } => {
+      write!(f, "NEXT ")?;
+      let mut comma = false;
+      for var in vars.iter() {
+        if comma {
+          write!(f, ", ")?;
+        }
+        comma = true;
+        write!(f, "{}", &text[var.start..var.end])?;
+      }
+      writeln!(f)
+    }
+    StmtKind::Normal => writeln!(f, "NORMAL"),
+    StmtKind::NoTrace => writeln!(f, "NOTRACE"),
+    StmtKind::On {
+      cond,
+      labels,
+      is_sub,
+    } => {
+      write!(f, "ON ")?;
+      expr_arena[*cond].print(expr_arena, text, f)?;
+      if *is_sub {
+        write!(f, " GOSUB ")?;
+      } else {
+        write!(f, " GOTO ")?;
+      }
+      let mut comma = false;
+      for (range, label) in labels.iter() {
+        if comma {
+          write!(f, ", ")?;
+        }
+        comma = true;
+        assert_eq!(text[range.start..range.end].parse::<Label>(), Ok(*label));
+        write!(f, "{}", label.0)?;
+      }
+      writeln!(f)
+    }
+    StmtKind::Open {
+      filename,
+      mode,
+      filenum,
+      len,
+    } => {
+      write!(f, "OPEN ")?;
+      expr_arena[*filename].print(expr_arena, text, f)?;
+      write!(f, " FOR {:?} AS # ", mode)?;
+      expr_arena[*filenum].print(expr_arena, text, f)?;
+      if let Some(len) = len {
+        write!(f, " LEN = ")?;
+        expr_arena[*len].print(expr_arena, text, f)?;
+      }
+      writeln!(f)
+    }
+    StmtKind::Play(e) => {
+      write!(f, "PLAY ")?;
+      expr_arena[*e].print(expr_arena, text, f)?;
+      writeln!(f)
+    }
+    StmtKind::Poke { addr, value } => {
+      write!(f, "POKE ")?;
+      expr_arena[*addr].print(expr_arena, text, f)?;
+      write!(f, ", ")?;
+      expr_arena[*value].print(expr_arena, text, f)?;
+      writeln!(f)
+    }
+    StmtKind::Pop => writeln!(f, "POP"),
+    StmtKind::Print(elems) => {
+      write!(f, "PRINT ")?;
+      for elem in elems.iter() {
+        match elem {
+          PrintElement::Comma => write!(f, ", ")?,
+          PrintElement::Semicolon => write!(f, "; ")?,
+          PrintElement::Expr(e) => expr_arena[*e].print(expr_arena, text, f)?,
+        }
+      }
+      writeln!(f)
+    }
+    StmtKind::Put { filenum, record } => {
+      write!(f, "PUT # ")?;
+      expr_arena[*filenum].print(expr_arena, text, f)?;
+      write!(f, ", ")?;
+      expr_arena[*record].print(expr_arena, text, f)?;
+      writeln!(f)
+    }
+    StmtKind::Read(vars) => {
+      write!(f, "READ ")?;
+      let mut comma = false;
+      for &arg in vars.iter() {
+        if comma {
+          write!(f, ", ")?;
+        }
+        comma = true;
+        expr_arena[arg].print(expr_arena, text, f)?;
+      }
+      writeln!(f)
+    }
+    StmtKind::Rem(range) => {
+      writeln!(f, "REM [{:?}]", &text[range.start..range.end])
+    }
+    StmtKind::Rename(range) => {
+      writeln!(f, "RENAME [{:?}]", &text[range.start..range.end])
+    }
+    StmtKind::Restore(label) => {
+      if let Some((range, label)) = label {
+        assert_eq!(text[range.start..range.end].parse::<Label>(), Ok(*label));
+        writeln!(f, "RESTORE {}", label.0)
+      } else {
+        writeln!(f, "RESTORE")
+      }
+    }
+    StmtKind::Return => writeln!(f, "RETURN"),
+    StmtKind::RSet { var, value } => {
+      write!(f, "RSET ")?;
+      expr_arena[*var].print(expr_arena, text, f)?;
+      write!(f, " = ")?;
+      expr_arena[*value].print(expr_arena, text, f)?;
+      writeln!(f)
+    }
+    StmtKind::Run => writeln!(f, "RUN"),
+    StmtKind::Save(range) => {
+      writeln!(f, "SAVE [{:?}]", &text[range.start..range.end])
+    }
+    StmtKind::Stop(range) => {
+      writeln!(f, "STOP [{:?}]", &text[range.start..range.end])
+    }
+    StmtKind::Swap { left, right } => {
+      write!(f, "SWAP ")?;
+      expr_arena[*left].print(expr_arena, text, f)?;
+      write!(f, ", ")?;
+      expr_arena[*right].print(expr_arena, text, f)?;
+      writeln!(f)
+    }
+    StmtKind::System => writeln!(f, "SYSTEM"),
+    StmtKind::Text => writeln!(f, "TEXT"),
+    StmtKind::Trace => writeln!(f, "TRACE"),
+    StmtKind::Wend => writeln!(f, "WEND"),
+    StmtKind::While(cond) => {
+      write!(f, "WHILE ")?;
+      expr_arena[*cond].print(expr_arena, text, f)?;
+      writeln!(f)
+    }
+    StmtKind::Write { filenum, data } => {
+      write!(f, "WRITE ")?;
+      if let Some(filenum) = filenum {
+        write!(f, "# ")?;
+        expr_arena[*filenum].print(expr_arena, text, f)?;
+        write!(f, ", ")?;
+      }
+      for datum in data.iter() {
+        expr_arena[datum.datum].print(expr_arena, text, f)?;
+        if datum.comma {
+          write!(f, ", ")?;
+        } else {
+          write!(f, " ")?;
+        }
+      }
+      writeln!(f)
+    }
+    StmtKind::NoOp => writeln!(f, ":"),
+  }
 }

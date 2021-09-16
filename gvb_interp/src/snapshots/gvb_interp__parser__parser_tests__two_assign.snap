@@ -1,0 +1,13 @@
+---
+source: gvb_interp/src/parser.rs
+expression: parse_line(line).to_string(line)
+
+---
+label: Some(Label(10))
+len: 19
+eol: None
+diagnostics: 
+-----------------
+3..8      LET <ID: ab$> = <NUM: 3>
+10..19    LET <ID: foo %> = (<NUM: 2> + <NUM: 2>)
+

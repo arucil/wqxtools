@@ -1,0 +1,13 @@
+---
+source: gvb_interp/src/parser.rs
+expression: parse_line(line).to_string(line)
+
+---
+label: Some(Label(10))
+len: 48
+eol: None
+diagnostics: 
+-----------------
+3..27     DATA [], [], "[" : A,"]", [12], [3  ]
+28..48    DATA [A  ], [A B  C], [], []
+

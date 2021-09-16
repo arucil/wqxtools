@@ -1,0 +1,13 @@
+---
+source: gvb_interp/src/parser.rs
+expression: parse_line(line).to_string(line)
+
+---
+label: None
+len: 4
+eol: None
+diagnostics: 
+  Error<0..4>: 缺少行号
+  Error<0..4>: 缺少语句
+-----------------
+

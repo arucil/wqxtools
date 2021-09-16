@@ -1,0 +1,13 @@
+---
+source: gvb_interp/src/parser.rs
+expression: parse_line(line).to_string(line)
+
+---
+label: Some(Label(10))
+len: 45
+eol: None
+diagnostics: 
+-----------------
+3..28     BOX (<NUM: 2> * <NUM: 3>), (<ID: A> / <NUM: 2>), INT(<INKEY$>), <NUM: 1>
+31..45    BOX <NUM: 1>, <NUM: 2>, <NUM: 3>, <NUM: 4>, (- <NUM: 0>)
+

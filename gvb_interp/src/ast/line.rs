@@ -1,6 +1,8 @@
+use super::{Expr, Label, Stmt, StmtId};
 use crate::diagnostic::Diagnostic;
 use id_arena::Arena;
-use super::*;
+use smallvec::SmallVec;
+use std::fmt::{Write, Debug};
 
 #[derive(Debug, Clone)]
 pub struct ProgramLine {
@@ -20,4 +22,27 @@ pub enum Eol {
   None,
   Lf,
   CrLf,
+}
+
+impl ProgramLine {
+  pub fn to_string(&self, text: &str) -> String {
+    let mut f = String::new();
+    writeln!(&mut f, "label: {:?}", self.label).unwrap();
+    writeln!(&mut f, "len: {}", self.source_len).unwrap();
+    writeln!(&mut f, "eol: {:?}", self.eol).unwrap();
+    writeln!(&mut f, "diagnostics: ").unwrap();
+    for diag in &self.diagnostics {
+      writeln!(&mut f, "  {:?}", diag).unwrap();
+    }
+    writeln!(&mut f, "-----------------").unwrap();
+    for &stmt in self.stmts.iter() {
+      self.stmt_arena[stmt].print(
+        &self.stmt_arena,
+        &self.expr_arena,
+        text,
+        &mut f,
+      ).unwrap();
+    }
+    f
+  }
 }

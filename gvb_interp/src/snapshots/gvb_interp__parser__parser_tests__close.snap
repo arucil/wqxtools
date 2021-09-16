@@ -1,0 +1,13 @@
+---
+source: gvb_interp/src/parser.rs
+expression: parse_line(line).to_string(line)
+
+---
+label: Some(Label(10))
+len: 24
+eol: None
+diagnostics: 
+-----------------
+3..14     CLOSE # (<NUM: 2> + <NUM: 1>)
+15..24    CLOSE # (<NUM: 2> + <NUM: 1>)
+
