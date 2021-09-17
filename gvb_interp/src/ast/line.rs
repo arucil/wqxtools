@@ -2,7 +2,7 @@ use super::{Expr, Label, Stmt, StmtId};
 use crate::diagnostic::Diagnostic;
 use id_arena::Arena;
 use smallvec::SmallVec;
-use std::fmt::{Write, Debug};
+use std::fmt::{Debug, Write};
 
 #[derive(Debug, Clone)]
 pub struct ProgramLine {
@@ -36,12 +36,9 @@ impl ProgramLine {
     }
     writeln!(&mut f, "-----------------").unwrap();
     for &stmt in self.stmts.iter() {
-      self.stmt_arena[stmt].print(
-        &self.stmt_arena,
-        &self.expr_arena,
-        text,
-        &mut f,
-      ).unwrap();
+      self.stmt_arena[stmt]
+        .print(&self.stmt_arena, &self.expr_arena, text, &mut f)
+        .unwrap();
     }
     f
   }

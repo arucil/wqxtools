@@ -1,6 +1,7 @@
 use id_arena::Arena;
 
 use super::{ExprId, NonEmptyVec, Range};
+use num_derive::FromPrimitive;
 use std::fmt::{self, Debug, Formatter, Write};
 use std::str::FromStr;
 
@@ -21,7 +22,7 @@ pub enum ExprKind {
   },
   UserFuncCall {
     /// ident
-    func: Range,
+    func: Option<Range>,
     arg: ExprId,
   },
   Binary {
@@ -41,7 +42,7 @@ pub enum ExprKind {
   Error,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, FromPrimitive)]
 pub enum SysFuncKind {
   Abs,
   Asc,
@@ -215,8 +216,12 @@ impl Expr {
     let range = self.range.clone();
     match &self.kind {
       ExprKind::Ident => write!(f, "<ID: {}>", &text[range.start..range.end]),
-      ExprKind::StringLit => write!(f, "<STR: {}>", &text[range.start..range.end]),
-      ExprKind::NumberLit => write!(f, "<NUM: {}>", &text[range.start..range.end]),
+      ExprKind::StringLit => {
+        write!(f, "<STR: {}>", &text[range.start..range.end])
+      }
+      ExprKind::NumberLit => {
+        write!(f, "<NUM: {}>", &text[range.start..range.end])
+      }
       ExprKind::SysFuncCall {
         func: (func_range, kind),
         args,
@@ -237,7 +242,11 @@ impl Expr {
         write!(f, ")")
       }
       ExprKind::UserFuncCall { func, arg } => {
-        write!(f, "FN {}(", &text[func.start..func.end])?;
+        if let Some(func) = func {
+          write!(f, "FN {}(", &text[func.start..func.end])?;
+        } else {
+          write!(f, "FN ???(")?;
+        }
         expr_arena[*arg].print(expr_arena, text, f)?;
         write!(f, ")")
       }

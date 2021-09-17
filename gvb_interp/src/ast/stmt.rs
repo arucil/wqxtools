@@ -8,7 +8,6 @@ use smallvec::SmallVec;
 pub struct Stmt {
   pub kind: StmtKind,
   pub range: Range,
-  pub is_recovered: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -30,9 +29,9 @@ pub enum StmtKind {
   Data(NonEmptyVec<[Datum; 1]>),
   Def {
     /// ident
-    name: Range,
+    name: Option<Range>,
     /// ident
-    param: Range,
+    param: Option<Range>,
     body: ExprId,
   },
   /// identical to REM
@@ -309,8 +308,16 @@ fn print_stmt(
       write!(
         f,
         "DEF FN {}({}) = ",
-        &text[name.start..name.end],
-        &text[param.start..param.end]
+        if let Some(name) = name {
+          &text[name.start..name.end]
+        } else {
+          "???"
+        },
+        if let Some(param) = param {
+          &text[param.start..param.end]
+        } else {
+          "???"
+        },
       )?;
       expr_arena[*body].print(expr_arena, text, f)?;
       writeln!(f)
@@ -600,7 +607,7 @@ fn print_stmt(
           PrintElement::Expr(e) => {
             expr_arena[*e].print(expr_arena, text, f)?;
             write!(f, " ")?;
-          },
+          }
         }
       }
       writeln!(f)

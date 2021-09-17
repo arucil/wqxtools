@@ -20,7 +20,7 @@ impl Diagnostic {
     Self {
       severity: Severity::Error,
       range,
-      message: message.to_string()
+      message: message.to_string(),
     }
   }
 
@@ -28,7 +28,7 @@ impl Diagnostic {
     Self {
       severity: Severity::Warning,
       range,
-      message: message.to_string()
+      message: message.to_string(),
     }
   }
 }

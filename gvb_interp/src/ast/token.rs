@@ -1,3 +1,5 @@
+use num_derive::FromPrimitive;
+use num_traits::FromPrimitive;
 use std::{
   fmt::{self, Debug, Formatter},
   str::FromStr,
@@ -5,7 +7,7 @@ use std::{
 
 use super::SysFuncKind;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub enum TokenKind {
   Ident,
   Label,
@@ -17,7 +19,7 @@ pub enum TokenKind {
   Eof,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, FromPrimitive)]
 pub enum Keyword {
   Auto,
   Beep,
@@ -101,7 +103,7 @@ pub enum Keyword {
   Fseek,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, FromPrimitive)]
 pub enum Punc {
   Eq,
   Lt,
@@ -316,5 +318,72 @@ impl Debug for Keyword {
       Fseek => "FSEEK",
     };
     write!(f, "{}", kw)
+  }
+}
+
+impl Debug for Punc {
+  fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+    let kind = match self {
+      Self::Eq => "=",
+      Self::Lt => "<",
+      Self::Gt => ">",
+      Self::Plus => "+",
+      Self::Minus => "-",
+      Self::Times => "*",
+      Self::Slash => "/",
+      Self::Caret => "^",
+      Self::Colon => ":",
+      Self::LParen => "(",
+      Self::RParen => ")",
+      Self::Semicolon => ";",
+      Self::Comma => ",",
+      Self::Hash => "#",
+    };
+    write!(f, "{}", kind)
+  }
+}
+
+impl Debug for TokenKind {
+  fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+    match self {
+      Self::Ident => write!(f, "<id>"),
+      Self::Label => write!(f, "<label>"),
+      Self::Float => write!(f, "<float>"),
+      Self::String => write!(f, "<string>"),
+      Self::Punc(p) => write!(f, "\"{:?}\"", p),
+      Self::Keyword(p) => write!(f, "{:?}", p),
+      Self::SysFunc(p) => write!(f, "{:?}", p),
+      Self::Eof => write!(f, "<eof>"),
+    }
+  }
+}
+
+impl From<TokenKind> for usize {
+  fn from(t: TokenKind) -> Self {
+    match t {
+      TokenKind::Ident => 0,
+      TokenKind::Label => 1,
+      TokenKind::Float => 2,
+      TokenKind::String => 3,
+      TokenKind::SysFunc(_) => 4,
+      TokenKind::Punc(p) => 5 + p as usize,
+      TokenKind::Keyword(k) => 30 + k as usize,
+      _ => unreachable!(),
+    }
+  }
+}
+
+impl From<usize> for TokenKind {
+  fn from(n: usize) -> Self {
+    match n {
+      0 => Self::Ident,
+      1 => Self::Label,
+      2 => Self::Float,
+      3 => Self::String,
+      4 => unreachable!("SysFunc"),
+      5..30 => Self::Punc(Punc::from_usize(n - 5).unwrap()),
+      30..128 => Self::Keyword(Keyword::from_usize(n - 30).unwrap()),
+      _ => unreachable!(),
+    }
   }
 }

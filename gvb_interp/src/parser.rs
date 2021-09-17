@@ -1,3 +1,4 @@
+use self::symbol::{Nonterminal, Symbol, SymbolSet};
 use crate::ast::{
   BinaryOpKind, Datum, Eol, Expr, ExprId, ExprKind, FieldSpec, FileMode,
   InputSource, Keyword, Label, NodeBuilder, NonEmptyVec, ParseLabelError,
@@ -7,6 +8,9 @@ use crate::ast::{
 use crate::diagnostic::Diagnostic;
 use id_arena::Arena;
 use smallvec::{smallvec, Array, SmallVec};
+use std::fmt::Write;
+
+pub mod symbol;
 
 pub fn parse(input: &str) -> Program {
   let mut line_start = 0;
@@ -89,8 +93,12 @@ impl NodeBuilder for ArenaNodeBuilder {
     self.expr_arena.alloc(expr)
   }
 
-  fn stmt_range(&self, stmt: StmtId) -> Range {
-    self.stmt_arena[stmt].range.clone()
+  fn stmt_node(&self, stmt: StmtId) -> &Stmt {
+    &self.stmt_arena[stmt]
+  }
+
+  fn expr_node(&self, expr: ExprId) -> &Expr {
+    &self.expr_arena[expr]
   }
 }
 
@@ -102,6 +110,54 @@ struct LineParser<'a, T: NodeBuilder> {
   last_token_end: usize,
   node_builder: T,
   diagnostics: Vec<Diagnostic>,
+  expected_symbols_at_eof: Option<SymbolSet>,
+  first_symbols: SymbolSet,
+  /// Only contains terminals.
+  follow_symbols: SymbolSet,
+}
+
+macro_rules! extend_symbol {
+  ($set:expr, (kw $($kw:ident)+)) => {{
+    $(
+      $set.extend_one(Symbol::Term(TokenKind::Keyword(Keyword::$kw)))
+    );*
+  }};
+  ($set:expr, (punc $($p:ident)+)) => {{
+    $(
+      $set.extend_one(Symbol::Term(TokenKind::Punc(Punc::$p)))
+    );*
+  }};
+  ($set:expr, (nt $($nt:ident)*)) => {{
+    $(
+      $set.extend_one(Symbol::Nonterm(Nonterminal::$nt))
+    );*
+  }};
+  ($set:expr, (id)) => {
+    $set.extend_one(Symbol::Term(TokenKind::Ident))
+  };
+  ($set:expr, (t $($nt:ident)*)) => {{
+    $(
+      $set.extend(Nonterminal::$nt.first_symbols())
+    );*
+  }};
+}
+
+macro_rules! setup_first {
+  ($self:ident, $old_first:ident : $($elem:tt)*) => {
+    {
+      $self.first_symbols = $old_first.clone();
+      $(extend_symbol!($self.first_symbols, $elem));*
+    }
+  };
+}
+
+macro_rules! setup_follow {
+  ($self:ident, $old_follow:ident : $($elem:tt)*) => {
+    {
+      $self.follow_symbols = $old_follow.clone();
+      $(extend_symbol!($self.follow_symbols, $elem));*
+    }
+  };
 }
 
 impl<'a, T: NodeBuilder> LineParser<'a, T> {
@@ -114,6 +170,9 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
       last_token_end: 0,
       node_builder,
       diagnostics: vec![],
+      expected_symbols_at_eof: None,
+      first_symbols: SymbolSet::new(),
+      follow_symbols: SymbolSet::new(),
     }
   }
 
@@ -314,13 +373,65 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
     i
   }
 
-  fn match_token(&mut self, token: TokenKind, read_label: bool) -> Range {
+  #[must_use]
+  fn match_token(
+    &mut self,
+    token: TokenKind,
+    read_label: bool,
+    show_error: bool,
+  ) -> Result<Range, ()> {
     if self.token.1 == token {
       let range = self.token.0.clone();
       self.read_token(read_label);
-      range
+      Ok(range)
     } else {
-      todo!("skip tokens")
+      if self.token.1 == TokenKind::Eof
+        && self.expected_symbols_at_eof.is_none()
+      {
+        self.expected_symbols_at_eof = Some(self.first_symbols.clone());
+      }
+      if show_error {
+        self.report_mismatch_token_error();
+      }
+      self.recover(read_label);
+
+      Err(())
+    }
+  }
+
+  fn report_mismatch_token_error(&mut self) {
+    let mut msg = "语法错误。期望是：".to_owned();
+    let mut comma = false;
+    for sym in &self.first_symbols {
+      if comma {
+        msg += ", ";
+      }
+      comma = true;
+      match sym {
+        Symbol::Term(token) => match token {
+          TokenKind::Ident => msg += "标识符",
+          TokenKind::Label => msg += "行号",
+          TokenKind::Float => msg += "实数",
+          TokenKind::String => msg += "字符串",
+          TokenKind::Punc(p) => write!(&mut msg, "\"{:?}\"", p).unwrap(),
+          TokenKind::Keyword(p) => write!(&mut msg, "{:?}", p).unwrap(),
+          TokenKind::SysFunc(p) => write!(&mut msg, "{:?}", p).unwrap(),
+          TokenKind::Eof => msg += "行尾",
+        },
+        Symbol::Nonterm(n) => match n {
+          Nonterminal::Expr => msg += "表达式",
+          Nonterminal::Stmt => msg += "语句",
+        },
+      }
+    }
+    self.add_error(self.token.0.clone(), msg);
+  }
+
+  fn recover(&mut self, read_label: bool) {
+    while self.token.1 != TokenKind::Eof
+      && !self.follow_symbols.contains_token(self.token.1)
+    {
+      self.read_token(read_label);
     }
   }
 
@@ -338,7 +449,6 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
             stmts.push(self.node_builder.new_stmt(Stmt {
               kind: StmtKind::NoOp,
               range: self.token.0.clone(),
-              is_recovered: false,
             }));
           }
           self.read_token(in_if_branch);
@@ -372,7 +482,7 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
             }
           } else if !stmt_end {
             self.add_error(
-              self.node_builder.stmt_range(stmt),
+              self.node_builder.stmt_node(stmt).range.clone(),
               "语句之后必须是行尾或跟上冒号",
             );
           }
@@ -470,7 +580,6 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
               has_goto_keyword: false,
             },
             range,
-            is_recovered: false,
           })
         }
         Err(err) => {
@@ -480,7 +589,6 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
           self.node_builder.new_stmt(Stmt {
             kind: StmtKind::NoOp,
             range,
-            is_recovered: false,
           })
         }
       },
@@ -494,11 +602,10 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
   fn parse_unary_cmd(&mut self, ctor: fn(ExprId) -> StmtKind) -> StmtId {
     let start = self.token.0.start;
     self.read_token(false);
-    let arg = self.parse_expr(Prec::None);
+    let arg = self.parse_expr();
     self.node_builder.new_stmt(Stmt {
       kind: ctor(arg),
       range: Range::new(start, self.last_token_end),
-      is_recovered: false,
     })
   }
 
@@ -508,11 +615,10 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
     if self.token.1 == TokenKind::Punc(Punc::Hash) {
       self.read_token(false);
     }
-    let filenum = self.parse_expr(Prec::None);
+    let filenum = self.parse_expr();
     self.node_builder.new_stmt(Stmt {
       kind: StmtKind::Close { filenum },
       range: Range::new(start, self.last_token_end),
-      is_recovered: false,
     })
   }
 
@@ -554,28 +660,93 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
     self.node_builder.new_stmt(Stmt {
       kind: StmtKind::Data(data),
       range: Range::new(start, self.offset),
-      is_recovered: false,
     })
   }
 
   fn parse_def_stmt(&mut self) -> StmtId {
-    let start = self.token.0.start;
+    let def_range = self.token.0.clone();
     self.read_token(false);
-    self.match_token(TokenKind::Keyword(Keyword::Fn), false);
-    let name_range = self.match_token(TokenKind::Ident, false);
-    self.match_token(TokenKind::Punc(Punc::LParen), false);
-    let param_range = self.match_token(TokenKind::Ident, false);
-    self.match_token(TokenKind::Punc(Punc::RParen), false);
-    self.match_token(TokenKind::Punc(Punc::Eq), false);
-    let body = self.parse_expr(Prec::None);
+
+    let old_first = self.first_symbols.clone();
+    let old_follow = self.follow_symbols.clone();
+    setup_first! { self, old_first : (kw Fn) }
+    setup_follow! { self, old_follow : (id) (punc LParen Eq) }
+    if self
+      .match_token(TokenKind::Keyword(Keyword::Fn), false, false)
+      .is_err()
+    {
+      self.add_error(def_range.clone(), "DEF 之后缺少 FN 关键字");
+    }
+
+    setup_first! { self, old_first : (id) }
+    setup_follow! { self, old_follow : (punc LParen Eq) }
+    let name_range;
+    match self.match_token(TokenKind::Ident, false, false) {
+      Ok(range) => name_range = Some(range),
+      Err(()) => {
+        self.add_error(def_range.clone(), "DEF 语句缺少函数名称");
+        name_range = None;
+      }
+    }
+
+    setup_first! { self, old_first : (punc LParen) }
+    setup_follow! { self, old_follow : (id) (punc RParen Eq) }
+    if self
+      .match_token(TokenKind::Punc(Punc::LParen), false, false)
+      .is_err()
+    {
+      if let Some(name_range) = &name_range {
+        self.add_error(name_range.clone(), "函数名称之后缺少左括号");
+      }
+    }
+
+    setup_first! { self, old_first : (id) }
+    setup_follow! { self, old_follow : (punc RParen Eq) }
+    let param_range;
+    match self.match_token(TokenKind::Ident, false, false) {
+      Ok(range) => param_range = Some(range),
+      Err(()) => {
+        if let Some(name_range) = &name_range {
+          self.add_error(name_range.clone(), "缺少函数参数变量");
+        }
+        param_range = None;
+      }
+    }
+
+    setup_first! { self, old_first : (punc RParen) }
+    setup_follow! { self, old_follow : (punc Eq) }
+    if self
+      .match_token(TokenKind::Punc(Punc::RParen), false, false)
+      .is_err()
+    {
+      if let Some(param_range) = &param_range {
+        self.add_error(param_range.clone(), "函数参数之后缺少右括号");
+      }
+    }
+
+    setup_first! { self, old_first : (punc Eq) }
+    setup_follow! { self, old_follow : (t Expr) }
+    if self
+      .match_token(TokenKind::Punc(Punc::Eq), false, false)
+      .is_err()
+    {
+      self.add_error(def_range.clone(), "DEF 语句缺少等号");
+    }
+
+    setup_first! { self, old_first : }
+    setup_follow! { self, old_follow : }
+    let body = self.parse_expr();
+
+    self.follow_symbols = old_follow;
+    self.first_symbols = old_first;
+
     self.node_builder.new_stmt(Stmt {
       kind: StmtKind::Def {
         name: name_range,
         param: param_range,
         body,
       },
-      range: Range::new(start, self.last_token_end),
-      is_recovered: false,
+      range: Range::new(def_range.start, self.last_token_end),
     })
   }
 
@@ -586,7 +757,6 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
     self.node_builder.new_stmt(Stmt {
       kind: StmtKind::Dim(vars),
       range: Range::new(start, self.last_token_end),
-      is_recovered: false,
     })
   }
 
@@ -596,7 +766,7 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
     if let TokenKind::Punc(Punc::Hash) = self.token.1 {
       self.read_token(false);
     }
-    let filenum = self.parse_expr(Prec::None);
+    let filenum = self.parse_expr();
     let mut fields = NonEmptyVec::<[FieldSpec; 1]>::new();
     self.match_token(TokenKind::Punc(Punc::Comma), false);
     let field = self.parse_field_spec();
@@ -609,13 +779,12 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
     self.node_builder.new_stmt(Stmt {
       kind: StmtKind::Field { filenum, fields },
       range: Range::new(start, self.last_token_end),
-      is_recovered: false,
     })
   }
 
   fn parse_field_spec(&mut self) -> FieldSpec {
     let start = self.token.0.start;
-    let len = self.parse_expr(Prec::None);
+    let len = self.parse_expr();
     self.put_back_token();
     self.read_as();
     self.read_token(false);
@@ -646,13 +815,13 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
     self.read_token(false);
     let id_range = self.match_token(TokenKind::Ident, false);
     self.match_token(TokenKind::Punc(Punc::Eq), false);
-    let from = self.parse_expr(Prec::None);
+    let from = self.parse_expr();
     self.match_token(TokenKind::Keyword(Keyword::To), false);
-    let to = self.parse_expr(Prec::None);
+    let to = self.parse_expr();
     let mut step = None;
     if let TokenKind::Keyword(Keyword::Step) = self.token.1 {
       self.read_token(false);
-      let s = self.parse_expr(Prec::None);
+      let s = self.parse_expr();
       step = Some(s);
     }
     self.node_builder.new_stmt(Stmt {
@@ -663,7 +832,6 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
         step,
       },
       range: Range::new(start, self.last_token_end),
-      is_recovered: false,
     })
   }
 
@@ -686,7 +854,6 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
     self.node_builder.new_stmt(Stmt {
       kind: ctor(label),
       range: Range::new(start, self.last_token_end),
-      is_recovered: false,
     })
   }
 
@@ -696,9 +863,9 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
     if self.token.1 == TokenKind::Punc(Punc::Hash) {
       self.read_token(false);
     }
-    let filenum = self.parse_expr(Prec::None);
+    let filenum = self.parse_expr();
     self.match_token(TokenKind::Punc(Punc::Comma), false);
-    let record = self.parse_expr(Prec::None);
+    let record = self.parse_expr();
     let kind = if is_put {
       StmtKind::Put { filenum, record }
     } else {
@@ -707,14 +874,13 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
     self.node_builder.new_stmt(Stmt {
       kind,
       range: Range::new(start, self.last_token_end),
-      is_recovered: false,
     })
   }
 
   fn parse_if_stmt(&mut self) -> StmtId {
     let start = self.token.0.start;
     self.read_token(false);
-    let cond = self.parse_expr(Prec::None);
+    let cond = self.parse_expr();
     let conseq;
     if let TokenKind::Keyword(kw @ (Keyword::Then | Keyword::Goto)) =
       self.token.1
@@ -745,7 +911,6 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
         alt,
       },
       range: Range::new(start, self.last_token_end),
-      is_recovered: false,
     })
   }
 
@@ -761,7 +926,7 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
       }
       TokenKind::Punc(Punc::Hash) => {
         self.read_token(false);
-        let filenum = self.parse_expr(Prec::None);
+        let filenum = self.parse_expr();
         self.match_token(TokenKind::Punc(Punc::Comma), false);
         source = InputSource::File(filenum);
       }
@@ -774,7 +939,6 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
     self.node_builder.new_stmt(Stmt {
       kind: StmtKind::Input { source, vars },
       range: Range::new(start, self.last_token_end),
-      is_recovered: false,
     })
   }
 
@@ -797,11 +961,10 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
     }
     let var = self.parse_lvalue();
     self.match_token(TokenKind::Punc(Punc::Eq), false);
-    let value = self.parse_expr(Prec::None);
+    let value = self.parse_expr();
     self.node_builder.new_stmt(Stmt {
       kind: StmtKind::Let { var, value },
       range: Range::new(start, self.last_token_end),
-      is_recovered: false,
     })
   }
 
@@ -812,13 +975,13 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
     if let TokenKind::Punc(Punc::Comma) = self.token.1 {
       row = None;
     } else {
-      let r = self.parse_expr(Prec::None);
+      let r = self.parse_expr();
       row = Some(r);
     }
     let column;
     if let TokenKind::Punc(Punc::Comma) = self.token.1 {
       self.read_token(false);
-      let r = self.parse_expr(Prec::None);
+      let r = self.parse_expr();
       column = Some(r);
     } else {
       column = None;
@@ -826,7 +989,6 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
     self.node_builder.new_stmt(Stmt {
       kind: StmtKind::Locate { row, column },
       range: Range::new(start, self.last_token_end),
-      is_recovered: false,
     })
   }
 
@@ -835,11 +997,10 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
     self.read_token(false);
     let var = self.parse_lvalue();
     self.match_token(TokenKind::Punc(Punc::Eq), false);
-    let value = self.parse_expr(Prec::None);
+    let value = self.parse_expr();
     self.node_builder.new_stmt(Stmt {
       kind: ctor(var, value),
       range: Range::new(start, self.last_token_end),
-      is_recovered: false,
     })
   }
 
@@ -861,14 +1022,13 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
     self.node_builder.new_stmt(Stmt {
       kind: StmtKind::Next { vars },
       range: Range::new(start, self.last_token_end),
-      is_recovered: false,
     })
   }
 
   fn parse_on_stmt(&mut self) -> StmtId {
     let start = self.token.0.start;
     self.read_token(false);
-    let cond = self.parse_expr(Prec::None);
+    let cond = self.parse_expr();
     let is_sub;
     match self.token.1 {
       TokenKind::Keyword(Keyword::Gosub) => {
@@ -924,14 +1084,13 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
         is_sub,
       },
       range: Range::new(start, self.last_token_end),
-      is_recovered: false,
     })
   }
 
   fn parse_open_stmt(&mut self) -> StmtId {
     let start = self.token.0.start;
     self.read_token(false);
-    let filename = self.parse_expr(Prec::None);
+    let filename = self.parse_expr();
     if let TokenKind::Keyword(Keyword::For) = self.token.1 {
       self.skip_space();
     } else {
@@ -969,13 +1128,13 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
       self.read_token(false);
     }
 
-    let filenum = self.parse_expr(Prec::None);
+    let filenum = self.parse_expr();
 
     let mut len = None;
     if let TokenKind::SysFunc(SysFuncKind::Len) = self.token.1 {
       self.read_token(false);
       self.match_token(TokenKind::Punc(Punc::Eq), false);
-      let l = self.parse_expr(Prec::None);
+      let l = self.parse_expr();
       len = Some(l);
     }
 
@@ -987,20 +1146,18 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
         len,
       },
       range: Range::new(start, self.last_token_end),
-      is_recovered: false,
     })
   }
 
   fn parse_poke_stmt(&mut self) -> StmtId {
     let start = self.token.0.start;
     self.read_token(false);
-    let addr = self.parse_expr(Prec::None);
+    let addr = self.parse_expr();
     self.match_token(TokenKind::Punc(Punc::Comma), false);
-    let value = self.parse_expr(Prec::None);
+    let value = self.parse_expr();
     self.node_builder.new_stmt(Stmt {
       kind: StmtKind::Poke { addr, value },
       range: Range::new(start, self.last_token_end),
-      is_recovered: false,
     })
   }
 
@@ -1024,7 +1181,7 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
         | TokenKind::Keyword(Keyword::Else)
         | TokenKind::Eof => break,
         _ => {
-          let expr = self.parse_expr(Prec::None);
+          let expr = self.parse_expr();
           elems.push(PrintElement::Expr(expr));
         }
       }
@@ -1033,7 +1190,6 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
     self.node_builder.new_stmt(Stmt {
       kind: StmtKind::Print(elems),
       range: Range::new(start, self.last_token_end),
-      is_recovered: false,
     })
   }
 
@@ -1044,7 +1200,6 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
     self.node_builder.new_stmt(Stmt {
       kind: StmtKind::Read(vars),
       range: Range::new(start, self.last_token_end),
-      is_recovered: false,
     })
   }
 
@@ -1057,7 +1212,6 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
     self.node_builder.new_stmt(Stmt {
       kind: StmtKind::Swap { left, right },
       range: Range::new(start, self.last_token_end),
-      is_recovered: false,
     })
   }
 
@@ -1067,14 +1221,14 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
     let filenum;
     if let TokenKind::Punc(Punc::Hash) = self.token.1 {
       self.read_token(false);
-      filenum = Some(self.parse_expr(Prec::None));
+      filenum = Some(self.parse_expr());
       self.match_token(TokenKind::Punc(Punc::Comma), false);
     } else {
       filenum = None;
     }
 
     let mut data = NonEmptyVec::<[WriteElement; 1]>::new();
-    let mut datum = self.parse_expr(Prec::None);
+    let mut datum = self.parse_expr();
 
     loop {
       if let TokenKind::Punc(Punc::Comma) = self.token.1 {
@@ -1092,13 +1246,12 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
       {
         break;
       }
-      datum = self.parse_expr(Prec::None);
+      datum = self.parse_expr();
     }
 
     self.node_builder.new_stmt(Stmt {
       kind: StmtKind::Write { filenum, data },
       range: Range::new(start, self.last_token_end),
-      is_recovered: false,
     })
   }
 
@@ -1113,18 +1266,13 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
     self.node_builder.new_stmt(Stmt {
       kind: ctor(args),
       range: Range::new(start, self.last_token_end),
-      is_recovered: false,
     })
   }
 
   fn parse_nullary_cmd(&mut self, kind: StmtKind) -> StmtId {
     let range = self.token.0.clone();
     self.read_token(false);
-    self.node_builder.new_stmt(Stmt {
-      kind,
-      range,
-      is_recovered: false,
-    })
+    self.node_builder.new_stmt(Stmt { kind, range })
   }
 
   fn parse_rem_stmt(
@@ -1138,19 +1286,36 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
     let id = self.node_builder.new_stmt(Stmt {
       kind: ctor(Range::new(start, self.offset)),
       range: Range::new(self.token.0.start, self.offset),
-      is_recovered: false,
     });
     self.read_token(in_if_branch);
     id
   }
 
-  fn parse_expr(&mut self, prec: Prec) -> ExprId {
+  fn parse_expr(&mut self) -> ExprId {
+    let old_first = self.first_symbols.clone();
+    let old_follow = self.follow_symbols.clone();
+    setup_first! { self, old_first : (nt Expr) }
+    setup_follow! { self, old_follow :
+      (punc Eq Gt Lt Plus Minus Times Slash Caret)
+      (kw And Or)
+    }
+
+    let expr = self.parse_expr_prec(Prec::None);
+
+    self.follow_symbols = old_follow;
+    self.first_symbols = old_first;
+
+    expr
+  }
+
+  fn parse_expr_prec(&mut self, prec: Prec) -> ExprId {
     let start = self.token.0.start;
     let mut lhs = self.parse_atom();
+
     while token_prec(self.token.1) > prec {
       let tok = self.token.1;
       let op = self.read_binary_op();
-      let rhs = self.parse_expr(token_prec(tok));
+      let rhs = self.parse_expr_prec(token_prec(tok));
       lhs = self.node_builder.new_expr(Expr::new(
         ExprKind::Binary { lhs, op, rhs },
         Range::new(start, self.last_token_end),
@@ -1224,7 +1389,7 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
           _ => unreachable!(),
         };
         self.read_token(false);
-        let arg = self.parse_expr(Prec::Neg);
+        let arg = self.parse_expr_prec(Prec::Neg);
         let kind = ExprKind::Unary {
           op: (op_range, op),
           arg,
@@ -1237,7 +1402,7 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
         let start = self.token.0.start;
         let op_range = self.token.0.clone();
         self.read_token(false);
-        let arg = self.parse_expr(Prec::Not);
+        let arg = self.parse_expr_prec(Prec::Not);
         let kind = ExprKind::Unary {
           op: (op_range, UnaryOpKind::Not),
           arg,
@@ -1247,26 +1412,78 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
           .new_expr(Expr::new(kind, Range::new(start, self.last_token_end)))
       }
       TokenKind::Punc(Punc::LParen) => {
+        let paren_range = self.token.0.clone();
+        let old_follow = self.follow_symbols.clone();
         self.read_token(false);
-        let expr = self.parse_expr(Prec::None);
-        self.match_token(TokenKind::Punc(Punc::RParen), false);
+
+        setup_follow! { self, old_follow : (punc RParen) }
+        let expr = self.parse_expr();
+
+        setup_follow! { self, old_follow : }
+        if self
+          .match_token(TokenKind::Punc(Punc::RParen), false, false)
+          .is_err()
+        {
+          self.add_error(paren_range, "缺少匹配的右括号");
+        }
+        self.follow_symbols = old_follow;
         expr
       }
       TokenKind::Keyword(Keyword::Fn) => {
-        let start = self.token.0.start;
+        let fn_range = self.token.0.clone();
+        let old_first = self.first_symbols.clone();
+        let old_follow = self.follow_symbols.clone();
         self.read_token(false);
-        let id_range = self.match_token(TokenKind::Ident, false);
-        self.match_token(TokenKind::Punc(Punc::LParen), false);
-        let arg = self.parse_expr(Prec::None);
-        self.match_token(TokenKind::Punc(Punc::RParen), false);
+
+        setup_first! { self, old_first : (id) }
+        setup_follow! { self, old_follow : (punc LParen) (id) }
+        let id_range;
+        match self.match_token(TokenKind::Ident, false, false) {
+          Ok(range) => id_range = Some(range),
+          Err(()) => {
+            self.add_error(fn_range.clone(), "FN 之后缺少函数名称");
+            id_range = None;
+          }
+        }
+
+        setup_first! { self, old_first : (punc LParen) }
+        setup_follow! { self, old_follow : (punc RParen) (id) }
+        if self
+          .match_token(TokenKind::Punc(Punc::LParen), false, false)
+          .is_err()
+        {
+          if let Some(id_range) = &id_range {
+            self.add_error(id_range.clone(), "函数名称之后缺少左括号");
+          }
+        }
+
+        setup_first! { self, old_first : }
+        setup_follow! { self, old_follow : }
+        let arg = self.parse_expr();
+
+        setup_first! { self, old_first : (punc RParen) }
+        setup_follow! { self, old_follow : }
+        if self
+          .match_token(TokenKind::Punc(Punc::RParen), false, false)
+          .is_err()
+        {
+          let arg = self.node_builder.expr_node(arg);
+          if !matches!(&arg.kind, ExprKind::Error) {
+            self.add_error(arg.range.clone(), "缺少右括号");
+          }
+        }
+
+        self.follow_symbols = old_follow;
+        self.first_symbols = old_first;
 
         let kind = ExprKind::UserFuncCall {
           func: id_range,
           arg,
         };
-        self
-          .node_builder
-          .new_expr(Expr::new(kind, Range::new(start, self.last_token_end)))
+        self.node_builder.new_expr(Expr::new(
+          kind,
+          Range::new(fn_range.start, self.last_token_end),
+        ))
       }
       TokenKind::SysFunc(kind) => {
         let name_range = self.token.0.clone();
@@ -1282,7 +1499,13 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
       }
       TokenKind::Ident => self.parse_lvalue(),
       _ => {
-        todo!("expect expr, skip tokens")
+        let start = self.token.0.start;
+        self.report_mismatch_token_error();
+        self.recover(false);
+        self.node_builder.new_expr(Expr::new(
+          ExprKind::Error,
+          Range::new(start, self.token.0.start),
+        ))
       }
     }
   }
@@ -1310,12 +1533,12 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
     U: Extend<ExprId>,
   {
     self.match_token(TokenKind::Punc(Punc::LParen), false);
-    let arg = self.parse_expr(Prec::None);
+    let arg = self.parse_expr();
     args.extend_one(arg);
     while self.token.1 == TokenKind::Punc(Punc::Comma) {
       self.read_token(false);
 
-      let arg = self.parse_expr(Prec::None);
+      let arg = self.parse_expr();
       args.extend_one(arg);
     }
 
@@ -1330,12 +1553,12 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
   where
     U: Extend<ExprId>,
   {
-    let arg = self.parse_expr(Prec::None);
+    let arg = self.parse_expr();
     args.extend_one(arg);
     while self.token.1 == TokenKind::Punc(Punc::Comma) {
       self.read_token(false);
 
-      let arg = self.parse_expr(Prec::None);
+      let arg = self.parse_expr();
       args.extend_one(arg);
     }
 
@@ -1476,7 +1699,11 @@ impl NodeBuilder for DummyNodeBuilder {
     unimplemented!()
   }
 
-  fn stmt_range(&self, _stmt: StmtId) -> Range {
+  fn stmt_node(&self, stmt: StmtId) -> &Stmt {
+    unimplemented!()
+  }
+
+  fn expr_node(&self, expr: ExprId) -> &Expr {
     unimplemented!()
   }
 }
@@ -1740,7 +1967,8 @@ mod parser_tests {
 
   #[test]
   fn unary_cmd() {
-    let line = r#"10 calL  1340+A*10: CALl T%: play A b $+"DE#" :while not a(i)"#;
+    let line =
+      r#"10 calL  1340+A*10: CALl T%: play A b $+"DE#" :while not a(i)"#;
     assert_snapshot!(parse_line(line).to_string(line));
   }
 
@@ -1879,7 +2107,8 @@ mod parser_tests {
 
   #[test]
   fn print() {
-    let line = r#"10 print 10 ; , "k"+2; spc(3+k) tab(i) 3 +2fn f(4) ,:print,:print"#;
+    let line =
+      r#"10 print 10 ; , "k"+2; spc(3+k) tab(i) 3 +2fn f(4) ,:print,:print"#;
     assert_snapshot!(parse_line(line).to_string(line));
   }
 

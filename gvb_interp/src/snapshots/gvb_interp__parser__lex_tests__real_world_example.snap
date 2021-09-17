@@ -6,156 +6,118 @@ expression: tokens
 [
     (
         0..6,
-        Keyword(
-            LOCATE,
-        ),
+        LOCATE,
     ),
     (
         7..8,
-        Float,
+        <float>,
     ),
     (
         8..9,
-        Punc(
-            Comma,
-        ),
+        ",",
     ),
     (
         9..10,
-        Float,
+        <float>,
     ),
     (
         10..11,
-        Punc(
-            Colon,
-        ),
+        ":",
     ),
     (
         11..16,
-        Keyword(
-            PRINT,
-        ),
+        PRINT,
     ),
     (
         17..23,
-        String,
+        <string>,
     ),
     (
         23..24,
-        Punc(
-            Colon,
-        ),
+        ":",
     ),
     (
         24..30,
-        Keyword(
-            LOCATE,
-        ),
+        LOCATE,
     ),
     (
         31..32,
-        Float,
+        <float>,
     ),
     (
         32..33,
-        Punc(
-            Comma,
-        ),
+        ",",
     ),
     (
         33..35,
-        Float,
+        <float>,
     ),
     (
         35..36,
-        Punc(
-            Minus,
-        ),
+        "-",
     ),
     (
         36..39,
-        SysFunc(
-            LEN,
-        ),
+        LEN,
     ),
     (
         39..40,
-        Punc(
-            LParen,
-        ),
+        "(",
     ),
     (
         40..44,
-        SysFunc(
-            STR$,
-        ),
+        STR$,
     ),
     (
         44..45,
-        Punc(
-            LParen,
-        ),
+        "(",
     ),
     (
         45..47,
-        Ident,
+        <id>,
     ),
     (
         47..48,
-        Punc(
-            RParen,
-        ),
+        ")",
     ),
     (
         48..49,
-        Punc(
-            RParen,
-        ),
+        ")",
     ),
     (
         49..50,
-        Punc(
-            Colon,
-        ),
+        ":",
     ),
     (
         50..55,
-        Keyword(
-            PRINT,
-        ),
+        PRINT,
     ),
     (
         56..58,
-        Ident,
+        <id>,
     ),
     (
         58..59,
-        Punc(
-            Colon,
-        ),
+        ":",
     ),
     (
         59..63,
-        Keyword(
-            DRAW,
-        ),
+        DRAW,
     ),
     (
         64..67,
-        Float,
+        <float>,
     ),
     (
         67..68,
-        Punc(
-            Comma,
-        ),
+        ",",
     ),
     (
         68..70,
-        Float,
+        <float>,
     ),
     (
         70..70,
-        Eof,
+        <eof>,
     ),
 ]
