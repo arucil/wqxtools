@@ -1,0 +1,13 @@
+---
+source: gvb_interp/src/parser.rs
+expression: parse_line(line).to_string(line)
+
+---
+label: Some(Label(10))
+len: 67
+eol: None
+diagnostics: 
+-----------------
+5..41     DEF FN a b c%(x Y 3  1) = SIN((<ID: X> / <NUM: 2>))
+44..67    DEF FN f(X) = FN F(<ID: x>)
+

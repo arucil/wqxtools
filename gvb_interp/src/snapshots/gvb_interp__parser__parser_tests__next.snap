@@ -1,0 +1,14 @@
+---
+source: gvb_interp/src/parser.rs
+expression: parse_line(line).to_string(line)
+
+---
+label: Some(Label(10))
+len: 37
+eol: None
+diagnostics: 
+-----------------
+3..7      NEXT 
+8..14     NEXT I
+18..37    NEXT A, B b%, c, i
+

@@ -9,8 +9,8 @@ eol: None
 diagnostics: 
 -----------------
 3..13     LOCATE <NUM: 3>, <NUM: 2>
-14..26    PRINT <STR: "A">; , <NUM: 3>
+14..26    PRINT <STR: "A"> ; , <NUM: 3> 
 27..52    LOCATE <NUM: 3>, (<NUM: 18> - LEN(STR$(<ID: ET>)))
-53..61    PRINT <ID: ET>
+53..61    PRINT <ID: ET> 
 62..73    DRAW <NUM: 100>, <NUM: 38>
 

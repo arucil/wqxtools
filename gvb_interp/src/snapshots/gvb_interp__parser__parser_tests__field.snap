@@ -1,0 +1,13 @@
+---
+source: gvb_interp/src/parser.rs
+expression: parse_line(line).to_string(line)
+
+---
+label: Some(Label(10))
+len: 71
+eol: None
+diagnostics: 
+-----------------
+3..29     FIELD # (<NUM: 1> * <NUM: 2>), <17..29> ((<NUM: 3> * <NUM: 5>) - <NUM: 1>) AS <ID: A b $>
+33..71    FIELD # (<NUM: 1> * <NUM: 2>), <45..56> <NUM: 1> AS x%[<NUM: 3>], <59..71> <NUM: 7.5> AS A$[<ID: A>, <ID: B>]
+

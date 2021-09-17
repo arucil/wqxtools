@@ -4,10 +4,10 @@ expression: parse_line(line).to_string(line)
 
 ---
 label: Some(Label(10))
-len: 27
+len: 30
 eol: None
 diagnostics: 
 -----------------
-3..18     CALL (<NUM: 1340> + (<ID: A> * <NUM: 10>))
-20..27    CALL <ID: T%>
+3..18     GET # (<NUM: 7> / <NUM: 2>), (<NUM: 2> * <NUM: 5>)
+21..30    PUT # (<NUM: 3> * <NUM: 2>), <ID: k>
 

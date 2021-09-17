@@ -1,0 +1,18 @@
+---
+source: gvb_interp/src/parser.rs
+expression: parse_line(line).to_string(line)
+
+---
+label: Some(Label(10))
+len: 46
+eol: None
+diagnostics: 
+  Error<42..46>: GOTO 之后缺少语句
+-----------------
+3..46     IF <NUM: 1> THEN
+13..15        [GOTO] 10
+          ELSE      
+21..26        LET <ID: S> = (<ID: S> + <NUM: 1>)
+27..31        NEXT 
+32..46        IF (<ID: S> >= <NUM: 10>) THEN
+

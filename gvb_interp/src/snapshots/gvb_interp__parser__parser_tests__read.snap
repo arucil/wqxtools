@@ -1,0 +1,13 @@
+---
+source: gvb_interp/src/parser.rs
+expression: parse_line(line).to_string(line)
+
+---
+label: Some(Label(10))
+len: 30
+eol: None
+diagnostics: 
+-----------------
+3..10     READ <ID: a$>
+13..30    READ b$[<ID: i>, <ID: j>], <ID: c>, <ID: d%>
+

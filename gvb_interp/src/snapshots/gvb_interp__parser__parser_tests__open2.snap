@@ -1,0 +1,13 @@
+---
+source: gvb_interp/src/parser.rs
+expression: parse_line(line).to_string(line)
+
+---
+label: Some(Label(10))
+len: 42
+eol: None
+diagnostics: 
+-----------------
+3..23     OPEN <ID: file$> FOR RANDOM AS # <NUM: 3>
+24..42    OPEN <ID: f$> FOR OUTPUT AS # <NUM: 1>
+

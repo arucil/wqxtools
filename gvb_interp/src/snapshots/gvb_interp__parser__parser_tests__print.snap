@@ -1,0 +1,14 @@
+---
+source: gvb_interp/src/parser.rs
+expression: parse_line(line).to_string(line)
+
+---
+label: Some(Label(10))
+len: 65
+eol: None
+diagnostics: 
+-----------------
+3..52     PRINT <NUM: 10> ; , (<STR: "k"> + <NUM: 2>) ; spc[(<NUM: 3> + <ID: k>)] tab[<ID: i>] (<NUM: 3> + <NUM: 2>) FN f(<NUM: 4>) , 
+53..59    PRINT , 
+60..65    PRINT 
+

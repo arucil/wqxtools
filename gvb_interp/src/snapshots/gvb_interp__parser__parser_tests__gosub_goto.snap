@@ -1,0 +1,17 @@
+---
+source: gvb_interp/src/parser.rs
+expression: parse_line(line).to_string(line)
+
+---
+label: Some(Label(10))
+len: 45
+eol: None
+diagnostics: 
+  Error<34..39>: 行号必须在0~9999之间
+-----------------
+3..8      GOSUB
+11..15    GOTO
+17..26    GOSUB 771
+29..39    GOTO
+41..45    GOTO
+

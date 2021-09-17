@@ -1,0 +1,17 @@
+---
+source: gvb_interp/src/parser.rs
+expression: parse_line(line).to_string(line)
+
+---
+label: Some(Label(10))
+len: 25
+eol: None
+diagnostics: 
+  Error<8..12>: GOTO 之后缺少语句
+-----------------
+3..25     IF <ID: K> THEN
+          ELSE      
+18..19        [GOTO] 2
+20..22        [GOTO] 13
+23..24        [GOTO] 7
+

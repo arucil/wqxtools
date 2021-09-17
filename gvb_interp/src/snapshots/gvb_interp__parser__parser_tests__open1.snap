@@ -1,0 +1,13 @@
+---
+source: gvb_interp/src/parser.rs
+expression: parse_line(line).to_string(line)
+
+---
+label: Some(Label(10))
+len: 54
+eol: None
+diagnostics: 
+-----------------
+3..30     OPEN (<ID: A$> + <STR: ".dat">) FOR APPEND AS # (<ID: a> + <NUM: 1>)
+33..54    OPEN <ID: b$> FOR INPUT AS # <NUM: 2>
+

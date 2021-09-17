@@ -1,0 +1,13 @@
+---
+source: gvb_interp/src/parser.rs
+expression: parse_line(line).to_string(line)
+
+---
+label: Some(Label(10))
+len: 59
+eol: None
+diagnostics: 
+-----------------
+3..29     WRITE a$[(<ID: i> + (<ID: j> * <NUM: 10>))], <ID: b> FN f(<ID: x>) 
+30..59    WRITE # (<NUM: 3> - <ID: a>), ASC(<ID: a>) (<ID: x> + <NUM: 2>) (<ID: x> * <NUM: 6>), <ID: o$> 
+

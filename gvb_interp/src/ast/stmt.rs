@@ -1,4 +1,4 @@
-use std::fmt::{self, Write, Debug, Formatter};
+use std::fmt::{self, Debug, Formatter, Write};
 
 use super::{Expr, ExprId, Label, NonEmptyVec, Range, StmtId};
 use id_arena::Arena;
@@ -111,7 +111,7 @@ pub enum StmtKind {
   NoTrace,
   On {
     cond: ExprId,
-    labels: NonEmptyVec<[(Range, Label); 2]>,
+    labels: NonEmptyVec<[(Range, Option<Label>); 2]>,
     is_sub: bool,
   },
   Open {
@@ -184,7 +184,7 @@ pub enum InputSource {
   /// file num expr
   File(ExprId),
   /// prompt string literal
-  Keyboard(ExprId),
+  Keyboard(Option<Range>),
   Error,
 }
 
@@ -243,7 +243,7 @@ fn print_stmt(
   text: &str,
   f: &mut impl Write,
 ) -> fmt::Result {
-  write!(f, "{:<1$}{2:<10?}", "", indent, stmt.range)?;
+  write!(f, "{:<1$?}", stmt.range, indent + 10)?;
   match &stmt.kind {
     StmtKind::Auto(range) => {
       writeln!(f, "AUTO [{:?}]", &text[range.start..range.end])
@@ -362,7 +362,7 @@ fn print_stmt(
       write!(f, "FIELD # ")?;
       expr_arena[*filenum].print(expr_arena, text, f)?;
       for field in fields.iter() {
-        write!(f, "<{:?}> ", field.range)?;
+        write!(f, ", <{:?}> ", field.range)?;
         expr_arena[field.len].print(expr_arena, text, f)?;
         write!(f, " AS ")?;
         expr_arena[field.var].print(expr_arena, text, f)?;
@@ -424,7 +424,7 @@ fn print_stmt(
       for &stmt in conseq.iter() {
         print_stmt(
           &stmt_arena[stmt],
-          indent + 2,
+          indent + 4,
           stmt_arena,
           expr_arena,
           text,
@@ -432,11 +432,11 @@ fn print_stmt(
         )?;
       }
       if let Some(alt) = alt {
-        writeln!(f, "{:1$}", "ELSE", indent)?;
+        writeln!(f, "{:1$}{2:<1$}", "", indent + 10, "ELSE")?;
         for &stmt in alt.iter() {
           print_stmt(
             &stmt_arena[stmt],
-            indent + 2,
+            indent + 4,
             stmt_arena,
             expr_arena,
             text,
@@ -450,11 +450,12 @@ fn print_stmt(
     StmtKind::Input { source, vars } => {
       write!(f, "INPUT ")?;
       match source {
-        InputSource::Keyboard(s) => {
-          expr_arena[*s].print(expr_arena, text, f)?;
-          write!(f, "; ")?;
+        InputSource::Keyboard(Some(range)) => {
+          write!(f, "<STR: {}>; ", &text[range.start..range.end])?;
         }
+        InputSource::Keyboard(None) => {}
         InputSource::File(filenum) => {
+          write!(f, "# ")?;
           expr_arena[*filenum].print(expr_arena, text, f)?;
           write!(f, ", ")?;
         }
@@ -552,8 +553,12 @@ fn print_stmt(
           write!(f, ", ")?;
         }
         comma = true;
-        assert_eq!(text[range.start..range.end].parse::<Label>(), Ok(*label));
-        write!(f, "{}", label.0)?;
+        if let Some(label) = label {
+          assert_eq!(text[range.start..range.end].parse::<Label>(), Ok(*label));
+          write!(f, "{}", label.0)?;
+        } else {
+          write!(f, "<{:?}>", range)?;
+        }
       }
       writeln!(f)
     }
@@ -592,7 +597,10 @@ fn print_stmt(
         match elem {
           PrintElement::Comma => write!(f, ", ")?,
           PrintElement::Semicolon => write!(f, "; ")?,
-          PrintElement::Expr(e) => expr_arena[*e].print(expr_arena, text, f)?,
+          PrintElement::Expr(e) => {
+            expr_arena[*e].print(expr_arena, text, f)?;
+            write!(f, " ")?;
+          },
         }
       }
       writeln!(f)

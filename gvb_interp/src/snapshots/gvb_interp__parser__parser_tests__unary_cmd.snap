@@ -1,0 +1,15 @@
+---
+source: gvb_interp/src/parser.rs
+expression: parse_line(line).to_string(line)
+
+---
+label: Some(Label(10))
+len: 61
+eol: None
+diagnostics: 
+-----------------
+3..18     CALL (<NUM: 1340> + (<ID: A> * <NUM: 10>))
+20..27    CALL <ID: T%>
+29..45    PLAY (<ID: A b $> + <STR: "DE#">)
+47..61    WHILE (NOT a[<ID: i>])
+

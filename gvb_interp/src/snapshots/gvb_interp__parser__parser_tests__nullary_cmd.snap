@@ -1,0 +1,25 @@
+---
+source: gvb_interp/src/parser.rs
+expression: parse_line(line).to_string(line)
+
+---
+label: Some(Label(10))
+len: 35
+eol: None
+diagnostics: 
+-----------------
+3..4      :
+4..5      :
+5..6      :
+6..7      :
+7..11     BEEP
+12..13    :
+13..16    END
+17..18    :
+18..19    :
+19..24    FLASH
+25..26    :
+26..27    :
+27..33    INKEY$
+34..35    :
+

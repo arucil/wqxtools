@@ -4,9 +4,11 @@ expression: parse_line(line).to_string(line)
 
 ---
 label: Some(Label(10))
-len: 7
+len: 55
 eol: None
 diagnostics: 
 -----------------
-3..7      BEEP
+3..25     INPUT # <ID: s>, <ID: A$>, a$[<NUM: 3>, <ID: i>]
+28..46    INPUT <STR: "ENTER:">; <ID: A>, <ID: B>
+47..55    INPUT <ID: A%>
 

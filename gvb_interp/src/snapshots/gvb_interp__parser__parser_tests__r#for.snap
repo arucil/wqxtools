@@ -1,0 +1,13 @@
+---
+source: gvb_interp/src/parser.rs
+expression: parse_line(line).to_string(line)
+
+---
+label: Some(Label(10))
+len: 44
+eol: None
+diagnostics: 
+-----------------
+3..21     FOR I% = (<ID: K> * <NUM: 2>) TO (<ID: I%> * <NUM: 2>)
+23..44    FOR i = <NUM: 0> TO <NUM: 1e3> STEP <ID: k>
+

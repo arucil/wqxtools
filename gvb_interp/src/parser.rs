@@ -243,19 +243,6 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
               }
               i += 1;
             }
-            Some(b' ') => {
-              if in_seg {
-                in_seg = false;
-                let str = self.input[seg_start..i].to_ascii_lowercase();
-                if str.parse::<Keyword>().is_ok()
-                  || str.parse::<SysFuncKind>().is_ok()
-                {
-                  i = seg_start;
-                  break;
-                }
-              }
-              i += 1;
-            }
             Some(b'%' | b'$') => {
               i += 1;
               if in_seg {
@@ -268,7 +255,23 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
               }
               break;
             }
-            _ => break,
+            c => {
+              if in_seg {
+                in_seg = false;
+                let str = self.input[seg_start..i].to_ascii_lowercase();
+                if str.parse::<Keyword>().is_ok()
+                  || str.parse::<SysFuncKind>().is_ok()
+                {
+                  i = seg_start;
+                  break;
+                }
+              }
+              if c == Some(&b' ') {
+                i += 1;
+              } else {
+                break;
+              }
+            }
           }
         }
 
@@ -328,7 +331,7 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
         TokenKind::Punc(Punc::Colon) => {
           if in_if_branch {
             self.add_error(
-              Range::new(self.offset, self.offset + 1),
+              self.token.0.clone(),
               "IF 语句的分支中不能出现多余的冒号",
             );
           } else {
@@ -341,7 +344,14 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
           self.read_token(in_if_branch);
         }
         TokenKind::Eof => return stmts,
-        TokenKind::Keyword(Keyword::Else) => {}
+        TokenKind::Keyword(Keyword::Else) => {
+          if in_if_branch {
+            return stmts;
+          } else {
+            self.add_error(self.token.0.clone(), "ELSE 不能出现在 IF 语句之外");
+            self.read_token(in_if_branch);
+          }
+        }
         _ => {
           let stmt = self.parse_stmt(in_if_branch);
           stmts.push(stmt);
@@ -450,6 +460,30 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
       Keyword(Kw::Wend) => self.parse_nullary_cmd(StmtKind::Wend),
       Keyword(Kw::While) => self.parse_unary_cmd(StmtKind::While),
       Keyword(Kw::Write) => self.parse_write_stmt(),
+      Label => match self.label_value.take().unwrap() {
+        Ok(label) => {
+          let range = self.token.0.clone();
+          self.read_token(true);
+          self.node_builder.new_stmt(Stmt {
+            kind: StmtKind::GoTo {
+              label: Some((range.clone(), label)),
+              has_goto_keyword: false,
+            },
+            range,
+            is_recovered: false,
+          })
+        }
+        Err(err) => {
+          let range = self.token.0.clone();
+          self.report_label_error(err, range.clone());
+          self.read_token(true);
+          self.node_builder.new_stmt(Stmt {
+            kind: StmtKind::NoOp,
+            range,
+            is_recovered: false,
+          })
+        }
+      },
       Eof => unreachable!(),
       _ => {
         todo!("expect stmt")
@@ -723,10 +757,7 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
       TokenKind::String => {
         let prompt_range = self.match_token(TokenKind::String, false);
         self.match_token(TokenKind::Punc(Punc::Semicolon), false);
-        let prompt = self
-          .node_builder
-          .new_expr(Expr::new(ExprKind::StringLit, prompt_range));
-        source = InputSource::Keyboard(prompt);
+        source = InputSource::Keyboard(Some(prompt_range));
       }
       TokenKind::Punc(Punc::Hash) => {
         self.read_token(false);
@@ -735,8 +766,7 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
         source = InputSource::File(filenum);
       }
       _ => {
-        source = InputSource::Error;
-        todo!("expect # or string")
+        source = InputSource::Keyboard(None);
       }
     }
 
@@ -854,11 +884,11 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
       }
     }
 
-    let mut labels = NonEmptyVec::<[(Range, Label); 2]>::new();
+    let mut labels = NonEmptyVec::<[(Range, Option<Label>); 2]>::new();
     if self.token.1 == TokenKind::Label {
       match self.label_value.take().unwrap() {
         Ok(label) => {
-          labels.push((self.token.0.clone(), label));
+          labels.push((self.token.0.clone(), Some(label)));
           self.read_token(true);
         }
         Err(err) => {
@@ -866,7 +896,7 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
         }
       }
     } else {
-      todo!("expect label")
+      labels.push((Range::new(self.token.0.start, self.token.0.start), None));
     };
 
     while let TokenKind::Punc(Punc::Comma) = self.token.1 {
@@ -875,7 +905,7 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
       if self.token.1 == TokenKind::Label {
         match self.label_value.take().unwrap() {
           Ok(label) => {
-            labels.push((self.token.0.clone(), label));
+            labels.push((self.token.0.clone(), Some(label)));
             self.read_token(true);
           }
           Err(err) => {
@@ -883,7 +913,7 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
           }
         }
       } else {
-        todo!("expect label")
+        labels.push((Range::new(self.token.0.start, self.token.0.start), None));
       };
     }
 
@@ -909,23 +939,23 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
     }
 
     let mode;
-    if self.input.len() >= 6 {
-      let m = &self.input.as_bytes()[..6];
-      if m.eq_ignore_ascii_case(b"output") {
-        mode = FileMode::Output;
-      } else if m.eq_ignore_ascii_case(b"append") {
-        mode = FileMode::Append;
-      } else if m.eq_ignore_ascii_case(b"random") {
-        mode = FileMode::Random
+    if self.input.len() >= 5 {
+      if self.input.as_bytes()[..5].eq_ignore_ascii_case(b"input") {
+        mode = FileMode::Input;
+        self.advance(5);
       } else {
-        todo!("expect file mode, skip to A or #")
+        let m = &self.input.as_bytes()[..6];
+        if m.eq_ignore_ascii_case(b"output") {
+          mode = FileMode::Output;
+        } else if m.eq_ignore_ascii_case(b"append") {
+          mode = FileMode::Append;
+        } else if m.eq_ignore_ascii_case(b"random") {
+          mode = FileMode::Random
+        } else {
+          todo!("expect file mode, skip to A or #")
+        }
+        self.advance(6);
       }
-      self.advance(6);
-    } else if self.input.len() >= 5
-      && self.input.as_bytes()[..5].eq_ignore_ascii_case(b"input")
-    {
-      mode = FileMode::Input;
-      self.advance(5);
     } else {
       todo!("expect file mode, skip to A or #")
     }
@@ -1685,8 +1715,14 @@ mod parser_tests {
   }
 
   #[test]
-  fn beep() {
-    let line = r#"10 Beep"#;
+  fn colon_line() {
+    let line = r#"10 :"#;
+    assert_snapshot!(parse_line(line).to_string(line));
+  }
+
+  #[test]
+  fn nullary_cmd() {
+    let line = r#"10 ::::Beep::enD:::fLAsh:::inkEy$::"#;
     assert_snapshot!(parse_line(line).to_string(line));
   }
 
@@ -1703,8 +1739,8 @@ mod parser_tests {
   }
 
   #[test]
-  fn call() {
-    let line = r#"10 calL  1340+A*10: CALl T%"#;
+  fn unary_cmd() {
+    let line = r#"10 calL  1340+A*10: CALl T%: play A b $+"DE#" :while not a(i)"#;
     assert_snapshot!(parse_line(line).to_string(line));
   }
 
@@ -1729,6 +1765,139 @@ mod parser_tests {
   #[test]
   fn data2() {
     let line = r#"10 daTA   1,  2  ,  : data "aA","bB"#;
+    assert_snapshot!(parse_line(line).to_string(line));
+  }
+
+  #[test]
+  fn def() {
+    let line =
+      r#"10   def Fn a b c%(x Y 3  1) = sin(X / 2) : DEF   fN  f (X)=fn F(x)"#;
+    assert_snapshot!(parse_line(line).to_string(line));
+  }
+
+  #[test]
+  fn dim() {
+    let line = r#"10 DIm  A:dIm  B$(k+1,tan(x,y)) , C, O(3*2)"#;
+    assert_snapshot!(parse_line(line).to_string(line));
+  }
+
+  #[test]
+  fn field() {
+    let line = r#"10 field # 1*2 , 3*5-1ASA b $  : fiEld 1*2 , 1  A Sx%(3) , 7.5ASA$(A,B)"#;
+    assert_snapshot!(parse_line(line).to_string(line));
+  }
+
+  #[test]
+  fn r#for() {
+    let line = r#"10 for I%=K*2 to I%*2: FoR i=0 To 1e3 sTep k"#;
+    assert_snapshot!(parse_line(line).to_string(line));
+  }
+
+  #[test]
+  fn get_put() {
+    let line = r#"10 Get # 7/2 , 2*5 : PuT 3*2,k"#;
+    assert_snapshot!(parse_line(line).to_string(line));
+  }
+
+  #[test]
+  fn gosub_goto() {
+    let line = r#"10 gosub : goto: gosub 771 : goto 21742: goto"#;
+    assert_snapshot!(parse_line(line).to_string(line));
+  }
+
+  #[test]
+  fn r#if1() {
+    let line = r#"10 If A>2 then:if not 1 goto print "a":else"#;
+    assert_snapshot!(parse_line(line).to_string(line));
+  }
+
+  #[test]
+  fn r#if2() {
+    let line = r#"10 IF 1 THEN 10:ELSE S=S+1:NEXT:IF S> =10 GOTO"#;
+    assert_snapshot!(parse_line(line).to_string(line));
+  }
+
+  #[test]
+  fn r#if3() {
+    let line = r#"10 IF K GOTO ELSE 2:13:7:"#;
+    assert_snapshot!(parse_line(line).to_string(line));
+  }
+
+  #[test]
+  fn input() {
+    let line = r#"10 inPUT # s, A$, a$(3,i) : InPuT "ENTER:";A,B:INPUT A%"#;
+    assert_snapshot!(parse_line(line).to_string(line));
+  }
+
+  #[test]
+  fn locate() {
+    let line = r#"10 locAte 1,A+2:locate A+1: locate , 2:"#;
+    assert_snapshot!(parse_line(line).to_string(line));
+  }
+
+  #[test]
+  fn lset_rset() {
+    let line = r#"10 lset A$=MID$(B$,2):rSEt  a b$(2,k*3+m) =CHr$(x)"#;
+    assert_snapshot!(parse_line(line).to_string(line));
+  }
+
+  #[test]
+  fn next() {
+    let line = r#"10 next:Next I  : NExT A,B b% , c , i"#;
+    assert_snapshot!(parse_line(line).to_string(line));
+  }
+
+  #[test]
+  fn on() {
+    let line = r#"10 ON (k+2)*b goto:on x goSub ,:on x+1 goto 10,,30,,,"#;
+    assert_snapshot!(parse_line(line).to_string(line));
+  }
+
+  #[test]
+  fn open1() {
+    let line = r#"10 opeN A$+".dat" appendA sa+1 : open b$for input as#2"#;
+    assert_snapshot!(parse_line(line).to_string(line));
+  }
+
+  #[test]
+  fn open2() {
+    let line = r#"10 OPEN file$ randomas3:OPen f$output as 1"#;
+    assert_snapshot!(parse_line(line).to_string(line));
+  }
+
+  #[test]
+  fn open3() {
+    let line = r#"10 OPEN P$FOR inputas1 len=k*2"#;
+    assert_snapshot!(parse_line(line).to_string(line));
+  }
+
+  #[test]
+  fn poke() {
+    let line = r#"10 poKE a(i),30+I*2"#;
+    assert_snapshot!(parse_line(line).to_string(line));
+  }
+
+  #[test]
+  fn print() {
+    let line = r#"10 print 10 ; , "k"+2; spc(3+k) tab(i) 3 +2fn f(4) ,:print,:print"#;
+    assert_snapshot!(parse_line(line).to_string(line));
+  }
+
+  #[test]
+  fn read() {
+    let line = r#"10 reaD a$ : READ b$(i,j),c,d%"#;
+    assert_snapshot!(parse_line(line).to_string(line));
+  }
+
+  #[test]
+  fn swap() {
+    let line = r#"10 SwaP a$(i),b c"#;
+    assert_snapshot!(parse_line(line).to_string(line));
+  }
+
+  #[test]
+  fn write() {
+    let line = r#"10 write a$(i+j*10),b fn f(x):wriTE #3-a,asc(a)x+2 x*6 , o$"#;
     assert_snapshot!(parse_line(line).to_string(line));
   }
 

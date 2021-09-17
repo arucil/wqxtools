@@ -1,0 +1,13 @@
+---
+source: gvb_interp/src/parser.rs
+expression: parse_line(line).to_string(line)
+
+---
+label: Some(Label(10))
+len: 43
+eol: None
+diagnostics: 
+-----------------
+3..9      DIM <ID: A>
+10..43    DIM B$[(<ID: k> + <NUM: 1>), TAN(<ID: x>, <ID: y>)], <ID: C>, O[(<NUM: 3> * <NUM: 2>)]
+

@@ -1,0 +1,14 @@
+---
+source: gvb_interp/src/parser.rs
+expression: parse_line(line).to_string(line)
+
+---
+label: Some(Label(10))
+len: 53
+eol: None
+diagnostics: 
+-----------------
+3..18     ON ((<ID: k> + <NUM: 2>) * <ID: b>) GOTO <18..18>
+19..31    ON <ID: x> GOSUB <30..30>, <31..31>
+32..53    ON (<ID: x> + <NUM: 1>) GOTO 10, <47..47>, 30, <51..51>, <52..52>, <53..53>
+

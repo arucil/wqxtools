@@ -1,0 +1,13 @@
+---
+source: gvb_interp/src/parser.rs
+expression: parse_line(line).to_string(line)
+
+---
+label: Some(Label(10))
+len: 50
+eol: None
+diagnostics: 
+-----------------
+3..21     LSET <ID: A$> = MID$(<ID: B$>, <NUM: 2>)
+22..50    RSET a b$[<NUM: 2>, ((<ID: k> * <NUM: 3>) + <ID: m>)] = CHR$(<ID: x>)
+
