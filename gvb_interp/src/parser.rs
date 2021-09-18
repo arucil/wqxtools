@@ -701,6 +701,7 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
         }
       }
     }
+
     let end = self.offset;
     self.read_token(true);
     self.node_builder.new_stmt(Stmt {
@@ -1028,6 +1029,10 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
       then = Some((self.token.0.clone(), kw));
       self.read_token(true);
     } else {
+      if self.token.1 == TokenKind::Eof {
+        self.set_expected_symbols_at_eof();
+      }
+
       let cond = self.node_builder.expr_node(cond);
       if !matches!(&cond.kind, ExprKind::Error) {
         let range = cond.range.clone();
@@ -2599,6 +2604,18 @@ mod parser_tests {
     #[test]
     fn expected_symbols_after_print() {
       let line = r#"10 print"#;
+      assert_debug_snapshot!(parse_line(line).1);
+    }
+
+    #[test]
+    fn expected_symbols_after_if_cond() {
+      let line = r#"10 if a > 1"#;
+      assert_debug_snapshot!(parse_line(line).1);
+    }
+
+    #[test]
+    fn expected_symbols_after_on_cond() {
+      let line = r#"10 on a > 1"#;
       assert_debug_snapshot!(parse_line(line).1);
     }
 
