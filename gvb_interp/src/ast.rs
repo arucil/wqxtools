@@ -16,7 +16,7 @@ pub use self::node::*;
 pub use self::stmt::*;
 pub use self::token::*;
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct Program {
   pub lines: Vec<ProgramLine>,
 }
@@ -46,6 +46,19 @@ where
 {
   fn fmt(&self, f: &mut Formatter) -> fmt::Result {
     self.0.fmt(f)
+  }
+}
+
+impl Program {
+  pub fn to_string(&self, text: &str) -> String {
+    let mut buf = String::new();
+    let mut offset = 0;
+    for line in &self.lines {
+      buf += &line.to_string(&text[offset..offset + line.source_len]);
+      buf += "==================================\n";
+      offset += line.source_len;
+    }
+    buf
   }
 }
 

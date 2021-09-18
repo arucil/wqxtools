@@ -1,0 +1,35 @@
+---
+source: gvb_interp/src/parser.rs
+expression: parse(prog).to_string(prog)
+
+---
+label: Some(Label(10))
+len: 25
+eol: Lf
+diagnostics: 
+-----------------
+3..8      GRAPH
+9..12     CLS
+13..22    PRINT <STR: "a"> 
+23..24    :
+==================================
+label: Some(Label(20))
+len: 43
+eol: Lf
+diagnostics: 
+-----------------
+3..11     LET <ID: a> = <INKEY$>
+12..42    IF (<ID: a> > <NUM: 1>) THEN
+24..28        CONT
+29..31        [GOTO] 30
+          ELSE      
+37..42        TRACE
+==================================
+label: Some(Label(30))
+len: 26
+eol: None
+diagnostics: 
+-----------------
+3..26     LET x$[<NUM: 2>, <NUM: 3>] = ASC(<INKEY$>)
+==================================
+

@@ -35,7 +35,7 @@ pub enum ExprKind {
     arg: ExprId,
   },
   Index {
-    name: Range,
+    name: Option<Range>,
     indices: NonEmptyVec<[ExprId; 1]>,
   },
   Inkey,
@@ -283,7 +283,11 @@ impl Expr {
         write!(f, ")")
       }
       ExprKind::Index { name, indices } => {
-        write!(f, "{}[", &text[name.start..name.end])?;
+        if let Some(name) = name {
+          write!(f, "{}[", &text[name.start..name.end])?;
+        } else {
+          write!(f, "???[")?;
+        }
         let mut comma = false;
         for &arg in indices.iter() {
           if comma {

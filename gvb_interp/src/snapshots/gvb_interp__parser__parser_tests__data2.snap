@@ -8,6 +8,6 @@ len: 35
 eol: None
 diagnostics: 
 -----------------
-3..21     DATA [1], [2  ], []
+3..20     DATA [1], [2  ], []
 22..35    DATA "["aA"]", "["bB]"
 

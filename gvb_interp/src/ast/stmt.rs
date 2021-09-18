@@ -52,7 +52,7 @@ pub enum StmtKind {
   Flash,
   For {
     /// ident
-    var: Range,
+    var: Option<Range>,
     start: ExprId,
     end: ExprId,
     step: Option<ExprId>,
@@ -104,7 +104,7 @@ pub enum StmtKind {
   New(Range),
   Next {
     /// ident list. may be empty
-    vars: SmallVec<[Range; 1]>,
+    vars: SmallVec<[Option<Range>; 1]>,
   },
   Normal,
   NoTrace,
@@ -386,7 +386,11 @@ fn print_stmt(
       end,
       step,
     } => {
-      write!(f, "FOR {} = ", &text[var.start..var.end])?;
+      if let Some(var) = var {
+        write!(f, "FOR {} = ", &text[var.start..var.end])?;
+      } else {
+        write!(f, "FOR ??? = ")?;
+      }
       expr_arena[*start].print(expr_arena, text, f)?;
       write!(f, " TO ")?;
       expr_arena[*end].print(expr_arena, text, f)?;
@@ -536,7 +540,11 @@ fn print_stmt(
           write!(f, ", ")?;
         }
         comma = true;
-        write!(f, "{}", &text[var.start..var.end])?;
+        if let Some(var) = var {
+          write!(f, "{}", &text[var.start..var.end])?;
+        } else {
+          write!(f, "???")?;
+        }
       }
       writeln!(f)
     }

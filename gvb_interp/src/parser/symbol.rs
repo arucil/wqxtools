@@ -1,13 +1,16 @@
-use std::iter::FromIterator;
-
 use super::super::ast::*;
 use num_derive::FromPrimitive;
 use num_traits::FromPrimitive;
+use std::{
+  fmt::{self, Debug, Formatter},
+  ops::BitOrAssign,
+};
 
-#[derive(Debug, FromPrimitive, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, FromPrimitive, PartialEq, Eq)]
 pub enum Nonterminal {
   Expr,
   Stmt,
+  Array,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -16,11 +19,17 @@ pub enum Symbol {
   Term(TokenKind),
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(PartialEq, Eq)]
 pub struct SymbolSet([u64; 3]);
 
+#[derive(Debug)]
+pub struct SymbolSetBackup {
+  ptr: *mut SymbolSet,
+  org_set: SymbolSet,
+}
+
 impl SymbolSet {
-  pub fn new() -> Self {
+  pub const fn new() -> Self {
     Self([0; 3])
   }
 
@@ -28,46 +37,74 @@ impl SymbolSet {
     self.into_iter()
   }
 
+  const fn add(&mut self, i: usize) {
+    self.0[i >> 6] |= 1 << (i & 63);
+  }
+
   pub fn contains_token(&self, tok: TokenKind) -> bool {
     let i: usize = tok.into();
     (self.0[i >> 6] & (1 << (i & 63))) != 0
   }
-}
 
-impl Extend<Symbol> for SymbolSet {
-  fn extend<I: IntoIterator<Item = Symbol>>(&mut self, iter: I) {
-    for sym in iter {
-      let k: usize = sym.into();
-      self.0[k >> 6] |= 1 << (k & 63);
+  pub fn backup(&self) -> SymbolSetBackup {
+    SymbolSetBackup {
+      ptr: self as *const _ as *mut _,
+      org_set: SymbolSet(self.0),
     }
+  }
+
+  pub fn dup(&self) -> Self {
+    Self(self.0)
   }
 }
 
-impl FromIterator<Symbol> for SymbolSet {
-  fn from_iter<I: IntoIterator<Item = Symbol>>(iter: I) -> Self {
-    let mut set = Self::new();
-    for sym in iter {
-      set.extend_one(sym);
-    }
-    set
+impl BitOrAssign<Symbol> for SymbolSet {
+  fn bitor_assign(&mut self, rhs: Symbol) {
+    self.add(rhs.into());
+  }
+}
+
+impl BitOrAssign<SymbolSet> for SymbolSet {
+  fn bitor_assign(&mut self, rhs: SymbolSet) {
+    self.0[0] |= rhs.0[0];
+    self.0[1] |= rhs.0[1];
+    self.0[2] |= rhs.0[2];
+  }
+}
+
+impl Drop for SymbolSetBackup {
+  fn drop(&mut self) {
+    unsafe { (*self.ptr).0 = self.org_set.0 };
+  }
+}
+
+impl SymbolSetBackup {
+  pub fn set(&self, symbols: &mut SymbolSet) {
+    symbols.0 = self.org_set.0;
   }
 }
 
 impl From<Symbol> for usize {
   fn from(sym: Symbol) -> Self {
-    match sym {
-      Symbol::Term(t) => t.into(),
-      Symbol::Nonterm(n) => 128 + n as usize,
-    }
+    sym.to_usize()
   }
 }
 
 impl From<usize> for Symbol {
   fn from(k: usize) -> Self {
-    if k < 160 {
+    if k < 150 {
       Self::Term(TokenKind::from(k))
     } else {
-      Self::Nonterm(Nonterminal::from_usize(k - 160).unwrap())
+      Self::Nonterm(Nonterminal::from_usize(k - 150).unwrap())
+    }
+  }
+}
+
+impl Symbol {
+  pub const fn to_usize(&self) -> usize {
+    match self {
+      Symbol::Term(t) => t.to_usize(),
+      Symbol::Nonterm(n) => 150 + *n as usize,
     }
   }
 }
@@ -85,94 +122,136 @@ impl From<Nonterminal> for Symbol {
 }
 
 impl Nonterminal {
-  pub fn first_symbols(&self) -> impl IntoIterator<Item = Symbol> {
+  const EXPR_FIRST_SYMBOLS: SymbolSet = {
+    let mut set = SymbolSet::new();
+    set.add(Symbol::Term(TokenKind::Float).to_usize());
+    set.add(Symbol::Term(TokenKind::Label).to_usize());
+    set.add(Symbol::Term(TokenKind::String).to_usize());
+    set.add(Symbol::Term(TokenKind::Keyword(Keyword::Inkey)).to_usize());
+    set.add(Symbol::Term(TokenKind::Punc(Punc::Plus)).to_usize());
+    set.add(Symbol::Term(TokenKind::Punc(Punc::Minus)).to_usize());
+    set.add(Symbol::Term(TokenKind::Keyword(Keyword::Not)).to_usize());
+    set.add(Symbol::Term(TokenKind::Punc(Punc::LParen)).to_usize());
+    set.add(Symbol::Term(TokenKind::Keyword(Keyword::Fn)).to_usize());
+    set.add(Symbol::Term(TokenKind::SysFunc(SysFuncKind::Abs)).to_usize());
+    set.add(Symbol::Term(TokenKind::SysFunc(SysFuncKind::Asc)).to_usize());
+    set.add(Symbol::Term(TokenKind::SysFunc(SysFuncKind::Atn)).to_usize());
+    set.add(Symbol::Term(TokenKind::SysFunc(SysFuncKind::Chr)).to_usize());
+    set.add(Symbol::Term(TokenKind::SysFunc(SysFuncKind::Cos)).to_usize());
+    set.add(Symbol::Term(TokenKind::SysFunc(SysFuncKind::Cvi)).to_usize());
+    set.add(Symbol::Term(TokenKind::SysFunc(SysFuncKind::Cvs)).to_usize());
+    set.add(Symbol::Term(TokenKind::SysFunc(SysFuncKind::Eof)).to_usize());
+    set.add(Symbol::Term(TokenKind::SysFunc(SysFuncKind::Exp)).to_usize());
+    set.add(Symbol::Term(TokenKind::SysFunc(SysFuncKind::Int)).to_usize());
+    set.add(Symbol::Term(TokenKind::SysFunc(SysFuncKind::Left)).to_usize());
+    set.add(Symbol::Term(TokenKind::SysFunc(SysFuncKind::Len)).to_usize());
+    set.add(Symbol::Term(TokenKind::SysFunc(SysFuncKind::Lof)).to_usize());
+    set.add(Symbol::Term(TokenKind::SysFunc(SysFuncKind::Log)).to_usize());
+    set.add(Symbol::Term(TokenKind::SysFunc(SysFuncKind::Mid)).to_usize());
+    set.add(Symbol::Term(TokenKind::SysFunc(SysFuncKind::Mki)).to_usize());
+    set.add(Symbol::Term(TokenKind::SysFunc(SysFuncKind::Mks)).to_usize());
+    set.add(Symbol::Term(TokenKind::SysFunc(SysFuncKind::Peek)).to_usize());
+    set.add(Symbol::Term(TokenKind::SysFunc(SysFuncKind::Pos)).to_usize());
+    set.add(Symbol::Term(TokenKind::SysFunc(SysFuncKind::Right)).to_usize());
+    set.add(Symbol::Term(TokenKind::SysFunc(SysFuncKind::Rnd)).to_usize());
+    set.add(Symbol::Term(TokenKind::SysFunc(SysFuncKind::Sgn)).to_usize());
+    set.add(Symbol::Term(TokenKind::SysFunc(SysFuncKind::Sin)).to_usize());
+    set.add(Symbol::Term(TokenKind::SysFunc(SysFuncKind::Sqr)).to_usize());
+    set.add(Symbol::Term(TokenKind::SysFunc(SysFuncKind::Str)).to_usize());
+    set.add(Symbol::Term(TokenKind::SysFunc(SysFuncKind::Tan)).to_usize());
+    set.add(Symbol::Term(TokenKind::SysFunc(SysFuncKind::Val)).to_usize());
+    set.add(Symbol::Term(TokenKind::Ident).to_usize());
+    set
+  };
+
+  const STMT_FIRST_SYMBOLS: SymbolSet = {
+    let mut set = SymbolSet::new();
+    set.add(Symbol::Term(TokenKind::Keyword(Keyword::Auto)).to_usize());
+    set.add(Symbol::Term(TokenKind::Keyword(Keyword::Beep)).to_usize());
+    set.add(Symbol::Term(TokenKind::Keyword(Keyword::Box)).to_usize());
+    set.add(Symbol::Term(TokenKind::Keyword(Keyword::Call)).to_usize());
+    set.add(Symbol::Term(TokenKind::Keyword(Keyword::Circle)).to_usize());
+    set.add(Symbol::Term(TokenKind::Keyword(Keyword::Clear)).to_usize());
+    set.add(Symbol::Term(TokenKind::Keyword(Keyword::Close)).to_usize());
+    set.add(Symbol::Term(TokenKind::Keyword(Keyword::Cls)).to_usize());
+    set.add(Symbol::Term(TokenKind::Keyword(Keyword::Cont)).to_usize());
+    set.add(Symbol::Term(TokenKind::Keyword(Keyword::Copy)).to_usize());
+    set.add(Symbol::Term(TokenKind::Keyword(Keyword::Data)).to_usize());
+    set.add(Symbol::Term(TokenKind::Keyword(Keyword::Def)).to_usize());
+    set.add(Symbol::Term(TokenKind::Keyword(Keyword::Del)).to_usize());
+    set.add(Symbol::Term(TokenKind::Keyword(Keyword::Dim)).to_usize());
+    set.add(Symbol::Term(TokenKind::Keyword(Keyword::Draw)).to_usize());
+    set.add(Symbol::Term(TokenKind::Keyword(Keyword::Edit)).to_usize());
+    set.add(Symbol::Term(TokenKind::Keyword(Keyword::Ellipse)).to_usize());
+    set.add(Symbol::Term(TokenKind::Keyword(Keyword::End)).to_usize());
+    set.add(Symbol::Term(TokenKind::Keyword(Keyword::Field)).to_usize());
+    set.add(Symbol::Term(TokenKind::Keyword(Keyword::Files)).to_usize());
+    set.add(Symbol::Term(TokenKind::Keyword(Keyword::Flash)).to_usize());
+    set.add(Symbol::Term(TokenKind::Keyword(Keyword::For)).to_usize());
+    set.add(Symbol::Term(TokenKind::Keyword(Keyword::Get)).to_usize());
+    set.add(Symbol::Term(TokenKind::Keyword(Keyword::Gosub)).to_usize());
+    set.add(Symbol::Term(TokenKind::Keyword(Keyword::Goto)).to_usize());
+    set.add(Symbol::Term(TokenKind::Keyword(Keyword::Graph)).to_usize());
+    set.add(Symbol::Term(TokenKind::Keyword(Keyword::If)).to_usize());
+    set.add(Symbol::Term(TokenKind::Keyword(Keyword::Inkey)).to_usize());
+    set.add(Symbol::Term(TokenKind::Keyword(Keyword::Input)).to_usize());
+    set.add(Symbol::Term(TokenKind::Keyword(Keyword::Inverse)).to_usize());
+    set.add(Symbol::Term(TokenKind::Keyword(Keyword::Kill)).to_usize());
+    set.add(Symbol::Term(TokenKind::Keyword(Keyword::Let)).to_usize());
+    set.add(Symbol::Term(TokenKind::Keyword(Keyword::Line)).to_usize());
+    set.add(Symbol::Term(TokenKind::Keyword(Keyword::List)).to_usize());
+    set.add(Symbol::Term(TokenKind::Keyword(Keyword::Load)).to_usize());
+    set.add(Symbol::Term(TokenKind::Keyword(Keyword::Locate)).to_usize());
+    set.add(Symbol::Term(TokenKind::Keyword(Keyword::Lset)).to_usize());
+    set.add(Symbol::Term(TokenKind::Keyword(Keyword::New)).to_usize());
+    set.add(Symbol::Term(TokenKind::Keyword(Keyword::Next)).to_usize());
+    set.add(Symbol::Term(TokenKind::Keyword(Keyword::Normal)).to_usize());
+    set.add(Symbol::Term(TokenKind::Keyword(Keyword::Notrace)).to_usize());
+    set.add(Symbol::Term(TokenKind::Keyword(Keyword::On)).to_usize());
+    set.add(Symbol::Term(TokenKind::Keyword(Keyword::Open)).to_usize());
+    set.add(Symbol::Term(TokenKind::Keyword(Keyword::Play)).to_usize());
+    set.add(Symbol::Term(TokenKind::Keyword(Keyword::Poke)).to_usize());
+    set.add(Symbol::Term(TokenKind::Keyword(Keyword::Pop)).to_usize());
+    set.add(Symbol::Term(TokenKind::Keyword(Keyword::Print)).to_usize());
+    set.add(Symbol::Term(TokenKind::Keyword(Keyword::Put)).to_usize());
+    set.add(Symbol::Term(TokenKind::Keyword(Keyword::Read)).to_usize());
+    set.add(Symbol::Term(TokenKind::Keyword(Keyword::Rem)).to_usize());
+    set.add(Symbol::Term(TokenKind::Keyword(Keyword::Rename)).to_usize());
+    set.add(Symbol::Term(TokenKind::Keyword(Keyword::Restore)).to_usize());
+    set.add(Symbol::Term(TokenKind::Keyword(Keyword::Return)).to_usize());
+    set.add(Symbol::Term(TokenKind::Keyword(Keyword::Rset)).to_usize());
+    set.add(Symbol::Term(TokenKind::Keyword(Keyword::Run)).to_usize());
+    set.add(Symbol::Term(TokenKind::Keyword(Keyword::Save)).to_usize());
+    set.add(Symbol::Term(TokenKind::Keyword(Keyword::Stop)).to_usize());
+    set.add(Symbol::Term(TokenKind::Keyword(Keyword::Swap)).to_usize());
+    set.add(Symbol::Term(TokenKind::Keyword(Keyword::System)).to_usize());
+    set.add(Symbol::Term(TokenKind::Keyword(Keyword::Text)).to_usize());
+    set.add(Symbol::Term(TokenKind::Keyword(Keyword::Trace)).to_usize());
+    set.add(Symbol::Term(TokenKind::Keyword(Keyword::Wend)).to_usize());
+    set.add(Symbol::Term(TokenKind::Keyword(Keyword::While)).to_usize());
+    set.add(Symbol::Term(TokenKind::Keyword(Keyword::Write)).to_usize());
+    set.add(Symbol::Term(TokenKind::Ident).to_usize());
+    set
+  };
+
+  const ARRAY_FIRST_SYMBOLS: SymbolSet = {
+    let mut set = SymbolSet::new();
+    set.add(Symbol::Term(TokenKind::Ident).to_usize());
+    set
+  };
+
+  pub fn first_symbols(&self) -> SymbolSet {
     match self {
-      Self::Expr => {
-        vec![
-          Symbol::Term(TokenKind::Float),
-          Symbol::Term(TokenKind::Label),
-          Symbol::Term(TokenKind::String),
-          Symbol::Term(TokenKind::Keyword(Keyword::Inkey)),
-          Symbol::Term(TokenKind::Punc(Punc::Plus)),
-          Symbol::Term(TokenKind::Punc(Punc::Minus)),
-          Symbol::Term(TokenKind::Keyword(Keyword::Not)),
-          Symbol::Term(TokenKind::Punc(Punc::LParen)),
-          Symbol::Term(TokenKind::Keyword(Keyword::Fn)),
-          // any SysFuncKind will work
-          Symbol::Term(TokenKind::SysFunc(SysFuncKind::Abs)),
-          Symbol::Term(TokenKind::Ident),
-        ]
-      }
-      Self::Stmt => {
-        vec![
-          Symbol::Term(TokenKind::Keyword(Keyword::Auto)),
-          Symbol::Term(TokenKind::Keyword(Keyword::Beep)),
-          Symbol::Term(TokenKind::Keyword(Keyword::Box)),
-          Symbol::Term(TokenKind::Keyword(Keyword::Call)),
-          Symbol::Term(TokenKind::Keyword(Keyword::Circle)),
-          Symbol::Term(TokenKind::Keyword(Keyword::Clear)),
-          Symbol::Term(TokenKind::Keyword(Keyword::Close)),
-          Symbol::Term(TokenKind::Keyword(Keyword::Cls)),
-          Symbol::Term(TokenKind::Keyword(Keyword::Cont)),
-          Symbol::Term(TokenKind::Keyword(Keyword::Copy)),
-          Symbol::Term(TokenKind::Keyword(Keyword::Data)),
-          Symbol::Term(TokenKind::Keyword(Keyword::Def)),
-          Symbol::Term(TokenKind::Keyword(Keyword::Del)),
-          Symbol::Term(TokenKind::Keyword(Keyword::Dim)),
-          Symbol::Term(TokenKind::Keyword(Keyword::Draw)),
-          Symbol::Term(TokenKind::Keyword(Keyword::Edit)),
-          Symbol::Term(TokenKind::Keyword(Keyword::Ellipse)),
-          Symbol::Term(TokenKind::Keyword(Keyword::End)),
-          Symbol::Term(TokenKind::Keyword(Keyword::Field)),
-          Symbol::Term(TokenKind::Keyword(Keyword::Files)),
-          Symbol::Term(TokenKind::Keyword(Keyword::Flash)),
-          Symbol::Term(TokenKind::Keyword(Keyword::For)),
-          Symbol::Term(TokenKind::Keyword(Keyword::Get)),
-          Symbol::Term(TokenKind::Keyword(Keyword::Gosub)),
-          Symbol::Term(TokenKind::Keyword(Keyword::Goto)),
-          Symbol::Term(TokenKind::Keyword(Keyword::Graph)),
-          Symbol::Term(TokenKind::Keyword(Keyword::If)),
-          Symbol::Term(TokenKind::Keyword(Keyword::Inkey)),
-          Symbol::Term(TokenKind::Keyword(Keyword::Input)),
-          Symbol::Term(TokenKind::Keyword(Keyword::Inverse)),
-          Symbol::Term(TokenKind::Keyword(Keyword::Kill)),
-          Symbol::Term(TokenKind::Keyword(Keyword::Let)),
-          Symbol::Term(TokenKind::Keyword(Keyword::Line)),
-          Symbol::Term(TokenKind::Keyword(Keyword::List)),
-          Symbol::Term(TokenKind::Keyword(Keyword::Load)),
-          Symbol::Term(TokenKind::Keyword(Keyword::Locate)),
-          Symbol::Term(TokenKind::Keyword(Keyword::Lset)),
-          Symbol::Term(TokenKind::Keyword(Keyword::New)),
-          Symbol::Term(TokenKind::Keyword(Keyword::Next)),
-          Symbol::Term(TokenKind::Keyword(Keyword::Normal)),
-          Symbol::Term(TokenKind::Keyword(Keyword::Notrace)),
-          Symbol::Term(TokenKind::Keyword(Keyword::On)),
-          Symbol::Term(TokenKind::Keyword(Keyword::Open)),
-          Symbol::Term(TokenKind::Keyword(Keyword::Play)),
-          Symbol::Term(TokenKind::Keyword(Keyword::Poke)),
-          Symbol::Term(TokenKind::Keyword(Keyword::Pop)),
-          Symbol::Term(TokenKind::Keyword(Keyword::Print)),
-          Symbol::Term(TokenKind::Keyword(Keyword::Put)),
-          Symbol::Term(TokenKind::Keyword(Keyword::Read)),
-          Symbol::Term(TokenKind::Keyword(Keyword::Rem)),
-          Symbol::Term(TokenKind::Keyword(Keyword::Rename)),
-          Symbol::Term(TokenKind::Keyword(Keyword::Restore)),
-          Symbol::Term(TokenKind::Keyword(Keyword::Return)),
-          Symbol::Term(TokenKind::Keyword(Keyword::Rset)),
-          Symbol::Term(TokenKind::Keyword(Keyword::Run)),
-          Symbol::Term(TokenKind::Keyword(Keyword::Save)),
-          Symbol::Term(TokenKind::Keyword(Keyword::Stop)),
-          Symbol::Term(TokenKind::Keyword(Keyword::Swap)),
-          Symbol::Term(TokenKind::Keyword(Keyword::System)),
-          Symbol::Term(TokenKind::Keyword(Keyword::Text)),
-          Symbol::Term(TokenKind::Keyword(Keyword::Trace)),
-          Symbol::Term(TokenKind::Keyword(Keyword::Wend)),
-          Symbol::Term(TokenKind::Keyword(Keyword::While)),
-          Symbol::Term(TokenKind::Keyword(Keyword::Write)),
-          Symbol::Term(TokenKind::Ident),
-        ]
-      }
+      Self::Expr => Self::EXPR_FIRST_SYMBOLS,
+      Self::Stmt => Self::STMT_FIRST_SYMBOLS,
+      Self::Array => Self::ARRAY_FIRST_SYMBOLS,
     }
+  }
+}
+
+impl Debug for SymbolSet {
+  fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+    f.debug_list().entries(self.iter()).finish()
   }
 }
 
@@ -202,13 +281,12 @@ impl<'a> Iterator for SymbolIter<'a> {
         return None;
       }
       let n = self.set.0[self.index as usize >> 6];
-      let n = n & !((1 << (self.index & 63)) - 1);
+      let n = n & !((1u64 << (self.index & 63)) - 1);
       if n == 0 {
-        self.index += 64;
+        self.index = (self.index + 64) & !63;
         continue;
       }
-      let next_index =
-        (self.index >> 6 << 6) + (n & (n - 1) ^ n).trailing_zeros();
+      let next_index = (self.index & !63) + (n & (n - 1) ^ n).trailing_zeros();
       self.index = next_index + 1;
       return Some(Symbol::from(next_index as usize));
     }
@@ -223,9 +301,9 @@ mod tests {
   #[test]
   fn iter() {
     let set = SymbolSet([
-      0b100_0000000000_0001001000,
+      0b100_0000_0000000000_0001001000,
       0,
-      0b1000_0000000000_0000000000_0000000000,
+      0b10_00_0000000000_0100000000,
     ]);
     let result: Vec<_> = set.iter().collect();
     assert_eq!(
@@ -234,8 +312,38 @@ mod tests {
         Symbol::Term(TokenKind::String),
         Symbol::Term(TokenKind::Punc(Punc::Gt)),
         Symbol::Term(TokenKind::Keyword(Keyword::Box)),
+        Symbol::Term(TokenKind::SysFunc(SysFuncKind::Val)),
         Symbol::Nonterm(Nonterminal::Stmt),
       ]
     );
+  }
+
+  #[test]
+  fn build_symbol_set() {
+    let mut set = SymbolSet::new();
+    set |= Symbol::Term(TokenKind::String);
+    set |= Symbol::Term(TokenKind::Punc(Punc::Gt));
+    set |= Symbol::Term(TokenKind::Keyword(Keyword::Box));
+    set |= Symbol::Term(TokenKind::SysFunc(SysFuncKind::Val));
+    set |= Symbol::Nonterm(Nonterminal::Stmt);
+    assert_eq!(
+      set,
+      SymbolSet([
+        0b100_0000_0000000000_0001001000,
+        0,
+        0b10_00_0000000000_0100000000,
+      ])
+    );
+  }
+
+  #[test]
+  fn contains_token() {
+    let set = SymbolSet([
+      0b100_0000_0000000000_0001001000,
+      0,
+      0b10_00_0000000000_0100000000,
+    ]);
+    assert!(set.contains_token(TokenKind::Punc(Punc::Gt)));
+    assert!(!set.contains_token(TokenKind::Punc(Punc::Colon)));
   }
 }

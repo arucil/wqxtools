@@ -1,0 +1,17 @@
+---
+source: gvb_interp/src/parser.rs
+expression: parse_line(line).to_string(line)
+
+---
+label: Some(Label(10))
+len: 38
+eol: None
+diagnostics: 
+  Error<15..16>: 缺少匹配的右括号
+  Error<10..11>: 缺少匹配的右括号
+-----------------
+3..38     IF (<NUM: 3> > CHR$(<ID: k>, <NUM: 2>)) THEN
+28..30        [GOTO] 10
+          ELSE      
+36..38        [GOTO] 20
+

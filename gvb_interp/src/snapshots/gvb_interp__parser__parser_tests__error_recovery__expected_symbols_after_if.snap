@@ -1,0 +1,12 @@
+---
+source: gvb_interp/src/parser.rs
+expression: parse_line(line).1
+
+---
+Some(
+    [
+        Nonterm(
+            Expr,
+        ),
+    ],
+)

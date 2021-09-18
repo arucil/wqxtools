@@ -358,18 +358,24 @@ impl Debug for TokenKind {
   }
 }
 
-impl From<TokenKind> for usize {
-  fn from(t: TokenKind) -> Self {
-    match t {
+impl TokenKind {
+  pub const fn to_usize(&self) -> usize {
+    match self {
       TokenKind::Ident => 0,
       TokenKind::Label => 1,
       TokenKind::Float => 2,
       TokenKind::String => 3,
-      TokenKind::SysFunc(_) => 4,
-      TokenKind::Punc(p) => 5 + p as usize,
-      TokenKind::Keyword(k) => 30 + k as usize,
+      TokenKind::Punc(p) => 4 + *p as usize,
+      TokenKind::Keyword(k) => 24 + *k as usize,
+      TokenKind::SysFunc(k) => 110 + *k as usize,
       _ => unreachable!(),
     }
+  }
+}
+
+impl From<TokenKind> for usize {
+  fn from(t: TokenKind) -> Self {
+    t.to_usize()
   }
 }
 
@@ -381,8 +387,9 @@ impl From<usize> for TokenKind {
       2 => Self::Float,
       3 => Self::String,
       4 => unreachable!("SysFunc"),
-      5..30 => Self::Punc(Punc::from_usize(n - 5).unwrap()),
-      30..128 => Self::Keyword(Keyword::from_usize(n - 30).unwrap()),
+      4..24 => Self::Punc(Punc::from_usize(n - 4).unwrap()),
+      24..110 => Self::Keyword(Keyword::from_usize(n - 24).unwrap()),
+      110..150 => Self::SysFunc(SysFuncKind::from_usize(n - 110).unwrap()),
       _ => unreachable!(),
     }
   }
