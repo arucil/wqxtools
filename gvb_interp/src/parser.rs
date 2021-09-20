@@ -241,131 +241,135 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
     self.label_value = None;
     self.last_token_end = self.token.0.end;
 
-    self.skip_space();
-    let start = self.offset;
-    let c;
-    if let Some(&c1) = self.input.as_bytes().first() {
-      c = c1;
-    } else {
-      return self.set_token(start, TokenKind::Eof);
-    }
+    loop {
+      self.skip_space();
+      let start = self.offset;
+      let c;
+      if let Some(&c1) = self.input.as_bytes().first() {
+        c = c1;
+      } else {
+        return self.set_token(start, TokenKind::Eof);
+      }
 
-    match c {
-      b'=' | b'<' | b'>' | b'+' | b'-' | b'*' | b'/' | b'^' | b':' | b'('
-      | b')' | b';' | b',' | b'#' => {
-        self.advance(1);
-        self.set_token(start, TokenKind::Punc(Punc::from(c)));
-      }
-      b'"' => {
-        let len = self.read_quoted_string();
-        let start = self.offset;
-        self.advance(len);
-        self.set_token(start, TokenKind::String);
-      }
-      b'0'..=b'9' | b'.' => {
-        let (len, is_nat) = read_number(self.input.as_bytes(), true);
-        let start = self.offset;
-        if is_nat && read_label {
-          let label = self.input[..len].parse::<Label>();
+      match c {
+        b'=' | b'<' | b'>' | b'+' | b'-' | b'*' | b'/' | b'^' | b':' | b'('
+        | b')' | b';' | b',' | b'#' => {
+          self.advance(1);
+          self.set_token(start, TokenKind::Punc(Punc::from(c)));
+        }
+        b'"' => {
+          let len = self.read_quoted_string();
+          let start = self.offset;
           self.advance(len);
-          self.label_value = Some(label);
-          self.set_token(start, TokenKind::Label);
-        } else {
-          self.advance(len);
-          self.set_token(start, TokenKind::Float);
+          self.set_token(start, TokenKind::String);
         }
-      }
-      b'a'..=b'z' | b'A'..=b'Z' => {
-        let start = self.offset;
-        let mut i = 0;
-        while matches!(
-          self.input.as_bytes().get(i),
-          Some(c) if c.is_ascii_alphanumeric()
-        ) {
-          i += 1;
+        b'0'..=b'9' | b'.' => {
+          let (len, is_nat) = read_number(self.input.as_bytes(), true);
+          let start = self.offset;
+          if is_nat && read_label {
+            let label = self.input[..len].parse::<Label>();
+            self.advance(len);
+            self.label_value = Some(label);
+            self.set_token(start, TokenKind::Label);
+          } else {
+            self.advance(len);
+            self.set_token(start, TokenKind::Float);
+          }
         }
-        let mut sigil = false;
-        if let Some(b'%' | b'$') = self.input.as_bytes().get(i) {
-          i += 1;
-          sigil = true;
-        }
+        b'a'..=b'z' | b'A'..=b'Z' => {
+          let start = self.offset;
+          let mut i = 0;
+          while matches!(
+            self.input.as_bytes().get(i),
+            Some(c) if c.is_ascii_alphanumeric()
+          ) {
+            i += 1;
+          }
+          let mut sigil = false;
+          if let Some(b'%' | b'$') = self.input.as_bytes().get(i) {
+            i += 1;
+            sigil = true;
+          }
 
-        let str = self.input[..i].to_ascii_lowercase();
-        self.advance(i);
-        if let Ok(kw) = str.parse::<Keyword>() {
-          return self.set_token(start, TokenKind::Keyword(kw));
-        } else if let Ok(f) = str.parse::<SysFuncKind>() {
-          return self.set_token(start, TokenKind::SysFunc(f));
-        } else if sigil {
-          return self.set_token(start, TokenKind::Ident);
-        }
+          let str = self.input[..i].to_ascii_lowercase();
+          self.advance(i);
+          if let Ok(kw) = str.parse::<Keyword>() {
+            return self.set_token(start, TokenKind::Keyword(kw));
+          } else if let Ok(f) = str.parse::<SysFuncKind>() {
+            return self.set_token(start, TokenKind::SysFunc(f));
+          } else if sigil {
+            return self.set_token(start, TokenKind::Ident);
+          }
 
-        let mut i = 0;
-        let mut seg_start = 0;
-        let mut in_seg = false;
+          let mut i = 0;
+          let mut seg_start = 0;
+          let mut in_seg = false;
 
-        loop {
-          match self.input.as_bytes().get(i) {
-            Some(c) if c.is_ascii_alphanumeric() => {
-              if !in_seg {
-                seg_start = i;
-                in_seg = true;
-              }
-              i += 1;
-            }
-            Some(b'%' | b'$') => {
-              i += 1;
-              if in_seg {
-                let str = self.input[seg_start..i].to_ascii_lowercase();
-                if str.parse::<Keyword>().is_ok()
-                  || str.parse::<SysFuncKind>().is_ok()
-                {
-                  i = seg_start;
+          loop {
+            match self.input.as_bytes().get(i) {
+              Some(c) if c.is_ascii_alphanumeric() => {
+                if !in_seg {
+                  seg_start = i;
+                  in_seg = true;
                 }
+                i += 1;
               }
-              break;
-            }
-            c => {
-              if in_seg {
-                in_seg = false;
-                let str = self.input[seg_start..i].to_ascii_lowercase();
-                if str.parse::<Keyword>().is_ok()
-                  || str.parse::<SysFuncKind>().is_ok()
-                {
-                  i = seg_start;
+              Some(b'%' | b'$') => {
+                i += 1;
+                if in_seg {
+                  let str = self.input[seg_start..i].to_ascii_lowercase();
+                  if str.parse::<Keyword>().is_ok()
+                    || str.parse::<SysFuncKind>().is_ok()
+                  {
+                    i = seg_start;
+                  }
+                }
+                break;
+              }
+              c => {
+                if in_seg {
+                  in_seg = false;
+                  let str = self.input[seg_start..i].to_ascii_lowercase();
+                  if str.parse::<Keyword>().is_ok()
+                    || str.parse::<SysFuncKind>().is_ok()
+                  {
+                    i = seg_start;
+                    break;
+                  }
+                }
+                if c == Some(&b' ') {
+                  i += 1;
+                } else {
                   break;
                 }
               }
-              if c == Some(&b' ') {
-                i += 1;
-              } else {
-                break;
-              }
             }
           }
-        }
 
-        while i > 0 && self.input.as_bytes()[i - 1] == b' ' {
-          i -= 1;
-        }
+          while i > 0 && self.input.as_bytes()[i - 1] == b' ' {
+            i -= 1;
+          }
 
-        self.advance(i);
-        self.set_token(start, TokenKind::Ident);
+          self.advance(i);
+          self.set_token(start, TokenKind::Ident);
+        }
+        _ => {
+          let start = self.offset;
+          let c = self.input.chars().next().unwrap();
+          self.advance(c.len_utf8());
+          self.add_error(
+            Range::new(start, self.offset),
+            if (c as u32) < 0x10000 {
+              format!("非法字符：U+{:04X}", c as u32)
+            } else {
+              format!("非法字符：U+{:06X}", c as u32)
+            },
+          );
+          self.read_token(read_label);
+          continue;
+        }
       }
-      _ => {
-        let start = self.offset;
-        let c = self.input.chars().next().unwrap();
-        self.advance(c.len_utf8());
-        self.add_error(
-          Range::new(start, self.offset),
-          if (c as u32) < 0x10000 {
-            format!("非法字符：U+{:04X}", c as u32)
-          } else {
-            format!("非法字符：U+{:06X}", c as u32)
-          },
-        );
-        self.read_token(read_label);
-      }
+      break;
     }
   }
 
@@ -457,7 +461,7 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
   }
 
   fn parse_stmts(&mut self, in_if_branch: bool) -> SmallVec<[StmtId; 1]> {
-    let old_first = self.first_symbols.backup();
+    let _first_symbols = self.first_symbols.backup();
     let old_follow = self.follow_symbols.backup();
 
     if in_if_branch {
@@ -645,9 +649,14 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
   }
 
   fn parse_unary_cmd(&mut self, ctor: fn(ExprId) -> StmtKind) -> StmtId {
+    let _first_symbols = self.first_symbols.backup();
+
     let start = self.token.0.start;
     self.read_token(false);
+
+    setup_first! { self : }
     let arg = self.parse_expr();
+
     self.node_builder.new_stmt(Stmt {
       kind: ctor(arg),
       range: Range::new(start, self.last_token_end),
@@ -655,12 +664,17 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
   }
 
   fn parse_close_stmt(&mut self) -> StmtId {
+    let _first_symbols = self.first_symbols.backup();
     let start = self.token.0.start;
     self.read_token(false);
+
     if self.token.1 == TokenKind::Punc(Punc::Hash) {
       self.read_token(false);
     }
+
+    setup_first! { self : }
     let filenum = self.parse_expr();
+
     self.node_builder.new_stmt(Stmt {
       kind: StmtKind::Close { filenum },
       range: Range::new(start, self.last_token_end),
@@ -714,7 +728,7 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
     let def_range = self.token.0.clone();
     self.read_token(false);
 
-    let old_first = self.first_symbols.backup();
+    let _first_symbols = self.first_symbols.backup();
     let old_follow = self.follow_symbols.backup();
     setup_first! { self : (kw Fn) }
     setup_follow! { self, old_follow : (id) (punc LParen Eq) }
@@ -805,7 +819,7 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
   }
 
   fn parse_field_stmt(&mut self) -> StmtId {
-    let old_first = self.first_symbols.backup();
+    let _first_symbols = self.first_symbols.backup();
     let old_follow = self.follow_symbols.backup();
 
     let start = self.token.0.start;
@@ -814,6 +828,7 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
       self.read_token(false);
     }
 
+    setup_first! { self : }
     setup_follow! { self, old_follow : (punc Comma) }
     let filenum = self.parse_expr();
 
@@ -841,17 +856,21 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
   }
 
   fn parse_field_spec(&mut self) -> FieldSpec {
+    let _first_symbols = self.first_symbols.backup();
     let old_follow = self.follow_symbols.backup();
-
     let start = self.token.0.start;
+
+    setup_first! { self : }
     setup_follow! { self, old_follow : (id) }
     let len = self.parse_expr();
+
     self.put_back_token();
     self.read_as();
     let as_end = self.offset;
     self.read_token(false);
     self.last_token_end = as_end;
 
+    setup_first! { self : }
     setup_follow! { self, old_follow : }
     let var = self.parse_lvalue();
 
@@ -877,7 +896,7 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
   }
 
   fn parse_for_stmt(&mut self) -> StmtId {
-    let old_first = self.first_symbols.backup();
+    let _first_symbols = self.first_symbols.backup();
     let old_follow = self.follow_symbols.backup();
     let for_range = self.token.0.clone();
     self.read_token(false);
@@ -967,7 +986,7 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
   }
 
   fn parse_get_put_stmt(&mut self, is_put: bool) -> StmtId {
-    let old_first = self.first_symbols.backup();
+    let _first_symbols = self.first_symbols.backup();
     let old_follow = self.follow_symbols.backup();
 
     let start = self.token.0.start;
@@ -1011,7 +1030,7 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
   }
 
   fn parse_if_stmt(&mut self) -> StmtId {
-    let old_first = self.first_symbols.backup();
+    let _first_symbols = self.first_symbols.backup();
     let old_follow = self.follow_symbols.backup();
     let start = self.token.0.start;
     self.read_token(false);
@@ -1075,7 +1094,7 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
   }
 
   fn parse_input_stmt(&mut self) -> StmtId {
-    let old_first = self.first_symbols.backup();
+    let _first_symbols = self.first_symbols.backup();
     let old_follow = self.follow_symbols.backup();
 
     let start = self.token.0.start;
@@ -1133,9 +1152,11 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
   }
 
   fn parse_lvalue_list(&mut self) -> NonEmptyVec<[ExprId; 1]> {
+    let _first_symbols = self.first_symbols.backup();
     let old_follow = self.follow_symbols.backup();
 
     let mut vars = NonEmptyVec::<[ExprId; 1]>::new();
+    setup_first! { self : }
     setup_follow! { self, old_follow : (punc Comma) }
     let var = self.parse_lvalue();
     vars.push(var);
@@ -1149,7 +1170,7 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
   }
 
   fn parse_assign_stmt(&mut self, has_let: bool) -> StmtId {
-    let old_first = self.first_symbols.backup();
+    let _first_symbols = self.first_symbols.backup();
     let old_follow = self.follow_symbols.backup();
 
     let start = self.token.0.start;
@@ -1185,6 +1206,7 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
   }
 
   fn parse_locate_stmt(&mut self) -> StmtId {
+    let _first_symbols = self.first_symbols.backup();
     let old_follow = self.follow_symbols.backup();
     let start = self.token.0.start;
     self.read_token(false);
@@ -1193,6 +1215,7 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
     if let TokenKind::Punc(Punc::Comma) = self.token.1 {
       row = None;
     } else {
+      setup_first! { self : }
       setup_follow! { self, old_follow : (punc Comma) }
       let r = self.parse_expr();
       row = Some(r);
@@ -1202,6 +1225,7 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
     if let TokenKind::Punc(Punc::Comma) = self.token.1 {
       self.read_token(false);
 
+      setup_first! { self : }
       setup_follow! { self, old_follow : }
       let r = self.parse_expr();
       column = Some(r);
@@ -1216,7 +1240,7 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
   }
 
   fn parse_set_stmt(&mut self, ctor: fn(ExprId, ExprId) -> StmtKind) -> StmtId {
-    let old_first = self.first_symbols.backup();
+    let _first_symbols = self.first_symbols.backup();
     let old_follow = self.follow_symbols.backup();
     let start = self.token.0.start;
     self.read_token(false);
@@ -1292,7 +1316,7 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
   }
 
   fn parse_on_stmt(&mut self) -> StmtId {
-    let old_first = self.first_symbols.backup();
+    let _first_symbols = self.first_symbols.backup();
     let old_follow = self.follow_symbols.backup();
     let start = self.token.0.start;
     self.read_token(false);
@@ -1364,7 +1388,7 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
   }
 
   fn parse_open_stmt(&mut self) -> StmtId {
-    let old_first = self.first_symbols.backup();
+    let _first_symbols = self.first_symbols.backup();
     let old_follow = self.follow_symbols.backup();
     let open_range = self.token.0.clone();
     self.read_token(false);
@@ -1454,7 +1478,7 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
   }
 
   fn parse_poke_stmt(&mut self) -> StmtId {
-    let old_first = self.first_symbols.backup();
+    let _first_symbols = self.first_symbols.backup();
     let old_follow = self.follow_symbols.backup();
     let start = self.token.0.start;
     self.read_token(false);
@@ -1487,7 +1511,7 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
   }
 
   fn parse_print_stmt(&mut self) -> StmtId {
-    let old_first = self.first_symbols.backup();
+    let _first_symbols = self.first_symbols.backup();
     let old_follow = self.follow_symbols.backup();
     let start = self.token.0.start;
     self.read_token(false);
@@ -1537,7 +1561,7 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
   }
 
   fn parse_swap_stmt(&mut self) -> StmtId {
-    let old_first = self.first_symbols.backup();
+    let _first_symbols = self.first_symbols.backup();
     let old_follow = self.follow_symbols.backup();
     let start = self.token.0.start;
     self.read_token(false);
@@ -1572,7 +1596,7 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
   }
 
   fn parse_write_stmt(&mut self) -> StmtId {
-    let old_first = self.first_symbols.backup();
+    let _first_symbols = self.first_symbols.backup();
     let old_follow = self.follow_symbols.backup();
     let start = self.token.0.start;
     self.read_token(false);
@@ -1677,7 +1701,7 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
   }
 
   fn parse_expr(&mut self) -> ExprId {
-    let old_first = self.first_symbols.backup();
+    let _first_symbols = self.first_symbols.backup();
     let old_follow = self.follow_symbols.backup();
 
     extend_symbol!(self.first_symbols, (nt Expr));
@@ -1794,10 +1818,12 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
           .new_expr(Expr::new(kind, Range::new(start, self.last_token_end)))
       }
       TokenKind::Punc(Punc::LParen) => {
-        let paren_range = self.token.0.clone();
+        let _first_symbols = self.first_symbols.backup();
         let old_follow = self.follow_symbols.backup();
+        let paren_range = self.token.0.clone();
         self.read_token(false);
 
+        setup_first! { self : }
         setup_follow! { self, old_follow : (punc RParen) }
         let expr = self.parse_expr();
 
@@ -1812,7 +1838,7 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
       }
       TokenKind::Keyword(Keyword::Fn) => {
         let fn_range = self.token.0.clone();
-        let old_first = self.first_symbols.backup();
+        let _first_symbols = self.first_symbols.backup();
         let old_follow = self.follow_symbols.backup();
         self.read_token(false);
 
@@ -1893,7 +1919,7 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
   }
 
   fn parse_lvalue(&mut self) -> ExprId {
-    let old_first = self.first_symbols.backup();
+    let _first_symbols = self.first_symbols.backup();
     let old_follow = self.follow_symbols.backup();
     let start = self.token.0.start;
 
@@ -1940,7 +1966,7 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
   ) where
     U: Extend<ExprId>,
   {
-    let old_first = self.first_symbols.backup();
+    let _first_symbols = self.first_symbols.backup();
     let old_follow = self.follow_symbols.backup();
 
     setup_first! { self : (punc LParen) }
@@ -1987,8 +2013,10 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
   where
     U: Extend<ExprId>,
   {
+    let _first_symbols = self.first_symbols.backup();
     let old_follow = self.follow_symbols.backup();
 
+    setup_first! { self : }
     setup_follow! { self, old_follow : (punc Comma) }
     let arg = self.parse_expr();
     args.extend_one(arg);
