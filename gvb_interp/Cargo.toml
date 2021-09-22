@@ -10,6 +10,7 @@ edition = "2018"
 id-arena = "2.2.1"
 num-derive = "0.3.3"
 num-traits = "0.2.14"
+phf = { version = "0.10.0", features = ["macros"] }
 rand = "0.7.3"
 smallvec = "1.6.1"
 

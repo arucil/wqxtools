@@ -94,6 +94,7 @@ pub enum Keyword {
   And,
   Or,
   Not,
+  At,
 
   Sleep,
   Paint,
@@ -309,6 +310,7 @@ impl Debug for Keyword {
       And => "AND",
       Or => "OR",
       Not => "NOT",
+      At => "AT",
 
       Sleep => "SLEEP",
       Paint => "PAINT",
