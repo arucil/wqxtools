@@ -1,0 +1,10 @@
+{
+  "tc808": {
+    "emoji_style": "new",
+    "graphics_base_addr": 6592
+  },
+  "pc1000a": {
+    "emoji_style": "old",
+    "graphics_base_addr": 2496
+  }
+}

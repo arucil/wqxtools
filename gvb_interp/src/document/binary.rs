@@ -1,47 +1,50 @@
-use super::emoji::EmojiStyle;
+use crate::machine::EmojiStyle;
 use std::fmt::Write;
 
-mod keyword {
-  include!(concat!(env!("OUT_DIR"), "/keyword.rs"));
-}
+include!(concat!(env!("OUT_DIR"), "/keyword.rs"));
 
 pub struct BasTextDocument {
-  pub base_addr: usize,
+  pub base_addr: u16,
   pub guessed_emoji_style: EmojiStyle,
   pub text: String,
 }
 
 #[derive(Debug, Clone)]
-pub struct LoadBasError {
-  pub offset: usize,
+pub struct LoadError<L> {
+  pub location: L,
   pub message: String,
 }
 
 pub fn load_bas(
   content: impl AsRef<[u8]>,
-) -> Result<BasTextDocument, LoadBasError> {
+  emoji_style: Option<EmojiStyle>,
+) -> Result<BasTextDocument, LoadError<usize>> {
   let mut content = content.as_ref();
-  let mut base_addr = 0usize;
+  let mut base_addr = 0;
   let mut lines: Vec<&[u8]> = vec![];
   let mut offset = 0;
-  let mut guessed_emoji_styles = vec![EmojiStyle::New, EmojiStyle::Old];
+  let mut guessed_emoji_styles = if let Some(emoji_style) = emoji_style {
+    vec![emoji_style]
+  } else {
+    vec![EmojiStyle::New, EmojiStyle::Old]
+  };
 
   loop {
     if content.len() < 3 {
-      return Err(LoadBasError {
-        offset: offset + content.len(),
+      return Err(LoadError {
+        location: offset + content.len(),
         message: format!("unexpected EOF"),
       });
     }
 
     if content[0] != 0 {
-      return Err(LoadBasError {
-        offset,
+      return Err(LoadError {
+        location: offset,
         message: format!("expected 0x00, found 0x{:02X}", content[0]),
       });
     }
 
-    let addr = content[1] as usize + ((content[2] as usize) << 8);
+    let addr = content[1] as u16 + ((content[2] as u16) << 8);
     if addr == 0 {
       break;
     }
@@ -62,8 +65,8 @@ pub fn load_bas(
 
       if content[i] == 0x1f {
         if content.len() <= i + 2 {
-          return Err(LoadBasError {
-            offset: offset + i,
+          return Err(LoadError {
+            location: offset + i,
             message: format!("invalid full-width character"),
           });
         }
@@ -72,17 +75,19 @@ pub fn load_bas(
         if !super::gb2312::GB2312_TO_UNICODE.contains_key(&gbcode) {
           guessed_emoji_styles.retain(|s| s.code_to_char(gbcode).is_some());
           if guessed_emoji_styles.is_empty() {
-            return Err(LoadBasError {
-              offset: offset + i + 1,
-              message: format!("unable to guess emoji style"),
+            return Err(LoadError {
+              location: offset + i + 1,
+              message: format!("unable to determine emoji style"),
             });
           }
         }
         i += 3;
       } else {
-        if !keyword::BYTE_TO_KEYWORD.contains_key(&content[i]) {
-          return Err(LoadBasError {
-            offset: offset + i,
+        if content[i] >= 0x80
+          && !BYTE_TO_KEYWORD.contains_key(&content[i])
+        {
+          return Err(LoadError {
+            location: offset + i,
             message: format!("unrecognized bytecode 0x{:02x}", content[i]),
           });
         }
@@ -94,7 +99,6 @@ pub fn load_bas(
   let guessed_emoji_style = guessed_emoji_styles[0];
   let mut text = String::new();
   let mut newline = false;
-  let mut offset = 0;
 
   for line in lines {
     if newline {
@@ -120,7 +124,7 @@ pub fn load_bas(
         last_is_keyword = false;
         i += 3;
       } else if b >= 0x80 {
-        let kw = keyword::BYTE_TO_KEYWORD[&b];
+        let kw = BYTE_TO_KEYWORD[&b];
         let last = *text.as_bytes().last().unwrap();
         let first = kw.as_bytes().first().unwrap();
         if first.is_ascii_alphabetic()
@@ -133,7 +137,7 @@ pub fn load_bas(
           }
         }
         text.push_str(kw);
-        if keyword::KEYWORD_REQUIRES_SPACE.contains(&b) {
+        if KEYWORD_REQUIRES_SPACE.contains(&b) {
           text.push(' ');
         }
         last_is_keyword = true;
@@ -152,8 +156,6 @@ pub fn load_bas(
         i += 1;
       }
     }
-
-    offset += line.len();
   }
 
   Ok(BasTextDocument {
@@ -163,21 +165,18 @@ pub fn load_bas(
   })
 }
 
-#[derive(Debug, Clone)]
-pub struct LoadTxtError {
-  /// zero-based
-  pub line: usize,
-  /// zero-based
-  pub column: usize,
-  pub message: String,
-}
-
 pub fn load_txt(
   content: impl AsRef<[u8]>,
-) -> Result<BasTextDocument, LoadTxtError> {
+  emoji_style: Option<EmojiStyle>,
+) -> Result<BasTextDocument, LoadError<(usize, usize)>> {
   let base_addr = 0x100;
-  let mut guessed_emoji_styles = vec![EmojiStyle::New, EmojiStyle::Old];
+  let mut guessed_emoji_styles = if let Some(emoji_style) = emoji_style {
+    vec![emoji_style]
+  } else {
+    vec![EmojiStyle::New, EmojiStyle::Old]
+  };
   let mut text = String::new();
+
   let mut i = 0;
   let mut line = 0;
   let mut line_offset = 0;
@@ -190,9 +189,8 @@ pub fn load_txt(
       i += 1;
     } else if content[i] >= 0x80 {
       if content.len() <= i + 1 {
-        return Err(LoadTxtError {
-          line,
-          column: i - line_offset,
+        return Err(LoadError {
+          location: (line, i - line_offset),
           message: format!("invalid character"),
         });
       }
@@ -203,10 +201,9 @@ pub fn load_txt(
       } else {
         guessed_emoji_styles.retain(|s| s.code_to_char(gbcode).is_some());
         if guessed_emoji_styles.is_empty() {
-          return Err(LoadTxtError {
-            line,
-            column: i - line_offset,
-            message: format!("unable to guess emoji style"),
+          return Err(LoadError {
+            location: (line, i - line_offset),
+            message: format!("unable to determine emoji style"),
           });
         } else {
           let u = guessed_emoji_styles[0].code_to_char(gbcode).unwrap();
@@ -245,22 +242,28 @@ mod tests {
 
   #[test]
   fn test_load_bas() {
-    let bytes =
-      std::fs::read(std::env::current_dir().unwrap().join("data/鹿逐中原.bas"))
-        .unwrap();
+    let bytes = std::fs::read(
+      std::env::current_dir()
+        .unwrap()
+        .join("test/fixtures/鹿逐中原.bas"),
+    )
+    .unwrap();
 
-    let doc = load_bas(bytes).unwrap();
+    let doc = load_bas(bytes, None).unwrap();
 
     assert_debug_snapshot!(doc);
   }
 
   #[test]
   fn test_load_txt() {
-    let bytes =
-      std::fs::read(std::env::current_dir().unwrap().join("data/鹿逐中原.txt"))
-        .unwrap();
+    let bytes = std::fs::read(
+      std::env::current_dir()
+        .unwrap()
+        .join("test/fixtures/鹿逐中原.txt"),
+    )
+    .unwrap();
 
-    let doc = load_txt(bytes).unwrap();
+    let doc = load_txt(bytes, None).unwrap();
 
     assert_debug_snapshot!(doc);
   }

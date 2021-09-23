@@ -17,3 +17,8 @@ smallvec = "1.6.1"
 [dev-dependencies]
 insta = "1.7.2"
 pretty_assertions = "0.7.2"
+quickcheck = "1.0.3"
+quickcheck_macros = "1.0.0"
+
+[build-dependencies]
+tinyjson = "2.3.0"

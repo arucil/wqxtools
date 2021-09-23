@@ -54,7 +54,7 @@ pub fn parse_line(line_with_eol: &str) -> (ProgramLine, Option<SymbolSet>) {
     parser.read_token(true);
     if parser.token.1 == TokenKind::Label {
       match parser.label_value.take().unwrap() {
-        Ok(l) => label = Some(l),
+        Ok(l) => label = Some((parser.token.0.clone(), l)),
         Err(err) => parser.report_label_error(err, parser.token.0.clone()),
       }
       parser.read_token(true);
@@ -2057,7 +2057,7 @@ impl<'a> LineParser<'a, ArenaNodeBuilder> {
     self,
     line: &str,
     eol: Eol,
-    label: Option<Label>,
+    label: Option<(Range, Label)>,
     stmts: SmallVec<[StmtId; 1]>,
   ) -> ProgramLine {
     ProgramLine {

@@ -18,7 +18,8 @@ const SCALE = 100
   const glyphs = [
     notdefGlyph,
     ...makeAsciiGlyphs(),
-    ...makeGb2312Glyphs()
+    ...makeGb2312Glyphs(),
+    ...makeIconGlyphs()
   ]
   const font = new opentype.Font({
     familyName: 'WenQuXing-GB2312',
@@ -28,11 +29,11 @@ const SCALE = 100
     descender: 0,
     glyphs,
   })
-  font.download('WenQuXing-GB2312.ttf')
+  font.download('WenQuXing.ttf')
 }
 
 // old icons
-{
+/*{
   console.log('generating old icons...')
   const glyphs = [
     notdefGlyph,
@@ -97,6 +98,7 @@ const SCALE = 100
   })
   font.download('WenQuXing-Icons-New.ttf')
 }
+*/
 
 function makeAsciiGlyphs(): opentype.Glyph[] {
   const data = fs.readFileSync('../data/ascii_16.dat')
@@ -129,12 +131,12 @@ function makeGb2312Glyphs(): opentype.Glyph[] {
   return glyphs
 }
 
-function makeIconGlyphs(mapCodepoint: (index: number) => number): opentype.Glyph[] {
+function makeIconGlyphs(): opentype.Glyph[] {
   const data = fs.readFileSync('../data/icon_16.dat')
   const glyphs = []
 
   for (let i = 0; i < 527; ++i) {
-    const cp = mapCodepoint(i)
+    const cp = 0xe000 + i
     glyphs.push(makeGlyph(cp, data.slice(i * 32, i * 32 + 32), 16, 16))
   }
 

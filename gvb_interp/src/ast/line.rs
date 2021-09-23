@@ -1,4 +1,4 @@
-use super::{Expr, Label, Stmt, StmtId};
+use super::{Expr, Label, Stmt, StmtId, Range};
 use crate::diagnostic::Diagnostic;
 use id_arena::Arena;
 use smallvec::SmallVec;
@@ -8,7 +8,7 @@ use std::fmt::{Debug, Write};
 pub struct ProgramLine {
   /// Includes newline.
   pub source_len: usize,
-  pub label: Option<Label>,
+  pub label: Option<(Range, Label)>,
   pub stmt_arena: Arena<Stmt>,
   pub expr_arena: Arena<Expr>,
   pub stmts: SmallVec<[StmtId; 1]>,

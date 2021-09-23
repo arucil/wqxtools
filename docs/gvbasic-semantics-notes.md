@@ -17,7 +17,7 @@
 | CONT    | 不做任何操作 |
 | COPY    | 和 REM 一样 |
 | DATA    | 忽略其后的所有字符，直到行尾，或者遇到没有被双引号括起来的 `:`。 |
-| DEF FN `<name var>`( `<parameter var>` ) = `<body expr>` | 定义函数。name 和 parameter 必须是实数（浮点数）类型。可以重定义之前定义的同名函数。 |
+| DEF FN `<name var>`( `<parameter var>` ) = `<body expr>` | 定义函数。name 和 parameter 必须是数值（实数或整数）类型。可以重定义之前定义的同名函数。 |
 | DEL     | 和 REM 一样 |
 | DIM `<lvalue>` ( , `<another lvalue>` )* | 定义变量或数组。 |
 | DRAW `<X expr>` , `<Y expr>` [ , `<draw mode expr>` ] | 画点。X、Y、draw mode 必须在 0~255 之间。<br>draw mode 的值在下面的注解中说明。 |

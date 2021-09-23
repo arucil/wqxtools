@@ -1,20 +1,23 @@
+use std::collections::HashMap;
 use std::env;
 use std::error::Error;
 use std::fs;
 use std::fs::OpenOptions;
 use std::io::prelude::*;
 use std::path::Path;
+use tinyjson::JsonValue;
 
 fn main() -> Result<(), Box<dyn Error>> {
   build_gb2312_mapping()?;
   build_gvb_keyword_mapping()?;
+  build_machine_props_map()?;
 
   Ok(())
 }
 
 fn build_gb2312_mapping() -> Result<(), Box<dyn Error>> {
   println!("cargo:rerun-if-changed=data/GB2312.TXT");
-  
+
   let file = fs::read_to_string("data/GB2312.TXT")?;
   let mut mapping = vec![];
 
@@ -110,6 +113,49 @@ fn build_gvb_keyword_mapping() -> Result<(), Box<dyn Error>> {
   for byte in space {
     writeln!(&mut file, " {}u8,", byte)?;
   }
+  writeln!(&mut file, "}};")?;
+
+  Ok(())
+}
+
+fn build_machine_props_map() -> Result<(), Box<dyn Error>> {
+  println!("cargo:rerun-if-changed=data/machine_props.json");
+
+  let file = fs::read_to_string("data/machine_props.json")?;
+
+  let map = file.parse::<JsonValue>()?;
+  let map = map.get::<HashMap<String, JsonValue>>().unwrap();
+
+  let out_dir = env::var("OUT_DIR")?;
+
+  let mut file = OpenOptions::new()
+    .create(true)
+    .write(true)
+    .open(Path::new(&out_dir).join("machines.rs"))?;
+
+  writeln!(&mut file, "use phf::phf_map;")?;
+  writeln!(&mut file)?;
+  writeln!(
+    &mut file,
+    "pub static MACHINES: phf::Map<&'static str, MachineProps> = phf_map! {{"
+  )?;
+
+  for (name, props) in map {
+    let props = props.get::<HashMap<String, JsonValue>>().unwrap();
+    writeln!(
+      &mut file,
+      "  \"{}\" => MachineProps {{",
+      name.to_ascii_lowercase()
+    )?;
+    let emoji_style = props["emoji_style"].get::<String>().unwrap();
+    let emoji_style = if emoji_style == "new" { "New" } else { "Old" };
+    writeln!(&mut file, "    emoji_style: EmojiStyle::{},", emoji_style)?;
+    let graphics_base_addr =
+      *props["graphics_base_addr"].get::<f64>().unwrap() as u32;
+    writeln!(&mut file, "    graphics_base_addr: {},", graphics_base_addr)?;
+    writeln!(&mut file, "  }},")?;
+  }
+
   writeln!(&mut file, "}};")?;
 
   Ok(())
