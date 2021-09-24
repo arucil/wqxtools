@@ -7230,9 +7230,9 @@
 9999: A2 04    LDX #$04  ; illegal quantity
 999B: 4C 9F 67 JMP $679F
 
-999E: A2 09    LDX #$09
+999E: A2 09    LDX #$09  ; redim'd array
 99A0: AD 07 B8 LDA $B807
-99A3: D0 F6    BNE $999B
+99A3: D0 F6    BNE $999B  ; report reDIM if in DIM statement
 99A5: AD 0B B8 LDA $B80B
 99A8: F0 0C    BEQ $99B6
 99AA: AE 1A B8 LDX $B81A

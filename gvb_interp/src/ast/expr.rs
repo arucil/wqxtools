@@ -71,6 +71,8 @@ pub enum SysFuncKind {
   Str,
   Tan,
   Val,
+  Tab,
+  Spc,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -134,6 +136,8 @@ impl FromStr for SysFuncKind {
       "str$" => Ok(Self::Str),
       "tan" => Ok(Self::Tan),
       "val" => Ok(Self::Val),
+      "spc" => Ok(Self::Spc),
+      "tab" => Ok(Self::Tab),
       _ => Err(()),
     }
   }
@@ -190,6 +194,8 @@ impl Debug for SysFuncKind {
       Self::Str => "STR$",
       Self::Tan => "TAN",
       Self::Val => "VAL",
+      Self::Spc => "SPC",
+      Self::Tab => "TAB",
     };
     write!(f, "{}", kind)
   }

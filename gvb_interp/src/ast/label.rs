@@ -1,6 +1,6 @@
 use std::{num::IntErrorKind, str::FromStr};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Label(pub u16);
 
 #[derive(Debug, Clone, PartialEq, Eq)]

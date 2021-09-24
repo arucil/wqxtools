@@ -2,3 +2,6 @@
 - 同名的数组只能定义一个？
 - [x] 所有 parse_expr （所有extend_symbol）前面要 reset first_symbols
 - [x] match多个token时 first_symbols 不对（match_token只能处理单个token的情况）
+- document:
+    - semantic token
+    - symbol highlight

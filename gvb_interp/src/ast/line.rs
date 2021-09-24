@@ -1,4 +1,4 @@
-use super::{Expr, Label, Stmt, StmtId, Range};
+use super::{Expr, Label, Range, Stmt, StmtId};
 use crate::diagnostic::Diagnostic;
 use id_arena::Arena;
 use smallvec::SmallVec;

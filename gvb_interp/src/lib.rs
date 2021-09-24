@@ -8,9 +8,9 @@
 )]
 
 pub mod ast;
+mod compiler;
 pub mod diagnostic;
-mod parser;
-pub mod util;
 pub mod document;
 mod machine;
-mod compiler;
+mod parser;
+pub mod util;

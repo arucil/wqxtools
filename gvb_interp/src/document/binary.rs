@@ -83,9 +83,7 @@ pub fn load_bas(
         }
         i += 3;
       } else {
-        if content[i] >= 0x80
-          && !BYTE_TO_KEYWORD.contains_key(&content[i])
-        {
+        if content[i] >= 0x80 && !BYTE_TO_KEYWORD.contains_key(&content[i]) {
           return Err(LoadError {
             location: offset + i,
             message: format!("unrecognized bytecode 0x{:02x}", content[i]),

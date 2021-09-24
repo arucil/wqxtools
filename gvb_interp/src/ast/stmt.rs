@@ -199,8 +199,8 @@ pub enum FileMode {
 #[derive(Debug, Clone)]
 pub enum PrintElement {
   Expr(ExprId),
-  Comma,
-  Semicolon,
+  Comma(Range),
+  Semicolon(Range),
 }
 
 #[derive(Debug, Clone)]
@@ -610,8 +610,8 @@ fn print_stmt(
       write!(f, "PRINT ")?;
       for elem in elems.iter() {
         match elem {
-          PrintElement::Comma => write!(f, ", ")?,
-          PrintElement::Semicolon => write!(f, "; ")?,
+          PrintElement::Comma(_) => write!(f, ", ")?,
+          PrintElement::Semicolon(_) => write!(f, "; ")?,
           PrintElement::Expr(e) => {
             expr_arena[*e].print(expr_arena, text, f)?;
             write!(f, " ")?;

@@ -1523,11 +1523,11 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
     loop {
       match self.token.1 {
         TokenKind::Punc(Punc::Comma) => {
-          elems.push(PrintElement::Comma);
+          elems.push(PrintElement::Comma(self.token.0.clone()));
           self.read_token(false);
         }
         TokenKind::Punc(Punc::Semicolon) => {
-          elems.push(PrintElement::Semicolon);
+          elems.push(PrintElement::Semicolon(self.token.0.clone()));
           self.read_token(false);
         }
         TokenKind::Punc(Punc::Colon) | TokenKind::Keyword(Keyword::Else) => {
