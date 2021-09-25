@@ -11,10 +11,6 @@ pub trait CodeEmitter {
   type Addr: Copy;
   type DatumIndex: Copy;
 
-  fn begin_label(&mut self, label: Label);
-  fn end_label(&mut self);
-  fn find_label(&mut self, label: Label) -> Option<Self::Addr>;
-
   fn emit_no_op(&mut self, range: Range);
 
   fn emit_op(&mut self, range: Range, kind: &StmtKind, arity: usize);
@@ -117,6 +113,7 @@ pub trait CodeEmitter {
   );
   fn emit_unary_expr(&mut self, range: Range, kind: UnaryOpKind);
   fn emit_binary_expr(&mut self, range: Range, kind: BinaryOpKind);
+  fn emit_user_func_call(&mut self, range: Range, name: Self::Symbol);
 }
 
 pub fn compile<E: CodeEmitter>(
@@ -132,6 +129,7 @@ pub fn compile<E: CodeEmitter>(
     pending_jump_labels: vec![],
     pending_datum_indices: vec![],
     data_start: HashMap::new(),
+    label_addrs: HashMap::new(),
     line: std::ptr::null(),
   };
 
@@ -147,6 +145,7 @@ struct CompileState<'a, 'b, E: CodeEmitter> {
   pending_jump_labels: Vec<(E::Addr, Range, Option<Label>)>,
   pending_datum_indices: Vec<(E::Addr, Range, Label)>,
   data_start: HashMap<Label, E::DatumIndex>,
+  label_addrs: HashMap<Label, E::Addr>,
   line: *const ProgramLine,
 }
 
@@ -187,20 +186,15 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E> {
     for line in &prog.lines {
       self.line = line as *const _;
       if let Some((range, l)) = &line.label {
-        if l.0 as i32 > last_label {
-          self.code_emitter.begin_label(*l);
-        } else {
+        if l.0 as i32 <= last_label {
           self.add_error(range.clone(), "行号必须递增");
         }
+        self.label_addrs.insert(*l, self.code_emitter.current_addr());
         last_label = l.0 as i32;
       }
 
       for &stmt in &line.stmts {
         self.compile_stmt(stmt);
-      }
-
-      if self.label().is_some() {
-        self.code_emitter.end_label();
       }
     }
 
@@ -211,7 +205,7 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E> {
   fn resolve_labels(&mut self) {
     for (addr, range, label) in self.pending_jump_labels.drain(..) {
       let l = label.unwrap_or(Label(0));
-      if let Some(label_addr) = self.code_emitter.find_label(l) {
+      if let Some(&label_addr) = self.label_addrs.get(&l) {
         self.code_emitter.patch_jump_addr(addr, label_addr);
       } else {
         self.add_error(
@@ -1257,31 +1251,35 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E> {
         }
         Type::String
       }
-      ExprKind::SysFuncCall {
-        func: (func_range, kind),
-        args,
-      } => {}
-      ExprKind::UserFuncCall { func, arg } => {}
-      ExprKind::Binary { lhs, op, rhs } => {
-        let lhs_ty = self.compile_expr(*lhs);
-        let rhs_ty = self.compile_expr(*rhs);
-
-        match op.1 {
-          BinaryOpKind::Eq
-          | BinaryOpKind::Ne
-          | BinaryOpKind::Gt
-          | BinaryOpKind::Lt
-          | BinaryOpKind::Ge
-          | BinaryOpKind::Le
-          | BinaryOpKind::Add => {
+      ExprKind::SysFuncCall { func, args } => {
+        self.compile_sys_func_call(range, func, args)
+      }
+      ExprKind::UserFuncCall { func, arg } => {
+        let func = func.map(|func_range| {
+          let (func, ty) = self.compile_sym(func_range.clone());
+          if !ty.matches(Type::Real) {
+            self.add_error(
+              func_range.clone(),
+              format!("变量类型错误。自定义函数的参数必须是{}类型", Type::Real),
+            );
           }
-          BinaryOpKind::Sub
-          | BinaryOpKind::Mul
-          | BinaryOpKind::Div
-          | BinaryOpKind::Pow
-          | BinaryOpKind::And
-          | BinaryOpKind::Or => {}
+          func
+        });
+        let ty = self.compile_expr(*arg);
+        if !ty.matches(Type::Real) {
+          let range = self.expr_node(*arg).range;
+          self.add_error(
+            range.clone(),
+            format!(
+              "表达式类型错误。自定义函数的参数必须是{}类型，而这个表达式是{}类型",
+              Type::Real,
+              ty),
+          );
         }
+        Type::Real
+      }
+      ExprKind::Binary { lhs, op, rhs } => {
+        self.compile_binary_expr(range, *lhs, op, *rhs)
       }
       ExprKind::Unary { op, arg } => {
         let ty = self.compile_expr(*arg);
@@ -1327,6 +1325,174 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E> {
         Type::String
       }
       ExprKind::Error => Type::Error,
+    }
+  }
+
+  fn compile_sys_func_call(
+    &mut self,
+    range: Range,
+    func: &(Range, SysFuncKind),
+    args: &NonEmptyVec<[ExprId; 1]>,
+  ) -> Type {
+    let (min_arity, max_arity, arg_tys, ret_ty) = match func.1 {
+      SysFuncKind::Abs
+      | SysFuncKind::Atn
+      | SysFuncKind::Cos
+      | SysFuncKind::Exp
+      | SysFuncKind::Int
+      | SysFuncKind::Log
+      | SysFuncKind::Peek
+      | SysFuncKind::Rnd
+      | SysFuncKind::Sgn
+      | SysFuncKind::Sin
+      | SysFuncKind::Sqr
+      | SysFuncKind::Tan
+      | SysFuncKind::Eof
+      | SysFuncKind::Lof
+      | SysFuncKind::Pos => {
+        (1, 1, [Type::Real, Type::Error, Type::Error], Type::Real)
+      }
+      SysFuncKind::Asc
+      | SysFuncKind::Cvi
+      | SysFuncKind::Cvs
+      | SysFuncKind::Len
+      | SysFuncKind::Mki
+      | SysFuncKind::Mks
+      | SysFuncKind::Val => {
+        (1, 1, [Type::String, Type::Error, Type::Error], Type::Real)
+      }
+      SysFuncKind::Chr | SysFuncKind::Str => {
+        (1, 1, [Type::Real, Type::Error, Type::Error], Type::String)
+      }
+      SysFuncKind::Left | SysFuncKind::Right => {
+        (2, 2, [Type::String, Type::Real, Type::Error], Type::String)
+      }
+      SysFuncKind::Mid => {
+        (2, 3, [Type::String, Type::Real, Type::Real], Type::String)
+      }
+      SysFuncKind::Tab | SysFuncKind::Spc => {
+        self.add_error(
+          func.0.clone(),
+          format!("{:?} 函数只能作为 PRINT 语句的参数出现", func.1),
+        );
+        (1, 1, [Type::Real, Type::Error, Type::Error], Type::Real)
+      }
+    };
+    if args.len() < min_arity {
+      self.add_error(
+        range.clone(),
+        if min_arity == max_arity {
+          format!("{:?} 函数必须有 {} 个参数", func.1, min_arity)
+        } else {
+          format!("{:?} 函数至少要有 {} 个参数", func.1, min_arity)
+        },
+      );
+    } else if args.len() > max_arity {
+      self.add_error(
+        range.clone(),
+        if min_arity == max_arity {
+          format!("{:?} 函数必须有 {} 个参数", func.1, max_arity)
+        } else {
+          format!("{:?} 函数最多接受 {} 个参数", func.1, max_arity)
+        },
+      );
+    }
+
+    for (i, &arg) in args.iter().enumerate() {
+      let ty = self.compile_expr(arg);
+      if i < max_arity {
+        if !ty.matches(arg_tys[i]) {
+          let range = &self.expr_node(arg).range;
+          self.add_error(
+            range.clone(),
+            format!(
+              "表达式类型错误。{:?} 函数的第 {} 个参数是{}类型，而这个表达式是{}类型",
+              func.1,
+              i + 1,
+              Type::Real,
+              ty
+            ),
+          );
+        }
+      }
+    }
+
+    ret_ty
+  }
+
+  fn compile_binary_expr(
+    &mut self,
+    range: Range,
+    lhs: ExprId,
+    op: &(Range, BinaryOpKind),
+    rhs: ExprId,
+  ) -> Type {
+    let lhs_ty = self.compile_expr(lhs);
+    let rhs_ty = self.compile_expr(rhs);
+
+    self.code_emitter.emit_binary_expr(range, op.1);
+
+    match op.1 {
+      BinaryOpKind::Eq
+      | BinaryOpKind::Ne
+      | BinaryOpKind::Gt
+      | BinaryOpKind::Lt
+      | BinaryOpKind::Ge
+      | BinaryOpKind::Le
+      | BinaryOpKind::Add => {
+        if lhs_ty.matches(rhs_ty) {
+          if let BinaryOpKind::Add = op.1 {
+            lhs_ty.as_rvalue_type()
+          } else {
+            Type::Real
+          }
+        } else {
+          self.add_error(
+            op.0.clone(),
+            format!(
+              "运算数类型不匹配，左边是{}类型，右边是{}类型",
+              lhs_ty, rhs_ty
+            ),
+          );
+          if let BinaryOpKind::Add = op.1 {
+            Type::Error
+          } else {
+            Type::Real
+          }
+        }
+      }
+      BinaryOpKind::Sub
+      | BinaryOpKind::Mul
+      | BinaryOpKind::Div
+      | BinaryOpKind::Pow
+      | BinaryOpKind::And
+      | BinaryOpKind::Or => {
+        if !lhs_ty.matches(Type::Real) {
+          let lhs_range = self.expr_node(lhs).range.clone();
+          self.add_error(
+            lhs_range,
+            format!(
+              "类型不匹配。{}运算左边必须是{}类型，而这个表达式是{}类型",
+              op.1,
+              Type::Real,
+              lhs_ty
+            ),
+          );
+        }
+        if !rhs_ty.matches(Type::Real) {
+          let rhs_range = self.expr_node(rhs).range.clone();
+          self.add_error(
+            rhs_range,
+            format!(
+              "类型不匹配。{}运算右边必须是{}类型，而这个表达式是{}类型",
+              op.1,
+              Type::Real,
+              rhs_ty
+            ),
+          );
+        }
+        Type::Real
+      }
     }
   }
 
@@ -1420,12 +1586,19 @@ impl Type {
       Self::Error => None,
     }
   }
+
+  fn as_rvalue_type(self) -> Self {
+    match self {
+      Self::Integer => Self::Real,
+      _ => self,
+    }
+  }
 }
 
 impl Display for Type {
   fn fmt(&self, f: &mut Formatter) -> fmt::Result {
     match self {
-      Self::Integer => write!(f, "整数"),
+      Self::Integer => write!(f, "数值"),
       Self::Real => write!(f, "数值"),
       Self::String => write!(f, "字符串"),
       Self::Error => unreachable!(),

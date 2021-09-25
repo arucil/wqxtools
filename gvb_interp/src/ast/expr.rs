@@ -2,7 +2,7 @@ use id_arena::Arena;
 
 use super::{ExprId, NonEmptyVec, Range};
 use num_derive::FromPrimitive;
-use std::fmt::{self, Debug, Formatter, Write};
+use std::fmt::{self, Debug, Formatter, Write, Display};
 use std::str::FromStr;
 
 #[derive(Debug, Clone)]
@@ -157,6 +157,27 @@ impl Debug for BinaryOpKind {
       Self::Mul => "*",
       Self::Div => "/",
       Self::Pow => "^",
+      Self::And => "AND",
+      Self::Or => "OR",
+    };
+    write!(f, "{}", kind)
+  }
+}
+
+impl Display for BinaryOpKind {
+  fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+    let kind = match self {
+      Self::Eq => "=",
+      Self::Ne => "<>",
+      Self::Gt => ">",
+      Self::Lt => "<",
+      Self::Ge => ">=",
+      Self::Le => "<=",
+      Self::Add => "加法",
+      Self::Sub => "减法",
+      Self::Mul => "乘法",
+      Self::Div => "除法",
+      Self::Pow => "乘法",
       Self::And => "AND",
       Self::Or => "OR",
     };

@@ -24,6 +24,7 @@ use std::fmt;
 use std::fmt::Display;
 use std::fmt::Write;
 use std::ops::{Add, Div, Mul, Neg, Sub};
+use std::str::FromStr;
 
 /// Used for store floating point value of a variable.
 #[derive(Debug, Clone, Copy)]
@@ -124,6 +125,14 @@ impl TryFrom<Mbf5Accum> for Mbf5 {
     let mant4 = mant as u8;
 
     Ok(Self([exp, mant1, mant2, mant3, mant4]))
+  }
+}
+
+impl FromStr for Mbf5 {
+  /// Only FloatError::Infinite is possible
+  type Err = FloatError;
+
+  fn from_str(s: &str) -> Result<Self, Self::Err> {
   }
 }
 
