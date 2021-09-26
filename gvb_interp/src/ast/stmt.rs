@@ -187,7 +187,7 @@ pub enum InputSource {
   Error,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub enum FileMode {
   Input,
   Output,

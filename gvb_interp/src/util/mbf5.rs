@@ -5,6 +5,7 @@
 //! ```ignored
 //!   byte 0  |      byte 1      |  byte 2  |  byte 3  |  byte 4
 //!           | bit7   bit0~bit6 |
+//! ----------|------------------|----------|----------|----------
 //!  exponent | sign   highest   |  higer   |  lower   |  lowest
 //!           |        mantissa  | mantissa | mantissa | mantissa
 //! ```
@@ -20,9 +21,7 @@
 //! 0x00 means the number is zero, and the mantissa doesn't matter.
 
 use std::convert::TryFrom;
-use std::fmt;
-use std::fmt::Display;
-use std::fmt::Write;
+use std::fmt::{self, Display, Formatter, Write};
 use std::ops::{Add, Div, Mul, Neg, Sub};
 use std::str::FromStr;
 
@@ -51,8 +50,8 @@ const F64_EXPONENT_BITS: usize = 11;
 const F64_EXPONENT_MASK: u64 = (1 << F64_EXPONENT_BITS) - 1;
 const F64_EXPONENT_MAX: i32 = (1 << F64_EXPONENT_BITS) - 1;
 
-impl From<&Mbf5> for Mbf5Accum {
-  fn from(x: &Mbf5) -> Self {
+impl From<Mbf5> for Mbf5Accum {
+  fn from(x: Mbf5) -> Self {
     let sign = (x.0[1] >> 7) as u64;
     let exp = (x.0[0] as i32 - EXPONENT_BIAS + F64_EXPONENT_BIAS) as u64;
     let mant = (((x.0[1] & 0x7f) as u64) << 24)
@@ -128,11 +127,85 @@ impl TryFrom<Mbf5Accum> for Mbf5 {
   }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ParseFloatError {
+  Infinite,
+  Malformed,
+}
+
+impl From<FloatError> for ParseFloatError {
+  fn from(err: FloatError) -> Self {
+    match err {
+      FloatError::Infinite => Self::Infinite,
+      _ => unreachable!(),
+    }
+  }
+}
+
 impl FromStr for Mbf5 {
-  /// Only FloatError::Infinite is possible
-  type Err = FloatError;
+  type Err = ParseFloatError;
 
   fn from_str(s: &str) -> Result<Self, Self::Err> {
+    let s = s.as_bytes();
+    let mut i = 0;
+    let mut buf = String::new();
+
+    if s.is_empty() {
+      return Err(ParseFloatError::Malformed);
+    }
+
+    macro_rules! push_digits {
+      () => {
+        if matches!(s.get(i), Some(c) if c.is_ascii_digit()) {
+          while let Some(&c) = s.get(i) {
+            if c.is_ascii_digit() {
+              buf.push(c as char);
+              i += 1;
+            } else {
+              break;
+            }
+          }
+        } else {
+          buf.push('0');
+        }
+      }
+    }
+
+    match s.first() {
+      Some(b'-') => {
+        buf.push('-');
+        i += 1;
+      }
+      Some(b'+') => {
+        i += 1;
+      }
+      _ => {}
+    }
+
+    push_digits!();
+
+    if let Some(b'.') = s.get(i) {
+      buf.push('.');
+      i += 1;
+      push_digits!();
+    }
+
+    if let Some(b'e' | b'E') = s.get(i) {
+      buf.push('e');
+      i += 1;
+      if let Some(c @ (b'+' | b'-')) = s.get(i) {
+        buf.push(*c as char);
+        i += 1;
+      }
+      push_digits!();
+    }
+
+    if s.get(i).is_some() {
+      return Err(ParseFloatError::Malformed);
+    }
+
+    let num = buf.parse::<f64>().unwrap();
+    Ok(Mbf5::try_from(Mbf5Accum::try_from(num)?)?)
   }
 }
 
@@ -165,46 +238,114 @@ impl TryFrom<f64> for Mbf5Accum {
 }
 
 impl Display for Mbf5 {
-  fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+  fn fmt(&self, f: &mut Formatter) -> fmt::Result {
     if self.is_zero() {
-      return write!(fmt, "0");
+      return f.write_char('0');
     }
 
     // Why not simply implement Display for Mbf5Accum? Because after rounding
     // the mantissa of Mbf5Accum, the result may be infinity, so we construct
     // a Mbf5Accum from Mbf5, to make sure no rounding happens.
-    let mut x = Mbf5Accum::from(self).0;
+    let mut x = Mbf5Accum::from(*self).0;
 
     if x < 0.0 {
-      write!(fmt, "-")?;
+      f.write_char('-')?;
       x = -x;
     }
 
-    let mut result = String::new();
-    if x < 0.01 || x >= 1_000_000_000.0 {
-      write!(&mut result, "{:.8E}", x)?;
+    let mut base10_exponent = 0i32;
+    let exponent = self.0[0];
+    if exponent <= 0x80 {
+      base10_exponent = -9;
+      x *= 1e9;
+    }
+
+    if x > 999_999_999.0 {
+      while x >= 999_999_999.0 {
+        base10_exponent += 1;
+        x /= 10.0;
+      }
+    }
+
+    if x < 99_999_999.9 {
+      while x <= 99_999_999.9 {
+        base10_exponent -= 1;
+        x *= 10.0;
+      }
+    }
+    println!(">>>>>>>>>>>>>>>>>>> {} {}", base10_exponent, x);
+
+    base10_exponent += 10;
+    let mut point_index = if base10_exponent < 0 || base10_exponent > 10 {
+      1
     } else {
-      write!(&mut result, "{:}", x)?;
-    }
-    let end_of_frac = result.find('E').unwrap_or(result.len());
-    let mut result = result.into_bytes();
+      base10_exponent - 1
+    };
 
-    if end_of_frac < result.len() && result[end_of_frac + 1] >= b'0' {
-      result.insert(end_of_frac + 1, b'+');
-    }
-
-    let mut i = end_of_frac - 1;
-    while result[i] == b'0' || i > 9 {
-      i -= 1;
+    if point_index == 0 {
+      f.write_char('.')?;
+    } else if point_index == -1 {
+      f.write_char('.')?;
+      f.write_char('0')?;
     }
 
-    if result[i] != b'.' {
-      i += 1;
+    let mut int = Mbf5Accum::from(
+      Mbf5::try_from(Mbf5Accum::try_from(x).unwrap()).unwrap(),
+    )
+    .0 as u32;
+    let mut num_digits = 0;
+    let mut digits = [0u8; 11];
+    for divisor in [
+      100_000_000u32,
+      10_000_000,
+      1_000_000,
+      100_000,
+      10_000,
+      1000,
+      100,
+      10,
+      1,
+    ] {
+      digits[num_digits] = b'0' + (int / divisor) as u8;
+      num_digits += 1;
+      int %= divisor;
+
+      point_index -= 1;
+      if point_index == 0 {
+        digits[num_digits] = b'.';
+        num_digits += 1;
+      }
     }
 
-    result.drain(i..end_of_frac);
+    if digits[num_digits - 1] == b'0' {
+      while digits[num_digits - 1] == b'0' {
+        num_digits -= 1;
+      }
+    }
 
-    write!(fmt, "{}", std::str::from_utf8(&result).unwrap())
+    if digits[num_digits - 1] == b'.' {
+      num_digits -= 1;
+    }
+
+    f.write_str(unsafe {
+      std::str::from_utf8_unchecked(&digits[..num_digits])
+    })?;
+
+    if base10_exponent >= 0 || base10_exponent <= 10 {
+      return Ok(());
+    } else {
+      f.write_char('E')?;
+    }
+
+    if base10_exponent < 0 {
+      base10_exponent = -base10_exponent;
+      f.write_char('-')?;
+    } else {
+      f.write_char('+')?;
+    }
+
+    f.write_char((b'0' + (base10_exponent / 10) as u8) as char)?;
+    f.write_char((b'0' + (base10_exponent % 10) as u8) as char)
   }
 }
 
@@ -381,6 +522,11 @@ mod tests {
   }
 
   #[test]
+  fn fmt_mbf5_12() {
+    assert_eq!("12", &Mbf5([0x84, 0x40, 0, 0, 0]).to_string());
+  }
+
+  #[test]
   fn fmt_mbf5_max() {
     assert_eq!(
       "1.70141183E+38",
@@ -398,7 +544,7 @@ mod tests {
 
   #[test]
   fn fmt_mbf5_neg_0_5() {
-    assert_eq!("-0.5", &Mbf5([0x80, 0x80, 0x00, 0x00, 0x00]).to_string());
+    assert_eq!("-.5", &Mbf5([0x80, 0x80, 0x00, 0x00, 0x00]).to_string());
   }
 
   #[test]
@@ -437,7 +583,7 @@ mod tests {
 
   #[test]
   fn fmt_mbf5_0_01() {
-    assert_eq!("0.01", &Mbf5([0x7a, 0x23, 0xd7, 0x0a, 0x3e]).to_string());
+    assert_eq!(".01", &Mbf5([0x7a, 0x23, 0xd7, 0x0a, 0x3e]).to_string());
   }
 
   #[test]
@@ -685,5 +831,117 @@ mod tests {
   fn ln_neg() {
     let a = Mbf5Accum::try_from(-14.1).unwrap();
     assert_eq!(Err(FloatError::Nan), a.ln().map(|x| x.0));
+  }
+
+  #[test]
+  fn parse_int() {
+    assert_eq!(
+      "123".parse::<Mbf5>().map(|num| num.to_string()),
+      Ok("123".to_owned())
+    );
+  }
+
+  #[test]
+  fn parse_fraction() {
+    assert_eq!(
+      "+123.456".parse::<Mbf5>().map(|num| num.to_string()),
+      Ok("123.456".to_owned())
+    );
+  }
+
+  #[test]
+  fn parse_exponent() {
+    assert_eq!(
+      "-123e23".parse::<Mbf5>().map(|num| num.to_string()),
+      Ok("-1.23E+25".to_owned())
+    );
+  }
+
+  #[test]
+  fn parse_positive_exponent() {
+    assert_eq!(
+      "123E+23".parse::<Mbf5>().map(|num| num.to_string()),
+      Ok("1.23E+25".to_owned())
+    );
+  }
+
+  #[test]
+  fn parse_negative_exponent() {
+    assert_eq!(
+      "123e-23".parse::<Mbf5>().map(|num| num.to_string()),
+      Ok("1.23E-21".to_owned())
+    );
+  }
+
+  #[test]
+  fn parse_empty() {
+    assert_eq!(
+      "".parse::<Mbf5>().map(|num| num.to_string()),
+      Err(ParseFloatError::Malformed),
+    );
+  }
+
+  #[test]
+  fn parse_redundant_chars() {
+    assert_eq!(
+      "123abc".parse::<Mbf5>().map(|num| num.to_string()),
+      Err(ParseFloatError::Malformed),
+    );
+  }
+
+  #[test]
+  fn parse_missing_integral_part() {
+    assert_eq!(
+      ".23".parse::<Mbf5>().map(|num| num.to_string()),
+      Ok(".23".to_owned())
+    );
+  }
+
+  #[test]
+  fn parse_missing_fractional_part() {
+    assert_eq!(
+      "12.".parse::<Mbf5>().map(|num| num.to_string()),
+      Ok("12".to_owned())
+    );
+  }
+
+  #[test]
+  fn parse_missing_exponent_1() {
+    assert_eq!(
+      "12.e".parse::<Mbf5>().map(|num| num.to_string()),
+      Ok("12".to_owned())
+    );
+  }
+
+  #[test]
+  fn parse_missing_exponent_2() {
+    assert_eq!(
+      "12.e-".parse::<Mbf5>().map(|num| num.to_string()),
+      Ok("12".to_owned())
+    );
+  }
+
+  #[test]
+  fn parse_missing_exponent_3() {
+    assert_eq!(
+      "+12.e+".parse::<Mbf5>().map(|num| num.to_string()),
+      Ok("12".to_owned())
+    );
+  }
+
+  #[test]
+  fn parse_missing_all_parts() {
+    assert_eq!(
+      "-.e+".parse::<Mbf5>().map(|num| num.to_string()),
+      Ok("0".to_owned())
+    );
+  }
+
+  #[test]
+  fn parse_infinite() {
+    assert_eq!(
+      "1e300".parse::<Mbf5>().map(|num| num.to_string()),
+      Err(ParseFloatError::Infinite)
+    );
   }
 }

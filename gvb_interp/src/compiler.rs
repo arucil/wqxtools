@@ -1,4 +1,4 @@
-use crate::util::mbf5::{FloatError, Mbf5, Mbf5Accum};
+use crate::util::mbf5::{Mbf5, Mbf5Accum, ParseFloatError};
 use crate::{ast::*, diagnostic::*};
 use smallvec::SmallVec;
 use std::collections::HashMap;
@@ -177,7 +177,7 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E> {
   }
 
   fn label(&self) -> Option<Label> {
-    unsafe { (*self.line).label.map(|x| x.1) }
+    unsafe { (*self.line).label.as_ref().map(|x| x.1) }
   }
 
   fn compile(&mut self, prog: &Program) {
@@ -189,7 +189,9 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E> {
         if l.0 as i32 <= last_label {
           self.add_error(range.clone(), "行号必须递增");
         }
-        self.label_addrs.insert(*l, self.code_emitter.current_addr());
+        self
+          .label_addrs
+          .insert(*l, self.code_emitter.current_addr());
         last_label = l.0 as i32;
       }
 
@@ -203,7 +205,9 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E> {
   }
 
   fn resolve_labels(&mut self) {
-    for (addr, range, label) in self.pending_jump_labels.drain(..) {
+    for (addr, range, label) in
+      std::mem::replace(&mut self.pending_jump_labels, vec![])
+    {
       let l = label.unwrap_or(Label(0));
       if let Some(&label_addr) = self.label_addrs.get(&l) {
         self.code_emitter.patch_jump_addr(addr, label_addr);
@@ -221,7 +225,9 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E> {
   }
 
   fn resolve_datum_indices(&mut self) {
-    for (addr, range, label) in self.pending_datum_indices.drain(..) {
+    for (addr, range, label) in
+      std::mem::replace(&mut self.pending_datum_indices, vec![])
+    {
       if let Some(&index) = self.data_start.get(&label) {
         self.code_emitter.patch_datum_index(addr, index);
       } else {
@@ -505,8 +511,8 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E> {
     param: &Option<Range>,
     body: ExprId,
   ) {
-    let name = name.map(|name_range| {
-      let (name, ty) = self.compile_sym(name_range);
+    let name = name.as_ref().map(|name_range| {
+      let (name, ty) = self.compile_sym(name_range.clone());
       if !ty.matches(Type::Real) {
         self.add_error(
           name_range.clone(),
@@ -516,8 +522,8 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E> {
       name
     });
 
-    let param = param.map(|param_range| {
-      let (param, ty) = self.compile_sym(param_range);
+    let param = param.as_ref().map(|param_range| {
+      let (param, ty) = self.compile_sym(param_range.clone());
       if !ty.matches(Type::Real) {
         self.add_error(
           param_range.clone(),
@@ -545,6 +551,17 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E> {
       if let ExprKind::Index { name, indices } = &var.kind {
         for &index in indices.iter() {
           let ty = self.compile_expr(index);
+          if !ty.matches(Type::Real) {
+            let range = &self.expr_node(index).range;
+            self.add_error(
+              range.clone(),
+              format!(
+                "表达式类型错误。数组下标必须是{}类型，而这个表达式是{}类型",
+                Type::Real,
+                ty,
+              ),
+            );
+          }
         }
         if let Some(name_range) = name {
           let (name, _) = self.compile_sym(name_range.clone());
@@ -885,7 +902,7 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E> {
             "INPUT 语句只允许从键盘输入自定义函数，不能从文件输入自定义函数",
           );
         } else {
-          let func = func.map(|func_range| {
+          let func = func.as_ref().map(|func_range| {
             let (func, ty) = self.compile_sym(func_range.clone());
             if !ty.matches(Type::Real) {
               self.add_error(
@@ -930,7 +947,7 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E> {
       InputSource::Keyboard(prompt) => {
         self.code_emitter.emit_keyboard_input(
           range,
-          prompt.map(|p| {
+          prompt.as_ref().map(|p| {
             let mut text = &self.text[p.start + 1..p.end];
             if text.ends_with('"') {
               text = &text[..text.len() - 1];
@@ -1224,6 +1241,7 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E> {
     }
   }
 
+  #[must_use]
   fn compile_expr(&mut self, expr: ExprId) -> Type {
     let expr = self.expr_node(expr);
     let range = expr.range.clone();
@@ -1246,7 +1264,7 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E> {
         text.retain(|c| c != ' ');
         match text.parse::<Mbf5>() {
           Ok(num) => self.code_emitter.emit_number(range, num),
-          Err(FloatError::Infinite) => self.add_error(range, "数值溢出"),
+          Err(ParseFloatError::Infinite) => self.add_error(range, "数值溢出"),
           Err(_) => unreachable!(),
         }
         Type::String
@@ -1255,7 +1273,7 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E> {
         self.compile_sys_func_call(range, func, args)
       }
       ExprKind::UserFuncCall { func, arg } => {
-        let func = func.map(|func_range| {
+        let func = func.as_ref().map(|func_range| {
           let (func, ty) = self.compile_sym(func_range.clone());
           if !ty.matches(Type::Real) {
             self.add_error(
@@ -1267,7 +1285,7 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E> {
         });
         let ty = self.compile_expr(*arg);
         if !ty.matches(Type::Real) {
-          let range = self.expr_node(*arg).range;
+          let range = &self.expr_node(*arg).range;
           self.add_error(
             range.clone(),
             format!(
@@ -1496,6 +1514,7 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E> {
     }
   }
 
+  #[must_use]
   fn compile_lvalue(&mut self, lvalue: ExprId) -> (bool, Type) {
     let lvalue = &self.expr_node(lvalue);
     match &lvalue.kind {
@@ -1536,8 +1555,9 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E> {
     }
   }
 
+  #[must_use]
   fn compile_sym(&mut self, range: Range) -> (E::Symbol, Type) {
-    let name = self.text[range.start..range.end].to_ascii_uppercase();
+    let mut name = self.text[range.start..range.end].to_ascii_uppercase();
     let ty = match name.as_bytes().last() {
       Some(b'%') => Type::Integer,
       Some(b'$') => Type::String,
@@ -1545,7 +1565,7 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E> {
     };
 
     if let Some(i) = name.find(' ') {
-      name.split_off(i);
+      name.truncate(i);
       if !ty.exact_matches(Type::Real) {
         name.push(ty.sigil().unwrap());
       }

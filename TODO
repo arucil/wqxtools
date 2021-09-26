@@ -5,3 +5,4 @@
 - document:
     - semantic token
     - symbol highlight
+- READ、键盘 INPUT 输入实数，忽略实数后面的字符串？文件 INPUT 输入实数，实数后面不行？

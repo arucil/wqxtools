@@ -2080,6 +2080,8 @@ fn count_space(input: &[u8], start: usize) -> usize {
   i - start
 }
 
+/// Returns (number length, is natural number).
+///
 /// ```regexp
 /// [-+]?\d*(\.\d*)?(E[-+]?\d*)?
 /// ```

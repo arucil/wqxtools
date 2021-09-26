@@ -1,9 +1,9 @@
 ---
 source: gvb_interp/src/parser.rs
-expression: parse_line(line).to_string(line)
+expression: parse_line(line).0.to_string(line)
 
 ---
-label: Some(Label(10))
+label: Some((0..2, Label(10)))
 len: 43
 eol: None
 diagnostics: 

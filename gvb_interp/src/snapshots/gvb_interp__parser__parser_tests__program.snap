@@ -3,7 +3,7 @@ source: gvb_interp/src/parser.rs
 expression: parse(prog).to_string(prog)
 
 ---
-label: Some(Label(10))
+label: Some((0..2, Label(10)))
 len: 25
 eol: Lf
 diagnostics: 
@@ -13,7 +13,7 @@ diagnostics:
 13..22    PRINT <STR: "a"> 
 23..24    :
 ==================================
-label: Some(Label(20))
+label: Some((0..2, Label(20)))
 len: 43
 eol: Lf
 diagnostics: 
@@ -25,7 +25,7 @@ diagnostics:
           ELSE      
 37..42        TRACE
 ==================================
-label: Some(Label(30))
+label: Some((0..2, Label(30)))
 len: 26
 eol: None
 diagnostics: 
