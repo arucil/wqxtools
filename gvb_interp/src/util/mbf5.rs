@@ -267,19 +267,24 @@ impl Display for Mbf5 {
       }
     }
 
-    if x < 99_999_999.9 {
+    if x != 999_999_999.0 {
       while x <= 99_999_999.9 {
         base10_exponent -= 1;
         x *= 10.0;
       }
+      x += 0.5;
     }
+
     println!(">>>>>>>>>>>>>>>>>>> {} {}", base10_exponent, x);
 
     base10_exponent += 10;
     let mut point_index = if base10_exponent < 0 || base10_exponent > 10 {
+      base10_exponent -= 2;
       1
     } else {
-      base10_exponent - 1
+      let x = base10_exponent - 1;
+      base10_exponent = 0;
+      x
     };
 
     if point_index == 0 {
@@ -289,10 +294,9 @@ impl Display for Mbf5 {
       f.write_char('0')?;
     }
 
-    let mut int = Mbf5Accum::from(
-      Mbf5::try_from(Mbf5Accum::try_from(x).unwrap()).unwrap(),
-    )
-    .0 as u32;
+    let mut int =
+      Mbf5Accum::from(Mbf5::try_from(Mbf5Accum::try_from(x).unwrap()).unwrap())
+        .0 as u32;
     let mut num_digits = 0;
     let mut digits = [0u8; 11];
     for divisor in [
@@ -331,7 +335,7 @@ impl Display for Mbf5 {
       std::str::from_utf8_unchecked(&digits[..num_digits])
     })?;
 
-    if base10_exponent >= 0 || base10_exponent <= 10 {
+    if base10_exponent == 0 {
       return Ok(());
     } else {
       f.write_char('E')?;
@@ -557,12 +561,12 @@ mod tests {
 
   #[test]
   fn fmt_mbf5_1_000_000_000() {
-    assert_eq!("1E+9", &Mbf5([0x9e, 0x6e, 0x6b, 0x28, 0x00]).to_string());
+    assert_eq!("1E+09", &Mbf5([0x9e, 0x6e, 0x6b, 0x28, 0x00]).to_string());
   }
 
   #[test]
   fn fmt_mbf5_neg_1_000_000_000() {
-    assert_eq!("-1E+9", &Mbf5([0x9e, 0xee, 0x6b, 0x28, 0x00]).to_string());
+    assert_eq!("-1E+09", &Mbf5([0x9e, 0xee, 0x6b, 0x28, 0x00]).to_string());
   }
 
   #[test]
@@ -589,7 +593,7 @@ mod tests {
   #[test]
   fn fmt_mbf5_0_0003765() {
     assert_eq!(
-      "3.765E-4",
+      "3.765E-04",
       &Mbf5([0x75, 0x45, 0x64, 0xf9, 0x7e]).to_string()
     );
   }
@@ -605,7 +609,7 @@ mod tests {
   #[test]
   fn fmt_mbf5_3_92767774_e_neg_8() {
     assert_eq!(
-      "3.92767774E-8",
+      "3.92767774E-08",
       &Mbf5([0x68, 0x28, 0xb1, 0x46, 0x00]).to_string()
     );
   }
@@ -842,10 +846,34 @@ mod tests {
   }
 
   #[test]
-  fn parse_fraction() {
+  fn parse_fraction_1() {
     assert_eq!(
       "+123.456".parse::<Mbf5>().map(|num| num.to_string()),
       Ok("123.456".to_owned())
+    );
+  }
+
+  #[test]
+  fn parse_fraction_2() {
+    assert_eq!(
+      ".0078125".parse::<Mbf5>().map(|num| num.to_string()),
+      Ok("7.8125E-03".to_owned())
+    );
+  }
+
+  #[test]
+  fn parse_fraction_3() {
+    assert_eq!(
+      "-.0625".parse::<Mbf5>().map(|num| num.to_string()),
+      Ok("-.0625".to_owned())
+    );
+  }
+
+  #[test]
+  fn parse_fraction_4() {
+    assert_eq!(
+      "5.7203".parse::<Mbf5>().map(|num| num.to_string()),
+      Ok("5.7203".to_owned())
     );
   }
 
