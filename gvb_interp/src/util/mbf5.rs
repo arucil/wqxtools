@@ -275,8 +275,6 @@ impl Display for Mbf5 {
       x += 0.5;
     }
 
-    println!(">>>>>>>>>>>>>>>>>>> {} {}", base10_exponent, x);
-
     base10_exponent += 10;
     let mut point_index = if base10_exponent < 0 || base10_exponent > 10 {
       base10_exponent -= 2;
@@ -294,9 +292,7 @@ impl Display for Mbf5 {
       f.write_char('0')?;
     }
 
-    let mut int =
-      Mbf5Accum::from(Mbf5::try_from(Mbf5Accum::try_from(x).unwrap()).unwrap())
-        .0 as u32;
+    let mut int = x as u32;
     let mut num_digits = 0;
     let mut digits = [0u8; 11];
     for divisor in [
