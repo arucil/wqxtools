@@ -1,7 +1,6 @@
 use crate::util::mbf5::{Mbf5, Mbf5Accum, ParseFloatError};
-use crate::{ast::*, diagnostic::*};
+use crate::{ast::*, diagnostic::*, HashMap};
 use smallvec::SmallVec;
-use std::collections::HashMap;
 use std::convert::TryFrom;
 use std::fmt::{self, Display, Formatter};
 use std::num::NonZeroUsize;
@@ -27,8 +26,8 @@ pub trait CodeEmitter {
     range: Range,
     name: Self::Symbol,
     param: Self::Symbol,
-  );
-  fn end_def_fn(&mut self);
+  ) -> Self::Addr;
+  fn end_def_fn(&mut self, def_addr: Self::Addr);
 
   fn emit_dim(
     &mut self,
@@ -65,7 +64,7 @@ pub trait CodeEmitter {
 
   fn patch_jump_addr(&mut self, addr: Self::Addr, label_addr: Self::Addr);
 
-  fn emit_je(&mut self, range: Range) -> Self::Addr;
+  fn emit_jz(&mut self, range: Range) -> Self::Addr;
 
   fn current_addr(&self) -> Self::Addr;
 
@@ -85,9 +84,9 @@ pub trait CodeEmitter {
     fields: NonZeroUsize,
   );
 
-  fn emit_file_input(&mut self, fields: NonZeroUsize);
+  fn emit_file_input(&mut self, range: Range, fields: NonZeroUsize);
 
-  fn emit_open(&mut self, mode: FileMode, has_len: bool);
+  fn emit_open(&mut self, range: Range, mode: FileMode, has_len: bool);
 
   fn emit_read(&mut self, range: Range);
 
@@ -96,10 +95,12 @@ pub trait CodeEmitter {
   fn emit_print_tab(&mut self, range: Range);
   fn emit_print_value(&mut self, range: Range);
 
-  fn emit_pop(&mut self);
+  fn emit_pop(&mut self, range: Range);
 
   fn emit_write(&mut self, range: Range, to_file: bool);
   fn emit_write_end(&mut self, range: Range, to_file: bool);
+
+  fn emit_while(&mut self, range: Range, cond_start: Self::Addr);
 
   fn emit_number(&mut self, range: Range, num: Mbf5);
   fn emit_var(&mut self, range: Range, sym: Self::Symbol);
@@ -116,7 +117,7 @@ pub trait CodeEmitter {
   fn emit_user_func_call(&mut self, range: Range, name: Self::Symbol);
 }
 
-pub fn compile<E: CodeEmitter>(
+pub fn compile_prog<E: CodeEmitter>(
   text: impl AsRef<str>,
   prog: &Program,
   code_emitter: &mut E,
@@ -128,12 +129,12 @@ pub fn compile<E: CodeEmitter>(
     diagnostics: vec![],
     pending_jump_labels: vec![],
     pending_datum_indices: vec![],
-    data_start: HashMap::new(),
-    label_addrs: HashMap::new(),
+    data_start: HashMap::default(),
+    label_addrs: HashMap::default(),
     line: std::ptr::null(),
   };
 
-  state.compile(prog);
+  state.compile_prog(prog);
 
   state.diagnostics
 }
@@ -180,7 +181,7 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E> {
     unsafe { (*self.line).label.as_ref().map(|x| x.1) }
   }
 
-  fn compile(&mut self, prog: &Program) {
+  fn compile_prog(&mut self, prog: &Program) {
     let mut last_label = -1;
 
     for line in &prog.lines {
@@ -438,14 +439,7 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E> {
       StmtKind::Text => self.code_emitter.emit_op(range, &stmt.kind, 0),
       StmtKind::Trace => self.code_emitter.emit_op(range, &stmt.kind, 0),
       StmtKind::Wend => self.code_emitter.emit_op(range, &stmt.kind, 0),
-      StmtKind::While(cond) => self.compile_unary_stmt(
-        range,
-        &stmt.kind,
-        *cond,
-        Type::Real,
-        "WHILE",
-        "条件",
-      ),
+      StmtKind::While(cond) => self.compile_while(range, *cond),
       StmtKind::Write { filenum, data } => {
         self.compile_write(range, *filenum, data)
       }
@@ -537,9 +531,9 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E> {
     });
 
     if let (Some(name), Some(param)) = (name, param) {
-      self.code_emitter.begin_def_fn(range, name, param);
+      let def_addr = self.code_emitter.begin_def_fn(range, name, param);
       self.compile_expr(body);
-      self.code_emitter.end_def_fn();
+      self.code_emitter.end_def_fn(def_addr);
     } else {
       self.compile_expr(body);
     }
@@ -720,6 +714,21 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E> {
     self.code_emitter.emit_op(range, kind, 2);
   }
 
+  fn compile_while(&mut self, range: Range, cond: ExprId) {
+    let cond_start = self.code_emitter.current_addr();
+    let ty = self.compile_expr(cond);
+    if !ty.matches(Type::Real) {
+      let range = &self.expr_node(cond).range;
+      self.add_error(
+        range.clone(),
+        format!(
+          "表达式类型错误。WHILE 语句的条件表达式必须是{}类型，而这个表达式是{}类型",
+          Type::Real,
+          ty));
+    }
+    self.code_emitter.emit_while(range, cond_start);
+  }
+
   fn compile_write(
     &mut self,
     range: Range,
@@ -757,7 +766,7 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E> {
       } else if datum.comma {
         self.code_emitter.emit_write(range, to_file);
       } else {
-        self.code_emitter.emit_pop();
+        self.code_emitter.emit_pop(range);
       }
     }
   }
@@ -866,7 +875,7 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E> {
       );
     }
 
-    let je_addr = self.code_emitter.emit_je(range.clone());
+    let jz_addr = self.code_emitter.emit_jz(range.clone());
 
     for &stmt in conseq.iter() {
       self.compile_stmt(stmt);
@@ -874,7 +883,7 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E> {
 
     let conseq_end_addr = self.code_emitter.emit_goto(range);
     let alt_addr = self.code_emitter.current_addr();
-    self.code_emitter.patch_jump_addr(je_addr, alt_addr);
+    self.code_emitter.patch_jump_addr(jz_addr, alt_addr);
 
     if let Some(alt) = alt {
       for &stmt in alt.iter() {
@@ -1100,7 +1109,7 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E> {
     }
 
     if !matches!(mode, FileMode::Error) {
-      self.code_emitter.emit_open(mode, len.is_some());
+      self.code_emitter.emit_open(range, mode, len.is_some());
     }
   }
 
@@ -1264,7 +1273,7 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E> {
         text.retain(|c| c != ' ');
         match text.parse::<Mbf5>() {
           Ok(num) => self.code_emitter.emit_number(range, num),
-          Err(ParseFloatError::Infinite) => self.add_error(range, "数值溢出"),
+          Err(ParseFloatError::Infinite) => self.add_error(range, "数值过大"),
           Err(_) => unreachable!(),
         }
         Type::String

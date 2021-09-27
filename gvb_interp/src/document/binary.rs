@@ -72,7 +72,7 @@ pub fn load_bas(
         }
 
         let gbcode = ((content[i + 1] as u16) << 8) + content[i + 2] as u16;
-        if !super::gb2312::GB2312_TO_UNICODE.contains_key(&gbcode) {
+        if !crate::gb2312::GB2312_TO_UNICODE.contains_key(&gbcode) {
           guessed_emoji_styles.retain(|s| s.code_to_char(gbcode).is_some());
           if guessed_emoji_styles.is_empty() {
             return Err(LoadError {
@@ -113,7 +113,7 @@ pub fn load_bas(
       let b = line[i];
       if b == 0x1f {
         let gbcode = ((line[i + 1] as u16) << 8) + line[i + 2] as u16;
-        if let Some(&u) = super::gb2312::GB2312_TO_UNICODE.get(&gbcode) {
+        if let Some(&u) = crate::gb2312::GB2312_TO_UNICODE.get(&gbcode) {
           text.push(char::from_u32(u as u32).unwrap());
         } else {
           let u = guessed_emoji_style.code_to_char(gbcode).unwrap();
@@ -194,7 +194,7 @@ pub fn load_txt(
       }
 
       let gbcode = ((content[i] as u16) << 8) + content[i + 1] as u16;
-      if let Some(&u) = super::gb2312::GB2312_TO_UNICODE.get(&gbcode) {
+      if let Some(&u) = crate::gb2312::GB2312_TO_UNICODE.get(&gbcode) {
         text.push(char::from_u32(u as u32).unwrap());
       } else {
         guessed_emoji_styles.retain(|s| s.code_to_char(gbcode).is_some());

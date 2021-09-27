@@ -7,9 +7,6 @@ use crate::machine::EmojiStyle;
 use crate::machine::MachineProps;
 
 mod binary;
-mod gb2312 {
-  include!(concat!(env!("OUT_DIR"), "/gb2312.rs"));
-}
 
 pub struct Document {
   path: PathBuf,

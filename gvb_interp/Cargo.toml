@@ -7,12 +7,14 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+fasthash = "0.4.0"
 id-arena = "2.2.1"
 num-derive = "0.3.3"
 num-traits = "0.2.14"
 phf = { version = "0.10.0", features = ["macros"] }
 rand = "0.7.3"
 smallvec = "1.6.1"
+string-interner = "0.13.0"
 
 [dev-dependencies]
 insta = "1.7.2"
@@ -22,3 +24,5 @@ quickcheck_macros = "1.0.0"
 
 [build-dependencies]
 tinyjson = "2.3.0"
+
+[features]

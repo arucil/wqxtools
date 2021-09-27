@@ -12,7 +12,7 @@ use std::fmt::Write;
 
 pub mod symbol;
 
-pub fn parse(input: &str) -> Program {
+pub fn parse_prog(input: &str) -> Program {
   let mut line_start = 0;
   let mut lines = vec![];
   while let Some(eol) = input[line_start..].find('\n') {
@@ -811,7 +811,7 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
   fn parse_dim_stmt(&mut self) -> StmtId {
     let start = self.token.0.start;
     self.read_token(false);
-    let vars = self.parse_lvalue_list();
+    let vars = self.parse_lvalue_list(false);
     self.node_builder.new_stmt(Stmt {
       kind: StmtKind::Dim(vars),
       range: Range::new(start, self.last_token_end),
@@ -1143,7 +1143,7 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
 
     setup_first! { self : }
     setup_follow! { self, old_follow : }
-    let vars = self.parse_lvalue_list();
+    let vars = self.parse_lvalue_list(true);
 
     self.node_builder.new_stmt(Stmt {
       kind: StmtKind::Input { source, vars },
@@ -1151,18 +1151,30 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
     })
   }
 
-  fn parse_lvalue_list(&mut self) -> NonEmptyVec<[ExprId; 1]> {
+  fn parse_lvalue_list(&mut self, allow_fn: bool) -> NonEmptyVec<[ExprId; 1]> {
     let _first_symbols = self.first_symbols.backup();
     let old_follow = self.follow_symbols.backup();
 
     let mut vars = NonEmptyVec::<[ExprId; 1]>::new();
-    setup_first! { self : }
+    if allow_fn {
+      setup_first! { self : (kw Fn) }
+    } else {
+      setup_first! { self : }
+    }
     setup_follow! { self, old_follow : (punc Comma) }
-    let var = self.parse_lvalue();
+    let var = if let TokenKind::Keyword(Keyword::Fn) = self.token.1 {
+      self.parse_fn()
+    } else {
+      self.parse_lvalue()
+    };
     vars.push(var);
     while let TokenKind::Punc(Punc::Comma) = self.token.1 {
       self.read_token(false);
-      let var = self.parse_lvalue();
+      let var = if let TokenKind::Keyword(Keyword::Fn) = self.token.1 {
+        self.parse_fn()
+      } else {
+        self.parse_lvalue()
+      };
       vars.push(var);
     }
 
@@ -1553,7 +1565,7 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
   fn parse_read_stmt(&mut self) -> StmtId {
     let start = self.token.0.start;
     self.read_token(false);
-    let vars = self.parse_lvalue_list();
+    let vars = self.parse_lvalue_list(false);
     self.node_builder.new_stmt(Stmt {
       kind: StmtKind::Read(vars),
       range: Range::new(start, self.last_token_end),
@@ -1836,60 +1848,7 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
         }
         expr
       }
-      TokenKind::Keyword(Keyword::Fn) => {
-        let fn_range = self.token.0.clone();
-        let _first_symbols = self.first_symbols.backup();
-        let old_follow = self.follow_symbols.backup();
-        self.read_token(false);
-
-        setup_first! { self : (id) }
-        setup_follow! { self, old_follow : (punc LParen) (id) }
-        let id_range;
-        match self.match_token(TokenKind::Ident, false, false) {
-          Ok(range) => id_range = Some(range),
-          Err(()) => {
-            self.add_error(fn_range.clone(), "FN 之后缺少函数名称");
-            id_range = None;
-          }
-        }
-
-        setup_first! { self : (punc LParen) }
-        setup_follow! { self, old_follow : (punc RParen) (id) }
-        if self
-          .match_token(TokenKind::Punc(Punc::LParen), false, false)
-          .is_err()
-        {
-          if let Some(id_range) = &id_range {
-            self.add_error(id_range.clone(), "函数名称之后缺少左括号");
-          }
-        }
-
-        setup_first! { self : }
-        setup_follow! { self, old_follow : }
-        let arg = self.parse_expr();
-
-        setup_first! { self : (punc RParen) }
-        setup_follow! { self, old_follow : }
-        if self
-          .match_token(TokenKind::Punc(Punc::RParen), false, false)
-          .is_err()
-        {
-          let arg = self.node_builder.expr_node(arg);
-          if !matches!(&arg.kind, ExprKind::Error) {
-            let range = arg.range.clone();
-            self.add_error(range, "缺少右括号");
-          }
-        }
-
-        let kind = ExprKind::UserFuncCall {
-          func: id_range,
-          arg,
-        };
-        self.node_builder.new_expr(Expr::new(
-          kind,
-          Range::new(fn_range.start, self.last_token_end),
-        ))
-      }
+      TokenKind::Keyword(Keyword::Fn) => self.parse_fn(),
       TokenKind::SysFunc(kind) => {
         let name_range = self.token.0.clone();
         self.read_token(false);
@@ -1916,6 +1875,61 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
         ))
       }
     }
+  }
+
+  fn parse_fn(&mut self) -> ExprId {
+    let fn_range = self.token.0.clone();
+    let _first_symbols = self.first_symbols.backup();
+    let old_follow = self.follow_symbols.backup();
+    self.read_token(false);
+
+    setup_first! { self : (id) }
+    setup_follow! { self, old_follow : (punc LParen) (id) }
+    let id_range;
+    match self.match_token(TokenKind::Ident, false, false) {
+      Ok(range) => id_range = Some(range),
+      Err(()) => {
+        self.add_error(fn_range.clone(), "FN 之后缺少函数名称");
+        id_range = None;
+      }
+    }
+
+    setup_first! { self : (punc LParen) }
+    setup_follow! { self, old_follow : (punc RParen) (id) }
+    if self
+      .match_token(TokenKind::Punc(Punc::LParen), false, false)
+      .is_err()
+    {
+      if let Some(id_range) = &id_range {
+        self.add_error(id_range.clone(), "函数名称之后缺少左括号");
+      }
+    }
+
+    setup_first! { self : }
+    setup_follow! { self, old_follow : }
+    let arg = self.parse_expr();
+
+    setup_first! { self : (punc RParen) }
+    setup_follow! { self, old_follow : }
+    if self
+      .match_token(TokenKind::Punc(Punc::RParen), false, false)
+      .is_err()
+    {
+      let arg = self.node_builder.expr_node(arg);
+      if !matches!(&arg.kind, ExprKind::Error) {
+        let range = arg.range.clone();
+        self.add_error(range, "缺少右括号");
+      }
+    }
+
+    let kind = ExprKind::UserFuncCall {
+      func: id_range,
+      arg,
+    };
+    self.node_builder.new_expr(Expr::new(
+      kind,
+      Range::new(fn_range.start, self.last_token_end),
+    ))
   }
 
   fn parse_lvalue(&mut self) -> ExprId {
@@ -2517,7 +2531,7 @@ mod parser_tests {
 
   #[test]
   fn input() {
-    let line = r#"10 inPUT # s, A$, a$(3,i) : InPuT "ENTER:";A,B:INPUT A%"#;
+    let line = r#"10 inPUT # s, A$, a$(3,i) : InPuT "ENTER:";A,B:INPUT A%, fn f(x+1)"#;
     assert_snapshot!(parse_line(line).0.to_string(line));
   }
 
@@ -2600,7 +2614,7 @@ mod parser_tests {
     let prog = r#"10 graph:cls:print "a"::
 20 a=inkey$:if a>1 then cont:30:else trace
 30 let x$(2,3)=asc(inkey$)"#;
-    assert_snapshot!(parse(prog).to_string(prog));
+    assert_snapshot!(parse_prog(prog).to_string(prog));
   }
 
   mod error_recovery {

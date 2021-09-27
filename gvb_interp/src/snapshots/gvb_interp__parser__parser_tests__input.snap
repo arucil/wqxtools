@@ -4,11 +4,11 @@ expression: parse_line(line).0.to_string(line)
 
 ---
 label: Some((0..2, Label(10)))
-len: 55
+len: 66
 eol: None
 diagnostics: 
 -----------------
 3..25     INPUT # <ID: s>, <ID: A$>, a$[<NUM: 3>, <ID: i>]
 28..46    INPUT <STR: "ENTER:">; <ID: A>, <ID: B>
-47..55    INPUT <ID: A%>
+47..66    INPUT <ID: A%>, FN f((<ID: x> + <NUM: 1>))
 
