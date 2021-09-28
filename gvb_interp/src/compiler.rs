@@ -1273,7 +1273,9 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E> {
         text.retain(|c| c != ' ');
         match text.parse::<Mbf5>() {
           Ok(num) => self.code_emitter.emit_number(range, num),
-          Err(ParseFloatError::Infinite) => self.add_error(range, "数值过大"),
+          Err(ParseFloatError::Infinite) => {
+            self.add_error(range, "数值过大，超出实数的表示范围")
+          }
           Err(_) => unreachable!(),
         }
         Type::String

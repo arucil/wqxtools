@@ -25,6 +25,10 @@ pub struct StringError {
 }
 
 impl ByteString {
+  pub fn new() -> Self {
+    Self(vec![])
+  }
+
   pub fn from_str<S: AsRef<str>>(
     str: S,
     emoji_style: EmojiStyle,

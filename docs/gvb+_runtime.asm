@@ -2815,7 +2815,7 @@
 77B6: 20 DB 6A JSR $6ADB ; read a character
 77B9: 4C 7E 77 JMP $777E
 
-; assignment statement
+; LET assignment statement
 77BC: 20 D8 96 JSR $96D8 ; read variable name, store its data address into $58, $59 and A, Y
 77BF: 85 5C    STA $5C
 77C1: 84 5D    STY $5D

@@ -1,10 +1,9 @@
-#![allow(incomplete_features)]
 #![feature(
   exclusive_range_pattern,
-  let_chains,
   extend_one,
   const_panic,
-  const_mut_refs
+  const_mut_refs,
+  never_type
 )]
 
 pub mod ast;

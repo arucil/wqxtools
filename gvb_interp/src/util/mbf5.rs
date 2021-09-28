@@ -67,9 +67,9 @@ impl From<Mbf5> for Mbf5Accum {
   }
 }
 
-impl Into<f64> for Mbf5Accum {
-  fn into(self) -> f64 {
-    self.0
+impl From<Mbf5Accum> for f64 {
+  fn from(n: Mbf5Accum) -> Self {
+    n.0
   }
 }
 
@@ -350,6 +350,10 @@ impl Display for Mbf5 {
 }
 
 impl Mbf5 {
+  pub fn zero() -> Self {
+    Self([0; 5])
+  }
+
   pub fn is_zero(&self) -> bool {
     self.0[0] == 0
   }
@@ -402,6 +406,10 @@ impl Neg for Mbf5Accum {
 }
 
 impl Mbf5Accum {
+  pub fn one() -> Self {
+    Self(1.0)
+  }
+
   pub fn is_positive(&self) -> bool {
     self.0 > 0.0
   }

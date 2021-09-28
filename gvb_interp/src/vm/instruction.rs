@@ -146,6 +146,7 @@ pub enum InstrKind {
   SetPrintMode(PrintMode),
   Wend,
   WhileLoop(Addr),
+  Sleep,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
