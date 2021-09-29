@@ -68,7 +68,7 @@ impl Document {
 
     let mut emoji_style = doc.guessed_emoji_style;
 
-    let machine_props = detect_machine_props(&doc.text)
+    let mut machine_props = detect_machine_props(&doc.text)
       .and_then(|p| p.ok())
       .cloned();
     if let Some(props) = &machine_props {
@@ -78,6 +78,9 @@ impl Document {
       } else {
         binary::load_txt(&data, Some(emoji_style))?
       };
+    } else {
+      machine_props =
+        Some(crate::machine::MACHINES[crate::machine::DEFAULT_MACHINE].clone());
     }
 
     Ok(Document {

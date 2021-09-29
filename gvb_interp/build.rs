@@ -137,22 +137,57 @@ fn build_machine_props_map() -> Result<(), Box<dyn Error>> {
   writeln!(&mut file)?;
   writeln!(
     &mut file,
+    "pub const DEFAULT_MACHINE: &'static str = \"{}\";",
+    map["default"].get::<String>().unwrap()
+  )?;
+  writeln!(
+    &mut file,
     "pub static MACHINES: phf::Map<&'static str, MachineProps> = phf_map! {{"
   )?;
 
   for (name, props) in map {
+    if name == "default" {
+      continue;
+    }
+
     let props = props.get::<HashMap<String, JsonValue>>().unwrap();
     writeln!(
       &mut file,
       "  \"{}\" => MachineProps {{",
-      name.to_ascii_lowercase()
+      name.to_ascii_lowercase(),
     )?;
+
     let emoji_style = props["emoji_style"].get::<String>().unwrap();
     let emoji_style = if emoji_style == "new" { "New" } else { "Old" };
     writeln!(&mut file, "    emoji_style: EmojiStyle::{},", emoji_style)?;
+
     let graphics_base_addr =
       *props["graphics_base_addr"].get::<f64>().unwrap() as u32;
     writeln!(&mut file, "    graphics_base_addr: {},", graphics_base_addr)?;
+
+    let sleep_unit = props["sleep_unit"].get::<String>().unwrap();
+    if let Some((num, unit)) =
+      sleep_unit.split_once(|c: char| c.is_ascii_alphabetic())
+    {
+      let num = num
+        .parse::<f64>()
+        .expect(&format!("invalid sleep_unit: {}", sleep_unit));
+      let ns = match unit {
+        "s" => num * 1e9,
+        "ms" => num * 1e6,
+        "ns" => num,
+        _ => panic!("invalid sleep_unit: {}", sleep_unit),
+      };
+      let ns = ns as u64;
+      writeln!(
+        &mut file,
+        "    sleep_unit: std::time::Duration::from_nanos({}),",
+        ns
+      )?;
+    } else {
+      panic!("invalid sleep_unit: {}", sleep_unit);
+    };
+
     writeln!(&mut file, "  }},")?;
   }
 

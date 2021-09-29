@@ -1,10 +1,13 @@
 {
+  "default": "tc808",
   "tc808": {
     "emoji_style": "new",
+    "sleep_unit": "0.7ms",
     "graphics_base_addr": 6592
   },
   "pc1000a": {
     "emoji_style": "old",
+    "sleep_unit": "1ms",
     "graphics_base_addr": 2496
   }
 }

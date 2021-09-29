@@ -1,3 +1,4 @@
+use std::convert::TryFrom;
 use std::num::NonZeroUsize;
 
 use super::{
@@ -5,6 +6,7 @@ use super::{
   ScreenMode, Symbol, DUMMY_ADDR, FISRT_DATUM_INDEX,
 };
 use crate::ast::{BinaryOpKind, FileMode, Range, StmtKind, UnaryOpKind};
+use crate::diagnostic::Diagnostic;
 use crate::util::mbf5::Mbf5;
 use crate::{compiler::CodeEmitter, machine::EmojiStyle};
 use string_interner::StringInterner;
@@ -259,6 +261,7 @@ impl CodeEmitter for CodeGen {
   fn emit_set_row(&mut self, range: Range) {
     self.push_instr(range, InstrKind::SetRow);
   }
+
   fn emit_set_column(&mut self, range: Range) {
     self.push_instr(range, InstrKind::SetColumn);
   }
@@ -302,12 +305,15 @@ impl CodeEmitter for CodeGen {
   fn emit_print_newline(&mut self, range: Range) {
     self.push_instr(range, InstrKind::PrintNewLine);
   }
+
   fn emit_print_spc(&mut self, range: Range) {
     self.push_instr(range, InstrKind::PrintSpc);
   }
+
   fn emit_print_tab(&mut self, range: Range) {
     self.push_instr(range, InstrKind::PrintTab);
   }
+
   fn emit_print_value(&mut self, range: Range) {
     self.push_instr(range, InstrKind::PrintValue);
   }
@@ -319,29 +325,40 @@ impl CodeEmitter for CodeGen {
   fn emit_write(&mut self, range: Range, to_file: bool) {
     self.push_instr(range, InstrKind::Write { to_file });
   }
+
   fn emit_write_end(&mut self, range: Range, to_file: bool) {
     self.push_instr(range, InstrKind::WriteEnd { to_file });
   }
 
   fn emit_while(&mut self, range: Range, cond_start: Addr) {
-    self.push_instr(range, InstrKind::WhileLoop(cond_start));
+    self.push_instr(
+      range,
+      InstrKind::WhileLoop {
+        start: cond_start,
+        end: DUMMY_ADDR,
+      },
+    );
   }
 
   fn emit_number(&mut self, range: Range, num: Mbf5) {
     self.push_instr(range, InstrKind::PushNum(num));
   }
+
   fn emit_var(&mut self, range: Range, sym: Self::Symbol) {
     self.push_instr(range, InstrKind::PushVar(sym));
   }
+
   fn emit_string(&mut self, range: Range, str: String) {
     self.push_instr(
       range,
       InstrKind::PushStr(ByteString::from_str(str, self.emoji_style).unwrap()),
     );
   }
+
   fn emit_inkey(&mut self, range: Range) {
     self.push_instr(range, InstrKind::PushInKey);
   }
+
   fn emit_index(
     &mut self,
     range: Range,
@@ -358,6 +375,7 @@ impl CodeEmitter for CodeGen {
     };
     self.push_instr(range, kind);
   }
+
   fn emit_binary_expr(&mut self, range: Range, kind: BinaryOpKind) {
     let kind = match kind {
       BinaryOpKind::Eq => InstrKind::Eq,
@@ -376,7 +394,104 @@ impl CodeEmitter for CodeGen {
     };
     self.push_instr(range, kind);
   }
+
   fn emit_user_func_call(&mut self, range: Range, name: Self::Symbol) {
     self.push_instr(range, InstrKind::CallFn(name));
+  }
+
+  fn clean_up(&mut self) -> Vec<Diagnostic> {
+    let mut diags = vec![];
+    self.patch_while_instr(&mut diags);
+    self.convert_for_loop_to_sleep(&mut diags);
+    self.code.push(Instr {
+      range: Range::new(0, 0),
+      kind: InstrKind::End,
+    });
+    diags
+  }
+}
+
+impl CodeGen {
+  fn patch_while_instr(&mut self, diagnostics: &mut Vec<Diagnostic>) {
+    let mut wend_stack: Vec<Addr> = vec![];
+
+    for (i, instr) in self.code.iter_mut().enumerate().rev() {
+      match &mut instr.kind {
+        InstrKind::Wend => wend_stack.push(Addr(i)),
+        InstrKind::WhileLoop { end, .. } => {
+          if let Some(i) = wend_stack.pop() {
+            *end = i;
+          } else {
+            diagnostics.push(Diagnostic::new_error(
+              instr.range.clone(),
+              "WHILE 语句没有对应的 WEND 语句",
+            ));
+          }
+        }
+        _ => {
+          // do nothing
+        }
+      }
+    }
+  }
+
+  fn convert_for_loop_to_sleep(&mut self, _diagnostics: &mut Vec<Diagnostic>) {
+    for i in 0..self.code.len() {
+      match &self.code[i].kind {
+        InstrKind::ForLoop { name, has_step } => {
+          if i == self.code.len() || i < 2 {
+            continue;
+          }
+          match &self.code[i + 1].kind {
+            InstrKind::NextFor { name: var } => {
+              if !var.map_or(true, |var| var == *name) {
+                continue;
+              }
+            }
+            _ => continue,
+          }
+
+          let mut step = 1.0;
+          let mut j = i - 1;
+          if *has_step {
+            if i >= 3 {
+              match &self.code[j].kind {
+                InstrKind::PushNum(num) if num.is_positive() => {
+                  step = f64::from(*num);
+                }
+                _ => continue,
+              }
+            } else {
+              continue;
+            }
+            j -= 1;
+          }
+          let steps =
+            match (&self.code[j].kind, &self.code[j - 1].kind) {
+              (InstrKind::PushNum(end), InstrKind::PushNum(start))
+                if end.is_positive() && start.is_zero() || *start == 1.0 =>
+              {
+                let start = f64::from(*start);
+                let end = f64::from(*end);
+                let steps = ((end - start) / step).ceil();
+                if let Ok(steps) = Mbf5::try_from(steps) {
+                  steps
+                } else {
+                  continue;
+                }
+              }
+              _ => continue,
+            };
+          self.code[i - 1].kind = InstrKind::NoOp;
+          self.code[j - 1].kind = InstrKind::NoOp;
+          self.code[j].kind = InstrKind::PushNum(steps);
+          self.code[i].kind = InstrKind::Sleep;
+          self.code[i + 1].kind = InstrKind::NoOp;
+        }
+        _ => {
+          // do nothing
+        }
+      }
+    }
   }
 }

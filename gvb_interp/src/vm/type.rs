@@ -41,9 +41,11 @@ impl ByteString {
         bytes.push(b as u8);
       } else if let Some(&c) = crate::gb2312::UNICODE_TO_GB2312.get(&(b as u16))
       {
+        bytes.push(0x1f);
         bytes.push((c >> 8) as u8);
         bytes.push(c as u8);
       } else if let Some(c) = emoji_style.char_to_code(c) {
+        bytes.push(0x1f);
         bytes.push((c >> 8) as u8);
         bytes.push(c as u8);
       } else {

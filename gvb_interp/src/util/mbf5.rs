@@ -19,6 +19,8 @@
 //! The exponent is in excess-128 form, e.g. 0x80 represents a exponent of 0,
 //! 0x7a represents a exponent of -6, 0x84 represents a exponent of +4, etc.
 //! 0x00 means the number is zero, and the mantissa doesn't matter.
+//!
+//! MBF5 doesn't have NaN and infinite number form.
 
 use std::convert::TryFrom;
 use std::fmt::{self, Display, Formatter, Write};
@@ -26,12 +28,8 @@ use std::ops::{Add, Div, Mul, Neg, Sub};
 use std::str::FromStr;
 
 /// Used for store floating point value of a variable.
-#[derive(Debug, Clone, Copy)]
-pub struct Mbf5([u8; 5]);
-
-/// Used for perform floating point calculations.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct Mbf5Accum(f64);
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
+pub struct Mbf5(f64);
 
 const MANTISSA_BITS: usize = 31;
 const MANTISSA_BITS_DIFF: usize = F64_MANTISSA_BITS - MANTISSA_BITS;
@@ -50,14 +48,19 @@ const F64_EXPONENT_BITS: usize = 11;
 const F64_EXPONENT_MASK: u64 = (1 << F64_EXPONENT_BITS) - 1;
 const F64_EXPONENT_MAX: i32 = (1 << F64_EXPONENT_BITS) - 1;
 
-impl From<Mbf5> for Mbf5Accum {
-  fn from(x: Mbf5) -> Self {
-    let sign = (x.0[1] >> 7) as u64;
-    let exp = (x.0[0] as i32 - EXPONENT_BIAS + F64_EXPONENT_BIAS) as u64;
-    let mant = (((x.0[1] & 0x7f) as u64) << 24)
-      | ((x.0[2] as u64) << 16)
-      | ((x.0[3] as u64) << 8)
-      | x.0[4] as u64;
+impl From<[u8; 5]> for Mbf5 {
+  fn from(x: [u8; 5]) -> Self {
+    let sign = (x[1] >> 7) as u64;
+    let exp = x[0] as i32;
+    if exp == 0 {
+      return Self(0.0);
+    }
+    let exp = (exp - EXPONENT_BIAS + F64_EXPONENT_BIAS) as u64;
+
+    let mant = (((x[1] & 0x7f) as u64) << 24)
+      | ((x[2] as u64) << 16)
+      | ((x[3] as u64) << 8)
+      | x[4] as u64;
 
     let bits = (sign << (F64_MANTISSA_BITS + F64_EXPONENT_BITS))
       | (exp << F64_MANTISSA_BITS)
@@ -67,83 +70,94 @@ impl From<Mbf5> for Mbf5Accum {
   }
 }
 
-impl From<Mbf5Accum> for f64 {
-  fn from(n: Mbf5Accum) -> Self {
+impl From<Mbf5> for f64 {
+  fn from(n: Mbf5) -> Self {
     n.0
   }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum FloatError {
+pub enum RealError {
   Nan,
   Infinite,
 }
 
-impl TryFrom<Mbf5Accum> for Mbf5 {
-  /// Only FloatError::Infinite is possible
-  type Error = FloatError;
+/// `value` will be normalized.
+fn f64_to_array(value: &mut f64) -> Result<[u8; 5], RealError> {
+  let x = value.to_bits();
+  let sign = (x >> (F64_MANTISSA_BITS + F64_EXPONENT_BITS)) as u8;
+  let mut exp = f64_exponent(x) + EXPONENT_BIAS;
+  let mut mant = x & F64_MANTISSA_MASK;
 
-  fn try_from(x: Mbf5Accum) -> Result<Self, FloatError> {
-    let x = x.0.to_bits();
-    let sign = (x >> (F64_MANTISSA_BITS + F64_EXPONENT_BITS)) as u8;
-    let mut exp = f64_exponent(x) + EXPONENT_BIAS;
-    let mut mant = x & F64_MANTISSA_MASK;
-
-    // not infinite or NaN.
-    assert!(exp != F64_EXPONENT_MAX - F64_EXPONENT_BIAS + EXPONENT_BIAS);
-
-    // round mantissa
-    const ROUND_BIT: u64 = 1 << (MANTISSA_BITS_DIFF - 1);
-    const LOWEST_BIT: u64 = 1 << MANTISSA_BITS_DIFF;
-
-    if mant & ROUND_BIT != 0 && mant & LOWEST_BIT != 0 {
-      mant >>= MANTISSA_BITS_DIFF;
-      mant += 1;
-      // handle carry
-      if mant & (1 << EXPONENT_BITS) != 0 {
-        mant >>= 1;
-        exp += 1;
-      }
+  if exp == F64_EXPONENT_MAX - F64_EXPONENT_BIAS + EXPONENT_BIAS {
+    if mant != 0 {
+      return Err(RealError::Nan);
     } else {
-      mant >>= MANTISSA_BITS_DIFF;
+      return Err(RealError::Infinite);
     }
+  }
 
-    if exp > 0xff {
-      return Err(FloatError::Infinite);
+  // round mantissa
+  const ROUND_BIT: u64 = 1 << (MANTISSA_BITS_DIFF - 1);
+  const LOWEST_BIT: u64 = 1 << MANTISSA_BITS_DIFF;
+
+  if mant & ROUND_BIT != 0 && mant & LOWEST_BIT != 0 {
+    mant >>= MANTISSA_BITS_DIFF;
+    mant += 1;
+    // handle carry
+    if mant & (1 << EXPONENT_BITS) != 0 {
+      mant >>= 1;
+      exp += 1;
     }
+  } else {
+    mant >>= MANTISSA_BITS_DIFF;
+  }
 
-    if exp <= 0 {
-      return Ok(Self([0, sign << 7, 0, 0, 0]));
-    }
+  if exp > 0xff {
+    return Err(RealError::Infinite);
+  }
 
-    let exp = exp as u8;
-    let sign = sign << 7;
-    let mant1 = (mant >> 24) as u8 & 0x7f | sign;
-    let mant2 = (mant >> 16) as u8;
-    let mant3 = (mant >> 8) as u8;
-    let mant4 = mant as u8;
+  if exp <= 0 {
+    *value = 0.0;
+    return Ok([0; 5]);
+  }
 
-    Ok(Self([exp, mant1, mant2, mant3, mant4]))
+  let exp = exp as u8;
+  let sign = sign << 7;
+  let mant1 = (mant >> 24) as u8 & 0x7f | sign;
+  let mant2 = (mant >> 16) as u8;
+  let mant3 = (mant >> 8) as u8;
+  let mant4 = mant as u8;
+
+  Ok([exp, mant1, mant2, mant3, mant4])
+}
+
+impl TryFrom<f64> for Mbf5 {
+  type Error = RealError;
+
+  fn try_from(mut value: f64) -> Result<Self, Self::Error> {
+    f64_to_array(&mut value)?;
+    Ok(Self(value))
   }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ParseFloatError {
+pub enum ParseRealError {
   Infinite,
   Malformed,
 }
 
-impl From<FloatError> for ParseFloatError {
-  fn from(err: FloatError) -> Self {
+impl From<RealError> for ParseRealError {
+  fn from(err: RealError) -> Self {
     match err {
-      FloatError::Infinite => Self::Infinite,
+      RealError::Infinite => Self::Infinite,
       _ => unreachable!(),
     }
   }
 }
 
 impl FromStr for Mbf5 {
-  type Err = ParseFloatError;
+  type Err = ParseRealError;
 
   fn from_str(s: &str) -> Result<Self, Self::Err> {
     let s = s.as_bytes();
@@ -151,7 +165,7 @@ impl FromStr for Mbf5 {
     let mut buf = String::new();
 
     if s.is_empty() {
-      return Err(ParseFloatError::Malformed);
+      return Err(ParseRealError::Malformed);
     }
 
     macro_rules! push_digits {
@@ -201,39 +215,18 @@ impl FromStr for Mbf5 {
     }
 
     if s.get(i).is_some() {
-      return Err(ParseFloatError::Malformed);
+      return Err(ParseRealError::Malformed);
     }
 
-    let num = buf.parse::<f64>().unwrap();
-    Ok(Mbf5::try_from(Mbf5Accum::try_from(num)?)?)
+    let mut num = buf.parse::<f64>().unwrap();
+    f64_to_array(&mut num)?;
+    Ok(Self(num))
   }
 }
 
-impl TryFrom<f64> for Mbf5Accum {
-  type Error = FloatError;
-
-  fn try_from(value: f64) -> Result<Self, FloatError> {
-    let x = value.to_bits();
-    let exp = f64_exponent(x) + EXPONENT_BIAS;
-    let mant = x & F64_MANTISSA_MASK;
-
-    if exp == F64_EXPONENT_MAX - F64_EXPONENT_BIAS + EXPONENT_BIAS {
-      if mant != 0 {
-        return Err(FloatError::Nan);
-      } else {
-        return Err(FloatError::Infinite);
-      }
-    }
-
-    if exp > 0xff {
-      return Err(FloatError::Infinite);
-    }
-
-    if exp <= 0 {
-      return Ok(Self(0.0));
-    }
-
-    Ok(Self(value))
+impl From<u16> for Mbf5 {
+  fn from(n: u16) -> Self {
+    Self(n as f64)
   }
 }
 
@@ -246,7 +239,7 @@ impl Display for Mbf5 {
     // Why not simply implement Display for Mbf5Accum? Because after rounding
     // the mantissa of Mbf5Accum, the result may be infinity, so we construct
     // a Mbf5Accum from Mbf5, to make sure no rounding happens.
-    let mut x = Mbf5Accum::from(*self).0;
+    let mut x = self.0;
 
     if x < 0.0 {
       f.write_char('-')?;
@@ -254,7 +247,7 @@ impl Display for Mbf5 {
     }
 
     let mut base10_exponent = 0i32;
-    let exponent = self.0[0];
+    let exponent = f64_exponent(self.0.to_bits());
     if exponent <= 0x80 {
       base10_exponent = -9;
       x *= 1e9;
@@ -349,23 +342,9 @@ impl Display for Mbf5 {
   }
 }
 
-impl Mbf5 {
-  pub fn zero() -> Self {
-    Self([0; 5])
-  }
+pub type CalcResult = Result<Mbf5, RealError>;
 
-  pub fn is_zero(&self) -> bool {
-    self.0[0] == 0
-  }
-
-  pub fn as_array(&self) -> &[u8; 5] {
-    &self.0
-  }
-}
-
-pub type CalcResult = Result<Mbf5Accum, FloatError>;
-
-impl Add for Mbf5Accum {
+impl Add for Mbf5 {
   type Output = CalcResult;
 
   fn add(self, rhs: Self) -> Self::Output {
@@ -373,7 +352,7 @@ impl Add for Mbf5Accum {
   }
 }
 
-impl Sub for Mbf5Accum {
+impl Sub for Mbf5 {
   type Output = CalcResult;
 
   fn sub(self, rhs: Self) -> Self::Output {
@@ -381,7 +360,7 @@ impl Sub for Mbf5Accum {
   }
 }
 
-impl Mul for Mbf5Accum {
+impl Mul for Mbf5 {
   type Output = CalcResult;
 
   fn mul(self, rhs: Self) -> Self::Output {
@@ -389,7 +368,7 @@ impl Mul for Mbf5Accum {
   }
 }
 
-impl Div for Mbf5Accum {
+impl Div for Mbf5 {
   type Output = CalcResult;
 
   fn div(self, rhs: Self) -> Self::Output {
@@ -397,7 +376,7 @@ impl Div for Mbf5Accum {
   }
 }
 
-impl Neg for Mbf5Accum {
+impl Neg for Mbf5 {
   type Output = Self;
 
   fn neg(self) -> Self::Output {
@@ -405,7 +384,17 @@ impl Neg for Mbf5Accum {
   }
 }
 
-impl Mbf5Accum {
+impl PartialEq<f64> for Mbf5 {
+  fn eq(&self, other: &f64) -> bool {
+    self.0 == *other
+  }
+}
+
+impl Mbf5 {
+  pub fn zero() -> Self {
+    Self(0.0)
+  }
+
   pub fn one() -> Self {
     Self(1.0)
   }
@@ -469,76 +458,76 @@ mod tests {
 
   #[test]
   fn f64_to_mbf5_accum_valid() {
-    assert_eq!(Ok(17.625), Mbf5Accum::try_from(17.625).map(|x| x.0));
+    assert_eq!(Ok(17.625), Mbf5::try_from(17.625).map(|x| x.0));
   }
 
   #[test]
   fn f64_to_mbf5_accum_max() {
     assert_eq!(
       Ok(1.70141183e38),
-      Mbf5Accum::try_from(1.70141183e38).map(|x| x.0)
+      Mbf5::try_from(1.70141183e38).map(|x| x.0)
     );
   }
 
   #[test]
   fn f64_to_mbf5_accum_negative() {
-    assert_eq!(Ok(-34.6189), Mbf5Accum::try_from(-34.6189).map(|x| x.0));
+    assert_eq!(Ok(-34.6189), Mbf5::try_from(-34.6189).map(|x| x.0));
   }
 
   #[test]
   fn f64_to_mbf5_accum_zero() {
-    assert_eq!(Ok(0.0), Mbf5Accum::try_from(0.0).map(|x| x.0));
+    assert_eq!(Ok(0.0), Mbf5::try_from(0.0).map(|x| x.0));
   }
 
   #[test]
   fn f64_to_mbf5_accum_exp_too_large() {
     assert_eq!(
-      Err(FloatError::Infinite),
-      Mbf5Accum::try_from(1.7e39).map(|x| x.0)
+      Err(RealError::Infinite),
+      Mbf5::try_from(1.7e39).map(|x| x.0)
     );
   }
 
   #[test]
   fn f64_to_mbf5_accum_too_large() {
     assert_eq!(
-      Err(FloatError::Infinite),
-      Mbf5Accum::try_from(1.70141184e38).map(|x| x.0)
+      Err(RealError::Infinite),
+      Mbf5::try_from(1.70141184e38).map(|x| x.0)
     );
   }
 
   #[test]
   fn f64_to_mbf5_accum_nan() {
     assert_eq!(
-      Err(FloatError::Nan),
-      Mbf5Accum::try_from(0.0 / 0.0).map(|x| x.0)
+      Err(RealError::Nan),
+      Mbf5::try_from(0.0 / 0.0).map(|x| x.0)
     );
   }
 
   #[test]
   fn fmt_mbf5_zero() {
-    assert_eq!("0", &Mbf5([0, 0, 0, 0, 0]).to_string());
+    assert_eq!("0", &Mbf5::from([0u8; 5]).to_string());
   }
 
   #[test]
   fn fmt_mbf5_one() {
-    assert_eq!("1", &Mbf5([0x81, 0, 0, 0, 0]).to_string());
+    assert_eq!("1", &Mbf5::from([0x81, 0, 0, 0, 0]).to_string());
   }
 
   #[test]
   fn fmt_mbf5_neg_one() {
-    assert_eq!("-1", &Mbf5([0x81, 0x80, 0, 0, 0]).to_string());
+    assert_eq!("-1", &Mbf5::from([0x81, 0x80, 0, 0, 0]).to_string());
   }
 
   #[test]
   fn fmt_mbf5_12() {
-    assert_eq!("12", &Mbf5([0x84, 0x40, 0, 0, 0]).to_string());
+    assert_eq!("12", &Mbf5::from([0x84, 0x40, 0, 0, 0]).to_string());
   }
 
   #[test]
   fn fmt_mbf5_max() {
     assert_eq!(
       "1.70141183E+38",
-      &Mbf5([0xff, 0x7f, 0xff, 0xff, 0xff]).to_string()
+      &Mbf5::from([0xff, 0x7f, 0xff, 0xff, 0xff]).to_string()
     );
   }
 
@@ -546,38 +535,38 @@ mod tests {
   fn fmt_mbf5_neg_max() {
     assert_eq!(
       "-1.70141183E+38",
-      &Mbf5([0xff, 0xff, 0xff, 0xff, 0xff]).to_string()
+      &Mbf5::from([0xff, 0xff, 0xff, 0xff, 0xff]).to_string()
     );
   }
 
   #[test]
   fn fmt_mbf5_neg_0_5() {
-    assert_eq!("-.5", &Mbf5([0x80, 0x80, 0x00, 0x00, 0x00]).to_string());
+    assert_eq!("-.5", &Mbf5::from([0x80, 0x80, 0x00, 0x00, 0x00]).to_string());
   }
 
   #[test]
   fn fmt_mbf5_sqr_2() {
     assert_eq!(
       "1.41421356",
-      &Mbf5([0x81, 0x35, 0x04, 0xf3, 0x34]).to_string()
+      &Mbf5::from([0x81, 0x35, 0x04, 0xf3, 0x34]).to_string()
     );
   }
 
   #[test]
   fn fmt_mbf5_1_000_000_000() {
-    assert_eq!("1E+09", &Mbf5([0x9e, 0x6e, 0x6b, 0x28, 0x00]).to_string());
+    assert_eq!("1E+09", &Mbf5::from([0x9e, 0x6e, 0x6b, 0x28, 0x00]).to_string());
   }
 
   #[test]
   fn fmt_mbf5_neg_1_000_000_000() {
-    assert_eq!("-1E+09", &Mbf5([0x9e, 0xee, 0x6b, 0x28, 0x00]).to_string());
+    assert_eq!("-1E+09", &Mbf5::from([0x9e, 0xee, 0x6b, 0x28, 0x00]).to_string());
   }
 
   #[test]
   fn fmt_mbf5_999_999_999() {
     assert_eq!(
       "999999999",
-      &Mbf5([0x9e, 0x6e, 0x6b, 0x27, 0xfc]).to_string()
+      &Mbf5::from([0x9e, 0x6e, 0x6b, 0x27, 0xfc]).to_string()
     );
   }
 
@@ -585,20 +574,20 @@ mod tests {
   fn fmt_mbf5_neg_999_999_999() {
     assert_eq!(
       "-999999999",
-      &Mbf5([0x9e, 0xee, 0x6b, 0x27, 0xfc]).to_string()
+      &Mbf5::from([0x9e, 0xee, 0x6b, 0x27, 0xfc]).to_string()
     );
   }
 
   #[test]
   fn fmt_mbf5_0_01() {
-    assert_eq!(".01", &Mbf5([0x7a, 0x23, 0xd7, 0x0a, 0x3e]).to_string());
+    assert_eq!(".01", &Mbf5::from([0x7a, 0x23, 0xd7, 0x0a, 0x3e]).to_string());
   }
 
   #[test]
   fn fmt_mbf5_0_0003765() {
     assert_eq!(
       "3.765E-04",
-      &Mbf5([0x75, 0x45, 0x64, 0xf9, 0x7e]).to_string()
+      &Mbf5::from([0x75, 0x45, 0x64, 0xf9, 0x7e]).to_string()
     );
   }
 
@@ -606,7 +595,7 @@ mod tests {
   fn fmt_mbf5_11879546_4() {
     assert_eq!(
       "11879546",
-      &Mbf5([0x98, 0x35, 0x44, 0x7a, 0x00]).to_string()
+      &Mbf5::from([0x98, 0x35, 0x44, 0x7a, 0x00]).to_string()
     );
   }
 
@@ -614,231 +603,231 @@ mod tests {
   fn fmt_mbf5_3_92767774_e_neg_8() {
     assert_eq!(
       "3.92767774E-08",
-      &Mbf5([0x68, 0x28, 0xb1, 0x46, 0x00]).to_string()
+      &Mbf5::from([0x68, 0x28, 0xb1, 0x46, 0x00]).to_string()
     );
   }
 
   #[test]
   fn pos_is_pos() {
-    let a = Mbf5Accum::try_from(41.73).unwrap();
+    let a = Mbf5::try_from(41.73).unwrap();
     assert_eq!(true, a.is_positive());
   }
 
   #[test]
   fn zero_is_pos() {
-    let a = Mbf5Accum::try_from(0.0).unwrap();
+    let a = Mbf5::try_from(0.0).unwrap();
     assert_eq!(false, a.is_positive());
   }
 
   #[test]
   fn neg_is_pos() {
-    let a = Mbf5Accum::try_from(-41.73).unwrap();
+    let a = Mbf5::try_from(-41.73).unwrap();
     assert_eq!(false, a.is_positive());
   }
 
   #[test]
   fn pos_is_neg() {
-    let a = Mbf5Accum::try_from(41.73).unwrap();
+    let a = Mbf5::try_from(41.73).unwrap();
     assert_eq!(false, a.is_negative());
   }
 
   #[test]
   fn zero_is_neg() {
-    let a = Mbf5Accum::try_from(0.0).unwrap();
+    let a = Mbf5::try_from(0.0).unwrap();
     assert_eq!(false, a.is_negative());
   }
 
   #[test]
   fn neg_is_neg() {
-    let a = Mbf5Accum::try_from(-41.73).unwrap();
+    let a = Mbf5::try_from(-41.73).unwrap();
     assert_eq!(true, a.is_negative());
   }
 
   #[test]
   fn pos_is_zero() {
-    let a = Mbf5Accum::try_from(41.73).unwrap();
+    let a = Mbf5::try_from(41.73).unwrap();
     assert_eq!(false, a.is_zero());
   }
 
   #[test]
   fn zero_is_zero() {
-    let a = Mbf5Accum::try_from(0.0).unwrap();
+    let a = Mbf5::try_from(0.0).unwrap();
     assert_eq!(true, a.is_zero());
   }
 
   #[test]
   fn neg_is_zero() {
-    let a = Mbf5Accum::try_from(-41.73).unwrap();
+    let a = Mbf5::try_from(-41.73).unwrap();
     assert_eq!(false, a.is_zero());
   }
 
   #[test]
   fn neg_pos() {
-    let a = Mbf5Accum::try_from(41.73).unwrap();
+    let a = Mbf5::try_from(41.73).unwrap();
     assert_eq!(-41.73, (-a).0);
   }
 
   #[test]
   fn neg_0() {
-    let a = Mbf5Accum::try_from(0.0).unwrap();
+    let a = Mbf5::try_from(0.0).unwrap();
     assert_eq!(0.0, (-a).0);
   }
 
   #[test]
   fn neg_neg() {
-    let a = Mbf5Accum::try_from(-41.73).unwrap();
+    let a = Mbf5::try_from(-41.73).unwrap();
     assert_eq!(41.73, (-a).0);
   }
 
   #[test]
   fn add_normal() {
-    let a = Mbf5Accum::try_from(41.73).unwrap();
-    let b = Mbf5Accum::try_from(-7.1342).unwrap();
+    let a = Mbf5::try_from(41.73).unwrap();
+    let b = Mbf5::try_from(-7.1342).unwrap();
     assert_eq!(Ok(a.0 + b.0), (a + b).map(|x| x.0));
   }
 
   #[test]
   fn add_overflow() {
-    let a = Mbf5Accum::try_from(1.70141183e+38).unwrap();
-    let b = Mbf5Accum::try_from(0.00000001e+38).unwrap();
-    assert_eq!(Err(FloatError::Infinite), (a + b).map(|x| x.0));
+    let a = Mbf5::try_from(1.70141183e+38).unwrap();
+    let b = Mbf5::try_from(0.00000001e+38).unwrap();
+    assert_eq!(Err(RealError::Infinite), (a + b).map(|x| x.0));
   }
 
   #[test]
   fn add_neg_overflow() {
-    let a = Mbf5Accum::try_from(-1.70141183e+38).unwrap();
-    let b = Mbf5Accum::try_from(-0.00000001e+38).unwrap();
-    assert_eq!(Err(FloatError::Infinite), (a + b).map(|x| x.0));
+    let a = Mbf5::try_from(-1.70141183e+38).unwrap();
+    let b = Mbf5::try_from(-0.00000001e+38).unwrap();
+    assert_eq!(Err(RealError::Infinite), (a + b).map(|x| x.0));
   }
 
   #[test]
   fn sub_normal() {
-    let a = Mbf5Accum::try_from(41.73).unwrap();
-    let b = Mbf5Accum::try_from(-7.1342).unwrap();
+    let a = Mbf5::try_from(41.73).unwrap();
+    let b = Mbf5::try_from(-7.1342).unwrap();
     assert_eq!(Ok(a.0 - b.0), (a - b).map(|x| x.0));
   }
 
   #[test]
   fn sub_overflow() {
-    let a = Mbf5Accum::try_from(1.70141183e+38).unwrap();
-    let b = Mbf5Accum::try_from(-0.00000001e+38).unwrap();
-    assert_eq!(Err(FloatError::Infinite), (a - b).map(|x| x.0));
+    let a = Mbf5::try_from(1.70141183e+38).unwrap();
+    let b = Mbf5::try_from(-0.00000001e+38).unwrap();
+    assert_eq!(Err(RealError::Infinite), (a - b).map(|x| x.0));
   }
 
   #[test]
   fn sub_neg_overflow() {
-    let a = Mbf5Accum::try_from(-1.70141183e+38).unwrap();
-    let b = Mbf5Accum::try_from(0.00000001e+38).unwrap();
-    assert_eq!(Err(FloatError::Infinite), (a - b).map(|x| x.0));
+    let a = Mbf5::try_from(-1.70141183e+38).unwrap();
+    let b = Mbf5::try_from(0.00000001e+38).unwrap();
+    assert_eq!(Err(RealError::Infinite), (a - b).map(|x| x.0));
   }
 
   #[test]
   fn mul_normal() {
-    let a = Mbf5Accum::try_from(41.73).unwrap();
-    let b = Mbf5Accum::try_from(-7.1342).unwrap();
+    let a = Mbf5::try_from(41.73).unwrap();
+    let b = Mbf5::try_from(-7.1342).unwrap();
     assert_eq!(Ok(a.0 * b.0), (a * b).map(|x| x.0));
   }
 
   #[test]
   fn mul_overflow() {
-    let a = Mbf5Accum::try_from(1e34).unwrap();
-    let b = Mbf5Accum::try_from(2e4).unwrap();
-    assert_eq!(Err(FloatError::Infinite), (a * b).map(|x| x.0));
+    let a = Mbf5::try_from(1e34).unwrap();
+    let b = Mbf5::try_from(2e4).unwrap();
+    assert_eq!(Err(RealError::Infinite), (a * b).map(|x| x.0));
   }
 
   #[test]
   fn mul_neg_overflow() {
-    let a = Mbf5Accum::try_from(1e34).unwrap();
-    let b = Mbf5Accum::try_from(-2e4).unwrap();
-    assert_eq!(Err(FloatError::Infinite), (a * b).map(|x| x.0));
+    let a = Mbf5::try_from(1e34).unwrap();
+    let b = Mbf5::try_from(-2e4).unwrap();
+    assert_eq!(Err(RealError::Infinite), (a * b).map(|x| x.0));
   }
 
   #[test]
   fn div_normal() {
-    let a = Mbf5Accum::try_from(41.73).unwrap();
-    let b = Mbf5Accum::try_from(-7.1342).unwrap();
+    let a = Mbf5::try_from(41.73).unwrap();
+    let b = Mbf5::try_from(-7.1342).unwrap();
     assert_eq!(Ok(a.0 / b.0), (a / b).map(|x| x.0));
   }
 
   #[test]
   fn div_by_0() {
-    let a = Mbf5Accum::try_from(41.73).unwrap();
-    let b = Mbf5Accum::try_from(0.0).unwrap();
-    assert_eq!(Err(FloatError::Infinite), (a / b).map(|x| x.0));
+    let a = Mbf5::try_from(41.73).unwrap();
+    let b = Mbf5::try_from(0.0).unwrap();
+    assert_eq!(Err(RealError::Infinite), (a / b).map(|x| x.0));
   }
 
   #[test]
   fn div_nan() {
-    let a = Mbf5Accum::try_from(0.0).unwrap();
-    let b = Mbf5Accum::try_from(0.0).unwrap();
-    assert_eq!(Err(FloatError::Nan), (a / b).map(|x| x.0));
+    let a = Mbf5::try_from(0.0).unwrap();
+    let b = Mbf5::try_from(0.0).unwrap();
+    assert_eq!(Err(RealError::Nan), (a / b).map(|x| x.0));
   }
 
   #[test]
   fn div_overflow() {
-    let a = Mbf5Accum::try_from(1.70141184e+37).unwrap();
-    let b = Mbf5Accum::try_from(0.1).unwrap();
-    assert_eq!(Err(FloatError::Infinite), (a / b).map(|x| x.0));
+    let a = Mbf5::try_from(1.70141184e+37).unwrap();
+    let b = Mbf5::try_from(0.1).unwrap();
+    assert_eq!(Err(RealError::Infinite), (a / b).map(|x| x.0));
   }
 
   #[test]
   fn abs_pos() {
-    let a = Mbf5Accum::try_from(1.74).unwrap();
+    let a = Mbf5::try_from(1.74).unwrap();
     assert_eq!(1.74, a.abs().0);
   }
 
   #[test]
   fn abs_zero() {
-    let a = Mbf5Accum::try_from(0.0).unwrap();
+    let a = Mbf5::try_from(0.0).unwrap();
     assert_eq!(0.0, a.abs().0);
   }
 
   #[test]
   fn abs_neg() {
-    let a = Mbf5Accum::try_from(-54.8).unwrap();
+    let a = Mbf5::try_from(-54.8).unwrap();
     assert_eq!(54.8, a.abs().0);
   }
 
   #[test]
   fn sin_normal() {
-    let a = Mbf5Accum::try_from(617849.13).unwrap();
+    let a = Mbf5::try_from(617849.13).unwrap();
     assert_eq!(a.0.sin(), a.sin().0);
   }
 
   #[test]
   fn cos_normal() {
-    let a = Mbf5Accum::try_from(617849.13).unwrap();
+    let a = Mbf5::try_from(617849.13).unwrap();
     assert_eq!(a.0.cos(), a.cos().0);
   }
 
   #[test]
   fn tan_normal() {
-    let a = Mbf5Accum::try_from(1.74).unwrap();
+    let a = Mbf5::try_from(1.74).unwrap();
     assert_eq!(Ok(1.74f64.tan()), a.tan().map(|x| x.0));
   }
 
   #[test]
   fn tan_large() {
-    let a = Mbf5Accum::try_from(std::f64::consts::FRAC_PI_2).unwrap();
+    let a = Mbf5::try_from(std::f64::consts::FRAC_PI_2).unwrap();
     assert_eq!(Ok(16331239353195370.0), a.tan().map(|x| x.0));
   }
 
   #[test]
   fn ln_normal() {
-    let a = Mbf5Accum::try_from(135.16).unwrap();
+    let a = Mbf5::try_from(135.16).unwrap();
     assert_eq!(Ok(a.0.ln()), a.ln().map(|x| x.0));
   }
 
   #[test]
   fn ln_zero() {
-    let a = Mbf5Accum::try_from(0.0).unwrap();
-    assert_eq!(Err(FloatError::Infinite), a.ln().map(|x| x.0));
+    let a = Mbf5::try_from(0.0).unwrap();
+    assert_eq!(Err(RealError::Infinite), a.ln().map(|x| x.0));
   }
 
   #[test]
   fn ln_neg() {
-    let a = Mbf5Accum::try_from(-14.1).unwrap();
-    assert_eq!(Err(FloatError::Nan), a.ln().map(|x| x.0));
+    let a = Mbf5::try_from(-14.1).unwrap();
+    assert_eq!(Err(RealError::Nan), a.ln().map(|x| x.0));
   }
 
   #[test]
@@ -909,7 +898,7 @@ mod tests {
   fn parse_empty() {
     assert_eq!(
       "".parse::<Mbf5>().map(|num| num.to_string()),
-      Err(ParseFloatError::Malformed),
+      Err(ParseRealError::Malformed),
     );
   }
 
@@ -917,7 +906,7 @@ mod tests {
   fn parse_redundant_chars() {
     assert_eq!(
       "123abc".parse::<Mbf5>().map(|num| num.to_string()),
-      Err(ParseFloatError::Malformed),
+      Err(ParseRealError::Malformed),
     );
   }
 
@@ -973,7 +962,7 @@ mod tests {
   fn parse_infinite() {
     assert_eq!(
       "1e300".parse::<Mbf5>().map(|num| num.to_string()),
-      Err(ParseFloatError::Infinite)
+      Err(ParseRealError::Infinite)
     );
   }
 }

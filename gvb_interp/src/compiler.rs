@@ -1,4 +1,4 @@
-use crate::util::mbf5::{Mbf5, Mbf5Accum, ParseFloatError};
+use crate::util::mbf5::{Mbf5, ParseRealError};
 use crate::{ast::*, diagnostic::*, HashMap};
 use smallvec::SmallVec;
 use std::convert::TryFrom;
@@ -115,6 +115,8 @@ pub trait CodeEmitter {
   fn emit_unary_expr(&mut self, range: Range, kind: UnaryOpKind);
   fn emit_binary_expr(&mut self, range: Range, kind: BinaryOpKind);
   fn emit_user_func_call(&mut self, range: Range, name: Self::Symbol);
+
+  fn clean_up(&mut self) -> Vec<Diagnostic>;
 }
 
 pub fn compile_prog<E: CodeEmitter>(
@@ -203,6 +205,7 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E> {
 
     self.resolve_labels();
     self.resolve_datum_indices();
+    self.diagnostics.append(&mut self.code_emitter.clean_up());
   }
 
   fn resolve_labels(&mut self) {
@@ -1041,6 +1044,10 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E> {
       );
     }
 
+    self
+      .code_emitter
+      .emit_on(range, unsafe { NonZeroUsize::new_unchecked(labels.len()) });
+
     for (range, label) in labels.iter() {
       let addr = if is_sub {
         self.code_emitter.emit_gosub(range.clone())
@@ -1049,10 +1056,6 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E> {
       };
       self.pending_jump_labels.push((addr, range.clone(), *label));
     }
-
-    self
-      .code_emitter
-      .emit_on(range, unsafe { NonZeroUsize::new_unchecked(labels.len()) });
   }
 
   fn compile_open(
@@ -1232,7 +1235,7 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E> {
             }
           }
           _ => {
-            self.compile_expr(*expr);
+            let _ = self.compile_expr(*expr);
             let elem_range = &self.expr_node(*expr).range;
             self.code_emitter.emit_print_value(elem_range.clone());
             if i == elems.len() - 1 {
@@ -1240,7 +1243,7 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E> {
             } else if matches!(&elems[i + 1], PrintElement::Expr(_)) {
               self.code_emitter.emit_number(
                 elem_range.clone(),
-                Mbf5::try_from(Mbf5Accum::try_from(0.0).unwrap()).unwrap(),
+                Mbf5::zero(),
               );
               self.code_emitter.emit_print_spc(elem_range.clone());
             }
@@ -1273,7 +1276,7 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E> {
         text.retain(|c| c != ' ');
         match text.parse::<Mbf5>() {
           Ok(num) => self.code_emitter.emit_number(range, num),
-          Err(ParseFloatError::Infinite) => {
+          Err(ParseRealError::Infinite) => {
             self.add_error(range, "数值过大，超出实数的表示范围")
           }
           Err(_) => unreachable!(),

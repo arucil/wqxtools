@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 pub mod emoji;
 
 pub use emoji::*;
@@ -6,6 +8,7 @@ pub use emoji::*;
 pub struct MachineProps {
   pub emoji_style: EmojiStyle,
   pub graphics_base_addr: u16,
+  pub sleep_unit: Duration,
 }
 
 include!(concat!(env!("OUT_DIR"), "/machines.rs"));

@@ -145,7 +145,10 @@ pub enum InstrKind {
   Restart,
   SetPrintMode(PrintMode),
   Wend,
-  WhileLoop(Addr),
+  WhileLoop {
+    start: Addr,
+    end: Addr,
+  },
   Sleep,
 }
 

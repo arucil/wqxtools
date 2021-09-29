@@ -12,13 +12,13 @@ id-arena = "2.2.1"
 num-derive = "0.3.3"
 num-traits = "0.2.14"
 phf = { version = "0.10.0", features = ["macros"] }
-rand = "0.7.3"
-smallvec = "1.6.1"
+rand = "0.8.4"
+smallvec = "1.7.0"
 string-interner = "0.13.0"
 
 [dev-dependencies]
-insta = "1.7.2"
-pretty_assertions = "0.7.2"
+insta = "1.8.0"
+pretty_assertions = "1.0.0"
 quickcheck = "1.0.3"
 quickcheck_macros = "1.0.0"
 
