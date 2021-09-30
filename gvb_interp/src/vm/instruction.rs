@@ -1,10 +1,7 @@
 use std::num::NonZeroUsize;
 
 use super::{ByteString, Symbol};
-use crate::{
-  ast::{FileMode, Range},
-  util::mbf5::Mbf5,
-};
+use crate::{ast::{FileMode, Range, SysFuncKind}, util::mbf5::Mbf5};
 
 #[derive(Debug, Clone)]
 pub struct Instr {
@@ -84,6 +81,10 @@ pub enum InstrKind {
   Pow,
   And,
   Or,
+  SysFuncCall {
+    kind: SysFuncKind,
+    arity: usize,
+  },
   PrintNewLine,
   PrintSpc,
   PrintTab,

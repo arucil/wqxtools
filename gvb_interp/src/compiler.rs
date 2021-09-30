@@ -1,7 +1,6 @@
 use crate::util::mbf5::{Mbf5, ParseRealError};
 use crate::{ast::*, diagnostic::*, HashMap};
 use smallvec::SmallVec;
-use std::convert::TryFrom;
 use std::fmt::{self, Display, Formatter};
 use std::num::NonZeroUsize;
 
@@ -104,7 +103,9 @@ pub trait CodeEmitter {
 
   fn emit_number(&mut self, range: Range, num: Mbf5);
   fn emit_var(&mut self, range: Range, sym: Self::Symbol);
-  fn emit_string(&mut self, range: Range, str: String);
+  /// Returns if string is too long.
+  #[must_use]
+  fn emit_string(&mut self, range: Range, str: String) -> bool;
   fn emit_inkey(&mut self, range: Range);
   fn emit_index(
     &mut self,
@@ -115,6 +116,7 @@ pub trait CodeEmitter {
   fn emit_unary_expr(&mut self, range: Range, kind: UnaryOpKind);
   fn emit_binary_expr(&mut self, range: Range, kind: BinaryOpKind);
   fn emit_user_func_call(&mut self, range: Range, name: Self::Symbol);
+  fn emit_sys_func_call(&mut self, range: Range, kind: SysFuncKind, arity: usize);
 
   fn clean_up(&mut self) -> Vec<Diagnostic>;
 }
@@ -660,7 +662,7 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E> {
     self.code_emitter.emit_op(range, kind, 2);
   }
 
-  fn compile_read(&mut self, range: Range, vars: &NonEmptyVec<[ExprId; 1]>) {
+  fn compile_read(&mut self, _range: Range, vars: &NonEmptyVec<[ExprId; 1]>) {
     for &var in vars.iter() {
       self.compile_lvalue(var);
       let range = self.expr_node(var).range.clone();
@@ -734,7 +736,7 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E> {
 
   fn compile_write(
     &mut self,
-    range: Range,
+    _range: Range,
     filenum: Option<ExprId>,
     data: &NonEmptyVec<[WriteElement; 1]>,
   ) {
@@ -1241,10 +1243,9 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E> {
             if i == elems.len() - 1 {
               self.code_emitter.emit_print_newline(range.clone());
             } else if matches!(&elems[i + 1], PrintElement::Expr(_)) {
-              self.code_emitter.emit_number(
-                elem_range.clone(),
-                Mbf5::zero(),
-              );
+              self
+                .code_emitter
+                .emit_number(elem_range.clone(), Mbf5::zero());
               self.code_emitter.emit_print_spc(elem_range.clone());
             }
           }
@@ -1268,7 +1269,9 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E> {
         if text.ends_with('"') {
           text = &text[..text.len() - 1];
         }
-        self.code_emitter.emit_string(range, text.to_owned());
+        if self.code_emitter.emit_string(range.clone(), text.to_owned()) {
+          self.add_error(range, "字符串太长，长度超出 255");
+        }
         Type::String
       }
       ExprKind::NumberLit => {
@@ -1307,6 +1310,9 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E> {
               Type::Real,
               ty),
           );
+        }
+        if let Some(func) = func {
+          self.code_emitter.emit_user_func_call(range, func);
         }
         Type::Real
       }
@@ -1448,6 +1454,8 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E> {
         }
       }
     }
+
+    self.code_emitter.emit_sys_func_call(range, func.1, args.len());
 
     ret_ty
   }

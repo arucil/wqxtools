@@ -3,9 +3,11 @@ use std::num::NonZeroUsize;
 
 use super::{
   Addr, Alignment, ByteString, DatumIndex, Instr, InstrKind, PrintMode,
-  ScreenMode, Symbol, DUMMY_ADDR, FISRT_DATUM_INDEX,
+  ScreenMode, StringError, Symbol, DUMMY_ADDR, FISRT_DATUM_INDEX,
 };
-use crate::ast::{BinaryOpKind, FileMode, Range, StmtKind, UnaryOpKind};
+use crate::ast::{
+  BinaryOpKind, FileMode, Range, StmtKind, SysFuncKind, UnaryOpKind,
+};
 use crate::diagnostic::Diagnostic;
 use crate::util::mbf5::Mbf5;
 use crate::{compiler::CodeEmitter, machine::EmojiStyle};
@@ -348,11 +350,14 @@ impl CodeEmitter for CodeGen {
     self.push_instr(range, InstrKind::PushVar(sym));
   }
 
-  fn emit_string(&mut self, range: Range, str: String) {
-    self.push_instr(
-      range,
-      InstrKind::PushStr(ByteString::from_str(str, self.emoji_style).unwrap()),
-    );
+  fn emit_string(&mut self, range: Range, str: String) -> bool {
+    let str = match ByteString::from_str(str, self.emoji_style) {
+      Ok(str) => str,
+      Err(StringError::TooLong) => return true,
+      Err(StringError::InvalidChar(_)) => unreachable!(),
+    };
+    self.push_instr(range, InstrKind::PushStr(str));
+    false
   }
 
   fn emit_inkey(&mut self, range: Range) {
@@ -397,6 +402,15 @@ impl CodeEmitter for CodeGen {
 
   fn emit_user_func_call(&mut self, range: Range, name: Self::Symbol) {
     self.push_instr(range, InstrKind::CallFn(name));
+  }
+
+  fn emit_sys_func_call(
+    &mut self,
+    range: Range,
+    kind: SysFuncKind,
+    arity: usize,
+  ) {
+    self.push_instr(range, InstrKind::SysFuncCall { kind, arity });
   }
 
   fn clean_up(&mut self) -> Vec<Diagnostic> {
@@ -466,22 +480,21 @@ impl CodeGen {
             }
             j -= 1;
           }
-          let steps =
-            match (&self.code[j].kind, &self.code[j - 1].kind) {
-              (InstrKind::PushNum(end), InstrKind::PushNum(start))
-                if end.is_positive() && start.is_zero() || *start == 1.0 =>
-              {
-                let start = f64::from(*start);
-                let end = f64::from(*end);
-                let steps = ((end - start) / step).ceil();
-                if let Ok(steps) = Mbf5::try_from(steps) {
-                  steps
-                } else {
-                  continue;
-                }
+          let steps = match (&self.code[j].kind, &self.code[j - 1].kind) {
+            (InstrKind::PushNum(end), InstrKind::PushNum(start))
+              if end.is_positive() && start.is_zero() || *start == 1.0 =>
+            {
+              let start = f64::from(*start);
+              let end = f64::from(*end);
+              let steps = ((end - start) / step).ceil();
+              if let Ok(steps) = Mbf5::try_from(steps) {
+                steps
+              } else {
+                continue;
               }
-              _ => continue,
-            };
+            }
+            _ => continue,
+          };
           self.code[i - 1].kind = InstrKind::NoOp;
           self.code[j - 1].kind = InstrKind::NoOp;
           self.code[j].kind = InstrKind::PushNum(steps);

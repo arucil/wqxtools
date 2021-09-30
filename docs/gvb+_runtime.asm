@@ -7940,7 +7940,7 @@
 9E83: 49 FF    EOR #$FF  ; negate exponent diff
 9E85: 69 01    ADC #$01
 9E87: 85 6F    STA $6F  ; FAC1 exponent = FAC1 exponent - exponent offset
-9E89: 90 0F    BCC $9E9A ; always branch ?
+9E89: 90 0F    BCC $9E9A
 
 ; right bit shift mantissa of FAC1 for C=1
 9E8B: E6 6F    INC $6F ; increment exponent

@@ -20,8 +20,9 @@ impl DerefMut for ByteString {
 }
 
 #[derive(Debug, Clone)]
-pub struct StringError {
-  char: char,
+pub enum StringError {
+  InvalidChar(char),
+  TooLong,
 }
 
 impl ByteString {
@@ -49,9 +50,22 @@ impl ByteString {
         bytes.push((c >> 8) as u8);
         bytes.push(c as u8);
       } else {
-        return Err(StringError { char: c });
+        return Err(StringError::InvalidChar(c));
       }
     }
+    if bytes.len() > 255 {
+      return Err(StringError::TooLong);
+    }
     Ok(Self(bytes))
+  }
+
+  pub fn append(&mut self, other: &mut Self) {
+    self.0.append(&mut other.0);
+  }
+}
+
+impl From<Vec<u8>> for ByteString {
+  fn from(x: Vec<u8>) -> Self {
+    Self(x)
   }
 }

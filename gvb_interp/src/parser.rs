@@ -2103,6 +2103,10 @@ pub fn read_number(input: &[u8], allow_space: bool) -> (usize, bool) {
   let mut i = 0;
   let mut is_nat = true;
 
+  if allow_space {
+    i += count_space(input, i);
+  }
+
   if let Some(b'+' | b'-') = input.first() {
     is_nat = false;
     i += 1;

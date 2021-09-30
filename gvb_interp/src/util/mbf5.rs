@@ -141,6 +141,12 @@ impl TryFrom<f64> for Mbf5 {
   }
 }
 
+impl From<Mbf5> for [u8; 5] {
+  fn from(mut value: Mbf5) -> [u8; 5] {
+    f64_to_array(&mut value.0).unwrap()
+  }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ParseRealError {
   Infinite,
@@ -224,9 +230,27 @@ impl FromStr for Mbf5 {
   }
 }
 
+impl From<u8> for Mbf5 {
+  fn from(n: u8) -> Self {
+    Self(n as f64)
+  }
+}
+
 impl From<u16> for Mbf5 {
   fn from(n: u16) -> Self {
     Self(n as f64)
+  }
+}
+
+impl From<u32> for Mbf5 {
+  fn from(n: u32) -> Self {
+    Self(n as f64)
+  }
+}
+
+impl From<bool> for Mbf5 {
+  fn from(n: bool) -> Self {
+    Self(n as u32 as f64)
   }
 }
 
@@ -399,6 +423,10 @@ impl Mbf5 {
     Self(1.0)
   }
 
+  pub fn neg_one() -> Self {
+    Self(1.0)
+  }
+
   pub fn is_positive(&self) -> bool {
     self.0 > 0.0
   }
@@ -445,6 +473,10 @@ impl Mbf5 {
 
   pub fn sqrt(&self) -> CalcResult {
     Self::try_from(self.0.sqrt())
+  }
+
+  pub fn pow(&self, exp: Mbf5) -> CalcResult {
+    Self::try_from(self.0.powf(exp.0))
   }
 }
 
@@ -497,10 +529,7 @@ mod tests {
 
   #[test]
   fn f64_to_mbf5_accum_nan() {
-    assert_eq!(
-      Err(RealError::Nan),
-      Mbf5::try_from(0.0 / 0.0).map(|x| x.0)
-    );
+    assert_eq!(Err(RealError::Nan), Mbf5::try_from(0.0 / 0.0).map(|x| x.0));
   }
 
   #[test]
@@ -541,7 +570,10 @@ mod tests {
 
   #[test]
   fn fmt_mbf5_neg_0_5() {
-    assert_eq!("-.5", &Mbf5::from([0x80, 0x80, 0x00, 0x00, 0x00]).to_string());
+    assert_eq!(
+      "-.5",
+      &Mbf5::from([0x80, 0x80, 0x00, 0x00, 0x00]).to_string()
+    );
   }
 
   #[test]
@@ -554,12 +586,18 @@ mod tests {
 
   #[test]
   fn fmt_mbf5_1_000_000_000() {
-    assert_eq!("1E+09", &Mbf5::from([0x9e, 0x6e, 0x6b, 0x28, 0x00]).to_string());
+    assert_eq!(
+      "1E+09",
+      &Mbf5::from([0x9e, 0x6e, 0x6b, 0x28, 0x00]).to_string()
+    );
   }
 
   #[test]
   fn fmt_mbf5_neg_1_000_000_000() {
-    assert_eq!("-1E+09", &Mbf5::from([0x9e, 0xee, 0x6b, 0x28, 0x00]).to_string());
+    assert_eq!(
+      "-1E+09",
+      &Mbf5::from([0x9e, 0xee, 0x6b, 0x28, 0x00]).to_string()
+    );
   }
 
   #[test]
@@ -580,7 +618,10 @@ mod tests {
 
   #[test]
   fn fmt_mbf5_0_01() {
-    assert_eq!(".01", &Mbf5::from([0x7a, 0x23, 0xd7, 0x0a, 0x3e]).to_string());
+    assert_eq!(
+      ".01",
+      &Mbf5::from([0x7a, 0x23, 0xd7, 0x0a, 0x3e]).to_string()
+    );
   }
 
   #[test]

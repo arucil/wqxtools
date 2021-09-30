@@ -1,23 +1,20 @@
-use std::convert::TryFrom;
+use nanorand::{Rng, WyRand};
 use std::num::NonZeroUsize;
 use std::time::Duration;
 
-use crate::ast::Range;
+use crate::ast::{Range, SysFuncKind};
+use crate::parser::read_number;
 use crate::util::mbf5::{Mbf5, RealError};
 use crate::HashMap;
 
 pub(crate) use self::codegen::*;
 pub(crate) use self::device::*;
-pub(crate) use self::file::*;
 pub(crate) use self::instruction::*;
-pub(crate) use self::memory::*;
 pub(crate) use self::r#type::*;
 
 pub(crate) mod codegen;
 pub(crate) mod device;
-pub(crate) mod file;
 pub(crate) mod instruction;
-pub(crate) mod memory;
 pub(crate) mod r#type;
 
 use string_interner::DefaultSymbol as Symbol;
@@ -45,6 +42,8 @@ pub struct VirtualMachine<'d, D> {
   user_funcs: HashMap<Symbol, UserFunc>,
   fn_call_stack: Vec<FnCallRecord>,
   device: &'d mut D,
+  rng: WyRand,
+  current_rand: u32,
   state: ExecState,
 }
 
@@ -55,13 +54,13 @@ enum Type {
   String,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone)]
 enum ExecState {
   Done,
   Normal,
   WaitForKeyboardInput,
   WaitForKey,
-  AsmSuspend(),
+  AsmSuspend,
 }
 
 #[derive(Debug, Clone)]
@@ -173,7 +172,7 @@ where
   D: Device,
 {
   pub fn new(g: CodeGen, device: &'d mut D) -> Self {
-    Self {
+    let mut vm = Self {
       data: g.data,
       data_ptr: 0,
       pc: 0,
@@ -187,13 +186,19 @@ where
       user_funcs: HashMap::default(),
       fn_call_stack: vec![],
       device,
+      rng: WyRand::new(),
+      current_rand: 0,
       state: ExecState::Normal,
-    }
+    };
+    vm.current_rand = vm.rng.generate();
+    vm
   }
 
-  pub fn reset(&mut self) {
+  pub fn reset(&mut self, reset_pc: bool) {
     self.data_ptr = 0;
-    self.pc = 0;
+    if reset_pc {
+      self.pc = 0;
+    }
     self.code.truncate(self.code_len);
     self.control_stack.clear();
     self.value_stack.clear();
@@ -201,33 +206,43 @@ where
     self.arrays.clear();
     self.user_funcs.clear();
     self.fn_call_stack.clear();
-    self.device.clear();
+    //self.device.clear();
+    self.device.close_all_files();
+    self.rng = WyRand::new();
+    self.current_rand = self.rng.generate();
     self.state = ExecState::Normal;
   }
 
-  pub fn exec(&mut self, input: Option<ExecInput>, steps: usize) -> ExecResult {
+  pub fn exec(
+    &mut self,
+    input: Option<ExecInput>,
+    mut steps: usize,
+  ) -> ExecResult {
     match self.state {
       ExecState::Done => return ExecResult::End,
-      ExecState::WaitForKey => {
-        match input {
-          Some(ExecInput::Key(key)) => {
-            self.value_stack.push((self.code[self.pc].range.clone(), Mbf5::from(key as u16).into()));
-            self.pc += 1;
-          }
-          _ => unreachable!(),
+      ExecState::WaitForKey => match input {
+        Some(ExecInput::Key(key)) => {
+          self.value_stack.push((
+            self.code[self.pc].range.clone(),
+            Mbf5::from(key as u16).into(),
+          ));
+          self.pc += 1;
         }
-      }
+        _ => unreachable!(),
+      },
       ExecState::WaitForKeyboardInput => {}
-      ExecState::AsmSuspend() => {
-        todo!()
+      ExecState::AsmSuspend => {
+        if !self.device.exec_asm(&mut steps, None) {
+          return self.state.suspend_asm().unwrap_err();
+        }
       }
       ExecState::Normal => {
         // do nothing
       }
     }
 
-    for _ in 0..steps {
-      if let Err(result) = self.exec_instr() {
+    while steps > 0 {
+      if let Err(result) = self.exec_instr(&mut steps) {
         return result;
       }
     }
@@ -235,7 +250,8 @@ where
     ExecResult::Continue
   }
 
-  fn exec_instr(&mut self) -> Result<()> {
+  fn exec_instr(&mut self, steps: &mut usize) -> Result<()> {
+    *steps -= 1;
     let instr = &self.code[self.pc];
     let range = instr.range.clone();
     match instr.kind.clone() {
@@ -275,9 +291,7 @@ where
       }
       InstrKind::PushLValue { name, dimensions } => {
         if dimensions == 0 {
-          self
-            .value_stack
-            .push((range, LValue::Var { name }.into()));
+          self.value_stack.push((range, LValue::Var { name }.into()));
         } else {
           let offset = self.calc_array_offset(name, dimensions)?;
           self
@@ -431,7 +445,7 @@ where
         return Ok(());
       }
       InstrKind::Switch(branches) => {
-        let value = self.calc_u8()? as usize;
+        let value = self.pop_u8(false)? as usize;
         if value >= 1 && value <= branches.get() {
           match self.code[self.pc + value].kind.clone() {
             InstrKind::GoSub(target) => {
@@ -459,7 +473,9 @@ where
             return Ok(());
           }
         }
-        self.state.error(range, "之前没有执行过 GOSUB 语句，RETURN 语句无法执行")?;
+        self
+          .state
+          .error(range, "之前没有执行过 GOSUB 语句，RETURN 语句无法执行")?;
       }
       InstrKind::Pop => {
         while let Some(record) = self.control_stack.pop() {
@@ -468,7 +484,9 @@ where
             return Ok(());
           }
         }
-        self.state.error(range, "之前没有执行过 GOSUB 语句，POP 语句无法执行")?;
+        self
+          .state
+          .error(range, "之前没有执行过 GOSUB 语句，POP 语句无法执行")?;
       }
       InstrKind::PopValue => {
         self.value_stack.pop().unwrap();
@@ -495,6 +513,285 @@ where
         };
         self.value_stack.push((range, value));
       }
+      InstrKind::Not => {
+        let value = self.value_stack.pop().unwrap().1.unwrap_real();
+        self
+          .value_stack
+          .push((range, Mbf5::from(value.is_zero()).into()));
+      }
+      InstrKind::Neg => {
+        let value = self.value_stack.pop().unwrap().1.unwrap_real();
+        self.value_stack.push((range, (-value).into()));
+      }
+      InstrKind::Eq => {
+        let rhs = self.value_stack.pop().unwrap().1.unwrap_real();
+        let lhs = self.value_stack.pop().unwrap().1.unwrap_real();
+        self
+          .value_stack
+          .push((range, Mbf5::from(lhs == rhs).into()));
+      }
+      InstrKind::Ne => {
+        let rhs = self.value_stack.pop().unwrap().1.unwrap_real();
+        let lhs = self.value_stack.pop().unwrap().1.unwrap_real();
+        self
+          .value_stack
+          .push((range, Mbf5::from(lhs != rhs).into()));
+      }
+      InstrKind::Gt => {
+        let rhs = self.value_stack.pop().unwrap().1.unwrap_real();
+        let lhs = self.value_stack.pop().unwrap().1.unwrap_real();
+        self.value_stack.push((range, Mbf5::from(lhs > rhs).into()));
+      }
+      InstrKind::Lt => {
+        let rhs = self.value_stack.pop().unwrap().1.unwrap_real();
+        let lhs = self.value_stack.pop().unwrap().1.unwrap_real();
+        self.value_stack.push((range, Mbf5::from(lhs < rhs).into()));
+      }
+      InstrKind::Ge => {
+        let rhs = self.value_stack.pop().unwrap().1.unwrap_real();
+        let lhs = self.value_stack.pop().unwrap().1.unwrap_real();
+        self
+          .value_stack
+          .push((range, Mbf5::from(lhs >= rhs).into()));
+      }
+      InstrKind::Le => {
+        let rhs = self.value_stack.pop().unwrap().1.unwrap_real();
+        let lhs = self.value_stack.pop().unwrap().1.unwrap_real();
+        self
+          .value_stack
+          .push((range, Mbf5::from(lhs <= rhs).into()));
+      }
+      InstrKind::Add => {
+        let rhs = self.value_stack.pop().unwrap().1;
+        let lhs = self.value_stack.pop().unwrap().1;
+        match (lhs, rhs) {
+          (TmpValue::Real(lhs), TmpValue::Real(rhs)) => match lhs + rhs {
+            Ok(result) => self.value_stack.push((range, result.into())),
+            Err(RealError::Infinite) => {
+              self.state.error(
+              range,
+              format!(
+                "运算结果数值过大，超出了实数的表示范围。加法运算的两个运算数分别为：{}，{}",
+                lhs,
+                rhs
+              ))?;
+            }
+            Err(RealError::Nan) => unreachable!(),
+          },
+          (TmpValue::String(mut lhs), TmpValue::String(mut rhs)) => {
+            lhs.append(&mut rhs);
+            if lhs.len() > 255 {
+              self.state.error(
+                range,
+                format!(
+                  "运算结果字符串过长，长度超出 255。字符串长度为：{}",
+                  lhs.len()
+                ),
+              )?;
+            }
+            self.value_stack.push((range, lhs.into()));
+          }
+          _ => unreachable!(),
+        }
+      }
+      InstrKind::Sub => {
+        let rhs = self.value_stack.pop().unwrap().1.unwrap_real();
+        let lhs = self.value_stack.pop().unwrap().1.unwrap_real();
+        match lhs - rhs {
+          Ok(result) => self.value_stack.push((range, result.into())),
+          Err(RealError::Infinite) => {
+            self.state.error(
+              range,
+              format!(
+                "运算结果数值过大，超出了实数的表示范围。减法运算的两个运算数分别为：{}，{}",
+                lhs,
+                rhs
+              ))?;
+          }
+          Err(RealError::Nan) => unreachable!(),
+        }
+      }
+      InstrKind::Mul => {
+        let rhs = self.value_stack.pop().unwrap().1.unwrap_real();
+        let lhs = self.value_stack.pop().unwrap().1.unwrap_real();
+        match lhs * rhs {
+          Ok(result) => self.value_stack.push((range, result.into())),
+          Err(RealError::Infinite) => {
+            self.state.error(
+              range,
+              format!(
+                "运算结果数值过大，超出了实数的表示范围。乘法运算的两个运算数分别为：{}，{}",
+                lhs,
+                rhs
+              ))?;
+          }
+          Err(RealError::Nan) => unreachable!(),
+        }
+      }
+      InstrKind::Div => {
+        let rhs = self.value_stack.pop().unwrap().1.unwrap_real();
+        if rhs.is_zero() {
+          self.state.error(range, "除以 0")?;
+        }
+        let lhs = self.value_stack.pop().unwrap().1.unwrap_real();
+        match lhs / rhs {
+          Ok(result) => self.value_stack.push((range, result.into())),
+          Err(RealError::Infinite) => {
+            self.state.error(
+              range,
+              format!(
+                "运算结果数值过大，超出了实数的表示范围。除法运算的两个运算数分别为：{}，{}",
+                lhs,
+                rhs
+              ))?;
+          }
+          Err(RealError::Nan) => unreachable!(),
+        }
+      }
+      InstrKind::Pow => {
+        let rhs = self.value_stack.pop().unwrap().1.unwrap_real();
+        let lhs = self.value_stack.pop().unwrap().1.unwrap_real();
+        match lhs.pow(rhs) {
+          Ok(result) => self.value_stack.push((range, result.into())),
+          Err(RealError::Infinite) => {
+            self.state.error(
+              range,
+              format!(
+                "运算结果数值过大，超出了实数的表示范围。底数为：{}，指数为：{}",
+                lhs,
+                rhs
+              ))?;
+          }
+          Err(RealError::Nan) => {
+            self.state.error(
+              range,
+              format!("超出乘方运算的定义域。底数为：{}，指数为：{}", lhs, rhs),
+            )?;
+          }
+        }
+      }
+      InstrKind::And => {
+        let rhs = self.value_stack.pop().unwrap().1.unwrap_real();
+        let lhs = self.value_stack.pop().unwrap().1.unwrap_real();
+        self
+          .value_stack
+          .push((range, Mbf5::from(!lhs.is_zero() && !rhs.is_zero()).into()));
+      }
+      InstrKind::Or => {
+        let rhs = self.value_stack.pop().unwrap().1.unwrap_real();
+        let lhs = self.value_stack.pop().unwrap().1.unwrap_real();
+        self
+          .value_stack
+          .push((range, Mbf5::from(!lhs.is_zero() || !rhs.is_zero()).into()));
+      }
+      InstrKind::SysFuncCall { kind, arity } => {
+        let value = self.exec_sys_func(range.clone(), kind, arity)?;
+        self.value_stack.push((range, value));
+      }
+      InstrKind::PrintNewLine => {
+        self.device.print_newline();
+      }
+      InstrKind::PrintSpc => {
+        let value = self.pop_u8(false)?;
+        self.device.print(&vec![b' '; value as usize]);
+      }
+      InstrKind::PrintTab => {
+        let col = self.pop_range(1, 20)? as u8 - 1;
+        let current_col = self.device.get_column();
+        let spc_num = if current_col > col {
+          20 - current_col + col
+        } else {
+          col - current_col
+        };
+        self.device.print(&vec![b' '; spc_num as usize]);
+      }
+      InstrKind::PrintValue => {
+        let value = self.value_stack.pop().unwrap().1;
+        match value {
+          TmpValue::Real(num) => self.device.print(num.to_string().as_bytes()),
+          TmpValue::String(s) => self.device.print(&s),
+          _ => unreachable!(),
+        }
+      }
+      InstrKind::SetRow => {
+        let row = self.pop_range(1, 5)? as u8 - 1;
+        self.device.set_row(row);
+      }
+      InstrKind::SetColumn => {
+        let col = self.pop_range(1, 20)? as u8 - 1;
+        self.device.set_row(col);
+      }
+      InstrKind::Beep => {
+        todo!()
+      }
+      InstrKind::DrawBox { has_fill, has_mode } => {
+        let mode = self.calc_draw_mode(has_mode)?;
+        let fill = if has_fill {
+          self.pop_u8(false)? & 1 != 0
+        } else {
+          false
+        };
+        let y2 = self.pop_u8(false)?;
+        let x2 = self.pop_u8(false)?;
+        let y1 = self.pop_u8(false)?;
+        let x1 = self.pop_u8(false)?;
+        self.device.draw_box(x1, y1, x2, y2, fill, mode);
+      }
+      InstrKind::Call => {
+        let addr = self.pop_range(-65535, 65535)? as u16;
+        if !self.device.exec_asm(steps, Some(addr)) {
+          self.state.suspend_asm()?;
+        }
+      }
+      InstrKind::DrawCircle { has_fill, has_mode } => {
+        let mode = self.calc_draw_mode(has_mode)?;
+        let fill = if has_fill {
+          self.pop_u8(false)? & 1 != 0
+        } else {
+          false
+        };
+        let r = self.pop_u8(false)?;
+        let y = self.pop_u8(false)?;
+        let x = self.pop_u8(false)?;
+        self.device.draw_circle(x, y, r, fill, mode);
+      }
+      InstrKind::Clear => {
+        self.reset(false);
+      }
+      InstrKind::CloseFile => {
+        let filenum = self.pop_filenum()?;
+        if !self.device.close_file(filenum) {
+          self.state.error(range, "未打开文件，不能关闭文件")?;
+        }
+      }
+      InstrKind::Cls => {
+        self.device.cls();
+      }
+      InstrKind::NoOp => {
+        // do nothing
+      }
+      InstrKind::DrawPoint { has_mode } => {
+        let mode = self.calc_draw_mode(has_mode)?;
+        let y = self.pop_u8(false)?;
+        let x = self.pop_u8(false)?;
+        self.device.draw_point(x, y, mode);
+      }
+      InstrKind::DrawEllipse { has_fill, has_mode } => {
+        let mode = self.calc_draw_mode(has_mode)?;
+        let fill = if has_fill {
+          self.pop_u8(false)? & 1 != 0
+        } else {
+          false
+        };
+        let ry = self.pop_u8(false)?;
+        let rx = self.pop_u8(false)?;
+        let y = self.pop_u8(false)?;
+        let x = self.pop_u8(false)?;
+        self.device.draw_ellipse(x, y, rx, ry, fill, mode);
+      }
+      InstrKind::End => {
+        self.state.end()?;
+      }
       InstrKind::Assign => {
         let rvalue = self.value_stack.pop().unwrap();
         let (_, lvalue) = self.value_stack.pop().unwrap();
@@ -503,16 +800,333 @@ where
       }
       InstrKind::DrawLine { has_mode } => {
         let mode = self.calc_draw_mode(has_mode)?;
-        let y2 = self.calc_u8()?;
-        let x2 = self.calc_u8()?;
-        let y1 = self.calc_u8()?;
-        let x1 = self.calc_u8()?;
+        let y2 = self.pop_u8(false)?;
+        let x2 = self.pop_u8(false)?;
+        let y1 = self.pop_u8(false)?;
+        let x1 = self.pop_u8(false)?;
         self.device.draw_line(x1, y1, x2, y2, mode);
       }
-      _ => todo!(),
+      InstrKind::AlignedAssign(align) => {
+        let mut value = self.value_stack.pop().unwrap().1.unwrap_string();
+        let lvalue = self.value_stack.pop().unwrap().1.unwrap_lvalue();
+
+        macro_rules! aligned_set {
+          ($str:ident => $body:expr) => {
+            if value.len() > $str.len() {
+              value.truncate($str.len());
+              let $str = value;
+              $body;
+            } else {
+              match align {
+                Alignment::Left => {
+                  $str.clone_from_slice(&value);
+                }
+                Alignment::Right => {
+                  let padding = $str.len() - value.len();
+                  $str[padding..].clone_from_slice(&value);
+                  $str[..padding].fill(b' ');
+                }
+              }
+              $body;
+            }
+          };
+        }
+
+        match lvalue {
+          LValue::Var { name } => match self.get_var_value(name) {
+            TmpValue::String(mut str) => {
+              aligned_set!(str => self.vars.insert(name, str.into()));
+            }
+            _ => unreachable!(),
+          },
+          LValue::Index { name, offset } => {
+            match &mut self.arrays.get_mut(&name).unwrap().data {
+              ArrayData::String(arr) => {
+                let mut str = arr[offset].clone();
+                aligned_set!(str => arr[offset] = str);
+              }
+              _ => unreachable!(),
+            }
+          }
+          _ => unreachable!(),
+        }
+      }
+      InstrKind::SetTrace(_) => todo!(),
+      InstrKind::SetScreenMode(mode) => {
+        self.device.set_screen_mode(mode);
+      }
+      InstrKind::PlayNotes => {
+        todo!()
+      }
+      InstrKind::Poke => {
+        let value = self.pop_u8(false)?;
+        let addr = self.pop_range(-65535, 65535)? as u16;
+        self.device.set_byte(addr, value);
+      }
+      InstrKind::Swap => {
+        let lvalue2 = self.value_stack.pop().unwrap().1.unwrap_lvalue();
+        let lvalue1 = self.value_stack.pop().unwrap().1.unwrap_lvalue();
+      }
+      InstrKind::Restart => {
+        self.reset(true);
+      }
     }
     self.pc += 1;
     Ok(())
+  }
+
+  fn exec_sys_func(
+    &mut self,
+    range: Range,
+    kind: SysFuncKind,
+    arity: usize,
+  ) -> Result<TmpValue> {
+    match kind {
+      SysFuncKind::Abs => {
+        let value = self.value_stack.pop().unwrap().1.unwrap_real();
+        Ok(value.abs().into())
+      }
+      SysFuncKind::Asc => {
+        let value = self.value_stack.pop().unwrap().1.unwrap_string();
+        if value.is_empty() {
+          self.state.error(range, "ASC 函数的参数为空字符串")?;
+        }
+        Ok(Mbf5::from(value[0]).into())
+      }
+      SysFuncKind::Atn => {
+        let value = self.value_stack.pop().unwrap().1.unwrap_real();
+        Ok(value.atan().into())
+      }
+      SysFuncKind::Chr => {
+        let value = self.pop_u8(false)?;
+        Ok(ByteString::from(vec![value]).into())
+      }
+      SysFuncKind::Cos => {
+        let value = self.value_stack.pop().unwrap().1.unwrap_real();
+        Ok(value.cos().into())
+      }
+      SysFuncKind::Cvi => {
+        let value = self.value_stack.pop().unwrap().1.unwrap_string();
+        if value.len() != 2 {
+          self.state.error(
+            range,
+            format!(
+              "CVI$ 函数的参数字符串长度不等于 2。参数字符串长度为：{}",
+              value.len()
+            ),
+          )?;
+        }
+        let lo = value[0] as u16;
+        let hi = value[1] as u16;
+        Ok(Mbf5::from(lo + (hi << 8)).into())
+      }
+      SysFuncKind::Cvs => {
+        let value = self.value_stack.pop().unwrap().1.unwrap_string();
+        if value.len() != 5 {
+          self.state.error(
+            range,
+            format!(
+              "CVS$ 函数的参数字符串长度不等于 5。参数字符串长度为：{}",
+              value.len()
+            ),
+          )?;
+        }
+        Ok(
+          Mbf5::from([value[0], value[1], value[2], value[3], value[4]]).into(),
+        )
+      }
+      SysFuncKind::Eof => {
+        let filenum = self.pop_filenum()?;
+        if let Some(status) = self.device.file_status(filenum) {
+          if status.mode != FileMode::Input {
+            self.state.error(
+              range,
+              format!(
+                "EOF 函数只能用于以 {} 模式打开的文件，但 {} 号文件是以 {} 模式打开的",
+                FileMode::Input,
+                filenum + 1,
+                status.mode
+              ))?;
+          }
+          Ok(Mbf5::from(status.pos >= status.len).into())
+        } else {
+          self.state.error(range, "未打开文件")?;
+        }
+      }
+      SysFuncKind::Exp => {
+        let value = self.value_stack.pop().unwrap().1.unwrap_real();
+        match value.exp() {
+          Ok(result) => Ok(result.into()),
+          Err(RealError::Infinite) => self.state.error(
+            range,
+            format!(
+              "运算结果数值过大，超出实数的表示范围。参数值是：{}",
+              value
+            ),
+          )?,
+          Err(RealError::Nan) => self.state.error(
+            range,
+            format!("超出 EXP 函数的定义域。参数值是：{}", value),
+          )?,
+        }
+      }
+      SysFuncKind::Int => {
+        let value = self.value_stack.pop().unwrap().1.unwrap_real();
+        Ok(value.truncate().into())
+      }
+      SysFuncKind::Left => {
+        let len = self.pop_u8(true)? as usize;
+        let value = self.value_stack.pop().unwrap().1.unwrap_string();
+        let len = len.max(value.len());
+        Ok(ByteString::from(value[..len].to_vec()).into())
+      }
+      SysFuncKind::Len => {
+        let value = self.value_stack.pop().unwrap().1.unwrap_string();
+        Ok(Mbf5::from(value.len() as u32).into())
+      }
+      SysFuncKind::Lof => {
+        let filenum = self.pop_filenum()?;
+        if let Some(status) = self.device.file_status(filenum) {
+          if status.mode != FileMode::Random {
+            self.state.error(
+              range,
+              format!(
+                "LOF 函数只能用于以 {} 模式打开的文件，但 {} 号文件是以 {} 模式打开的",
+                FileMode::Random,
+                filenum + 1,
+                status.mode
+              ))?;
+          }
+          Ok(Mbf5::from(status.len).into())
+        } else {
+          self.state.error(range, "未打开文件")?;
+        }
+      }
+      SysFuncKind::Log => {
+        let value = self.value_stack.pop().unwrap().1.unwrap_real();
+        match value.ln() {
+          Ok(result) => Ok(result.into()),
+          Err(RealError::Infinite) => self.state.error(
+            range,
+            format!(
+              "运算结果数值过大，超出实数的表示范围。参数值是：{}",
+              value
+            ),
+          )?,
+          Err(RealError::Nan) => self.state.error(
+            range,
+            format!("超出 LOG 函数的定义域。参数值是：{}", value),
+          )?,
+        }
+      }
+      SysFuncKind::Mid => {
+        let len = if arity == 3 {
+          self.pop_u8(false)? as usize
+        } else {
+          255
+        };
+        let pos = (self.pop_u8(true)? - 1) as usize;
+        let value = self.value_stack.pop().unwrap().1.unwrap_string();
+        let start = pos.max(value.len());
+        let end = (start + len).max(value.len());
+        Ok(ByteString::from(value[start..end].to_vec()).into())
+      }
+      SysFuncKind::Mki => {
+        let value = self.pop_range(-32768, 32767)? as i16;
+        let lo = (value & 0xff) as u8;
+        let hi = (value >> 8) as u8;
+        Ok(ByteString::from(vec![lo, hi]).into())
+      }
+      SysFuncKind::Mks => {
+        let value = self.value_stack.pop().unwrap().1.unwrap_real();
+        Ok(ByteString::from(<[u8; 5]>::from(value).to_vec()).into())
+      }
+      SysFuncKind::Peek => {
+        let addr = self.pop_range(-65535, 65535)? as u16;
+        let value = self.device.get_byte(addr);
+        Ok(Mbf5::from(value).into())
+      }
+      SysFuncKind::Pos => {
+        self.value_stack.pop().unwrap();
+        Ok(Mbf5::from(self.device.get_column()).into())
+      }
+      SysFuncKind::Right => {
+        let len = self.pop_u8(true)? as usize;
+        let value = self.value_stack.pop().unwrap().1.unwrap_string();
+        let len = len.max(value.len());
+        Ok(ByteString::from(value[value.len() - len..].to_vec()).into())
+      }
+      SysFuncKind::Rnd => {
+        let value = self.value_stack.pop().unwrap().1.unwrap_real();
+        if value.is_zero() {
+          return Ok(u32_to_random_number(self.current_rand).into());
+        }
+        if value.is_negative() {
+          self.rng.reseed(&<[u8; 5]>::from(value));
+        }
+        let value: u32 = self.rng.generate();
+        self.current_rand = value;
+        Ok(u32_to_random_number(value).into())
+      }
+      SysFuncKind::Sgn => {
+        let value = self.value_stack.pop().unwrap().1.unwrap_real();
+        if value.is_positive() {
+          Ok(Mbf5::one().into())
+        } else if value.is_negative() {
+          Ok(Mbf5::neg_one().into())
+        } else {
+          Ok(Mbf5::zero().into())
+        }
+      }
+      SysFuncKind::Sin => {
+        let value = self.value_stack.pop().unwrap().1.unwrap_real();
+        Ok(value.sin().into())
+      }
+      SysFuncKind::Sqr => {
+        let value = self.value_stack.pop().unwrap().1.unwrap_real();
+        match value.sqrt() {
+          Ok(result) => Ok(result.into()),
+          Err(RealError::Nan) => self.state.error(
+            range,
+            format!("超出 SQR 函数的定义域。参数值是：{}", value),
+          )?,
+          Err(RealError::Infinite) => unreachable!(),
+        }
+      }
+      SysFuncKind::Str => {
+        let value = self.value_stack.pop().unwrap().1.unwrap_real();
+        Ok(ByteString::from(value.to_string().into_bytes()).into())
+      }
+      SysFuncKind::Tan => {
+        let value = self.value_stack.pop().unwrap().1.unwrap_real();
+        match value.tan() {
+          Ok(result) => Ok(result.into()),
+          Err(RealError::Infinite) => self.state.error(
+            range,
+            format!(
+              "运算结果数值过大，超出实数的表示范围。参数值是：{}",
+              value
+            ),
+          )?,
+          Err(RealError::Nan) => self.state.error(
+            range,
+            format!("超出 TAN 函数的定义域。参数值是：{}", value),
+          )?,
+        }
+      }
+      SysFuncKind::Val => {
+        let mut value = self.value_stack.pop().unwrap().1.unwrap_string();
+        value.retain(|&b| b != b' ');
+        let (len, _) = read_number(&*value, false);
+        Ok(
+          unsafe { std::str::from_utf8_unchecked(&value[..len]) }
+            .parse::<Mbf5>()
+            .unwrap_or(Mbf5::zero())
+            .into(),
+        )
+      }
+      SysFuncKind::Tab | SysFuncKind::Spc => unreachable!(),
+    }
   }
 
   fn calc_array_offset(
@@ -572,7 +1186,7 @@ where
       return Ok(DrawMode::Copy);
     }
 
-    let value = self.calc_u8()? & 7;
+    let value = self.pop_u8(false)? & 7;
     match value {
       0 => Ok(DrawMode::Erase),
       1 | 6 => Ok(DrawMode::Copy),
@@ -581,17 +1195,33 @@ where
     }
   }
 
-  fn calc_u8(&mut self) -> Result<u32> {
-    let (range, value) = self.value_stack.pop().unwrap();
+  fn pop_u8(&mut self, nonzero: bool) -> Result<u8> {
+    Ok(self.pop_range(nonzero as i32, 255)? as u8)
+  }
+
+  fn pop_range(&mut self, min: i32, max: i32) -> Result<i32> {
+    let (value_range, value) = self.value_stack.pop().unwrap();
     let value = value.unwrap_real();
 
     let value = f64::from(value);
-    if value <= -1.0 || value >= 256.0 {
-      self
-        .state
-        .error(range, format!("参数超出范围 0~255。运算结果为：{}", value,))?;
+    if value <= min as f64 - 1.0 || value >= max as f64 + 1.0 {
+      self.state.error(
+        value_range,
+        format!("参数超出范围 {}~{}。运算结果为：{}", min, max, value),
+      )?;
     }
-    Ok(value as u32)
+    Ok(value as i32)
+  }
+
+  /// Returns [0, 2].
+  fn pop_filenum(&mut self) -> Result<u8> {
+    let (range, value) = self.value_stack.pop().unwrap();
+    let value = f64::from(value.unwrap_real()) as i64;
+    if value >= 1 && value <= 3 {
+      Ok(value as u8 - 1)
+    } else {
+      self.state.error(range, "文件号超出范围 1~3")?
+    }
   }
 
   fn get_var_value(&mut self, name: Symbol) -> TmpValue {
@@ -608,7 +1238,30 @@ where
       .into()
   }
 
-  fn store_lvalue(
+  fn store_value(&mut self, lvalue: LValue, rvalue: Value) {
+    match lvalue {
+      LValue::Var { name } => {
+        self.vars.insert(name, rvalue);
+      }
+      LValue::Index { name, offset } => {
+        match (&mut self.arrays.get_mut(&name).unwrap().data, rvalue) {
+          (ArrayData::Integer(arr), Value::Integer(num)) => {
+            arr[offset] = num;
+          }
+          (ArrayData::Real(arr), Value::Real(num)) => {
+            arr[offset] = num;
+          }
+          (ArrayData::String(arr), Value::String(str)) => {
+            arr[offset] = str;
+          }
+          _ => unreachable!(),
+        }
+      }
+      LValue::Fn { .. } => unreachable!(),
+    }
+  }
+
+  fn store_tmp_value(
     &mut self,
     lvalue: LValue,
     (rvalue_range, rvalue): (Range, TmpValue),
@@ -690,6 +1343,18 @@ impl ExecState {
     *self = Self::WaitForKey;
     Err(ExecResult::InKey)
   }
+
+  #[must_use]
+  fn suspend_asm(&mut self) -> Result<!> {
+    *self = Self::AsmSuspend;
+    Err(ExecResult::Continue)
+  }
+
+  #[must_use]
+  fn end(&mut self) -> Result<!> {
+    *self = Self::Done;
+    Err(ExecResult::End)
+  }
 }
 
 impl TmpValue {
@@ -725,6 +1390,11 @@ impl From<Value> for TmpValue {
   }
 }
 
+impl TmpValue {
+  fn into_value(self, state: &mut ExecState) -> Result<Value> {
+  }
+}
+
 impl From<LValue> for TmpValue {
   fn from(v: LValue) -> Self {
     Self::LValue(v)
@@ -743,12 +1413,32 @@ impl From<ByteString> for TmpValue {
   }
 }
 
+impl From<ByteString> for Value {
+  fn from(v: ByteString) -> Self {
+    Self::String(v)
+  }
+}
+
 fn symbol_type(interner: &StringInterner, symbol: Symbol) -> Type {
   match interner.resolve(symbol).unwrap().as_bytes().last().unwrap() {
     b'%' => Type::Integer,
     b'$' => Type::String,
     _ => Type::Real,
   }
+}
+
+fn u32_to_random_number(x: u32) -> Mbf5 {
+  if x == 0 {
+    return Mbf5::zero();
+  }
+  let n = x.leading_zeros();
+  let exponent = (0x80 - n) as u8;
+  let x = x << n;
+  let mant1 = (x >> 24) as u8 & 0x7f;
+  let mant2 = (x >> 16) as u8;
+  let mant3 = (x >> 8) as u8;
+  let mant4 = x as u8;
+  Mbf5::from([exponent, mant1, mant2, mant3, mant4])
 }
 
 impl ArrayData {
