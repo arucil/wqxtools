@@ -339,7 +339,7 @@ where
             step,
           }));
 
-        self.store_lvalue(LValue::Var { name }, start)?;
+        self.store_tmp_value(LValue::Var { name }, start)?;
       }
       InstrKind::NextFor { name } => {
         let mut found = None;
@@ -362,7 +362,7 @@ where
         }
 
         if let Some(record) = found {
-          let value = self.get_var_value(record.var).unwrap_real();
+          let value = self.load_tmp_value(record.var).unwrap_real();
           let range = self.code[record.addr.0].range.clone();
           let new_value = match value + record.step {
             Ok(new_value) => new_value,
@@ -375,7 +375,7 @@ where
             Err(_) => unreachable!(),
           };
 
-          self.store_lvalue(
+          self.store_tmp_value(
             LValue::Var { name: record.var },
             (range, new_value.into()),
           )?;
@@ -423,7 +423,7 @@ where
       InstrKind::CallFn(func) => {
         if let Some(func) = self.user_funcs.get(&func).cloned() {
           let arg = self.value_stack.pop().unwrap();
-          let old_param = self.get_var_value(func.param);
+          let old_param = self.load_tmp_value(func.param);
           self.value_stack.push((arg.0.clone(), old_param));
           self.fn_call_stack.push(FnCallRecord {
             param: func.param,
@@ -440,7 +440,7 @@ where
         self.value_stack.swap(stack_len - 1, stack_len - 2);
         let old_param = self.value_stack.pop().unwrap();
         let record = self.fn_call_stack.pop().unwrap();
-        self.store_lvalue(LValue::Var { name: record.param }, old_param)?;
+        self.store_tmp_value(LValue::Var { name: record.param }, old_param)?;
         self.pc = record.next_addr.0;
         return Ok(());
       }
@@ -495,7 +495,7 @@ where
         self.value_stack.push((range, num.into()));
       }
       InstrKind::PushVar(var) => {
-        let value = self.get_var_value(var);
+        let value = self.load_tmp_value(var);
         self.value_stack.push((range, value));
       }
       InstrKind::PushStr(str) => {
@@ -796,7 +796,7 @@ where
         let rvalue = self.value_stack.pop().unwrap();
         let (_, lvalue) = self.value_stack.pop().unwrap();
         let lvalue = lvalue.unwrap_lvalue();
-        self.store_lvalue(lvalue, rvalue)?;
+        self.store_tmp_value(lvalue, rvalue)?;
       }
       InstrKind::DrawLine { has_mode } => {
         let mode = self.calc_draw_mode(has_mode)?;
@@ -833,12 +833,10 @@ where
         }
 
         match lvalue {
-          LValue::Var { name } => match self.get_var_value(name) {
-            TmpValue::String(mut str) => {
-              aligned_set!(str => self.vars.insert(name, str.into()));
-            }
-            _ => unreachable!(),
-          },
+          LValue::Var { name } => {
+            let mut str = self.load_tmp_value(name).unwrap_string();
+            aligned_set!(str => self.vars.insert(name, Value::String(str)));
+          }
           LValue::Index { name, offset } => {
             match &mut self.arrays.get_mut(&name).unwrap().data {
               ArrayData::String(arr) => {
@@ -866,9 +864,26 @@ where
       InstrKind::Swap => {
         let lvalue2 = self.value_stack.pop().unwrap().1.unwrap_lvalue();
         let lvalue1 = self.value_stack.pop().unwrap().1.unwrap_lvalue();
+        let value1 = self.load_value(lvalue1.clone());
+        let value2 = self.load_value(lvalue2.clone());
+        self.store_value(lvalue2, value1);
+        self.store_value(lvalue1, value2);
       }
       InstrKind::Restart => {
+        self.device.set_screen_mode(ScreenMode::Text);
+        self.device.cls();
         self.reset(true);
+      }
+      InstrKind::SetPrintMode(mode) => {
+        self.device.set_print_mode(mode);
+      }
+      InstrKind::Sleep => {
+        let value = self.value_stack.pop().unwrap().1.unwrap_real();
+        if value.is_positive() {
+          let ns = (self.device.sleep_unit().as_nanos() as f64
+            * f64::from(value)) as u64;
+          self.state.sleep(Duration::from_nanos(ns))?;
+        }
       }
     }
     self.pc += 1;
@@ -1224,18 +1239,31 @@ where
     }
   }
 
-  fn get_var_value(&mut self, name: Symbol) -> TmpValue {
-    let ty = symbol_type(&self.interner, name);
-    self
-      .vars
-      .entry(name)
-      .or_insert_with(|| match ty {
-        Type::Integer => Value::Integer(0),
-        Type::Real => Value::Real(Mbf5::zero()),
-        Type::String => Value::String(ByteString::new()),
-      })
-      .clone()
-      .into()
+  fn load_tmp_value(&mut self, name: Symbol) -> TmpValue {
+    self.load_value(LValue::Var { name }).into()
+  }
+
+  fn load_value(&mut self, lvalue: LValue) -> Value {
+    match lvalue {
+      LValue::Var { name } => {
+        let ty = symbol_type(&self.interner, name);
+        self
+          .vars
+          .entry(name)
+          .or_insert_with(|| match ty {
+            Type::Integer => Value::Integer(0),
+            Type::Real => Value::Real(Mbf5::zero()),
+            Type::String => Value::String(ByteString::new()),
+          })
+          .clone()
+      }
+      LValue::Index { name, offset } => match &self.arrays[&name].data {
+        ArrayData::Integer(arr) => Value::Integer(arr[offset]),
+        ArrayData::Real(arr) => Value::Real(arr[offset]),
+        ArrayData::String(arr) => Value::String(arr[offset].clone()),
+      },
+      _ => unreachable!(),
+    }
   }
 
   fn store_value(&mut self, lvalue: LValue, rvalue: Value) {
@@ -1266,15 +1294,8 @@ where
     lvalue: LValue,
     (rvalue_range, rvalue): (Range, TmpValue),
   ) -> Result<()> {
-    macro_rules! assign_real {
-      ($var:ident => $body:expr) => {
-        let $var = rvalue.unwrap_real();
-        $body;
-      };
-    }
-
-    macro_rules! assign_int {
-      ($var:ident => $body:expr) => {
+    let value = match lvalue.get_type(&self.interner) {
+      Type::Integer => {
         let value = rvalue.unwrap_real();
         let int = f64::from(value.truncate());
         if int <= -32769.0 || int >= 32768.0 {
@@ -1287,44 +1308,13 @@ where
             ),
           )?;
         }
-        let $var = int as u16;
-        $body;
+        Value::Integer(int as u16)
       }
-    }
-
-    match lvalue {
-      LValue::Var { name } => {
-        match symbol_type(&self.interner, name) {
-          Type::Integer => {
-            assign_int!(num => self.vars.insert(name, Value::Integer(num)));
-          }
-          Type::Real => {
-            assign_real!(num => self.vars.insert(name, Value::Real(num)));
-          }
-          Type::String => {
-            self
-              .vars
-              .insert(name, Value::String(rvalue.unwrap_string()));
-          }
-        }
-        Ok(())
-      }
-      LValue::Index { name, offset } => {
-        match &mut self.arrays.get_mut(&name).unwrap().data {
-          ArrayData::Integer(arr) => {
-            assign_int!(num => arr[offset] = num);
-          }
-          ArrayData::Real(arr) => {
-            assign_real!(num => arr[offset] = num);
-          }
-          ArrayData::String(arr) => {
-            arr[offset] = rvalue.unwrap_string();
-          }
-        }
-        Ok(())
-      }
-      LValue::Fn { .. } => unreachable!(),
-    }
+      Type::Real => Value::Real(rvalue.unwrap_real()),
+      Type::String => Value::String(rvalue.unwrap_string()),
+    };
+    self.store_value(lvalue, value);
+    Ok(())
   }
 }
 
@@ -1354,6 +1344,12 @@ impl ExecState {
   fn end(&mut self) -> Result<!> {
     *self = Self::Done;
     Err(ExecResult::End)
+  }
+
+  #[must_use]
+  fn sleep(&mut self, duration: Duration) -> Result<!> {
+    *self = Self::Normal;
+    Err(ExecResult::Sleep(duration))
   }
 }
 
@@ -1390,11 +1386,6 @@ impl From<Value> for TmpValue {
   }
 }
 
-impl TmpValue {
-  fn into_value(self, state: &mut ExecState) -> Result<Value> {
-  }
-}
-
 impl From<LValue> for TmpValue {
   fn from(v: LValue) -> Self {
     Self::LValue(v)
@@ -1408,12 +1399,6 @@ impl From<Mbf5> for TmpValue {
 }
 
 impl From<ByteString> for TmpValue {
-  fn from(v: ByteString) -> Self {
-    Self::String(v)
-  }
-}
-
-impl From<ByteString> for Value {
   fn from(v: ByteString) -> Self {
     Self::String(v)
   }
@@ -1448,5 +1433,16 @@ impl ArrayData {
       Type::Real => ArrayData::Real(vec![Mbf5::zero(); size]),
       Type::String => ArrayData::String(vec![ByteString::new(); size]),
     }
+  }
+}
+
+impl LValue {
+  fn get_type(&self, interner: &StringInterner) -> Type {
+    let name = match self {
+      Self::Var { name } => *name,
+      Self::Index { name, .. } => *name,
+      Self::Fn { name, .. } => *name,
+    };
+    symbol_type(interner, name)
   }
 }

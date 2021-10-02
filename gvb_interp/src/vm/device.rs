@@ -1,6 +1,6 @@
 use std::fmt::{self, Debug, Display, Formatter};
 
-use super::ScreenMode;
+use super::{ScreenMode, PrintMode};
 
 pub trait Device {
   /// Range: [0, 4]
@@ -77,6 +77,10 @@ pub trait Device {
   ) -> bool;
 
   fn set_screen_mode(&mut self, mode: ScreenMode);
+
+  fn set_print_mode(&mut self, mode: PrintMode);
+
+  fn sleep_unit(&self) -> std::time::Duration;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
