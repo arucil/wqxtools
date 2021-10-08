@@ -1,10 +1,14 @@
+use bstr::{ByteSlice, ByteVec};
 use nanorand::{Rng, WyRand};
+use std::fmt::{self, Display, Formatter};
+use std::io;
 use std::num::NonZeroUsize;
 use std::time::Duration;
 
-use crate::ast::{Range, SysFuncKind};
+use crate::ast::{self, Range, SysFuncKind};
+use crate::machine::EmojiStyle;
 use crate::parser::read_number;
-use crate::util::mbf5::{Mbf5, RealError};
+use crate::util::mbf5::{Mbf5, ParseRealError, RealError};
 use crate::HashMap;
 
 pub(crate) use self::codegen::*;
@@ -28,7 +32,10 @@ pub(crate) struct Datum {
   pub is_quoted: bool,
 }
 
-pub struct VirtualMachine<'d, D> {
+const NUM_FILES: usize = 3;
+
+pub struct VirtualMachine<'d, D: Device> {
+  emoji_style: EmojiStyle,
   data: Vec<Datum>,
   data_ptr: usize,
   pc: usize,
@@ -42,6 +49,7 @@ pub struct VirtualMachine<'d, D> {
   user_funcs: HashMap<Symbol, UserFunc>,
   fn_call_stack: Vec<FnCallRecord>,
   device: &'d mut D,
+  files: [Option<OpenFile<D::File>>; NUM_FILES],
   rng: WyRand,
   current_rand: u32,
   state: ExecState,
@@ -58,7 +66,7 @@ enum Type {
 enum ExecState {
   Done,
   Normal,
-  WaitForKeyboardInput,
+  WaitForKeyboardInput { lvalues: Vec<LValue> },
   WaitForKey,
   AsmSuspend,
 }
@@ -101,7 +109,7 @@ enum LValue {
 /// persistent value
 #[derive(Debug, Clone)]
 pub enum Value {
-  Integer(u16),
+  Integer(i16),
   Real(Mbf5),
   String(ByteString),
 }
@@ -114,7 +122,7 @@ struct Array {
 
 #[derive(Debug, Clone)]
 enum ArrayData {
-  Integer(Vec<u16>),
+  Integer(Vec<i16>),
   Real(Vec<Mbf5>),
   String(Vec<ByteString>),
 }
@@ -146,6 +154,7 @@ pub enum ExecResult {
 #[derive(Debug, Clone)]
 pub enum KeyboardInputType {
   String,
+  Integer,
   Real,
   Func { name: String, param: String },
 }
@@ -159,12 +168,38 @@ pub enum ExecInput {
 #[derive(Debug, Clone)]
 pub enum KeyboardInput {
   String(ByteString),
+  Integer(i16),
   Real(Mbf5),
-  Func {
-    name: String,
-    param: String,
-    body: (),
+  Func { body: InputFuncBody },
+}
+
+#[derive(Debug, Clone)]
+pub struct InputFuncBody {
+  interner: StringInterner,
+  code: Vec<Instr>,
+}
+
+#[derive(Debug, Clone)]
+struct OpenFile<F> {
+  pub file: F,
+  pub mode: FileMode,
+}
+
+#[derive(Debug, Clone)]
+enum FileMode {
+  Input,
+  Output,
+  Append,
+  Random {
+    record_len: u8,
+    fields: Vec<RecordField>,
   },
+}
+
+#[derive(Debug, Clone)]
+struct RecordField {
+  len: u8,
+  lvalue: LValue,
 }
 
 impl<'d, D> VirtualMachine<'d, D>
@@ -173,6 +208,7 @@ where
 {
   pub fn new(g: CodeGen, device: &'d mut D) -> Self {
     let mut vm = Self {
+      emoji_style: g.emoji_style,
       data: g.data,
       data_ptr: 0,
       pc: 0,
@@ -186,6 +222,7 @@ where
       user_funcs: HashMap::default(),
       fn_call_stack: vec![],
       device,
+      files: [None, None, None],
       rng: WyRand::new(),
       current_rand: 0,
       state: ExecState::Normal,
@@ -207,7 +244,9 @@ where
     self.user_funcs.clear();
     self.fn_call_stack.clear();
     //self.device.clear();
-    self.device.close_all_files();
+    for file in &mut self.files {
+      file.take();
+    }
     self.rng = WyRand::new();
     self.current_rand = self.rng.generate();
     self.state = ExecState::Normal;
@@ -218,19 +257,31 @@ where
     input: Option<ExecInput>,
     mut steps: usize,
   ) -> ExecResult {
-    match self.state {
+    match std::mem::replace(&mut self.state, ExecState::Normal) {
       ExecState::Done => return ExecResult::End,
       ExecState::WaitForKey => match input {
         Some(ExecInput::Key(key)) => {
-          self.value_stack.push((
-            self.code[self.pc].range.clone(),
-            Mbf5::from(key as u16).into(),
-          ));
+          self
+            .value_stack
+            .push((self.code[self.pc].range.clone(), Mbf5::from(key).into()));
           self.pc += 1;
         }
         _ => unreachable!(),
       },
-      ExecState::WaitForKeyboardInput => {}
+      ExecState::WaitForKeyboardInput { lvalues } => match input {
+        Some(ExecInput::KeyboardInput(values)) => {
+          for (lvalue, value) in lvalues.into_iter().zip(values) {
+            let value = match value {
+              KeyboardInput::Integer(num) => Value::Integer(num),
+              KeyboardInput::Real(num) => Value::Real(num),
+              KeyboardInput::String(s) => Value::String(s),
+              KeyboardInput::Func { body } => todo!(),
+            };
+            self.store_value(lvalue, value);
+          }
+        }
+        _ => unreachable!(),
+      },
       ExecState::AsmSuspend => {
         if !self.device.exec_asm(&mut steps, None) {
           return self.state.suspend_asm().unwrap_err();
@@ -304,7 +355,55 @@ where
           .value_stack
           .push((range, LValue::Fn { name, param }.into()));
       }
-      InstrKind::SetRecordFields { .. } => todo!(),
+      InstrKind::SetRecordFields { fields: num_fields } => {
+        let filenum = self.get_filenum(true)?;
+        let record_len;
+        if let Some(file) = &self.files[filenum as usize] {
+          if let FileMode::Random {
+            record_len: len, ..
+          } = &file.mode
+          {
+            record_len = *len as u32;
+          } else {
+            self.state.error(
+              range,
+              format!(
+                "FIELD 语句只能用于以 RANDOM 模式打开的文件，但 {} 号文件是以 {} 模式打开的",
+                filenum + 1,
+                file.mode
+              ))?;
+          }
+        } else {
+          self.state.error(range, "未打开文件")?;
+        }
+
+        let mut fields = vec![];
+        let mut total_len = 0u32;
+        for _ in 0..num_fields.get() {
+          let lvalue = self.value_stack.pop().unwrap().1.unwrap_lvalue();
+          let len = self.pop_u8(false)?;
+          fields.push(RecordField { len, lvalue });
+          total_len += len as u32;
+        }
+        fields.reverse();
+
+        if total_len > record_len {
+          self.state.error(
+            range,
+            format!(
+              "FIELD 语句定义的字段总长度 {} 超出了打开文件时所指定的记录长度 {}",
+              total_len,
+              record_len
+            )
+          )?;
+        }
+
+        if let FileMode::Random { fields: f, .. } =
+          &mut self.files[filenum as usize].as_mut().unwrap().mode
+        {
+          *f = fields;
+        }
+      }
       InstrKind::ForLoop { name, has_step } => {
         let step = if has_step {
           self.value_stack.pop().unwrap().1.unwrap_real()
@@ -709,7 +808,7 @@ where
         let value = self.value_stack.pop().unwrap().1;
         match value {
           TmpValue::Real(num) => self.device.print(num.to_string().as_bytes()),
-          TmpValue::String(s) => self.device.print(&s),
+          TmpValue::String(s) => self.device.print(s.drop_null()),
           _ => unreachable!(),
         }
       }
@@ -721,8 +820,173 @@ where
         let col = self.pop_range(1, 20)? as u8 - 1;
         self.device.set_row(col);
       }
+      InstrKind::Write { to_file } => {
+        self.exec_write(range, to_file, false)?;
+      }
+      InstrKind::WriteEnd { to_file } => {
+        self.exec_write(range, to_file, true)?;
+      }
+      InstrKind::KeyboardInput {
+        prompt,
+        fields: num_fields,
+      } => {
+        let mut lvalues = vec![];
+        let mut fields = vec![];
+        for _ in 0..num_fields.get() {
+          let lvalue = self.value_stack.pop().unwrap().1.unwrap_lvalue();
+          lvalues.push(lvalue.clone());
+          match lvalue {
+            LValue::Fn { name, param } => {
+              fields.push(KeyboardInputType::Func {
+                name: self.interner.resolve(name).unwrap().to_owned(),
+                param: self.interner.resolve(param).unwrap().to_owned(),
+              })
+            }
+            _ => match lvalue.get_type(&self.interner) {
+              Type::Integer => fields.push(KeyboardInputType::Integer),
+              Type::Real => fields.push(KeyboardInputType::Real),
+              Type::String => fields.push(KeyboardInputType::String),
+            },
+          }
+        }
+
+        fields.reverse();
+        self.state.input(lvalues, prompt, fields)?;
+      }
+      InstrKind::FileInput { fields: num_fields } => {}
+      InstrKind::ReadData => {
+        if self.data_ptr >= self.data.len() {
+          self.state.error(
+            range,
+            if self.data.is_empty() {
+              "没有 DATA 可供读取"
+            } else {
+              "DATA 已经读取结束，没有更多 DATA 可供读取"
+            },
+          )?;
+        }
+
+        let datum = &self.data[self.data_ptr];
+        self.data_ptr += 1;
+
+        let lvalue = self.value_stack.pop().unwrap().1.unwrap_lvalue();
+        match lvalue.get_type(&self.interner) {
+          Type::String => {
+            let str = datum.value.clone();
+            self.store_value(lvalue, Value::String(str));
+          }
+          ty @ (Type::Integer | Type::Real) => {
+            let mut str = datum.value.clone();
+            str.retain(|&b| b != b' ');
+            if str.is_empty() {
+              let value = if ty == Type::Integer {
+                Value::Integer(0)
+              } else {
+                Value::Real(Mbf5::zero())
+              };
+              self.store_value(lvalue, value);
+            } else {
+              match unsafe { std::str::from_utf8_unchecked(&str) }
+                .parse::<Mbf5>()
+              {
+                Ok(num) => {
+                  if ty == Type::Integer {
+                    let int = f64::from(num.truncate());
+                    if int <= -32769.0 || int >= 32768.0 {
+                      self.state.error(
+                        range,
+                        format!(
+                          "读取到的数据：{}，超出了整数的表示范围（-32768~32767），\
+                          无法赋值给整数变量",
+                          f64::from(num),
+                        ),
+                      )?;
+                    }
+                  } else {
+                    self.store_value(lvalue, Value::Real(num));
+                  }
+                }
+                Err(ParseRealError::Malformed) => {
+                  self.state.error(
+                    range,
+                    format!(
+                      "读取到的数据：{}，不符合实数的格式",
+                      datum.value.to_string_lossy(self.emoji_style)
+                    ),
+                  )?;
+                }
+                Err(ParseRealError::Infinite) => {
+                  self.state.error(
+                    range,
+                    format!(
+                      "读取到的数据：{}，数值过大，超出了实数的表示范围",
+                      datum.value.to_string_lossy(self.emoji_style)
+                    ),
+                  )?;
+                }
+              }
+            }
+          }
+        }
+      }
+      InstrKind::OpenFile { mode, has_len } => {
+        let len = if has_len {
+          let mut len = self.pop_u8(false)?;
+          if len == 0 || len > 128 {
+            len = 32;
+          }
+          len
+        } else {
+          32
+        };
+
+        let filenum = self.get_filenum(true)?;
+        let (name_range, filename) = self.value_stack.pop().unwrap();
+        let mut filename = filename.unwrap_string();
+
+        if self.files[filenum as usize].is_some() {
+          self
+            .state
+            .error(range, format!("重复打开 {} 号文件", filenum + 1))?;
+        }
+
+        if let Some(i) = filename.find_byteset(b"/\\") {
+          self.state.error(
+            name_range,
+            format!("文件名中不能包含\"{}\"字符", filename[i] as char),
+          )?;
+        }
+
+        if !filename.to_ascii_uppercase().ends_with(b".DAT") {
+          filename.push_str(b".DAT");
+        }
+
+        let (mode, read, write, truncate) = match mode {
+          ast::FileMode::Input => (FileMode::Input, true, false, false),
+          ast::FileMode::Output => (FileMode::Output, false, true, true),
+          ast::FileMode::Append => (FileMode::Append, false, true, false),
+          ast::FileMode::Random => (
+            FileMode::Random {
+              record_len: len,
+              fields: vec![],
+            },
+            true,
+            true,
+            false,
+          ),
+          _ => unreachable!(),
+        };
+
+        let file = self.state.io(
+          range,
+          "打开文件",
+          self.device.open_file(&filename, read, write, truncate),
+        )?;
+
+        self.files[filenum as usize] = Some(OpenFile { file, mode });
+      }
       InstrKind::Beep => {
-        todo!()
+        self.device.beep();
       }
       InstrKind::DrawBox { has_fill, has_mode } => {
         let mode = self.calc_draw_mode(has_mode)?;
@@ -759,8 +1023,8 @@ where
         self.reset(false);
       }
       InstrKind::CloseFile => {
-        let filenum = self.pop_filenum()?;
-        if !self.device.close_file(filenum) {
+        let filenum = self.get_filenum(true)?;
+        if self.files[filenum as usize].take().is_none() {
           self.state.error(range, "未打开文件，不能关闭文件")?;
         }
       }
@@ -854,7 +1118,8 @@ where
         self.device.set_screen_mode(mode);
       }
       InstrKind::PlayNotes => {
-        todo!()
+        let value = self.value_stack.pop().unwrap().1.unwrap_string();
+        self.device.play_notes(&value);
       }
       InstrKind::Poke => {
         let value = self.pop_u8(false)?;
@@ -876,6 +1141,38 @@ where
       }
       InstrKind::SetPrintMode(mode) => {
         self.device.set_print_mode(mode);
+      }
+      InstrKind::Wend => {
+        let mut found = None;
+        while let Some(record) = self.control_stack.pop() {
+          if let ControlRecord::WhileLoop { addr } = record {
+            found = Some(addr);
+            break;
+          }
+        }
+
+        if let Some(addr) = found {
+          self.pc = addr.0;
+        } else {
+          self
+            .state
+            .error(range, "WEND 语句找不到匹配的 WHILE 语句")?;
+        }
+
+        return Ok(());
+      }
+      InstrKind::WhileLoop { start, end } => {
+        let value = self.value_stack.pop().unwrap().1.unwrap_real();
+        if value.is_zero() {
+          self.pc = end.0;
+        } else {
+          self
+            .control_stack
+            .push(ControlRecord::WhileLoop { addr: start });
+          self.pc += 1;
+        }
+
+        return Ok(());
       }
       InstrKind::Sleep => {
         let value = self.value_stack.pop().unwrap().1.unwrap_real();
@@ -933,7 +1230,7 @@ where
         }
         let lo = value[0] as u16;
         let hi = value[1] as u16;
-        Ok(Mbf5::from(lo + (hi << 8)).into())
+        Ok(Mbf5::from((lo + (hi << 8)) as i16).into())
       }
       SysFuncKind::Cvs => {
         let value = self.value_stack.pop().unwrap().1.unwrap_string();
@@ -951,19 +1248,24 @@ where
         )
       }
       SysFuncKind::Eof => {
-        let filenum = self.pop_filenum()?;
-        if let Some(status) = self.device.file_status(filenum) {
-          if status.mode != FileMode::Input {
+        let filenum = self.get_filenum(true)?;
+        if let Some(file) = &self.files[filenum as usize] {
+          if !matches!(file.mode, FileMode::Input) {
             self.state.error(
               range,
               format!(
-                "EOF 函数只能用于以 {} 模式打开的文件，但 {} 号文件是以 {} 模式打开的",
-                FileMode::Input,
+                "EOF 函数只能用于以 INPUT 模式打开的文件，但 {} 号文件是以 {} 模式打开的",
                 filenum + 1,
-                status.mode
+                file.mode
               ))?;
           }
-          Ok(Mbf5::from(status.pos >= status.len).into())
+          let len =
+            self
+              .state
+              .io(range.clone(), "获取文件大小", file.file.len())?;
+          let pos =
+            self.state.io(range, "获取文件指针", file.file.position())?;
+          Ok(Mbf5::from(pos >= len).into())
         } else {
           self.state.error(range, "未打开文件")?;
         }
@@ -1000,19 +1302,19 @@ where
         Ok(Mbf5::from(value.len() as u32).into())
       }
       SysFuncKind::Lof => {
-        let filenum = self.pop_filenum()?;
-        if let Some(status) = self.device.file_status(filenum) {
-          if status.mode != FileMode::Random {
+        let filenum = self.get_filenum(true)?;
+        if let Some(file) = &self.files[filenum as usize] {
+          if !matches!(file.mode, FileMode::Random { .. }) {
             self.state.error(
               range,
               format!(
-                "LOF 函数只能用于以 {} 模式打开的文件，但 {} 号文件是以 {} 模式打开的",
-                FileMode::Random,
+                "LOF 函数只能用于以 RANDOM 模式打开的文件，但 {} 号文件是以 {} 模式打开的",
                 filenum + 1,
-                status.mode
+                file.mode
               ))?;
           }
-          Ok(Mbf5::from(status.len).into())
+          let len = self.state.io(range, "获取文件大小", file.file.len())?;
+          Ok(Mbf5::from(len).into())
         } else {
           self.state.error(range, "未打开文件")?;
         }
@@ -1144,6 +1446,83 @@ where
     }
   }
 
+  fn exec_write(
+    &mut self,
+    range: Range,
+    to_file: bool,
+    end: bool,
+  ) -> Result<()> {
+    let value = self.value_stack.pop().unwrap().1;
+    let file = if to_file {
+      let filenum = self.get_filenum(end)?;
+      if let Some(file) = &mut self.files[filenum as usize] {
+        if let FileMode::Output | FileMode::Append = file.mode {
+          Some(&mut file.file)
+        } else {
+          self.state.error(
+            range,
+            format!(
+              "LOF 函数只能用于以 OUTPUT 或 APPEND 模式打开的文件，\
+              但 {} 号文件是以 {} 模式打开的",
+              filenum + 1,
+              file.mode
+            ),
+          )?;
+        }
+      } else {
+        self.state.error(range, "未打开文件，不能执行 WRITE 操作")?;
+      }
+    } else {
+      None
+    };
+
+    macro_rules! write_file {
+      ($file:ident, $w:expr) => {
+        self.state.io(range.clone(), "写入文件", $file.write($w))?;
+      };
+    }
+
+    match value {
+      TmpValue::Real(num) => {
+        if let Some(file) = file {
+          write_file!(file, num.to_string().as_bytes());
+          if end {
+            write_file!(file, &[0xffu8]);
+          } else {
+            write_file!(file, b",");
+          }
+        } else {
+          self.device.print(num.to_string().as_bytes());
+          if !end {
+            self.device.print(b",");
+          }
+        }
+      }
+      TmpValue::String(s) => {
+        if let Some(file) = file {
+          write_file!(file, b"\"");
+          write_file!(file, &s);
+          write_file!(file, b"\"");
+          if end {
+            write_file!(file, &[0xff]);
+          } else {
+            write_file!(file, b",");
+          }
+        } else {
+          self.device.print(b"\"");
+          self.device.print(s.drop_null());
+          self.device.print(b"\"");
+          if !end {
+            self.device.print(b",");
+          }
+        }
+      }
+      _ => unreachable!(),
+    }
+
+    Ok(())
+  }
+
   fn calc_array_offset(
     &mut self,
     name: Symbol,
@@ -1229,11 +1608,15 @@ where
   }
 
   /// Returns [0, 2].
-  fn pop_filenum(&mut self) -> Result<u8> {
-    let (range, value) = self.value_stack.pop().unwrap();
-    let value = f64::from(value.unwrap_real()) as i64;
-    if value >= 1 && value <= 3 {
-      Ok(value as u8 - 1)
+  fn get_filenum(&mut self, pop: bool) -> Result<u8> {
+    let (range, value) = if pop {
+      self.value_stack.pop().unwrap()
+    } else {
+      self.value_stack.last().cloned().unwrap()
+    };
+    let int = f64::from(value.unwrap_real()) as i64;
+    if int >= 1 && int <= 3 {
+      Ok(int as u8 - 1)
     } else {
       self.state.error(range, "文件号超出范围 1~3")?
     }
@@ -1308,7 +1691,7 @@ where
             ),
           )?;
         }
-        Value::Integer(int as u16)
+        Value::Integer(int as i16)
       }
       Type::Real => Value::Real(rvalue.unwrap_real()),
       Type::String => Value::String(rvalue.unwrap_string()),
@@ -1335,6 +1718,17 @@ impl ExecState {
   }
 
   #[must_use]
+  fn input(
+    &mut self,
+    lvalues: Vec<LValue>,
+    prompt: Option<String>,
+    fields: Vec<KeyboardInputType>,
+  ) -> Result<!> {
+    *self = Self::WaitForKeyboardInput { lvalues };
+    Err(ExecResult::KeyboardInput { prompt, fields })
+  }
+
+  #[must_use]
   fn suspend_asm(&mut self) -> Result<!> {
     *self = Self::AsmSuspend;
     Err(ExecResult::Continue)
@@ -1350,6 +1744,27 @@ impl ExecState {
   fn sleep(&mut self, duration: Duration) -> Result<!> {
     *self = Self::Normal;
     Err(ExecResult::Sleep(duration))
+  }
+
+  fn io<T>(
+    &mut self,
+    range: Range,
+    op: &str,
+    result: io::Result<T>,
+  ) -> Result<T> {
+    match result {
+      Ok(v) => Ok(v),
+      Err(err) => {
+        let err = match err.kind() {
+          io::ErrorKind::NotFound => "文件不存在".to_owned(),
+          io::ErrorKind::AlreadyExists => "文件已存在".to_owned(),
+          io::ErrorKind::IsADirectory => "是文件夹".to_owned(),
+          io::ErrorKind::PermissionDenied => "没有权限".to_owned(),
+          _ => err.to_string(),
+        };
+        self.error(range, format!("{}时发生错误：{}", op, err))?
+      }
+    }
   }
 }
 
@@ -1444,5 +1859,16 @@ impl LValue {
       Self::Fn { name, .. } => *name,
     };
     symbol_type(interner, name)
+  }
+}
+
+impl Display for FileMode {
+  fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+    match self {
+      Self::Input => write!(f, "INPUT"),
+      Self::Output => write!(f, "OUTPUT"),
+      Self::Append => write!(f, "APPEND"),
+      Self::Random { .. } => write!(f, "RANDOM"),
+    }
   }
 }

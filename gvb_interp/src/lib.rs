@@ -3,7 +3,8 @@
   extend_one,
   const_panic,
   const_mut_refs,
-  never_type
+  never_type,
+  io_error_more
 )]
 
 pub mod ast;
@@ -19,6 +20,6 @@ mod gb2312 {
   include!(concat!(env!("OUT_DIR"), "/gb2312.rs"));
 }
 
-use fasthash::{RandomState, metro::Hash64_1};
+use fasthash::{metro::Hash64_1, RandomState};
 
 type HashMap<K, V> = std::collections::HashMap<K, V, RandomState<Hash64_1>>;

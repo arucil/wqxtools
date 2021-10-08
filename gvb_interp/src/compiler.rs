@@ -116,7 +116,12 @@ pub trait CodeEmitter {
   fn emit_unary_expr(&mut self, range: Range, kind: UnaryOpKind);
   fn emit_binary_expr(&mut self, range: Range, kind: BinaryOpKind);
   fn emit_user_func_call(&mut self, range: Range, name: Self::Symbol);
-  fn emit_sys_func_call(&mut self, range: Range, kind: SysFuncKind, arity: usize);
+  fn emit_sys_func_call(
+    &mut self,
+    range: Range,
+    kind: SysFuncKind,
+    arity: usize,
+  );
 
   fn clean_up(&mut self) -> Vec<Diagnostic>;
 }
@@ -580,17 +585,6 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E> {
     filenum: ExprId,
     fields: &[FieldSpec],
   ) {
-    let ty = self.compile_expr(filenum);
-    if !ty.matches(Type::Real) {
-      let range = &self.expr_node(filenum).range;
-      self.add_error(
-        range.clone(),
-        format!(
-          "表达式类型错误。FIELD 语句的文件号必须是{}类型，而这个表达式是{}类型",
-          Type::Real,
-          ty));
-    }
-
     for field in fields {
       let ty = self.compile_expr(field.len);
       if !ty.matches(Type::Real) {
@@ -604,18 +598,29 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E> {
       }
 
       let (is_array, ty) = self.compile_lvalue(field.var);
-      if !ty.matches(Type::Real) {
+      if !ty.matches(Type::String) {
         let range = &self.expr_node(field.var).range;
         self.add_error(
           range.clone(),
           format!(
             "字段类型错误。FIELD 语句的字段必须是{}类型，而这个{}是{}类型",
-            Type::Real,
+            Type::String,
             if is_array { "数组" } else { "变量" },
             ty
           ),
         );
       }
+    }
+
+    let ty = self.compile_expr(filenum);
+    if !ty.matches(Type::Real) {
+      let range = &self.expr_node(filenum).range;
+      self.add_error(
+        range.clone(),
+        format!(
+          "表达式类型错误。FIELD 语句的文件号必须是{}类型，而这个表达式是{}类型",
+          Type::Real,
+          ty));
     }
 
     self
@@ -984,6 +989,9 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E> {
             ),
           );
         }
+        self.code_emitter.emit_file_input(range, unsafe {
+          NonZeroUsize::new_unchecked(vars.len())
+        });
       }
       InputSource::Error => {
         // do nothing
@@ -1269,7 +1277,10 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E> {
         if text.ends_with('"') {
           text = &text[..text.len() - 1];
         }
-        if self.code_emitter.emit_string(range.clone(), text.to_owned()) {
+        if self
+          .code_emitter
+          .emit_string(range.clone(), text.to_owned())
+        {
           self.add_error(range, "字符串太长，长度超出 255");
         }
         Type::String
@@ -1455,7 +1466,9 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E> {
       }
     }
 
-    self.code_emitter.emit_sys_func_call(range, func.1, args.len());
+    self
+      .code_emitter
+      .emit_sys_func_call(range, func.1, args.len());
 
     ret_ty
   }

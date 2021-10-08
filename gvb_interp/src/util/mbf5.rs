@@ -236,14 +236,20 @@ impl From<u8> for Mbf5 {
   }
 }
 
-impl From<u16> for Mbf5 {
-  fn from(n: u16) -> Self {
+impl From<i16> for Mbf5 {
+  fn from(n: i16) -> Self {
     Self(n as f64)
   }
 }
 
 impl From<u32> for Mbf5 {
   fn from(n: u32) -> Self {
+    Self(n as f64)
+  }
+}
+
+impl From<u64> for Mbf5 {
+  fn from(n: u64) -> Self {
     Self(n as f64)
   }
 }

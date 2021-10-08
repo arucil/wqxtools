@@ -1,8 +1,10 @@
-use std::fmt::{self, Debug, Display, Formatter};
+use std::io;
 
-use super::{ScreenMode, PrintMode};
+use super::{PrintMode, ScreenMode};
 
 pub trait Device {
+  type File: FileHandle;
+
   /// Range: [0, 4]
   fn get_row(&self) -> u8;
 
@@ -51,36 +53,32 @@ pub trait Device {
 
   fn set_byte(&mut self, addr: u16, value: u8);
 
-  /// Range of `filenum`: [0, 2]
-  ///
-  /// Returns None if the file is not open.
-  fn file_status(&self, filenum: u8) -> Option<FileStatus>;
-
-  /// Range of `filenum`: [0, 2]
-  ///
-  /// Returns false if the file is not open.
-  fn close_file(&mut self, filenum: u8) -> bool;
-
-  fn close_all_files(&mut self);
+  fn open_file(
+    &mut self,
+    name: &[u8],
+    read: bool,
+    write: bool,
+    truncate: bool,
+  ) -> io::Result<Self::File>;
 
   fn cls(&mut self);
 
   /// Returns true if execution is finished, otherwise false is returned.
-  /// 
+  ///
   /// `steps` will be the steps left the when exec_asm() is returned.
-  /// 
+  ///
   /// If `start_addr` is None, continue previous unfinished execution.
-  fn exec_asm(
-    &mut self,
-    steps: &mut usize,
-    start_addr: Option<u16>,
-  ) -> bool;
+  fn exec_asm(&mut self, steps: &mut usize, start_addr: Option<u16>) -> bool;
 
   fn set_screen_mode(&mut self, mode: ScreenMode);
 
   fn set_print_mode(&mut self, mode: PrintMode);
 
   fn sleep_unit(&self) -> std::time::Duration;
+
+  fn beep(&mut self);
+
+  fn play_notes(&mut self, notes: &[u8]);
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -90,28 +88,16 @@ pub enum DrawMode {
   Not,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum FileMode {
-  Input,
-  Output,
-  Append,
-  Random,
-}
+pub trait FileHandle {
+  fn len(&self) -> io::Result<u64>;
 
-#[derive(Debug, Clone)]
-pub struct FileStatus {
-  pub pos: u32,
-  pub len: u32,
-  pub mode: FileMode,
-}
+  fn seek(&mut self, pos: u64) -> io::Result<()>;
 
-impl Display for FileMode {
-  fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-    match self {
-      Self::Input => write!(f, "INPUT"),
-      Self::Output => write!(f, "OUTPUT"),
-      Self::Append => write!(f, "APPEND"),
-      Self::Random => write!(f, "RANDOM"),
-    }
-  }
+  fn position(&self) -> io::Result<u64>;
+
+  fn write(&mut self, data: &[u8]) -> io::Result<()>;
+
+  fn read(&mut self, len: u64) -> io::Result<Vec<u8>>;
+
+  fn read_byte(&mut self) -> io::Result<u8>;
 }

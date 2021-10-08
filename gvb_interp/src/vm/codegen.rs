@@ -16,7 +16,7 @@ use string_interner::StringInterner;
 use super::Datum;
 
 pub struct CodeGen {
-  emoji_style: EmojiStyle,
+  pub(super) emoji_style: EmojiStyle,
   pub(super) interner: StringInterner,
   pub(super) data: Vec<Datum>,
   pub(super) code: Vec<Instr>,
@@ -431,7 +431,7 @@ impl CodeGen {
 
     for (i, instr) in self.code.iter_mut().enumerate().rev() {
       match &mut instr.kind {
-        InstrKind::Wend => wend_stack.push(Addr(i)),
+        InstrKind::Wend => wend_stack.push(Addr(i + 1)),
         InstrKind::WhileLoop { end, .. } => {
           if let Some(i) = wend_stack.pop() {
             *end = i;

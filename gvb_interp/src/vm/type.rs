@@ -59,8 +59,43 @@ impl ByteString {
     Ok(Self(bytes))
   }
 
+  pub fn to_string_lossy(&self, emoji_style: EmojiStyle) -> String {
+    let mut s = String::new();
+    let mut i = 0;
+    while i < self.len() {
+      let b = self[i];
+      if b < 128 {
+        s.push(b as char);
+        i += 1;
+      } else if i < self.len() - 1 {
+        let b2 = self[i + 1];
+        i += 2;
+        let code = ((b as u16) << 8) + b2 as u16;
+        if let Some(&c) = crate::gb2312::GB2312_TO_UNICODE.get(&code) {
+          s.push(unsafe { char::from_u32_unchecked(c as u32) });
+        } else if let Some(c) = emoji_style.code_to_char(code) {
+          s.push(c);
+        } else {
+          s.push(char::REPLACEMENT_CHARACTER);
+        }
+      } else {
+        s.push(char::REPLACEMENT_CHARACTER);
+        i += 1;
+      }
+    }
+    s
+  }
+
   pub fn append(&mut self, other: &mut Self) {
     self.0.append(&mut other.0);
+  }
+
+  pub fn drop_null(&self) -> &[u8] {
+    if let Some(i) = self.0.iter().position(|&b| b == 0) {
+      &self.0[..i]
+    } else {
+      &self.0
+    }
   }
 }
 
