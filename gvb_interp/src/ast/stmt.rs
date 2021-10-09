@@ -142,7 +142,7 @@ pub enum StmtKind {
     var: ExprId,
     value: ExprId,
   },
-  Run,
+  Run(Range),
   /// identical to REM
   Save(Range),
   /// identical to REM
@@ -661,7 +661,9 @@ fn print_stmt(
       expr_arena[*value].print(expr_arena, text, f)?;
       writeln!(f)
     }
-    StmtKind::Run => writeln!(f, "RUN"),
+    StmtKind::Run(range) => {
+      writeln!(f, "RUN [{:?}]", &text[range.start..range.end])
+    }
     StmtKind::Save(range) => {
       writeln!(f, "SAVE [{:?}]", &text[range.start..range.end])
     }

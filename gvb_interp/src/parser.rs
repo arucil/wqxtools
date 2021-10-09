@@ -603,7 +603,7 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
       Keyword(Kw::Rset) => {
         self.parse_set_stmt(|var, value| StmtKind::RSet { var, value })
       }
-      Keyword(Kw::Run) => self.parse_nullary_cmd(StmtKind::Run),
+      Keyword(Kw::Run) => self.parse_rem_stmt(StmtKind::Run, in_if_branch),
       Keyword(Kw::Save) => self.parse_rem_stmt(StmtKind::Save, in_if_branch),
       Keyword(Kw::Stop) => self.parse_rem_stmt(StmtKind::Stop, in_if_branch),
       Keyword(Kw::Swap) => self.parse_swap_stmt(),

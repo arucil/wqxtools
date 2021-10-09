@@ -93,11 +93,9 @@ pub trait FileHandle {
 
   fn seek(&mut self, pos: u64) -> io::Result<()>;
 
-  fn position(&self) -> io::Result<u64>;
+  fn pos(&self) -> io::Result<u64>;
 
   fn write(&mut self, data: &[u8]) -> io::Result<()>;
 
-  fn read(&mut self, len: u64) -> io::Result<Vec<u8>>;
-
-  fn read_byte(&mut self) -> io::Result<u8>;
+  fn read(&mut self, data: &mut [u8]) -> io::Result<usize>;
 }

@@ -1,0 +1,29 @@
+---
+source: gvb_interp/src/compiler.rs
+expression: "compile(r#\"\n10 read a,b$,c(m+1,10): data \"cj,:\",abc13,  126a  ,\n20 data \n30 data \"\",,,++  !:\n    \"#.trim())"
+
+---
+emoji_style: New
+--------- data ----------
+0     "cj,:"
+1     abc13
+2     126a  
+3     
+4     
+5     ""
+6     
+7     
+8     ++  !
+--------- code ----------
+0     0:8..9 push lvalue A, dimensions: 0
+1     0:8..9 read data
+2     0:10..12 push lvalue B$, dimensions: 0
+3     0:10..12 read data
+4     0:15..16 push var M
+5     0:17..18 push number 1
+6     0:15..18 add
+7     0:19..21 push number 10
+8     0:13..14 push lvalue C, dimensions: 2
+9     0:13..22 read data
+10    2:0..0 end
+

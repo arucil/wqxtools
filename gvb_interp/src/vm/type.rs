@@ -2,7 +2,7 @@ use std::ops::{Deref, DerefMut};
 
 use crate::machine::EmojiStyle;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ByteString(Vec<u8>);
 
 impl Deref for ByteString {

@@ -9,6 +9,8 @@ pub trait CodeEmitter {
   type Addr: Copy;
   type DatumIndex: Copy;
 
+  fn begin_line(&mut self, linenum: usize);
+
   fn emit_no_op(&mut self, range: Range);
 
   fn emit_op(&mut self, range: Range, kind: &StmtKind, arity: usize);
@@ -123,40 +125,38 @@ pub trait CodeEmitter {
     arity: usize,
   );
 
-  fn clean_up(&mut self) -> Vec<Diagnostic>;
+  fn clean_up(&mut self) -> Vec<(usize, Diagnostic)>;
 }
 
 pub fn compile_prog<E: CodeEmitter>(
   text: impl AsRef<str>,
-  prog: &Program,
+  prog: &mut Program,
   code_emitter: &mut E,
-) -> Vec<Diagnostic> {
+) {
   let text = text.as_ref();
   let mut state = CompileState {
-    text,
+    text: "",
     code_emitter,
-    diagnostics: vec![],
     pending_jump_labels: vec![],
     pending_datum_indices: vec![],
     data_start: HashMap::default(),
     label_addrs: HashMap::default(),
-    line: std::ptr::null(),
+    line: std::ptr::null_mut(),
+    linenum: 0,
   };
 
-  state.compile_prog(prog);
-
-  state.diagnostics
+  state.compile_prog(text, prog);
 }
 
 struct CompileState<'a, 'b, E: CodeEmitter> {
   text: &'b str,
   code_emitter: &'a mut E,
-  diagnostics: Vec<Diagnostic>,
-  pending_jump_labels: Vec<(E::Addr, Range, Option<Label>)>,
-  pending_datum_indices: Vec<(E::Addr, Range, Label)>,
+  pending_jump_labels: Vec<(E::Addr, (usize, Range), Option<Label>)>,
+  pending_datum_indices: Vec<(E::Addr, (usize, Range), Label)>,
   data_start: HashMap<Label, E::DatumIndex>,
   label_addrs: HashMap<Label, E::Addr>,
-  line: *const ProgramLine,
+  line: *mut ProgramLine,
+  linenum: usize,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -169,11 +169,13 @@ enum Type {
 
 impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E> {
   fn add_error(&mut self, range: Range, message: impl ToString) {
-    self.diagnostics.push(Diagnostic::new_error(range, message));
+    unsafe { &mut *self.line }
+      .diagnostics
+      .push(Diagnostic::new_error(range, message));
   }
 
   fn add_warning(&mut self, range: Range, message: impl ToString) {
-    self
+    unsafe { &mut *self.line }
       .diagnostics
       .push(Diagnostic::new_warning(range, message));
   }
@@ -190,11 +192,14 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E> {
     unsafe { (*self.line).label.as_ref().map(|x| x.1) }
   }
 
-  fn compile_prog(&mut self, prog: &Program) {
+  fn compile_prog(&mut self, text: &'b str, prog: &mut Program) {
     let mut last_label = -1;
+    let mut text_offset = 0;
 
-    for line in &prog.lines {
-      self.line = line as *const _;
+    for (i, line) in prog.lines.iter_mut().enumerate() {
+      self.text = &text[text_offset..text_offset + line.source_len];
+      self.linenum = i;
+      self.line = line as *mut _;
       if let Some((range, l)) = &line.label {
         if l.0 as i32 <= last_label {
           self.add_error(range.clone(), "行号必须递增");
@@ -205,47 +210,53 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E> {
         last_label = l.0 as i32;
       }
 
+      self.code_emitter.begin_line(i);
+
       for &stmt in &line.stmts {
         self.compile_stmt(stmt);
       }
+
+      text_offset += line.source_len;
     }
 
-    self.resolve_labels();
-    self.resolve_datum_indices();
-    self.diagnostics.append(&mut self.code_emitter.clean_up());
+    self.resolve_labels(prog);
+    self.resolve_datum_indices(prog);
+    for (line, diag) in self.code_emitter.clean_up() {
+      prog.lines[line].diagnostics.push(diag);
+    }
   }
 
-  fn resolve_labels(&mut self) {
-    for (addr, range, label) in
+  fn resolve_labels(&mut self, prog: &mut Program) {
+    for (addr, (line, range), label) in
       std::mem::replace(&mut self.pending_jump_labels, vec![])
     {
       let l = label.unwrap_or(Label(0));
       if let Some(&label_addr) = self.label_addrs.get(&l) {
         self.code_emitter.patch_jump_addr(addr, label_addr);
       } else {
-        self.add_error(
+        prog.lines[line].diagnostics.push(Diagnostic::new_error(
           range,
           if label.is_some() {
             format!("行号不存在")
           } else {
             format!("行号 0 不存在（省略行号则默认行号是 0）")
           },
-        );
+        ));
       }
     }
   }
 
-  fn resolve_datum_indices(&mut self) {
-    for (addr, range, label) in
+  fn resolve_datum_indices(&mut self, prog: &mut Program) {
+    for (addr, (line, range), label) in
       std::mem::replace(&mut self.pending_datum_indices, vec![])
     {
       if let Some(&index) = self.data_start.get(&label) {
         self.code_emitter.patch_datum_index(addr, index);
       } else {
-        self.add_warning(
+        prog.lines[line].diagnostics.push(Diagnostic::new_warning(
           range,
           "行号不存在，RESTORE 语句将会把 DATA 指针重置到程序开头",
-        );
+        ));
       }
     }
   }
@@ -431,7 +442,7 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E> {
       StmtKind::RSet { var, value } => {
         self.compile_set(range, &stmt.kind, *var, *value, "RSET")
       }
-      StmtKind::Run => self.code_emitter.emit_op(range, &stmt.kind, 0),
+      StmtKind::Run(_) => self.code_emitter.emit_op(range, &stmt.kind, 0),
       StmtKind::Save(_) => self.code_emitter.emit_no_op(range),
       StmtKind::Stop(_) => self.code_emitter.emit_no_op(range),
       StmtKind::Swap { left, right } => {
@@ -678,9 +689,11 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E> {
   fn compile_restore(&mut self, range: Range, label: &Option<(Range, Label)>) {
     let addr = self.code_emitter.emit_restore(range);
     if let Some((range, label)) = label {
-      self
-        .pending_datum_indices
-        .push((addr, range.clone(), *label));
+      self.pending_datum_indices.push((
+        addr,
+        (self.linenum, range.clone()),
+        *label,
+      ));
     }
   }
 
@@ -857,11 +870,15 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E> {
     };
 
     if let Some((range, label)) = label {
+      self.pending_jump_labels.push((
+        addr,
+        (self.linenum, range.clone()),
+        Some(*label),
+      ));
+    } else {
       self
         .pending_jump_labels
-        .push((addr, range.clone(), Some(*label)));
-    } else {
-      self.pending_jump_labels.push((addr, range, None));
+        .push((addr, (self.linenum, range), None));
     }
   }
 
@@ -1064,7 +1081,11 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E> {
       } else {
         self.code_emitter.emit_goto(range.clone())
       };
-      self.pending_jump_labels.push((addr, range.clone(), *label));
+      self.pending_jump_labels.push((
+        addr,
+        (self.linenum, range.clone()),
+        *label,
+      ));
     }
   }
 
@@ -1286,16 +1307,16 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E> {
         Type::String
       }
       ExprKind::NumberLit => {
-        let mut text = self.text[range.start + 1..range.end].to_owned();
+        let mut text = self.text[range.start..range.end].to_owned();
         text.retain(|c| c != ' ');
         match text.parse::<Mbf5>() {
           Ok(num) => self.code_emitter.emit_number(range, num),
           Err(ParseRealError::Infinite) => {
             self.add_error(range, "数值过大，超出实数的表示范围")
           }
-          Err(_) => unreachable!(),
+          Err(_) => unreachable!("{:?} {}", range, text),
         }
-        Type::String
+        Type::Real
       }
       ExprKind::SysFuncCall { func, args } => {
         self.compile_sys_func_call(range, func, args)
@@ -1657,6 +1678,139 @@ impl Display for Type {
       Self::Real => write!(f, "数值"),
       Self::String => write!(f, "字符串"),
       Self::Error => unreachable!(),
+    }
+  }
+}
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+  use crate::machine::EmojiStyle;
+  use crate::parser::parse_prog;
+  use crate::vm::codegen::CodeGen;
+  use insta::assert_debug_snapshot;
+  use pretty_assertions::assert_eq;
+
+  fn compile(text: &str) -> CodeGen {
+    let mut prog = parse_prog(text);
+    let mut codegen = CodeGen::new(EmojiStyle::New);
+    compile_prog(text, &mut prog, &mut codegen);
+    for (i, line) in prog.lines.iter().enumerate() {
+      assert_eq!(line.diagnostics, vec![], "line {}", i);
+    }
+    codegen
+  }
+
+  #[test]
+  fn assignment() {
+    assert_debug_snapshot!(compile(r#"10 a=a*b+coo%/2^len(a$+"xx和")"#));
+  }
+
+  #[test]
+  fn nullary_statement() {
+    assert_debug_snapshot!(compile(
+      r#"
+10 beep:clear:end:cls
+20 cont : rem ss lssss  jfju14jlgsas975309fakl;gkS&^*$%F951)
+30 flash:text:graph:notrace:pop:return:inKey$:trace:run jf:aksdl
+    "#
+      .trim()
+    ));
+  }
+
+  #[test]
+  fn draw() {
+    assert_debug_snapshot!(compile(r#"
+10 boX 1+2,3,4,5,7:box a%,val(c$(a,b)+chr$(tan(72))),m%(3,j+k,i),0:box 1,2,3,4,5,6
+20 draw 10,20:draw -3,1,t
+30 circle x*10,y*10,3:circle x1,y1%+2,11,0:circle x2,y2,r,4,5
+40 line x0,y0,x1,y1:line x0,y0,x1,y1,2
+50 ellipse x,y,a,b:ellipse x,y,a,b,1:ellipse x,y,a,b,k,6
+    "#.trim()));
+  }
+
+  #[test]
+  fn jump() {
+    assert_debug_snapshot!(compile(
+      r#"
+0 :
+10 ::gosub 30:goto 10::
+20 on x+1 goto 30,,40:on m(x) gosub:on m gosub 40,50,40,,
+30 print 1:end
+40 print 2;:end
+50 print 3,:end
+    "#
+      .trim()
+    ));
+  }
+
+  #[test]
+  fn ppc() {
+    assert_debug_snapshot!(compile(
+      r#"
+10 let a = peek(23):poke 237+i,c(i+1)
+20 call 31284+k
+    "#
+      .trim()
+    ));
+  }
+
+  #[test]
+  fn data() {
+    assert_debug_snapshot!(compile(
+      r#"
+10 read a,b$,c(m+1,10): data "cj,:",abc13,  126a  ,
+20 data 
+30 data "",,,++  !:
+40 restore:restore 30:restore 20:restore 25
+    "#
+      .trim()
+    ));
+  }
+
+  #[test]
+  fn r#fn() {
+    assert_debug_snapshot!(compile(
+      r#"
+10 def fn k(x%)=sin(i/2)+3:def fn F%(x) = f%(x)
+20 let k=1+fn k(37+fn k(0))
+    "#
+      .trim()
+    ));
+  }
+
+  #[test]
+  fn dim() {
+    assert_debug_snapshot!(compile(
+      r#"
+10 dim a$,b(3,f(2)),k%(m+1):dim a
+    "#
+      .trim()
+    ));
+  }
+
+  mod file {
+    use super::*;
+
+    #[test]
+    fn close() {
+      assert_debug_snapshot!(compile(
+        r#"
+10 close 3: close #2:close#k+1
+30 close fi(i):
+    "#
+        .trim()
+      ));
+    }
+
+    #[test]
+    fn field() {
+      assert_debug_snapshot!(compile(
+        r#"
+10 field f(i)+1, 25aSa$(i), 1 as m$ : field #1,k+3 asa$
+    "#
+        .trim()
+      ));
     }
   }
 }

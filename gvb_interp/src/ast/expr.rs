@@ -177,7 +177,7 @@ impl Display for BinaryOpKind {
       Self::Sub => "减法",
       Self::Mul => "乘法",
       Self::Div => "除法",
-      Self::Pow => "乘法",
+      Self::Pow => "乘方",
       Self::And => "AND",
       Self::Or => "OR",
     };

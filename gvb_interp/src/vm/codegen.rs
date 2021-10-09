@@ -1,9 +1,11 @@
 use std::convert::TryFrom;
+#[cfg(test)]
+use std::fmt::{self, Debug, Formatter};
 use std::num::NonZeroUsize;
 
 use super::{
-  Addr, Alignment, ByteString, DatumIndex, Instr, InstrKind, PrintMode,
-  ScreenMode, StringError, Symbol, DUMMY_ADDR, FISRT_DATUM_INDEX,
+  Addr, Alignment, ByteString, DatumIndex, Instr, InstrKind, Location,
+  PrintMode, ScreenMode, StringError, Symbol, DUMMY_ADDR, FISRT_DATUM_INDEX,
 };
 use crate::ast::{
   BinaryOpKind, FileMode, Range, StmtKind, SysFuncKind, UnaryOpKind,
@@ -20,6 +22,7 @@ pub struct CodeGen {
   pub(super) interner: StringInterner,
   pub(super) data: Vec<Datum>,
   pub(super) code: Vec<Instr>,
+  cur_line: usize,
 }
 
 impl CodeGen {
@@ -29,11 +32,18 @@ impl CodeGen {
       interner: StringInterner::new(),
       data: vec![],
       code: vec![],
+      cur_line: 0,
     }
   }
 
   fn push_instr(&mut self, range: Range, kind: InstrKind) {
-    self.code.push(Instr { range, kind })
+    self.code.push(Instr {
+      loc: Location {
+        line: self.cur_line,
+        range,
+      },
+      kind,
+    })
   }
 }
 
@@ -41,6 +51,10 @@ impl CodeEmitter for CodeGen {
   type Symbol = Symbol;
   type Addr = Addr;
   type DatumIndex = DatumIndex;
+
+  fn begin_line(&mut self, line: usize) {
+    self.cur_line = line;
+  }
 
   fn emit_no_op(&mut self, _range: Range) {
     // do nothing
@@ -118,7 +132,7 @@ impl CodeEmitter for CodeGen {
       StmtKind::RSet { .. } => {
         self.push_instr(range, InstrKind::AlignedAssign(Alignment::Right))
       }
-      StmtKind::Run => self.push_instr(range, InstrKind::Restart),
+      StmtKind::Run(..) => self.push_instr(range, InstrKind::Restart),
       StmtKind::Swap { .. } => self.push_instr(range, InstrKind::Swap),
       StmtKind::Text => {
         self.push_instr(range, InstrKind::SetScreenMode(ScreenMode::Text))
@@ -131,13 +145,12 @@ impl CodeEmitter for CodeGen {
 
   fn emit_datum(
     &mut self,
-    range: Range,
+    _range: Range,
     value: String,
     is_quoted: bool,
   ) -> Self::DatumIndex {
     let index = DatumIndex(self.data.len());
     self.data.push(Datum {
-      range,
       value: ByteString::from_str(value, self.emoji_style).unwrap(),
       is_quoted,
     });
@@ -151,20 +164,23 @@ impl CodeEmitter for CodeGen {
     param: Self::Symbol,
   ) -> Self::Addr {
     let addr = Addr(self.code.len());
-    self.code.push(Instr {
+    self.push_instr(
       range,
-      kind: InstrKind::DefFn {
+      InstrKind::DefFn {
         name,
         param,
         end: DUMMY_ADDR,
       },
-    });
+    );
     addr
   }
 
   fn end_def_fn(&mut self, def_addr: Self::Addr) {
-    let range = self.code[def_addr.0].range.clone();
-    self.push_instr(range, InstrKind::ReturnFn);
+    let loc = self.code[def_addr.0].loc.clone();
+    self.code.push(Instr {
+      loc,
+      kind: InstrKind::ReturnFn,
+    });
     let cur_addr = Addr(self.code.len());
     match &mut self.code[def_addr.0].kind {
       InstrKind::DefFn { end, .. } => {
@@ -413,20 +429,17 @@ impl CodeEmitter for CodeGen {
     self.push_instr(range, InstrKind::SysFuncCall { kind, arity });
   }
 
-  fn clean_up(&mut self) -> Vec<Diagnostic> {
+  fn clean_up(&mut self) -> Vec<(usize, Diagnostic)> {
     let mut diags = vec![];
     self.patch_while_instr(&mut diags);
     self.convert_for_loop_to_sleep(&mut diags);
-    self.code.push(Instr {
-      range: Range::new(0, 0),
-      kind: InstrKind::End,
-    });
+    self.push_instr(Range::new(0, 0), InstrKind::End);
     diags
   }
 }
 
 impl CodeGen {
-  fn patch_while_instr(&mut self, diagnostics: &mut Vec<Diagnostic>) {
+  fn patch_while_instr(&mut self, diagnostics: &mut Vec<(usize, Diagnostic)>) {
     let mut wend_stack: Vec<Addr> = vec![];
 
     for (i, instr) in self.code.iter_mut().enumerate().rev() {
@@ -436,9 +449,12 @@ impl CodeGen {
           if let Some(i) = wend_stack.pop() {
             *end = i;
           } else {
-            diagnostics.push(Diagnostic::new_error(
-              instr.range.clone(),
-              "WHILE 语句没有对应的 WEND 语句",
+            diagnostics.push((
+              instr.loc.line,
+              Diagnostic::new_error(
+                instr.loc.range.clone(),
+                "WHILE 语句没有对应的 WEND 语句",
+              ),
             ));
           }
         }
@@ -449,7 +465,10 @@ impl CodeGen {
     }
   }
 
-  fn convert_for_loop_to_sleep(&mut self, _diagnostics: &mut Vec<Diagnostic>) {
+  fn convert_for_loop_to_sleep(
+    &mut self,
+    _diagnostics: &mut Vec<(usize, Diagnostic)>,
+  ) {
     for i in 0..self.code.len() {
       match &self.code[i].kind {
         InstrKind::ForLoop { name, has_step } => {
@@ -506,5 +525,34 @@ impl CodeGen {
         }
       }
     }
+  }
+}
+
+#[cfg(test)]
+impl Debug for CodeGen {
+  fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+    writeln!(f, "emoji_style: {:?}", self.emoji_style)?;
+    writeln!(f, "--------- data ----------")?;
+    for (i, datum) in self.data.iter().enumerate() {
+      let quote = if datum.is_quoted { "\"" } else { "" };
+      writeln!(
+        f,
+        "{:<6}{}{}{}",
+        i,
+        quote,
+        datum.value.to_string_lossy(self.emoji_style),
+        quote
+      )?;
+    }
+    writeln!(f, "--------- code ----------")?;
+    for (i, instr) in self.code.iter().enumerate() {
+      writeln!(
+        f,
+        "{:<6}{}",
+        i,
+        instr.print(&self.interner, self.emoji_style)
+      )?;
+    }
+    Ok(())
   }
 }
