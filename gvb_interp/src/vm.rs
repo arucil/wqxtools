@@ -637,7 +637,7 @@ where
         let value = self.value_stack.pop().unwrap().1;
         match value {
           TmpValue::Real(num) => self.device.print(num.to_string().as_bytes()),
-          TmpValue::String(s) => self.device.print(s.drop_null()),
+          TmpValue::String(s) => self.device.print(&s.to_print_form()),
           _ => unreachable!(),
         }
       }
@@ -912,9 +912,7 @@ where
         if let Some(addr) = found {
           self.pc = addr.0;
         } else {
-          self
-            .state
-            .error(loc, "WEND 语句找不到匹配的 WHILE 语句")?;
+          self.state.error(loc, "WEND 语句找不到匹配的 WHILE 语句")?;
         }
 
         return Ok(());
@@ -1267,7 +1265,7 @@ where
           }
         } else {
           self.device.print(b"\"");
-          self.device.print(s.drop_null());
+          self.device.print(&s.to_print_form());
           self.device.print(b"\"");
           if !end {
             self.device.print(b",");
@@ -1661,7 +1659,11 @@ where
     self.pc += 1;
   }
 
-  fn assign_input(&mut self, input: ExecInput, lvalues: Vec<(Location, LValue)>) {
+  fn assign_input(
+    &mut self,
+    input: ExecInput,
+    lvalues: Vec<(Location, LValue)>,
+  ) {
     match input {
       ExecInput::KeyboardInput(values) => {
         let mut comma = false;
@@ -1681,7 +1683,7 @@ where
             }
             KeyboardInput::String(s) => {
               self.device.print(b"\"");
-              self.device.print(s.drop_null());
+              self.device.print(&s.to_print_form());
               self.device.print(b"\"");
               self.store.store_value(lvalue, Value::String(s));
             }

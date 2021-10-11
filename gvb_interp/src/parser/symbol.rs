@@ -82,6 +82,10 @@ impl SymbolSetBackup {
   pub fn set(&self, symbols: &mut SymbolSet) {
     symbols.0 = self.org_set.0;
   }
+
+  pub fn contains_token(&self, tok: TokenKind) -> bool {
+    self.org_set.contains_token(tok)
+  }
 }
 
 impl From<Symbol> for usize {
@@ -122,7 +126,7 @@ impl From<Nonterminal> for Symbol {
 }
 
 impl Nonterminal {
-  const EXPR_FIRST_SYMBOLS: SymbolSet = {
+  pub const EXPR_FIRST_SYMBOLS: SymbolSet = {
     let mut set = SymbolSet::new();
     set.add(Symbol::Term(TokenKind::Float).to_usize());
     set.add(Symbol::Term(TokenKind::Label).to_usize());
@@ -164,7 +168,7 @@ impl Nonterminal {
     set
   };
 
-  const STMT_FIRST_SYMBOLS: SymbolSet = {
+  pub const STMT_FIRST_SYMBOLS: SymbolSet = {
     let mut set = SymbolSet::new();
     set.add(Symbol::Term(TokenKind::Keyword(Keyword::Auto)).to_usize());
     set.add(Symbol::Term(TokenKind::Keyword(Keyword::Beep)).to_usize());

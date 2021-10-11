@@ -1,5 +1,5 @@
 use smallvec::{Array, SmallVec};
-use std::fmt::{self, Alignment, Debug, Formatter};
+use std::fmt::{self, Debug, Formatter};
 use std::ops::{Deref, DerefMut};
 
 pub mod expr;
@@ -98,38 +98,6 @@ impl Range {
 
 impl Debug for Range {
   fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-    let s = format!("{}..{}", self.start, self.end);
-    if let Some(w) = f.width() {
-      if w > s.len() {
-        match f.align() {
-          Some(Alignment::Right) | None => {
-            return write!(
-              f,
-              "{}{}",
-              f.fill().to_string().repeat(w - s.len()),
-              s
-            )
-          }
-          Some(Alignment::Left) => {
-            return write!(
-              f,
-              "{}{}",
-              s,
-              f.fill().to_string().repeat(w - s.len()),
-            )
-          }
-          Some(Alignment::Center) => {
-            return write!(
-              f,
-              "{}{}{}",
-              f.fill().to_string().repeat((w - s.len()) / 2),
-              s,
-              f.fill().to_string().repeat((w - s.len() + 1) / 2),
-            )
-          }
-        }
-      }
-    }
-    write!(f, "{}", s)
+    f.pad(&format!("{}..{}", self.start, self.end))
   }
 }

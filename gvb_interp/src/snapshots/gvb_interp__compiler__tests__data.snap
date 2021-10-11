@@ -1,6 +1,6 @@
 ---
 source: gvb_interp/src/compiler.rs
-expression: "compile(r#\"\n10 read a,b$,c(m+1,10): data \"cj,:\",abc13,  126a  ,\n20 data \n30 data \"\",,,++  !:\n    \"#.trim())"
+expression: "compile(r#\"\n10 read a,b$,c(m+1,10): data \"cj,:\",abc13,  126a  ,\n20 data \n30 data \"\",,,++  !:\n40 restore:restore 30:restore 20:restore 25\n    \"#.trim())"
 
 ---
 emoji_style: New
@@ -15,15 +15,19 @@ emoji_style: New
 7     
 8     ++  !
 --------- code ----------
-0     0:8..9 push lvalue A, dimensions: 0
-1     0:8..9 read data
-2     0:10..12 push lvalue B$, dimensions: 0
-3     0:10..12 read data
-4     0:15..16 push var M
-5     0:17..18 push number 1
-6     0:15..18 add
-7     0:19..21 push number 10
-8     0:13..14 push lvalue C, dimensions: 2
-9     0:13..22 read data
-10    2:0..0 end
+0     0:8..9    push lvalue A, dimensions: 0
+1     0:8..9    read data
+2     0:10..12  push lvalue B$, dimensions: 0
+3     0:10..12  read data
+4     0:15..16  push var M
+5     0:17..18  push number 1
+6     0:15..18  add
+7     0:19..21  push number 10
+8     0:13..14  push lvalue C, dimensions: 2
+9     0:13..22  read data
+10    3:3..10   restore data ptr: 0
+11    3:11..21  restore data ptr: 5
+12    3:22..32  restore data ptr: 4
+13    3:33..43  restore data ptr: 0
+14    3:0..0    end
 

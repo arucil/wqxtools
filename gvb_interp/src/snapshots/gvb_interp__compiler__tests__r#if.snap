@@ -1,0 +1,54 @@
+---
+source: gvb_interp/src/compiler.rs
+expression: "compile(r#\"\n10 if a+b goto print:30:\n20 if f(x)>3 then cont:else graph:cls:gosub 10\n30 if a< >b goto x=x+1:20:30:if x>10 then play \"abc\" else 50:t(i)=int(x/2):else 10\n50 rem x\n    \"#.trim())"
+
+---
+emoji_style: New
+--------- data ----------
+--------- code ----------
+0     0:6..7    push var A
+1     0:8..9    push var B
+2     0:6..9    add
+3     0:3..24   if zero goto 6
+4     0:15..20  print newline
+5     0:21..23  goto 16
+6     1:8..9    push var X
+7     1:6..10   push index F, dimensions: 1
+8     1:11..12  push number 3
+9     1:6..12   gt
+10    1:3..46   if zero goto 13
+11    1:18..22  no op
+12    1:3..46   goto 16
+13    1:28..33  set screen mode: Graph
+14    1:34..37  cls
+15    1:38..46  gosub 0
+16    2:6..7    push var A
+17    2:10..11  push var B
+18    2:6..11   ne
+19    2:3..82   if zero goto 43
+20    2:17..18  push lvalue X, dimensions: 0
+21    2:19..20  push var X
+22    2:21..22  push number 1
+23    2:19..22  add
+24    2:17..22  assign
+25    2:23..25  goto 6
+26    2:26..28  goto 16
+27    2:32..33  push var X
+28    2:34..36  push number 10
+29    2:32..36  gt
+30    2:29..75  if zero goto 34
+31    2:47..52  push string "abc"
+32    2:42..52  play notes
+33    2:29..75  goto 42
+34    2:58..60  goto 44
+35    2:63..64  push var I
+36    2:61..62  push lvalue T, dimensions: 1
+37    2:70..71  push var X
+38    2:72..73  push number 2
+39    2:70..73  div
+40    2:66..74  call sys func INT, arity: 1
+41    2:61..74  assign
+42    2:3..82   goto 44
+43    2:80..82  goto 0
+44    3:0..0    end
+

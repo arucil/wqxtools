@@ -1549,7 +1549,12 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
           self.set_expected_symbols_at_eof();
           break;
         }
-        _ => {
+        tok => {
+          if !Nonterminal::EXPR_FIRST_SYMBOLS.contains_token(tok)
+            && old_follow.contains_token(tok)
+          {
+            break;
+          }
           let expr = self.parse_expr();
           elems.push(PrintElement::Expr(expr));
         }
@@ -1667,6 +1672,11 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
         _ => {}
       }
 
+      if !Nonterminal::EXPR_FIRST_SYMBOLS.contains_token(self.token.1)
+        && old_follow.contains_token(self.token.1)
+      {
+        break;
+      }
       datum = self.parse_expr();
     }
 
@@ -2535,7 +2545,8 @@ mod parser_tests {
 
   #[test]
   fn input() {
-    let line = r#"10 inPUT # s, A$, a$(3,i) : InPuT "ENTER:";A,B:INPUT A%, fn f(x+1)"#;
+    let line =
+      r#"10 inPUT # s, A$, a$(3,i) : InPuT "ENTER:";A,B:INPUT A%, fn f(x+1)"#;
     assert_snapshot!(parse_line(line).0.to_string(line));
   }
 
@@ -2671,6 +2682,12 @@ mod parser_tests {
     fn expected_symbols_after_colon() {
       let line = r#"10 poke a+b,c-1: cls:  "#;
       assert_debug_snapshot!(parse_line(line).1);
+    }
+
+    #[test]
+    fn print_after_semicolon() {
+      let line = r#"print a$+b$; print a$b$:"#;
+      assert_snapshot!(parse_line(line).0.to_string(line));
     }
   }
 

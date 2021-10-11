@@ -1,0 +1,25 @@
+---
+source: gvb_interp/src/compiler.rs
+expression: "compile(r#\"\n10 locate i+1:locate,2*k(m+1):locate 5,10\n    \"#.trim())"
+
+---
+emoji_style: New
+--------- data ----------
+--------- code ----------
+0     0:10..11  push var I
+1     0:12..13  push number 1
+2     0:10..13  add
+3     0:10..13  set row
+4     0:21..22  push number 2
+5     0:25..26  push var M
+6     0:27..28  push number 1
+7     0:25..28  add
+8     0:23..29  push index K, dimensions: 1
+9     0:21..29  mul
+10    0:21..29  set column
+11    0:37..38  push number 5
+12    0:37..38  set row
+13    0:39..41  push number 10
+14    0:39..41  set column
+15    0:0..0    end
+

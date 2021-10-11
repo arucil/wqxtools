@@ -388,7 +388,6 @@ impl From<usize> for TokenKind {
       1 => Self::Label,
       2 => Self::Float,
       3 => Self::String,
-      4 => unreachable!("SysFunc"),
       4..24 => Self::Punc(Punc::from_usize(n - 4).unwrap()),
       24..110 => Self::Keyword(Keyword::from_usize(n - 24).unwrap()),
       110..150 => Self::SysFunc(SysFuncKind::from_usize(n - 110).unwrap()),

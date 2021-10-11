@@ -908,18 +908,21 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E> {
       self.compile_stmt(stmt);
     }
 
-    let conseq_end_addr = self.code_emitter.emit_goto(range);
-    let alt_addr = self.code_emitter.current_addr();
-    self.code_emitter.patch_jump_addr(jz_addr, alt_addr);
-
     if let Some(alt) = alt {
+      let conseq_end_addr = self.code_emitter.emit_goto(range);
+      let alt_addr = self.code_emitter.current_addr();
+      self.code_emitter.patch_jump_addr(jz_addr, alt_addr);
+
       for &stmt in alt.iter() {
         self.compile_stmt(stmt);
       }
-    }
 
-    let end_addr = self.code_emitter.current_addr();
-    self.code_emitter.patch_jump_addr(conseq_end_addr, end_addr);
+      let end_addr = self.code_emitter.current_addr();
+      self.code_emitter.patch_jump_addr(conseq_end_addr, end_addr);
+    } else {
+      let end_addr = self.code_emitter.current_addr();
+      self.code_emitter.patch_jump_addr(jz_addr, end_addr);
+    }
   }
 
   fn compile_input(
@@ -1274,12 +1277,16 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E> {
             } else if matches!(&elems[i + 1], PrintElement::Expr(_)) {
               self
                 .code_emitter
-                .emit_number(elem_range.clone(), Mbf5::zero());
+                .emit_number(elem_range.clone(), Mbf5::one());
               self.code_emitter.emit_print_spc(elem_range.clone());
             }
           }
         },
       }
+    }
+
+    if elems.is_empty() {
+      self.code_emitter.emit_print_newline(range);
     }
   }
 
@@ -1696,7 +1703,13 @@ mod tests {
     let mut codegen = CodeGen::new(EmojiStyle::New);
     compile_prog(text, &mut prog, &mut codegen);
     for (i, line) in prog.lines.iter().enumerate() {
-      assert_eq!(line.diagnostics, vec![], "line {}", i);
+      let diags: Vec<_> = line
+        .diagnostics
+        .iter()
+        .filter(|d| d.severity == Severity::Error)
+        .cloned()
+        .collect();
+      assert_eq!(diags, vec![], "line {}", i);
     }
     codegen
   }
@@ -1789,8 +1802,86 @@ mod tests {
     ));
   }
 
+  #[test]
+  fn for_loop() {
+    assert_debug_snapshot!(compile(
+      r#"
+10 for i%=10 to n+1:for abc=k(m)*3 to 31 step -n*k
+20 next:next i:next i,j,ka
+    "#
+      .trim()
+    ));
+  }
+
+  #[test]
+  fn r#if() {
+    assert_debug_snapshot!(compile(
+      r#"
+10 if a+b goto print:30:
+20 if f(x)>3 then cont:else graph:cls:gosub 10
+30 if a< >b goto x=x+1:20:30:if x>10 then play "abc" else 50:t(i)=int(x/2):else 10
+50 rem x
+    "#
+      .trim()
+    ));
+  }
+
+  #[test]
+  fn input() {
+    assert_debug_snapshot!(compile(
+      r#"
+10 input a, b$, c%(m+2,i): input "ABC123俄"; fn v(t%), c%
+    "#
+      .trim()
+    ));
+  }
+
+  #[test]
+  fn locate() {
+    assert_debug_snapshot!(compile(
+      r#"
+10 locate i+1:locate,2*k(m+1):locate 5,10
+    "#
+      .trim()
+    ));
+  }
+
+  #[test]
+  fn set() {
+    assert_debug_snapshot!(compile(
+      r#"
+10 lset r$(x)=chr$(0):rset t$="abc"+str$(i)
+    "#
+      .trim()
+    ));
+  }
+
+  #[test]
+  fn print() {
+    assert_debug_snapshot!(compile(
+      r#"
+10 print:print;:print,:print a$:print a$+b$;: print a$b$:
+20 print a$ 3;spc(n+1);7:print spc(2)abc$: print;;t;:print ,T%(K),,;
+30 print 3;4,tab(7)6,tab(12);8,:
+40 print spc(2):print ,,tab(3)
+    "#
+      .trim()
+    ));
+  }
+
   mod file {
     use super::*;
+
+    #[test]
+    fn open() {
+      assert_debug_snapshot!(compile(
+        r#"
+10 open a$ for append as i: open "foo" i npu  T as3 len=L:
+30 open a$+b$ random a sc:open a$(3) out put as#k+1
+    "#
+        .trim()
+      ));
+    }
 
     #[test]
     fn close() {
@@ -1808,6 +1899,27 @@ mod tests {
       assert_debug_snapshot!(compile(
         r#"
 10 field f(i)+1, 25aSa$(i), 1 as m$ : field #1,k+3 asa$
+    "#
+        .trim()
+      ));
+    }
+
+    #[test]
+    fn get_put() {
+      assert_debug_snapshot!(compile(
+        r#"
+10 get f(i)+1, m*2:get #i/20,abc
+20 put #f(i)+1,m*3:put i/20,AbC%
+    "#
+        .trim()
+      ));
+    }
+
+    #[test]
+    fn input() {
+      assert_debug_snapshot!(compile(
+        r#"
+10 input #1, a, b$, c%(m+2,i)
     "#
         .trim()
       ));

@@ -83,17 +83,14 @@ pub enum InstrKind {
   },
   Not,
   Neg,
-  Eq,
-  Ne,
-  Gt,
-  Lt,
-  Ge,
-  Le,
+  CmpNum(CmpKind),
+  CmpStr(CmpKind),
   Add,
   Sub,
   Mul,
   Div,
   Pow,
+  Concat,
   And,
   Or,
   SysFuncCall {
@@ -233,7 +230,7 @@ impl Instr {
     emoji_style: EmojiStyle,
   ) -> String {
     format!(
-      "{:?} {}",
+      "{:<10?}{}",
       self.loc,
       self.kind.print(interner, emoji_style)
     )
@@ -395,6 +392,6 @@ impl InstrKind {
 
 impl Debug for Location {
   fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-    write!(f, "{}:{:?}", self.line, self.range)
+    f.pad(&format!("{}:{:?}", self.line, self.range))
   }
 }

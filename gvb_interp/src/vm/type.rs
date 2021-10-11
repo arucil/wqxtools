@@ -90,12 +90,22 @@ impl ByteString {
     self.0.append(&mut other.0);
   }
 
-  pub fn drop_null(&self) -> &[u8] {
-    if let Some(i) = self.0.iter().position(|&b| b == 0) {
-      &self.0[..i]
-    } else {
-      &self.0
+  pub fn to_print_form(&self) -> ByteString {
+    let mut buf = vec![];
+    let mut v = 0;
+    for &b in &self.0 {
+      if v > 0 {
+        buf.push(b);
+        v -= 1;
+      } else if b == 0x1f {
+        v = 2;
+      } else if b == 0 {
+        break;
+      } else {
+        buf.push(b);
+      }
     }
+    Self(buf)
   }
 }
 

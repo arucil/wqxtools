@@ -1,0 +1,15 @@
+---
+source: gvb_interp/src/parser.rs
+expression: parse_line(line).0.to_string(line)
+
+---
+label: None
+len: 24
+eol: None
+diagnostics: 
+  Error<0..24>: 缺少行号
+  Error<0..12>: 语句结尾必须是行尾或跟上冒号
+-----------------
+0..12     PRINT (<ID: a$> + <ID: b$>) ; 
+13..23    PRINT <ID: a$> <ID: b$> 
+
