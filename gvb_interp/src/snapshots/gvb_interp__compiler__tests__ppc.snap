@@ -6,7 +6,7 @@ expression: "compile(r#\"\n10 let a = peek(23):poke 237+i,c(i+1)\n20 call 31284+
 emoji_style: New
 --------- data ----------
 --------- code ----------
-0     0:7..8    push lvalue A, dimensions: 0
+0     0:7..8    push var lvalue A
 1     0:16..18  push number 23
 2     0:11..19  call sys func PEEK, arity: 1
 3     0:3..19   assign

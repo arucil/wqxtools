@@ -13,7 +13,7 @@ emoji_style: New
 4     0:23..31  print newline
 5     0:38..40  push var A$
 6     0:41..43  push var B$
-7     0:38..43  add
+7     0:38..43  concat
 8     0:38..43  print value
 9     0:52..54  push var A$
 10    0:52..54  print value

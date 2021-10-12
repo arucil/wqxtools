@@ -37,11 +37,13 @@ pub trait CodeEmitter {
     dimensions: NonZeroUsize,
   );
 
-  fn emit_lvalue(
+  fn emit_var_lvalue(&mut self, range: Range, name: Self::Symbol);
+
+  fn emit_index_lvalue(
     &mut self,
     range: Range,
     name: Self::Symbol,
-    dimensions: usize,
+    dimensions: NonZeroUsize,
   );
 
   fn emit_fn_lvalue(
@@ -116,13 +118,14 @@ pub trait CodeEmitter {
     dimensions: NonZeroUsize,
   );
   fn emit_unary_expr(&mut self, range: Range, kind: UnaryOpKind);
-  fn emit_binary_expr(&mut self, range: Range, kind: BinaryOpKind);
+  fn emit_num_binary_expr(&mut self, range: Range, kind: BinaryOpKind);
+  fn emit_str_binary_expr(&mut self, range: Range, kind: BinaryOpKind);
   fn emit_user_func_call(&mut self, range: Range, name: Self::Symbol);
   fn emit_sys_func_call(
     &mut self,
     range: Range,
     kind: SysFuncKind,
-    arity: usize,
+    arity: NonZeroUsize,
   );
 
   fn clean_up(&mut self) -> Vec<(usize, Diagnostic)>;
@@ -285,7 +288,7 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E> {
           }
         }
 
-        if $args.len() < $min_arity {
+        if $args.len().get() < $min_arity {
           self.add_error(
             $stmt.range.clone(),
             concat!(
@@ -293,7 +296,7 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E> {
               " 语句至少要有 ",
               stringify!($min_arity),
               " 个参数"));
-        } else if $args.len() > $max_arity {
+        } else if $args.len().get() > $max_arity {
           for &arg in &$args[$max_arity..] {
             let arg = &self.expr_node(arg);
             self.add_error(
@@ -309,7 +312,7 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E> {
           self.code_emitter.emit_op(
             $stmt.range.clone(),
             &$stmt.kind,
-            $args.len());
+            $args.len().get());
         };
       }}
     }
@@ -582,9 +585,7 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E> {
           let (name, _) = self.compile_sym(name_range.clone());
           self
             .code_emitter
-            .emit_dim(name_range.clone(), name, unsafe {
-              NonZeroUsize::new_unchecked(indices.len())
-            });
+            .emit_dim(name_range.clone(), name, indices.len());
         }
       }
     }
@@ -775,16 +776,16 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E> {
 
     for (i, datum) in data.iter().enumerate() {
       self.compile_expr(datum.datum);
-      if i < data.len() - 1 && !datum.comma {
+      if i < data.len().get() - 1 && !datum.comma {
         let range = self.expr_node(datum.datum).range.clone();
         self.add_warning(
           range,
-          "这个值会被 WRITE 语句忽略，请在表达式末尾加上逗号",
+          "这个表达式的值会被 WRITE 语句忽略，请在表达式末尾加上逗号",
         );
       }
 
       let range = self.expr_node(datum.datum).range.clone();
-      if i == data.len() - 1 {
+      if i == data.len().get() - 1 {
         self.code_emitter.emit_write_end(range, to_file);
       } else if datum.comma {
         self.code_emitter.emit_write(range, to_file);
@@ -993,7 +994,7 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E> {
             }
             text.to_owned()
           }),
-          unsafe { NonZeroUsize::new_unchecked(vars.len()) },
+          vars.len(),
         );
       }
       InputSource::File(filenum) => {
@@ -1009,9 +1010,7 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E> {
             ),
           );
         }
-        self.code_emitter.emit_file_input(range, unsafe {
-          NonZeroUsize::new_unchecked(vars.len())
-        });
+        self.code_emitter.emit_file_input(range, vars.len());
       }
       InputSource::Error => {
         // do nothing
@@ -1074,9 +1073,7 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E> {
       );
     }
 
-    self
-      .code_emitter
-      .emit_on(range, unsafe { NonZeroUsize::new_unchecked(labels.len()) });
+    self.code_emitter.emit_on(range, labels.len());
 
     for (range, label) in labels.iter() {
       let addr = if is_sub {
@@ -1229,7 +1226,7 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E> {
             func: (_, kind @ (SysFuncKind::Spc | SysFuncKind::Tab)),
             args,
           } => {
-            if args.len() > 1 {
+            if args.len().get() > 1 {
               for &arg in &args[1..] {
                 let arg = &self.expr_node(arg);
                 self.add_error(
@@ -1389,9 +1386,7 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E> {
 
         if let Some(name) = name {
           let (name, ty) = self.compile_sym(name.clone());
-          self.code_emitter.emit_index(range, name, unsafe {
-            NonZeroUsize::new_unchecked(indices.len())
-          });
+          self.code_emitter.emit_index(range, name, indices.len());
           ty
         } else {
           Type::Error
@@ -1455,7 +1450,7 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E> {
         (1, 1, [Type::Real, Type::Error, Type::Error], Type::Real)
       }
     };
-    if args.len() < min_arity {
+    if args.len().get() < min_arity {
       self.add_error(
         range.clone(),
         if min_arity == max_arity {
@@ -1464,7 +1459,7 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E> {
           format!("{:?} 函数至少要有 {} 个参数", func.1, min_arity)
         },
       );
-    } else if args.len() > max_arity {
+    } else if args.len().get() > max_arity {
       self.add_error(
         range.clone(),
         if min_arity == max_arity {
@@ -1511,8 +1506,6 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E> {
     let lhs_ty = self.compile_expr(lhs);
     let rhs_ty = self.compile_expr(rhs);
 
-    self.code_emitter.emit_binary_expr(range, op.1);
-
     match op.1 {
       BinaryOpKind::Eq
       | BinaryOpKind::Ne
@@ -1522,6 +1515,11 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E> {
       | BinaryOpKind::Le
       | BinaryOpKind::Add => {
         if lhs_ty.matches(rhs_ty) {
+          if lhs_ty == Type::String {
+            self.code_emitter.emit_str_binary_expr(range, op.1);
+          } else {
+            self.code_emitter.emit_num_binary_expr(range, op.1);
+          }
           if let BinaryOpKind::Add = op.1 {
             lhs_ty.as_rvalue_type()
           } else {
@@ -1572,6 +1570,7 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E> {
             ),
           );
         }
+        self.code_emitter.emit_num_binary_expr(range, op.1);
         Type::Real
       }
     }
@@ -1583,7 +1582,7 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E> {
     match &lvalue.kind {
       ExprKind::Ident => {
         let (var, ty) = self.compile_sym(lvalue.range.clone());
-        self.code_emitter.emit_lvalue(lvalue.range.clone(), var, 0);
+        self.code_emitter.emit_var_lvalue(lvalue.range.clone(), var);
         (false, ty)
       }
       ExprKind::Index { name, indices } => {
@@ -1604,7 +1603,7 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E> {
 
         if let Some(name_range) = name {
           let (name, ty) = self.compile_sym(name_range.clone());
-          self.code_emitter.emit_lvalue(
+          self.code_emitter.emit_index_lvalue(
             name_range.clone(),
             name,
             indices.len(),
@@ -1857,6 +1856,27 @@ mod tests {
   }
 
   #[test]
+  fn swap() {
+    assert_debug_snapshot!(compile(
+      r#"
+10 swap a$(b*2,3,i*10+j), c$:swap c%,d%
+    "#
+      .trim()
+    ));
+  }
+
+  #[test]
+  fn while_loop() {
+    assert_debug_snapshot!(compile(
+      r#"
+10 while a$>"AB=号即":print:wend:while a<>b:cls:while a<2:cls:wend
+20 cls:goto 20:wend
+    "#
+      .trim()
+    ));
+  }
+
+  #[test]
   fn print() {
     assert_debug_snapshot!(compile(
       r#"
@@ -1864,6 +1884,28 @@ mod tests {
 20 print a$ 3;spc(n+1);7:print spc(2)abc$: print;;t;:print ,T%(K),,;
 30 print 3;4,tab(7)6,tab(12);8,:
 40 print spc(2):print ,,tab(3)
+    "#
+      .trim()
+    ));
+  }
+
+  #[test]
+  fn write() {
+    assert_debug_snapshot!(compile(
+      r#"
+10 write 1+2, c$(t+1),:write a$b,mki$(j)
+    "#
+      .trim()
+    ));
+  }
+
+  #[test]
+  fn for_loop_to_sleep() {
+    assert_debug_snapshot!(compile(
+      r#"
+10 for i=1 to 30:next i:for j=0 to 2000 step 1:next:
+20 for j=1 to 1000:cls:next:for i=1 to n:next i,j:
+30 for k=1 to t step 1:next k:for k=1 to t step 1:next t
     "#
       .trim()
     ));
@@ -1920,6 +1962,16 @@ mod tests {
       assert_debug_snapshot!(compile(
         r#"
 10 input #1, a, b$, c%(m+2,i)
+    "#
+        .trim()
+      ));
+    }
+
+    #[test]
+    fn write() {
+      assert_debug_snapshot!(compile(
+        r#"
+10 write #k+1, abc$ 12+val(chr$(k)), s%(2),:write #2,a,b(1,2,3),c:
     "#
         .trim()
       ));

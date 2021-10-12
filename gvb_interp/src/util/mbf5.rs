@@ -445,6 +445,10 @@ impl Mbf5 {
     self.0 == 0.0
   }
 
+  pub fn is_one(&self) -> bool {
+    self.0 == 1.0
+  }
+
   pub fn abs(&self) -> Self {
     Self(self.0.abs())
   }

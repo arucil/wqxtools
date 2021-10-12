@@ -284,23 +284,6 @@ where
     let instr = &self.code[self.pc];
     let loc = instr.loc.clone();
 
-    macro_rules! bin_op {
-      ($lhs:ident, $rhs:ident, $body:expr) => {{
-        let $rhs = self.value_stack.pop().unwrap().1;
-        match $rhs {
-          TmpValue::Real($rhs) => {
-            let $lhs = self.value_stack.pop().unwrap().1.unwrap_real();
-            self.value_stack.push((loc, Mbf5::from($body).into()));
-          }
-          TmpValue::String($rhs) => {
-            let $lhs = self.value_stack.pop().unwrap().1.unwrap_string();
-            self.value_stack.push((loc, Mbf5::from($body).into()));
-          }
-          _ => unreachable!(),
-        }
-      }};
-    }
-
     match instr.kind.clone() {
       InstrKind::DefFn { name, param, end } => {
         self.store.user_funcs.insert(
@@ -336,15 +319,14 @@ where
         let data = ArrayData::new(symbol_type(&self.interner, name), size);
         self.store.arrays.insert(name, Array { bounds, data });
       }
-      InstrKind::PushLValue { name, dimensions } => {
-        if dimensions == 0 {
-          self.value_stack.push((loc, LValue::Var { name }.into()));
-        } else {
-          let offset = self.calc_array_offset(name, dimensions)?;
-          self
-            .value_stack
-            .push((loc, LValue::Index { name, offset }.into()));
-        }
+      InstrKind::PushVarLValue { name } => {
+        self.value_stack.push((loc, LValue::Var { name }.into()));
+      }
+      InstrKind::PushIndexLValue { name, dimensions } => {
+        let offset = self.calc_array_offset(name, dimensions)?;
+        self
+          .value_stack
+          .push((loc, LValue::Index { name, offset }.into()));
       }
       InstrKind::PushFnLValue { name, param } => {
         self
@@ -465,7 +447,7 @@ where
         self.state.inkey()?;
       }
       InstrKind::PushIndex { name, dimensions } => {
-        let offset = self.calc_array_offset(name, dimensions.get())?;
+        let offset = self.calc_array_offset(name, dimensions)?;
         let value = match &self.store.arrays[&name].data {
           ArrayData::Integer(arr) => Mbf5::from(arr[offset]).into(),
           ArrayData::Real(arr) => arr[offset].into(),
@@ -483,43 +465,46 @@ where
         let value = self.value_stack.pop().unwrap().1.unwrap_real();
         self.value_stack.push((loc, (-value).into()));
       }
-      InstrKind::Eq => bin_op!(lhs, rhs, lhs == rhs),
-      InstrKind::Ne => bin_op!(lhs, rhs, lhs != rhs),
-      InstrKind::Gt => bin_op!(lhs, rhs, lhs > rhs),
-      InstrKind::Lt => bin_op!(lhs, rhs, lhs < rhs),
-      InstrKind::Ge => bin_op!(lhs, rhs, lhs >= rhs),
-      InstrKind::Le => bin_op!(lhs, rhs, lhs <= rhs),
+      InstrKind::CmpNum(cmp) => {
+        let rhs = self.value_stack.pop().unwrap().1.unwrap_real();
+        let lhs = self.value_stack.pop().unwrap().1.unwrap_real();
+        self.value_stack.push((loc, Mbf5::from(cmp.cmp(lhs, rhs)).into()));
+      }
+      InstrKind::CmpStr(cmp) => {
+        let rhs = self.value_stack.pop().unwrap().1.unwrap_real();
+        let lhs = self.value_stack.pop().unwrap().1.unwrap_real();
+        self.value_stack.push((loc, Mbf5::from(cmp.cmp(lhs, rhs)).into()));
+      }
+      InstrKind::Concat => {
+        let mut rhs = self.value_stack.pop().unwrap().1.unwrap_string();
+        let mut lhs = self.value_stack.pop().unwrap().1.unwrap_string();
+        lhs.append(&mut rhs);
+        if lhs.len() > 255 {
+          self.state.error(
+            loc,
+            format!(
+              "运算结果字符串过长，长度超出 255。字符串长度为：{}",
+              lhs.len()
+            ),
+          )?;
+        }
+        self.value_stack.push((loc, lhs.into()));
+      }
       InstrKind::Add => {
-        let rhs = self.value_stack.pop().unwrap().1;
-        let lhs = self.value_stack.pop().unwrap().1;
-        match (lhs, rhs) {
-          (TmpValue::Real(lhs), TmpValue::Real(rhs)) => match lhs + rhs {
-            Ok(result) => self.value_stack.push((loc, result.into())),
-            Err(RealError::Infinite) => {
-              self.state.error(
+        let rhs = self.value_stack.pop().unwrap().1.unwrap_real();
+        let lhs = self.value_stack.pop().unwrap().1.unwrap_real();
+        match lhs + rhs {
+          Ok(result) => self.value_stack.push((loc, result.into())),
+          Err(RealError::Infinite) => {
+            self.state.error(
               loc,
               format!(
                 "运算结果数值过大，超出了实数的表示范围。加法运算的两个运算数分别为：{}，{}",
                 lhs,
                 rhs
               ))?;
-            }
-            Err(RealError::Nan) => unreachable!(),
-          },
-          (TmpValue::String(mut lhs), TmpValue::String(mut rhs)) => {
-            lhs.append(&mut rhs);
-            if lhs.len() > 255 {
-              self.state.error(
-                loc,
-                format!(
-                  "运算结果字符串过长，长度超出 255。字符串长度为：{}",
-                  lhs.len()
-                ),
-              )?;
-            }
-            self.value_stack.push((loc, lhs.into()));
           }
-          _ => unreachable!(),
+          Err(RealError::Nan) => unreachable!(),
         }
       }
       InstrKind::Sub => {
@@ -947,7 +932,7 @@ where
     &mut self,
     loc: Location,
     kind: SysFuncKind,
-    arity: usize,
+    arity: NonZeroUsize,
   ) -> Result<TmpValue> {
     match kind {
       SysFuncKind::Abs => {
@@ -1092,7 +1077,7 @@ where
         }
       }
       SysFuncKind::Mid => {
-        let len = if arity == 3 {
+        let len = if arity.get() == 3 {
           self.pop_u8(false)? as usize
         } else {
           255
@@ -1736,8 +1721,10 @@ where
   fn calc_array_offset(
     &mut self,
     name: Symbol,
-    dimensions: usize,
+    dimensions: NonZeroUsize,
   ) -> Result<usize> {
+    let dimensions = dimensions.get();
+
     if !self.store.arrays.contains_key(&name) {
       let data = ArrayData::new(
         symbol_type(&self.interner, name),

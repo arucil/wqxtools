@@ -7,15 +7,15 @@ emoji_style: New
 --------- data ----------
 --------- code ----------
 0     0:11..12  push var X
-1     0:8..10   push lvalue R$, dimensions: 1
+1     0:8..10   push index lvalue R$, dimensions: 1
 2     0:19..20  push number 0
 3     0:14..21  call sys func CHR$, arity: 1
 4     0:3..21   aligned assign, align: Left
-5     0:27..29  push lvalue T$, dimensions: 0
+5     0:27..29  push var lvalue T$
 6     0:30..35  push string "abc"
 7     0:41..42  push var I
 8     0:36..43  call sys func STR$, arity: 1
-9     0:30..43  add
+9     0:30..43  concat
 10    0:22..43  aligned assign, align: Right
 11    0:0..0    end
 

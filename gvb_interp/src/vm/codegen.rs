@@ -4,7 +4,7 @@ use std::fmt::{self, Debug, Formatter};
 use std::num::NonZeroUsize;
 
 use super::{
-  Addr, Alignment, ByteString, DatumIndex, Instr, InstrKind, Location,
+  Addr, Alignment, ByteString, CmpKind, DatumIndex, Instr, InstrKind, Location,
   PrintMode, ScreenMode, StringError, Symbol, DUMMY_ADDR, FISRT_DATUM_INDEX,
 };
 use crate::ast::{
@@ -199,13 +199,17 @@ impl CodeEmitter for CodeGen {
     self.push_instr(range, InstrKind::DimArray { name, dimensions });
   }
 
-  fn emit_lvalue(
+  fn emit_var_lvalue(&mut self, range: Range, name: Self::Symbol) {
+    self.push_instr(range, InstrKind::PushVarLValue { name });
+  }
+
+  fn emit_index_lvalue(
     &mut self,
     range: Range,
     name: Self::Symbol,
-    dimensions: usize,
+    dimensions: NonZeroUsize,
   ) {
-    self.push_instr(range, InstrKind::PushLValue { name, dimensions });
+    self.push_instr(range, InstrKind::PushIndexLValue { name, dimensions });
   }
 
   fn emit_fn_lvalue(
@@ -397,14 +401,14 @@ impl CodeEmitter for CodeGen {
     self.push_instr(range, kind);
   }
 
-  fn emit_binary_expr(&mut self, range: Range, kind: BinaryOpKind) {
+  fn emit_num_binary_expr(&mut self, range: Range, kind: BinaryOpKind) {
     let kind = match kind {
-      BinaryOpKind::Eq => InstrKind::Eq,
-      BinaryOpKind::Ne => InstrKind::Ne,
-      BinaryOpKind::Gt => InstrKind::Gt,
-      BinaryOpKind::Lt => InstrKind::Lt,
-      BinaryOpKind::Ge => InstrKind::Ge,
-      BinaryOpKind::Le => InstrKind::Le,
+      BinaryOpKind::Eq => InstrKind::CmpNum(CmpKind::Eq),
+      BinaryOpKind::Ne => InstrKind::CmpNum(CmpKind::Ne),
+      BinaryOpKind::Gt => InstrKind::CmpNum(CmpKind::Gt),
+      BinaryOpKind::Lt => InstrKind::CmpNum(CmpKind::Lt),
+      BinaryOpKind::Ge => InstrKind::CmpNum(CmpKind::Ge),
+      BinaryOpKind::Le => InstrKind::CmpNum(CmpKind::Le),
       BinaryOpKind::Add => InstrKind::Add,
       BinaryOpKind::Sub => InstrKind::Sub,
       BinaryOpKind::Mul => InstrKind::Mul,
@@ -412,6 +416,20 @@ impl CodeEmitter for CodeGen {
       BinaryOpKind::Pow => InstrKind::Pow,
       BinaryOpKind::And => InstrKind::And,
       BinaryOpKind::Or => InstrKind::Or,
+    };
+    self.push_instr(range, kind);
+  }
+
+  fn emit_str_binary_expr(&mut self, range: Range, kind: BinaryOpKind) {
+    let kind = match kind {
+      BinaryOpKind::Eq => InstrKind::CmpStr(CmpKind::Eq),
+      BinaryOpKind::Ne => InstrKind::CmpStr(CmpKind::Ne),
+      BinaryOpKind::Gt => InstrKind::CmpStr(CmpKind::Gt),
+      BinaryOpKind::Lt => InstrKind::CmpStr(CmpKind::Lt),
+      BinaryOpKind::Ge => InstrKind::CmpStr(CmpKind::Ge),
+      BinaryOpKind::Le => InstrKind::CmpStr(CmpKind::Le),
+      BinaryOpKind::Add => InstrKind::Concat,
+      _ => unreachable!(),
     };
     self.push_instr(range, kind);
   }
@@ -424,7 +442,7 @@ impl CodeEmitter for CodeGen {
     &mut self,
     range: Range,
     kind: SysFuncKind,
-    arity: usize,
+    arity: NonZeroUsize,
   ) {
     self.push_instr(range, InstrKind::SysFuncCall { kind, arity });
   }
@@ -472,7 +490,7 @@ impl CodeGen {
     for i in 0..self.code.len() {
       match &self.code[i].kind {
         InstrKind::ForLoop { name, has_step } => {
-          if i == self.code.len() || i < 2 {
+          if i == self.code.len() - 1 || i < 2 {
             continue;
           }
           match &self.code[i + 1].kind {
@@ -484,41 +502,45 @@ impl CodeGen {
             _ => continue,
           }
 
-          let mut step = 1.0;
-          let mut j = i - 1;
+          let mut end_index = i - 1;
           if *has_step {
-            if i >= 3 {
-              match &self.code[j].kind {
-                InstrKind::PushNum(num) if num.is_positive() => {
-                  step = f64::from(*num);
-                }
-                _ => continue,
-              }
+            if i >= 3
+              && matches!(
+                &self.code[end_index].kind,
+                InstrKind::PushNum(num) if num.is_one()
+              )
+            {
             } else {
               continue;
             }
-            j -= 1;
+            end_index -= 1;
           }
-          let steps = match (&self.code[j].kind, &self.code[j - 1].kind) {
-            (InstrKind::PushNum(end), InstrKind::PushNum(start))
-              if end.is_positive() && start.is_zero() || *start == 1.0 =>
-            {
-              let start = f64::from(*start);
-              let end = f64::from(*end);
-              let steps = ((end - start) / step).ceil();
-              if let Ok(steps) = Mbf5::try_from(steps) {
-                steps
-              } else {
-                continue;
+          if let InstrKind::PushNum(start) = &self.code[end_index - 1].kind {
+            if start.is_zero() || *start == 1.0 {
+              match &self.code[end_index].kind {
+                InstrKind::PushNum(end) if end.is_positive() => {
+                  let end = f64::from(*end);
+                  let steps = end.ceil();
+                  if let Ok(steps) = Mbf5::try_from(steps) {
+                    self.code[i - 1].kind = InstrKind::NoOp;
+                    self.code[end_index - 1].kind = InstrKind::NoOp;
+                    self.code[end_index].kind = InstrKind::PushNum(steps);
+                    self.code[i].kind = InstrKind::Sleep;
+                    self.code[i + 1].kind = InstrKind::NoOp;
+                  }
+                }
+                InstrKind::PushVar { .. } => {
+                  if *has_step {
+                    self.code[i - 1].kind = InstrKind::NoOp;
+                  }
+                  self.code[end_index - 1].kind = InstrKind::NoOp;
+                  self.code[i].kind = InstrKind::Sleep;
+                  self.code[i + 1].kind = InstrKind::NoOp;
+                }
+                _ => {}
               }
             }
-            _ => continue,
-          };
-          self.code[i - 1].kind = InstrKind::NoOp;
-          self.code[j - 1].kind = InstrKind::NoOp;
-          self.code[j].kind = InstrKind::PushNum(steps);
-          self.code[i].kind = InstrKind::Sleep;
-          self.code[i + 1].kind = InstrKind::NoOp;
+          }
         }
         _ => {
           // do nothing

@@ -45,9 +45,12 @@ pub enum InstrKind {
     name: Symbol,
     dimensions: NonZeroUsize,
   },
-  PushLValue {
+  PushVarLValue {
     name: Symbol,
-    dimensions: usize,
+  },
+  PushIndexLValue {
+    name: Symbol,
+    dimensions: NonZeroUsize,
   },
   PushFnLValue {
     name: Symbol,
@@ -95,7 +98,7 @@ pub enum InstrKind {
   Or,
   SysFuncCall {
     kind: SysFuncKind,
-    arity: usize,
+    arity: NonZeroUsize,
   },
   PrintNewLine,
   PrintSpc,
@@ -184,6 +187,16 @@ pub enum PrintMode {
   Flash,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CmpKind {
+  Eq,
+  Ne,
+  Gt,
+  Lt,
+  Ge,
+  Le,
+}
+
 impl InstrKind {
   pub fn map_symbol(self, sym_map: &HashMap<Symbol, Symbol>) -> Self {
     match self {
@@ -196,7 +209,10 @@ impl InstrKind {
         name: sym_map[&name],
         dimensions,
       },
-      Self::PushLValue { name, dimensions } => Self::PushLValue {
+      Self::PushVarLValue { name } => Self::PushVarLValue {
+        name: sym_map[&name],
+      },
+      Self::PushIndexLValue { name, dimensions } => Self::PushIndexLValue {
         name: sym_map[&name],
         dimensions,
       },
@@ -218,6 +234,19 @@ impl InstrKind {
         dimensions,
       },
       _ => self,
+    }
+  }
+}
+
+impl CmpKind {
+  pub fn cmp<T: PartialOrd>(self, lhs: T, rhs: T) -> bool {
+    match self {
+      Self::Eq => lhs == rhs,
+      Self::Ne => lhs != rhs,
+      Self::Gt => lhs > rhs,
+      Self::Lt => lhs < rhs,
+      Self::Ge => lhs >= rhs,
+      Self::Le => lhs <= rhs,
     }
   }
 }
@@ -256,8 +285,11 @@ impl InstrKind {
       Self::DimArray { name, dimensions } => {
         format!("dim array {}, dimension: {}", sym!(name), dimensions)
       }
-      Self::PushLValue { name, dimensions } => {
-        format!("push lvalue {}, dimensions: {}", sym!(name), dimensions)
+      Self::PushVarLValue { name } => {
+        format!("push var lvalue {}", sym!(name))
+      }
+      Self::PushIndexLValue { name, dimensions } => {
+        format!("push index lvalue {}, dimensions: {}", sym!(name), dimensions)
       }
       Self::PushFnLValue { name, param } => {
         format!("push lvalue FN {}({})", sym!(name), sym!(param))
@@ -298,12 +330,8 @@ impl InstrKind {
       }
       Self::Not => format!("not"),
       Self::Neg => format!("neg"),
-      Self::Eq => format!("eq"),
-      Self::Ne => format!("ne"),
-      Self::Gt => format!("gt"),
-      Self::Lt => format!("lt"),
-      Self::Ge => format!("ge"),
-      Self::Le => format!("le"),
+      Self::CmpStr(op) => format!("str {:?}", op),
+      Self::CmpNum(op) => format!("num {:?}", op),
       Self::Add => format!("add"),
       Self::Sub => format!("sub"),
       Self::Mul => format!("mul"),
@@ -311,6 +339,7 @@ impl InstrKind {
       Self::Pow => format!("pow"),
       Self::And => format!("and"),
       Self::Or => format!("or"),
+      Self::Concat => format!("concat"),
       Self::SysFuncCall { kind, arity } => {
         format!("call sys func {:?}, arity: {}", kind, arity)
       }

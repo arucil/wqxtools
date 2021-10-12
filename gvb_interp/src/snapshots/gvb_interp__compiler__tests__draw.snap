@@ -21,7 +21,7 @@ emoji_style: New
 12    0:47..49  push number 72
 13    0:43..50  call sys func TAN, arity: 1
 14    0:38..51  call sys func CHR$, arity: 1
-15    0:30..51  add
+15    0:30..51  concat
 16    0:26..52  call sys func VAL, arity: 1
 17    0:56..57  push number 3
 18    0:58..59  push var J

@@ -1,6 +1,7 @@
 use smallvec::{Array, SmallVec};
 use std::fmt::{self, Debug, Formatter};
 use std::ops::{Deref, DerefMut};
+use std::num::NonZeroUsize;
 
 pub mod expr;
 pub mod label;
@@ -27,6 +28,12 @@ pub struct NonEmptyVec<T: Array>(pub SmallVec<T>);
 pub struct Range {
   pub start: usize,
   pub end: usize,
+}
+
+impl<T: Array> NonEmptyVec<T> {
+  pub fn len(&self) -> NonZeroUsize {
+    unsafe { NonZeroUsize::new_unchecked(self.0.len()) }
+  }
 }
 
 impl<T> Clone for NonEmptyVec<T>

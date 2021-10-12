@@ -18,7 +18,7 @@ emoji_style: New
 9     0:45..46  push var X
 10    0:42..47  push index F%, dimensions: 1
 11    0:27..47  return from FN
-12    1:7..8    push lvalue K, dimensions: 0
+12    1:7..8    push var lvalue K
 13    1:9..10   push number 1
 14    1:16..18  push number 37
 15    1:24..25  push number 0

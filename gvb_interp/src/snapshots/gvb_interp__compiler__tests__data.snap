@@ -15,15 +15,15 @@ emoji_style: New
 7     
 8     ++  !
 --------- code ----------
-0     0:8..9    push lvalue A, dimensions: 0
+0     0:8..9    push var lvalue A
 1     0:8..9    read data
-2     0:10..12  push lvalue B$, dimensions: 0
+2     0:10..12  push var lvalue B$
 3     0:10..12  read data
 4     0:15..16  push var M
 5     0:17..18  push number 1
 6     0:15..18  add
 7     0:19..21  push number 10
-8     0:13..14  push lvalue C, dimensions: 2
+8     0:13..14  push index lvalue C, dimensions: 2
 9     0:13..22  read data
 10    3:3..10   restore data ptr: 0
 11    3:11..21  restore data ptr: 5

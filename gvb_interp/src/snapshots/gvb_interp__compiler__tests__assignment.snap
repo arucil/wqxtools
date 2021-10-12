@@ -6,7 +6,7 @@ expression: "compile(r#\"10 a=a*b+coo%/2^len(a$+\"xx和\")\"#)"
 emoji_style: New
 --------- data ----------
 --------- code ----------
-0     0:3..4    push lvalue A, dimensions: 0
+0     0:3..4    push var lvalue A
 1     0:5..6    push var A
 2     0:7..8    push var B
 3     0:5..8    mul
@@ -14,7 +14,7 @@ emoji_style: New
 5     0:14..15  push number 2
 6     0:20..22  push var A$
 7     0:23..30  push string "xx和"
-8     0:20..30  add
+8     0:20..30  concat
 9     0:16..31  call sys func LEN, arity: 1
 10    0:14..31  pow
 11    0:9..31   div
