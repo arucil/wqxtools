@@ -1,0 +1,16 @@
+---
+source: gvb_interp/src/vm.rs
+expression: device.log.borrow()
+
+---
+print "1"
+print newline
+print "13"
+print newline
+print "20"
+print newline
+print "abC"
+print newline
+print "140"
+print newline
+

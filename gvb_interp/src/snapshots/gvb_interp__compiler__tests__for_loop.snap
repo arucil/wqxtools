@@ -1,6 +1,6 @@
 ---
 source: gvb_interp/src/compiler.rs
-expression: "compile(r#\"\n10 for i%=10 to n+1:for abc=k(m)*3 to 31 step -n*k\n20 next:next i:next i,j,ka\n    \"#.trim())"
+expression: "compile(r#\"\n10 for i =10 to n+1:for abc=k(m)*3 to 31 step -n*k\n20 next:next i:next i,j,ka\n    \"#.trim())"
 
 ---
 emoji_style: New
@@ -10,7 +10,7 @@ emoji_style: New
 1     0:16..17  push var N
 2     0:18..19  push number 1
 3     0:16..19  add
-4     0:3..19   start for loop, var: I%, has_step: false
+4     0:3..19   start for loop, var: I, has_step: false
 5     0:30..31  push var M
 6     0:28..32  push index K, dimensions: 1
 7     0:33..34  push number 3

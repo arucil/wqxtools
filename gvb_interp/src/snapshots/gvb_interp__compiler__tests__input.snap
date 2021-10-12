@@ -1,6 +1,6 @@
 ---
 source: gvb_interp/src/compiler.rs
-expression: "compile(r#\"\n10 input a, b$, c%(m+2,i): input \"ABC123俄\"; fn v(t%), c%\n    \"#.trim())"
+expression: "compile(r#\"\n10 input a, b$, c%(m+2,i): input \"ABC123俄\"; fn v(t ), c%\n    \"#.trim())"
 
 ---
 emoji_style: New
@@ -14,7 +14,7 @@ emoji_style: New
 5     0:23..24  push var I
 6     0:16..18  push index lvalue C%, dimensions: 2
 7     0:3..25   keyboard input, prompt: None, num fields: 3
-8     0:46..54  push lvalue FN V(T%)
+8     0:46..54  push lvalue FN V(T)
 9     0:56..58  push var lvalue C%
 10    0:27..58  keyboard input, prompt: Some(ABC123俄), num fields: 2
 11    0:0..0    end

@@ -1,0 +1,13 @@
+---
+source: gvb_interp/src/vm.rs
+expression: device.log.borrow()
+
+---
+beep
+cls
+set print mode to Flash
+set screen mode to Graph
+set print mode to Inverse
+set print mode to Normal
+set screen mode to Text
+

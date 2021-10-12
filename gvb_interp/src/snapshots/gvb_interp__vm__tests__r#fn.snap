@@ -1,0 +1,10 @@
+---
+source: gvb_interp/src/vm.rs
+expression: device.log.borrow()
+
+---
+print "3"
+print "3.14159265"
+print "3"
+print "30"
+

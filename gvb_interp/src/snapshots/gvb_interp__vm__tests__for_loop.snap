@@ -1,0 +1,22 @@
+---
+source: gvb_interp/src/vm.rs
+expression: device.log.borrow()
+
+---
+print "0"
+print "1"
+print "2"
+print "3"
+print "4000"
+print "9.5"
+print "7"
+print "4.5"
+print "2"
+print "0"
+print "1"
+print "2000"
+print "1"
+print "3000"
+print "-10"
+print "-9"
+

@@ -93,6 +93,7 @@ struct ForLoopRecord {
 #[derive(Debug, Clone)]
 struct FnCallRecord {
   param: Symbol,
+  param_org_value: Value,
   next_addr: Addr,
 }
 
@@ -120,8 +121,14 @@ pub enum Value {
 
 #[derive(Debug, Clone)]
 struct Array {
-  bounds: Vec<NonZeroUsize>,
+  dimensions: Vec<Dimension>,
   data: ArrayData,
+}
+
+#[derive(Debug, Clone)]
+struct Dimension {
+  bound: NonZeroUsize,
+  multiplier: usize,
 }
 
 #[derive(Debug, Clone)]
@@ -139,7 +146,7 @@ struct UserFunc {
 
 type Result<T> = std::result::Result<T, ExecResult>;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ExecResult {
   End,
   Continue,
@@ -155,7 +162,7 @@ pub enum ExecResult {
   },
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum KeyboardInputType {
   String,
   Integer,
@@ -296,13 +303,19 @@ where
         self.pc = end.0;
         return Ok(());
       }
-      InstrKind::DimArray { name, dimensions } => {
+      InstrKind::DimArray {
+        name,
+        dimensions: num_dimensions,
+      } => {
         if self.store.arrays.contains_key(&name) {
           self.state.error(loc, "重复定义数组")?;
         }
         let mut size = 1;
-        let mut bounds = vec![];
-        for _ in 0..dimensions.get() {
+        let mut multiplier = 1;
+        let mut dimensions = vec![];
+        let start = self.value_stack.len() - num_dimensions.get();
+        self.value_stack[start..].reverse();
+        for _ in 0..num_dimensions.get() {
           let (loc, value) = self.value_stack.pop().unwrap();
           let value = value.unwrap_real();
           let bound = f64::from(value.truncate()) as isize;
@@ -312,12 +325,16 @@ where
               format!("数组下标不能为负数。该下标的值为：{}", f64::from(value)),
             )?
           }
-          size *= bound as usize;
-          bounds
-            .push(unsafe { NonZeroUsize::new_unchecked(bound as usize + 1) });
+          let bound = bound as usize + 1;
+          size *= bound;
+          dimensions.push(Dimension {
+            bound: unsafe { NonZeroUsize::new_unchecked(bound) },
+            multiplier,
+          });
+          multiplier *= bound;
         }
         let data = ArrayData::new(symbol_type(&self.interner, name), size);
-        self.store.arrays.insert(name, Array { bounds, data });
+        self.store.arrays.insert(name, Array { dimensions, data });
       }
       InstrKind::PushVarLValue { name } => {
         self.value_stack.push((loc, LValue::Var { name }.into()));
@@ -365,12 +382,15 @@ where
       InstrKind::CallFn(func) => {
         if let Some(func) = self.store.user_funcs.get(&func).cloned() {
           let arg = self.value_stack.pop().unwrap();
-          let old_param = self.load_tmp_value(func.param);
-          self.value_stack.push((arg.0.clone(), old_param));
+          let param_org_value = self
+            .store
+            .load_value(&self.interner, LValue::Var { name: func.param });
           self.fn_call_stack.push(FnCallRecord {
             param: func.param,
+            param_org_value,
             next_addr: Addr(self.pc + 1),
           });
+          self.store_tmp_value(LValue::Var { name: func.param }, arg)?;
           self.pc = func.body_addr.0;
         } else {
           self.state.error(loc, "自定义函数不存在")?;
@@ -378,11 +398,11 @@ where
         return Ok(());
       }
       InstrKind::ReturnFn => {
-        let stack_len = self.value_stack.len();
-        self.value_stack.swap(stack_len - 1, stack_len - 2);
-        let old_param = self.value_stack.pop().unwrap();
         let record = self.fn_call_stack.pop().unwrap();
-        self.store_tmp_value(LValue::Var { name: record.param }, old_param)?;
+        self.store.store_value(
+          LValue::Var { name: record.param },
+          record.param_org_value,
+        );
         self.pc = record.next_addr.0;
         return Ok(());
       }
@@ -468,12 +488,16 @@ where
       InstrKind::CmpNum(cmp) => {
         let rhs = self.value_stack.pop().unwrap().1.unwrap_real();
         let lhs = self.value_stack.pop().unwrap().1.unwrap_real();
-        self.value_stack.push((loc, Mbf5::from(cmp.cmp(lhs, rhs)).into()));
+        self
+          .value_stack
+          .push((loc, Mbf5::from(cmp.cmp(lhs, rhs)).into()));
       }
       InstrKind::CmpStr(cmp) => {
         let rhs = self.value_stack.pop().unwrap().1.unwrap_real();
         let lhs = self.value_stack.pop().unwrap().1.unwrap_real();
-        self.value_stack.push((loc, Mbf5::from(cmp.cmp(lhs, rhs)).into()));
+        self
+          .value_stack
+          .push((loc, Mbf5::from(cmp.cmp(lhs, rhs)).into()));
       }
       InstrKind::Concat => {
         let mut rhs = self.value_stack.pop().unwrap().1.unwrap_string();
@@ -1316,11 +1340,16 @@ where
       _ => unreachable!(),
     };
 
-    let file = self.state.io(
-      loc,
+    let mut file = self.state.io(
+      loc.clone(),
       "打开文件",
       self.device.open_file(&filename, read, write, truncate),
     )?;
+
+    if let FileMode::Append = &mode {
+      let len = self.state.io(loc.clone(), "获取文件大小", file.len())?;
+      self.state.io(loc, "设置文件指针", file.seek(len))?;
+    }
 
     self.files[filenum as usize] = Some(OpenFile { file, mode });
 
@@ -1733,7 +1762,15 @@ where
       self.store.arrays.insert(
         name,
         Array {
-          bounds: vec![unsafe { NonZeroUsize::new_unchecked(11) }; dimensions],
+          dimensions: (0..dimensions)
+            .fold((vec![], 1), |(mut d, mult), _| {
+              d.push(Dimension {
+                bound: unsafe { NonZeroUsize::new_unchecked(11) },
+                multiplier: mult,
+              });
+              (d, mult * 11)
+            })
+            .0,
           data,
         },
       );
@@ -1754,20 +1791,19 @@ where
             bound
           ),
         )?
-      } else if bound as usize >= array.bounds[i].get() {
+      } else if bound as usize >= array.dimensions[i].bound.get() {
         self.state.error(
           loc,
           format!(
             "数组下标超出上限。该下标的上限为：{}，该下标的值为：{}, 取整后的值为：{}",
-            array.bounds[i].get(),
+            array.dimensions[i].bound.get() - 1,
             f64::from(value),
             bound
           ),
         )?
       }
 
-      offset = offset * array.bounds.get(i + 1).map_or(1, |n| n.get())
-        + bound as usize;
+      offset += bound as usize * array.dimensions[i].multiplier;
     }
     Ok(offset)
   }
@@ -2192,6 +2228,635 @@ impl Store {
         ArrayData::String(arr) => Value::String(arr[offset].clone()),
       },
       _ => unreachable!(),
+    }
+  }
+}
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+  use crate::ast::Range;
+  use crate::compiler::compile_prog;
+  use crate::diagnostic::Severity;
+  use crate::machine::EmojiStyle;
+  use crate::parser::parse_prog;
+  use crate::vm::codegen::CodeGen;
+  use insta::assert_snapshot;
+  use pretty_assertions::assert_eq;
+  use std::cell::RefCell;
+  use std::rc::Rc;
+
+  fn compile(text: &str) -> CodeGen {
+    let mut prog = parse_prog(text);
+    let mut codegen = CodeGen::new(EmojiStyle::New);
+    compile_prog(text, &mut prog, &mut codegen);
+    for (i, line) in prog.lines.iter().enumerate() {
+      let diags: Vec<_> = line
+        .diagnostics
+        .iter()
+        .filter(|d| d.severity == Severity::Error)
+        .cloned()
+        .collect();
+      assert_eq!(diags, vec![], "line {}", i);
+    }
+    codegen
+  }
+
+  struct DummyDevice {
+    log: Rc<RefCell<String>>,
+    mem: [u8; 65536],
+    file: File,
+  }
+
+  #[derive(Debug, Clone)]
+  struct File {
+    log: Rc<RefCell<String>>,
+    pos: usize,
+    data: Vec<u8>,
+  }
+
+  impl DummyDevice {
+    fn new() -> Self {
+      let log = Rc::new(RefCell::new(String::new()));
+      Self {
+        log: Rc::clone(&log),
+        mem: [0; 65536],
+        file: File {
+          log,
+          pos: 0,
+          data: vec![],
+        },
+      }
+    }
+  }
+
+  fn add_log(log: Rc<RefCell<String>>, msg: impl AsRef<str>) {
+    log.borrow_mut().push_str(msg.as_ref());
+    log.borrow_mut().push('\n');
+  }
+
+  impl Device for DummyDevice {
+    type File = File;
+
+    fn get_row(&self) -> u8 {
+      add_log(self.log.clone(), "get row");
+      0
+    }
+
+    fn get_column(&self) -> u8 {
+      add_log(self.log.clone(), "get column");
+      0
+    }
+
+    fn set_row(&mut self, row: u8) {
+      add_log(self.log.clone(), format!("set row to {}", row));
+    }
+
+    fn set_column(&mut self, column: u8) {
+      add_log(self.log.clone(), format!("set column to {}", column));
+    }
+
+    fn print(&mut self, str: &[u8]) {
+      if str.iter().all(|&b| b < 0x80) {
+        add_log(
+          self.log.clone(),
+          format!("print \"{}\"", unsafe {
+            std::str::from_utf8_unchecked(str)
+          }),
+        );
+      } else {
+        add_log(self.log.clone(), format!("print {:?}", str));
+      }
+    }
+
+    fn print_newline(&mut self) {
+      add_log(self.log.clone(), "print newline");
+    }
+
+    fn draw_point(&mut self, x: u8, y: u8, mode: DrawMode) {
+      add_log(
+        self.log.clone(),
+        format!("draw point at ({}, {}), {:?}", x, y, mode),
+      );
+    }
+
+    fn draw_line(&mut self, x1: u8, y1: u8, x2: u8, y2: u8, mode: DrawMode) {
+      add_log(
+        self.log.clone(),
+        format!(
+          "draw line from ({}, {}) to ({}, {}), {:?}",
+          x1, y1, x2, y2, mode
+        ),
+      );
+    }
+
+    fn draw_box(
+      &mut self,
+      x1: u8,
+      y1: u8,
+      x2: u8,
+      y2: u8,
+      fill: bool,
+      mode: DrawMode,
+    ) {
+      add_log(
+        self.log.clone(),
+        format!(
+          "draw box from ({}, {}) to ({}, {}), fill: {:?}, {:?}",
+          x1, y1, x2, y2, fill, mode
+        ),
+      );
+    }
+
+    fn draw_circle(&mut self, x: u8, y: u8, r: u8, fill: bool, mode: DrawMode) {
+      add_log(
+        self.log.clone(),
+        format!(
+          "draw circle at ({}, {}), radius: {}, fill: {:?}, {:?}",
+          x, y, r, fill, mode
+        ),
+      );
+    }
+
+    fn draw_ellipse(
+      &mut self,
+      x: u8,
+      y: u8,
+      rx: u8,
+      ry: u8,
+      fill: bool,
+      mode: DrawMode,
+    ) {
+      add_log(
+        self.log.clone(),
+        format!(
+          "draw ellipse at ({}, {}), rx: {}, ry: {}, fill: {:?}, {:?}",
+          x, y, rx, ry, fill, mode
+        ),
+      );
+    }
+
+    fn clear(&mut self) {
+      add_log(self.log.clone(), "clear");
+    }
+
+    fn get_byte(&self, addr: u16) -> u8 {
+      add_log(
+        self.log.clone(),
+        format!("peek {}: {}", addr, self.mem[addr as usize]),
+      );
+      self.mem[addr as usize]
+    }
+
+    fn set_byte(&mut self, addr: u16, value: u8) {
+      add_log(self.log.clone(), format!("poke {}, {}", addr, value));
+      self.mem[addr as usize] = value;
+    }
+
+    fn open_file(
+      &mut self,
+      name: &[u8],
+      read: bool,
+      write: bool,
+      truncate: bool,
+    ) -> io::Result<Self::File> {
+      add_log(
+        self.log.clone(),
+        format!(
+          "open file \"{}\", read: {:?}, write: {:?}, truncate: {:?}",
+          unsafe { std::str::from_utf8_unchecked(name) },
+          read,
+          write,
+          truncate
+        ),
+      );
+      let mut file = self.file.clone();
+      if truncate {
+        file.data.clear();
+      }
+      Ok(file)
+    }
+
+    fn cls(&mut self) {
+      add_log(self.log.clone(), "cls");
+    }
+
+    fn exec_asm(&mut self, steps: &mut usize, start_addr: Option<u16>) -> bool {
+      add_log(
+        self.log.clone(),
+        format!("call {:?}, steps: {}", start_addr, steps),
+      );
+      true
+    }
+
+    fn set_screen_mode(&mut self, mode: ScreenMode) {
+      add_log(self.log.clone(), format!("set screen mode to {:?}", mode));
+    }
+
+    fn set_print_mode(&mut self, mode: PrintMode) {
+      add_log(self.log.clone(), format!("set print mode to {:?}", mode));
+    }
+
+    fn sleep_unit(&self) -> std::time::Duration {
+      std::time::Duration::from_millis(1)
+    }
+
+    fn beep(&mut self) {
+      add_log(self.log.clone(), "beep");
+    }
+
+    fn play_notes(&mut self, notes: &[u8]) {
+      add_log(
+        self.log.clone(),
+        format!("play notes \"{}\"", unsafe {
+          std::str::from_utf8_unchecked(notes)
+        }),
+      );
+    }
+  }
+
+  impl FileHandle for File {
+    fn len(&self) -> io::Result<u64> {
+      add_log(
+        self.log.clone(),
+        format!("get file len: {}", self.data.len()),
+      );
+      Ok(self.data.len() as u64)
+    }
+
+    fn seek(&mut self, pos: u64) -> io::Result<()> {
+      add_log(self.log.clone(), format!("seek file: {}", pos));
+      if pos > self.data.len() as u64 {
+        Err(io::Error::new(io::ErrorKind::Other, "out of range"))
+      } else {
+        self.pos = pos as usize;
+        Ok(())
+      }
+    }
+
+    fn pos(&self) -> io::Result<u64> {
+      add_log(self.log.clone(), format!("get file pos: {}", self.pos));
+      Ok(self.pos as u64)
+    }
+
+    fn write(&mut self, data: &[u8]) -> io::Result<()> {
+      add_log(self.log.clone(), format!("write to file: {:?} ", data));
+      if self.pos + data.len() > self.data.len() {
+        self.data.resize(self.pos + data.len(), 0);
+      }
+      self.data[self.pos..self.pos + data.len()].copy_from_slice(data);
+      Ok(())
+    }
+
+    fn read(&mut self, data: &mut [u8]) -> io::Result<usize> {
+      let mut len = data.len();
+      if self.pos + len > self.data.len() {
+        len = self.data.len() - self.pos;
+      }
+      data.copy_from_slice(&self.data[self.pos..self.pos + len]);
+      add_log(self.log.clone(), format!("read from file: {:?} ", data));
+      Ok(len)
+    }
+  }
+
+  #[test]
+  fn assign() {
+    let codegen = compile(
+      r#"
+10 let a =1:b=a*3+10:dim c(5):c(0)=10:c(1)=20:c(2)=30:c(3)=40:c(4)=50:c(5)=60:
+20 c=c(a):print a,b,c,"abC",c(3)+c(0)*10
+30 c%=32767+1
+    "#
+      .trim(),
+    );
+    let mut device = DummyDevice::new();
+    let mut vm = VirtualMachine::new(codegen, &mut device);
+
+    let result = vm.exec(None, usize::MAX);
+    assert_eq!(
+      result,
+      ExecResult::Error {
+        location: Location {
+          line: 2,
+          range: Range::new(6, 13),
+        },
+        message: "运算结果数值过大，超出了整数的表示范围（-32768~32767），\
+          无法赋值给整数变量。运算结果为：32768"
+          .to_owned(),
+      }
+    );
+
+    assert_snapshot!(device.log.borrow());
+  }
+
+  #[test]
+  fn draw() {
+    let codegen = compile(
+      r#"
+0 x=10:y=20:x1=11:y1=22:x2=33:y2=44:r=6:f=3:m=2
+10 draw x,y+1:draw x1,y1,m
+20 line x1,y1,x2,y2:line x1,y1,x2,y2,0:
+30 box x1,y1,x2,y2:box x,y,x,y%,f:box x1,y1,x2+1,y2,4,m
+40 circle x1,y1,r:circle x,y,r,1:circle x,y,r,0,m
+50 ellipse x,y,7,3:ellipse x,y,7,3,1:ellipse x,y,7,3,f,m
+    "#
+      .trim(),
+    );
+    let mut device = DummyDevice::new();
+    let mut vm = VirtualMachine::new(codegen, &mut device);
+
+    let result = vm.exec(None, usize::MAX);
+    assert_eq!(result, ExecResult::End);
+
+    assert_snapshot!(device.log.borrow());
+  }
+
+  #[test]
+  fn nullary_statement() {
+    let codegen = compile(
+      r#"
+10 beep:cls:cont:flash:graph:inkey$:inverse:normal:text
+20 :
+30 end:print 3
+    "#
+      .trim(),
+    );
+    let mut device = DummyDevice::new();
+    let mut vm = VirtualMachine::new(codegen, &mut device);
+
+    let result = vm.exec(None, usize::MAX);
+    assert_eq!(result, ExecResult::InKey);
+
+    let result = vm.exec(Some(ExecInput::Key(65)), usize::MAX);
+    assert_eq!(result, ExecResult::End);
+
+    assert_snapshot!(device.log.borrow());
+  }
+
+  #[test]
+  fn ppc() {
+    let codegen = compile(
+      r#"
+10 for i=100 to 105:poke i,i-99:next:print peek(101);peek(104):call 1000
+20 call -2
+    "#
+      .trim(),
+    );
+    let mut device = DummyDevice::new();
+    let mut vm = VirtualMachine::new(codegen, &mut device);
+
+    let result = vm.exec(None, usize::MAX);
+    assert_eq!(result, ExecResult::End);
+
+    assert_snapshot!(device.log.borrow());
+  }
+
+  #[test]
+  fn clear() {
+    let codegen = compile(
+      r#"
+10 open "foo" input as1:a=100:a(10)=2:read c1$,c2$:print a;a(10);c1$;c2$:clear
+20 open "foo" output as1:read c3$:print a;a(10);c3$:gosub 30
+30 data a 1, "a 2" , a 3:clear:pop
+    "#
+      .trim(),
+    );
+    let mut device = DummyDevice::new();
+    let mut vm = VirtualMachine::new(codegen, &mut device);
+
+    let result = vm.exec(None, usize::MAX);
+    assert_eq!(
+      result,
+      ExecResult::Error {
+        location: Location {
+          line: 2,
+          range: Range::new(31, 34),
+        },
+        message: "之前没有执行过 GOSUB 语句，POP 语句无法执行".to_owned(),
+      }
+    );
+
+    assert_snapshot!(device.log.borrow());
+  }
+
+  #[test]
+  fn clear_loop() {
+    let codegen = compile(
+      r#"
+10 for i=1 to 3:clear:next
+    "#
+      .trim(),
+    );
+    let mut device = DummyDevice::new();
+    let mut vm = VirtualMachine::new(codegen, &mut device);
+
+    let result = vm.exec(None, usize::MAX);
+    assert_eq!(
+      result,
+      ExecResult::Error {
+        location: Location {
+          line: 0,
+          range: Range::new(22, 26),
+        },
+        message: "NEXT 语句找不到匹配的 FOR 语句".to_owned(),
+      }
+    );
+
+    assert_snapshot!(device.log.borrow());
+  }
+
+  #[test]
+  fn r#fn() {
+    let codegen = compile(
+      r#"
+10 def fn pi(x)=atn(1)*4*x:x=3:print x;:print fn pi(1);:print x;:
+20 def fn pi(y)=int(y)*10:print fn pi(3.5);
+30 clear:print fn pi(1)
+    "#
+      .trim(),
+    );
+    let mut device = DummyDevice::new();
+    let mut vm = VirtualMachine::new(codegen, &mut device);
+
+    let result = vm.exec(None, usize::MAX);
+    assert_eq!(
+      result,
+      ExecResult::Error {
+        location: Location {
+          line: 2,
+          range: Range::new(15, 23),
+        },
+        message: "自定义函数不存在".to_owned(),
+      }
+    );
+
+    assert_snapshot!(device.log.borrow());
+  }
+
+  #[test]
+  fn read() {
+    let codegen = compile(
+      r#"
+10 data abc, "123", 1e3
+20 data ,,3e
+30 read a$,b$,c%,d:print a$;b$;c%;d
+40 restore:read a$,b$,c%,d:print a$;b$;c%;d
+50 restore 20:read a$,b$,c%:print a$;b$;c%:read d
+    "#
+      .trim(),
+    );
+    let mut device = DummyDevice::new();
+    let mut vm = VirtualMachine::new(codegen, &mut device);
+
+    let result = vm.exec(None, usize::MAX);
+    assert_eq!(
+      result,
+      ExecResult::Error {
+        location: Location {
+          line: 4,
+          range: Range::new(48, 49),
+        },
+        message: "DATA 已经读取结束，没有更多 DATA 可供读取".to_owned(),
+      }
+    );
+
+    assert_snapshot!(device.log.borrow());
+  }
+
+  #[test]
+  fn dim() {
+    let codegen = compile(
+      r#"
+10 dim a,a,a$(3):a$(4)=a
+    "#
+      .trim(),
+    );
+    let mut device = DummyDevice::new();
+    let mut vm = VirtualMachine::new(codegen, &mut device);
+
+    let result = vm.exec(None, usize::MAX);
+    assert_eq!(
+      result,
+      ExecResult::Error {
+        location: Location {
+          line: 0,
+          range: Range::new(20, 21),
+        },
+        message: "数组下标超出上限。该下标的上限为：3，该下标的值为：4, 取整后的值为：4"
+          .to_owned(),
+      }
+    );
+
+    assert_snapshot!(device.log.borrow());
+  }
+
+  #[test]
+  fn redefine_array() {
+    let codegen = compile(
+      r#"
+10 dim a,a,a$(3):dim a$(2,7):
+    "#
+      .trim(),
+    );
+    let mut device = DummyDevice::new();
+    let mut vm = VirtualMachine::new(codegen, &mut device);
+
+    let result = vm.exec(None, usize::MAX);
+    assert_eq!(
+      result,
+      ExecResult::Error {
+        location: Location {
+          line: 0,
+          range: Range::new(21, 23),
+        },
+        message: "重复定义数组".to_owned(),
+      }
+    );
+
+    assert_snapshot!(device.log.borrow());
+  }
+
+  #[test]
+  fn for_loop() {
+    let codegen = compile(
+      r#"
+10 for i=i to i+3:print i;:next i:print i*1e3;
+20 for k=10 to 1 step -2:k=k-0.5:print k;:next:print k*1e3;
+30 for i=1 to 2 step 0:print i;:i=i+1:next:print i*1e3;
+40 for i=1 to 1 step 2:print i;:next:print i*1e3;
+50 for i=1 to 10:for i=-10 to -9:print i;:next:next
+    "#
+      .trim(),
+    );
+    let mut device = DummyDevice::new();
+    let mut vm = VirtualMachine::new(codegen, &mut device);
+
+    let result = vm.exec(None, usize::MAX);
+    assert_eq!(
+      result,
+      ExecResult::Error {
+        location: Location {
+          line: 4,
+          range: Range::new(47, 51),
+        },
+        message: "NEXT 语句找不到匹配的 FOR 语句".to_owned(),
+      }
+    );
+
+    assert_snapshot!(device.log.borrow());
+  }
+
+  mod file {
+    use super::*;
+    use pretty_assertions::assert_eq;
+  }
+
+  mod expr {
+    use super::*;
+    use pretty_assertions::assert_eq;
+
+    #[test]
+    fn r#fn() {
+      let codegen = compile(
+        r#"
+10 def fn f(x)=x*x+fn g(x):def fn g(x)=x*2+7
+20 x=1:print fn f(10);:print x;
+    "#
+        .trim(),
+      );
+      let mut device = DummyDevice::new();
+      let mut vm = VirtualMachine::new(codegen, &mut device);
+
+      let result = vm.exec(None, usize::MAX);
+      assert_eq!(result, ExecResult::End);
+
+      assert_snapshot!(device.log.borrow());
+    }
+
+    #[test]
+    fn array() {
+      let codegen = compile(
+        r#"
+10 dim foo(1,2):x%(0)=1::x%(4)=1:x%(6)=0:x%(8)=1:x%(10)=2:
+20 foo(0,0)=10:foo(0,1)=100:foo(0, 2)=1000:foo(1,0)=2:foo(1,1)=4:foo(1,2)=6
+30 print foo(x%(0),x%(6));
+40 print foo(x%(2),x%(8));
+50 print foo(x%(4),x%(10));
+    "#
+        .trim(),
+      );
+      let mut device = DummyDevice::new();
+      let mut vm = VirtualMachine::new(codegen, &mut device);
+
+      let result = vm.exec(None, usize::MAX);
+      assert_eq!(result, ExecResult::End);
+
+      assert_snapshot!(device.log.borrow());
+    }
+
+    mod sys_func {
+      use super::*;
+      use pretty_assertions::assert_eq;
     }
   }
 }

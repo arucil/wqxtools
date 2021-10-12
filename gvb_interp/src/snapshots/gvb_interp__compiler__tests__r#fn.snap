@@ -1,12 +1,12 @@
 ---
 source: gvb_interp/src/compiler.rs
-expression: "compile(r#\"\n10 def fn k(x%)=sin(i/2)+3:def fn F%(x) = f%(x)\n20 let k=1+fn k(37+fn k(0))\n    \"#.trim())"
+expression: "compile(r#\"\n10 def fn k(x )=sin(i/2)+3:def fn F (x) = fn f (x)\n20 let k=1+fn k(37+fn k(0))\n    \"#.trim())"
 
 ---
 emoji_style: New
 --------- data ----------
 --------- code ----------
-0     0:3..26   def fn K(X%), end: 8
+0     0:3..26   def fn K(X), end: 8
 1     0:20..21  push var I
 2     0:22..23  push number 2
 3     0:20..23  div
@@ -14,10 +14,10 @@ emoji_style: New
 5     0:25..26  push number 3
 6     0:16..26  add
 7     0:3..26   return from FN
-8     0:27..47  def fn F%(X), end: 12
-9     0:45..46  push var X
-10    0:42..47  push index F%, dimensions: 1
-11    0:27..47  return from FN
+8     0:27..50  def fn F(X), end: 12
+9     0:48..49  push var X
+10    0:42..50  call FN F
+11    0:27..50  return from FN
 12    1:7..8    push var lvalue K
 13    1:9..10   push number 1
 14    1:16..18  push number 37

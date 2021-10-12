@@ -531,10 +531,10 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E> {
   ) {
     let name = name.as_ref().map(|name_range| {
       let (name, ty) = self.compile_sym(name_range.clone());
-      if !ty.matches(Type::Real) {
+      if !ty.exact_matches(Type::Real) {
         self.add_error(
           name_range.clone(),
-          format!("变量类型错误。自定义函数的类型必须是{}类型", Type::Real),
+          format!("变量类型错误。自定义函数必须是{:#}类型", Type::Real),
         );
       }
       name
@@ -542,11 +542,11 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E> {
 
     let param = param.as_ref().map(|param_range| {
       let (param, ty) = self.compile_sym(param_range.clone());
-      if !ty.matches(Type::Real) {
+      if !ty.exact_matches(Type::Real) {
         self.add_error(
           param_range.clone(),
           format!(
-            "参数类型错误。自定义函数的参数的类型必须是{}类型",
+            "参数类型错误。自定义函数的参数的类型必须是{:#}类型",
             Type::Real
           ),
         );
@@ -554,12 +554,31 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E> {
       param
     });
 
+    let body_range = self.expr_node(body).range.clone();
     if let (Some(name), Some(param)) = (name, param) {
       let def_addr = self.code_emitter.begin_def_fn(range, name, param);
-      self.compile_expr(body);
+      let ty = self.compile_expr(body);
+      if !ty.matches(Type::Real) {
+        self.add_error(
+          body_range,
+          format!(
+            "函数体类型错误。自定义函数的函数体表达式必须是{}类型",
+            Type::Real
+          ),
+        );
+      }
       self.code_emitter.end_def_fn(def_addr);
     } else {
-      self.compile_expr(body);
+      let ty = self.compile_expr(body);
+      if !ty.matches(Type::Real) {
+        self.add_error(
+          body_range,
+          format!(
+            "函数体类型错误。自定义函数的函数体表达式必须是{}类型",
+            Type::Real
+          ),
+        );
+      }
     }
   }
 
@@ -805,13 +824,15 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E> {
   ) {
     let var = if let Some(var_range) = var {
       let (var, ty) = self.compile_sym(var_range.clone());
-      if !ty.matches(Type::Real) {
+      if !ty.exact_matches(Type::Real) {
         self.add_error(
-              var_range.clone(),
-              format!(
-                "变量类型错误。FOR 语句的计数器变量必须是{}类型，而这个变量是{}类型",
-                Type::Real,
-                ty));
+          var_range.clone(),
+          format!(
+            "变量类型错误。FOR 语句的计数器变量必须是{:#}类型，而这个变量是{:#}类型",
+            Type::Real,
+            ty,
+          )
+        );
       }
       Some(var)
     } else {
@@ -826,18 +847,22 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E> {
         format!(
           "表达式类型错误。FOR 语句的计数器初始值必须是{}类型，而这个表达式是{}类型",
           Type::Real,
-          ty));
+          ty,
+        )
+      );
     }
 
     let ty = self.compile_expr(end);
     if !ty.matches(Type::Real) {
       let range = &self.expr_node(end).range;
       self.add_error(
-              range.clone(),
-              format!(
-                "表达式类型错误。FOR 语句的计数器终止值必须是{}类型，而这个表达式是{}类型",
-                Type::Real,
-                ty));
+        range.clone(),
+        format!(
+          "表达式类型错误。FOR 语句的计数器终止值必须是{}类型，而这个表达式是{}类型",
+          Type::Real,
+          ty,
+        )
+      );
     }
 
     if let Some(step) = step {
@@ -845,11 +870,13 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E> {
       if !ty.matches(Type::Real) {
         let range = &self.expr_node(step).range;
         self.add_error(
-              range.clone(),
-              format!(
-                "表达式类型错误。FOR 语句的计数器步长必须是{}类型，而这个表达式是{}类型",
-                Type::Real,
-                ty));
+          range.clone(),
+          format!(
+            "表达式类型错误。FOR 语句的计数器步长必须是{}类型，而这个表达式是{}类型",
+            Type::Real,
+            ty,
+          )
+        );
       }
     }
 
@@ -944,11 +971,11 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E> {
         } else {
           let func = func.as_ref().map(|func_range| {
             let (func, ty) = self.compile_sym(func_range.clone());
-            if !ty.matches(Type::Real) {
+            if !ty.exact_matches(Type::Real) {
               self.add_error(
                 func_range.clone(),
                 format!(
-                  "变量类型错误。自定义函数的参数必须是{}类型",
+                  "变量类型错误。自定义函数必须是{:#}类型",
                   Type::Real
                 ),
               );
@@ -958,11 +985,11 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E> {
           let arg_range = self.expr_node(*arg).range.clone();
           let arg = if let ExprKind::Ident = &self.expr_node(*arg).kind {
             let (arg, ty) = self.compile_sym(arg_range.clone());
-            if !ty.matches(Type::Real) {
+            if !ty.exact_matches(Type::Real) {
               self.add_error(
                 arg_range,
                 format!(
-                  "变量类型错误。自定义函数的参数必须是{}类型",
+                  "变量类型错误。自定义函数的参数必须是{:#}类型",
                   Type::Real
                 ),
               );
@@ -1328,10 +1355,10 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E> {
       ExprKind::UserFuncCall { func, arg } => {
         let func = func.as_ref().map(|func_range| {
           let (func, ty) = self.compile_sym(func_range.clone());
-          if !ty.matches(Type::Real) {
+          if !ty.exact_matches(Type::Real) {
             self.add_error(
               func_range.clone(),
-              format!("变量类型错误。自定义函数的参数必须是{}类型", Type::Real),
+              format!("变量类型错误。自定义函数必须是{:#}类型", Type::Real),
             );
           }
           func
@@ -1428,12 +1455,13 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E> {
       | SysFuncKind::Cvi
       | SysFuncKind::Cvs
       | SysFuncKind::Len
-      | SysFuncKind::Mki
-      | SysFuncKind::Mks
       | SysFuncKind::Val => {
         (1, 1, [Type::String, Type::Error, Type::Error], Type::Real)
       }
-      SysFuncKind::Chr | SysFuncKind::Str => {
+      SysFuncKind::Mki
+      | SysFuncKind::Mks
+      | SysFuncKind::Chr
+      | SysFuncKind::Str => {
         (1, 1, [Type::Real, Type::Error, Type::Error], Type::String)
       }
       SysFuncKind::Left | SysFuncKind::Right => {
@@ -1481,7 +1509,7 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E> {
               "表达式类型错误。{:?} 函数的第 {} 个参数是{}类型，而这个表达式是{}类型",
               func.1,
               i + 1,
-              Type::Real,
+              arg_tys[i],
               ty
             ),
           );
@@ -1680,8 +1708,20 @@ impl Type {
 impl Display for Type {
   fn fmt(&self, f: &mut Formatter) -> fmt::Result {
     match self {
-      Self::Integer => write!(f, "数值"),
-      Self::Real => write!(f, "数值"),
+      Self::Integer => {
+        if f.alternate() {
+          write!(f, "整数")
+        } else {
+          write!(f, "数值")
+        }
+      }
+      Self::Real => {
+        if f.alternate() {
+          write!(f, "实数")
+        } else {
+          write!(f, "数值")
+        }
+      }
       Self::String => write!(f, "字符串"),
       Self::Error => unreachable!(),
     }
@@ -1784,7 +1824,7 @@ mod tests {
   fn r#fn() {
     assert_debug_snapshot!(compile(
       r#"
-10 def fn k(x%)=sin(i/2)+3:def fn F%(x) = f%(x)
+10 def fn k(x )=sin(i/2)+3:def fn F (x) = fn f (x)
 20 let k=1+fn k(37+fn k(0))
     "#
       .trim()
@@ -1805,7 +1845,7 @@ mod tests {
   fn for_loop() {
     assert_debug_snapshot!(compile(
       r#"
-10 for i%=10 to n+1:for abc=k(m)*3 to 31 step -n*k
+10 for i =10 to n+1:for abc=k(m)*3 to 31 step -n*k
 20 next:next i:next i,j,ka
     "#
       .trim()
@@ -1829,7 +1869,7 @@ mod tests {
   fn input() {
     assert_debug_snapshot!(compile(
       r#"
-10 input a, b$, c%(m+2,i): input "ABC123俄"; fn v(t%), c%
+10 input a, b$, c%(m+2,i): input "ABC123俄"; fn v(t ), c%
     "#
       .trim()
     ));
@@ -1918,8 +1958,9 @@ mod tests {
     fn open() {
       assert_debug_snapshot!(compile(
         r#"
-10 open a$ for append as i: open "foo" i npu  T as3 len=L:
-30 open a$+b$ random a sc:open a$(3) out put as#k+1
+10 open a$ for append as i: open "foo" inpuT as3:
+30 open a$+b$ random a sc:open a$(3) output as#k+1
+40 open c$(2) for random as #3len=v*2:
     "#
         .trim()
       ));

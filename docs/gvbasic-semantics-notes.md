@@ -17,7 +17,7 @@
 | CONT    | 不做任何操作 |
 | COPY    | 和 REM 一样 |
 | DATA    | 忽略其后的所有字符，直到行尾，或者遇到没有被双引号括起来的 `:`。 |
-| DEF FN `<name var>`( `<parameter var>` ) = `<body expr>` | 定义函数。name 和 parameter 必须是数值（实数或整数）类型。可以重定义之前定义的同名函数。 |
+| DEF FN `<name var>`( `<parameter var>` ) = `<body expr>` | 定义函数。name 和 parameter 必须是实数类型。可以重定义之前定义的同名函数。 |
 | DEL     | 和 REM 一样 |
 | DIM `<lvalue>` ( , `<another lvalue>` )* | 定义变量或数组。如果定义的变量已存在，则保留变量原有的值，不会重置变量。如果定义的数组已存在，则报错。 |
 | DRAW `<X expr>` , `<Y expr>` [ , `<draw mode expr>` ] | 画点。X、Y、draw mode 必须在 0~255 之间。<br>draw mode 的值在下面的注解中说明。 |
@@ -27,7 +27,7 @@
 | FIELD [ # ] `<file number expr>` ( , `<field len expr>` AS `<field name lvalue>` )+ | 为打开的 RANDOM 模式的文件分配记录（record）的成员变量（field）。file number 必须在 1~3 之间。<br>field len 必须在 0~255 之间。field name 必须是字符串变量，可以是数组。<br>AS 中间可以有空格，不需要和后面的变量名用空格分隔。<br>所有 field len 加起来不能超过打开文件时设置的 LEN。<br>执行该语句后，所有 field name 的内容都是长度为对应的 field  len、所有字节都为 `0x00` 的字符串。<br>在执行该语句后，如果对某个 field name 重新赋值，则会导致原有的字符串丢失；如果要修改原字符串，则要使用 LSET / RSET 语句。 |
 | FILES   | 和 REM 一样 |
 | FLASH   | 和 INVERSE 一样，但是先设置 INVERSE 再设置 FLASH 的话二者的效果会互相抵消，使得后续打印的字符没有反显效果；先设置 FLASH 后设置 INVERSE 不会发生这种情况。 |
-| FOR `<var>`=`<from expr>` TO `<to expr>` [ STEP `<step expr>` ] | FOR 循环。`<var>` 必须是实数类型（即不能有 `$` 或 `%` 后缀），并且不能有下标。<br>`<from expr>`、`<to expr>` 和 `<step expr>` 在循环之前就会计算出结果，在后续的循环中不会重新计算。<br>如果省略 STEP，则步长默认为 1。如果步长为正数，则当 `<var>` 大于 `<to expr>` 时循环结束；如果步长为负数，则当 `<var>` 小于 `<to expr>` 时循环结束；如果步长为 0，则当 `<var>` 等于 `<to expr>` 时循环结束。<br>循环体至少会执行一次。<br>如果目前正在执行一个 `<var>` 相同的 FOR 循环，则会覆盖此 FOR 循环。 |
+| FOR `<var>`=`<from expr>` TO `<to expr>` [ STEP `<step expr>` ] | FOR 循环。`<var>` 必须是实数类型（即不能有 `$` 或 `%` 后缀），并且不能是数组。<br>`<from expr>`、`<to expr>` 和 `<step expr>` 在循环之前就会计算出结果，在后续的循环中不会重新计算。<br>如果省略 STEP，则步长默认为 1。如果步长为正数，则当 `<var>` 大于 `<to expr>` 时循环结束；如果步长为负数，则当 `<var>` 小于 `<to expr>` 时循环结束；如果步长为 0，则当 `<var>` 等于 `<to expr>` 时循环结束。<br>循环体至少会执行一次。<br>如果目前正在执行一个 `<var>` 相同的 FOR 循环，则会覆盖此 FOR 循环。 |
 | GET [ # ] `<file number expr>` , `<record number expr>` | 从 RANDOM 文件读取一条记录（record）。file number 在 1~3 之间。<br>record number 在 -32768~32767 之间，不能为 0，如果是负数则取补码，因此最终得到的 record number 在 1~65535 之间。<br>读取的记录不能超出文件长度。 |
 | GOSUB [ `<integer>` ] | 跳转子程序。如果后面有跟上行号（行号的数字中间没有空格），则跳转到行号，<br>否则跳转到行号为 `0` 的行；如果没有行号为 `0` 的行，则报错 `UNDEF'D STATEMENT`。<br>执行 RETURN 返回到 GOSUB 语句后，行号后面的字符会被忽略，和 DATA 语句一样（这是为了把处理 GOSUB 的代码重用于 ON ... GOSUB 语句中）。 |
 | GOTO [ `<integer>` ] | <p>无条件跳转。如果后面有跟上行号（行号的数字中间没有空格），则跳转到行号，<br>否则跳转到行号为 `0` 的行；如果没有行号为 `0` 的行，则报错 `UNDEF'D STATEMENT`。</p><p>由于在判断行号之后就立即跳转到目标行号继续执行，因此 GOTO 语句后面的内容不会被检查。<br>例：`10 GOTO 20 something wrong` 这个 GOTO 语句后面的 `something wrong` 不会被检查。</p> |

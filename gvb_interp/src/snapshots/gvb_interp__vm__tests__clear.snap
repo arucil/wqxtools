@@ -1,0 +1,17 @@
+---
+source: gvb_interp/src/vm.rs
+expression: device.log.borrow()
+
+---
+open file "foo.DAT", read: true, write: false, truncate: false
+print "100"
+print "2"
+print "a 1"
+print "a 2"
+print newline
+open file "foo.DAT", read: false, write: true, truncate: true
+print "0"
+print "0"
+print "a 1"
+print newline
+

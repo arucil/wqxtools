@@ -1,0 +1,19 @@
+---
+source: gvb_interp/src/vm.rs
+expression: device.log.borrow()
+
+---
+poke 100, 1
+poke 101, 2
+poke 102, 3
+poke 103, 4
+poke 104, 5
+poke 105, 6
+peek 101: 2
+print "2"
+peek 104: 5
+print "5"
+print newline
+call Some(1000), steps: 18446744073709551567
+call Some(65534), steps: 18446744073709551564
+
