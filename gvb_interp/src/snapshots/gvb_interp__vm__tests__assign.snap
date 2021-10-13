@@ -13,4 +13,5 @@ print "abC"
 print newline
 print "140"
 print newline
+flush
 

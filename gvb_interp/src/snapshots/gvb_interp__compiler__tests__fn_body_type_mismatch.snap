@@ -1,0 +1,8 @@
+---
+source: gvb_interp/src/compiler.rs
+expression: prog.diagnostics
+
+---
+[
+    Error<0..12>: 表达式类型错误。自定义函数的函数体表达式必须是数值类型，而这个表达式是字符串类型,
+]

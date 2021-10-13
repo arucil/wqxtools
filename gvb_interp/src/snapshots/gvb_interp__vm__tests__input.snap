@@ -1,0 +1,19 @@
+---
+source: gvb_interp/src/vm.rs
+expression: device.log.borrow()
+
+---
+print "ABc"
+print ","
+print "3.5"
+print newline
+print "37"
+print ","
+print "FN F(Y)"
+print newline
+print "ABc"
+print "3.5"
+print "37"
+print "11"
+flush
+

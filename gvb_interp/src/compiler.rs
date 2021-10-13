@@ -1,3 +1,4 @@
+use crate::parser::ParseResult;
 use crate::util::mbf5::{Mbf5, ParseRealError};
 use crate::{ast::*, diagnostic::*, HashMap};
 use smallvec::SmallVec;
@@ -59,6 +60,9 @@ pub trait CodeEmitter {
 
   fn emit_next(&mut self, range: Range, var: Option<Self::Symbol>);
 
+  fn emit_assign_num(&mut self, range: Range);
+  fn emit_assign_str(&mut self, range: Range);
+
   fn make_symbol(&mut self, name: String) -> Self::Symbol;
 
   fn emit_gosub(&mut self, range: Range) -> Self::Addr;
@@ -96,12 +100,15 @@ pub trait CodeEmitter {
   fn emit_print_newline(&mut self, range: Range);
   fn emit_print_spc(&mut self, range: Range);
   fn emit_print_tab(&mut self, range: Range);
-  fn emit_print_value(&mut self, range: Range);
+  fn emit_print_num(&mut self, range: Range);
+  fn emit_print_str(&mut self, range: Range);
+  fn emit_flush(&mut self, range: Range);
 
-  fn emit_pop(&mut self, range: Range);
+  fn emit_pop_num(&mut self, range: Range);
+  fn emit_pop_str(&mut self, range: Range);
 
-  fn emit_write(&mut self, range: Range, to_file: bool);
-  fn emit_write_end(&mut self, range: Range, to_file: bool);
+  fn emit_write_num(&mut self, range: Range, to_file: bool, end: bool);
+  fn emit_write_str(&mut self, range: Range, to_file: bool, end: bool);
 
   fn emit_while(&mut self, range: Range, cond_start: Self::Addr);
 
@@ -144,21 +151,51 @@ pub fn compile_prog<E: CodeEmitter>(
     pending_datum_indices: vec![],
     data_start: HashMap::default(),
     label_addrs: HashMap::default(),
-    line: std::ptr::null_mut(),
+    parsed: std::ptr::null_mut(),
     linenum: 0,
   };
 
   state.compile_prog(text, prog);
 }
 
-struct CompileState<'a, 'b, E: CodeEmitter> {
+pub fn compile_fn_body<E: CodeEmitter>(
+  text: impl AsRef<str>,
+  expr: &mut ParseResult<ExprId>,
+  code_emitter: &mut E,
+) {
+  let text = text.as_ref();
+  let mut state = CompileState {
+    text,
+    code_emitter,
+    pending_jump_labels: vec![],
+    pending_datum_indices: vec![],
+    data_start: HashMap::default(),
+    label_addrs: HashMap::default(),
+    parsed: expr as *mut _,
+    linenum: 0,
+  };
+
+  let ty = state.compile_expr(expr.content);
+  if !ty.matches(Type::Real) {
+    let range = &state.expr_node(expr.content).range;
+    state.add_error(
+      range.clone(),
+      format!(
+        "表达式类型错误。自定义函数的函数体表达式必须是{}类型，而这个表达式是{}类型",
+        Type::Real, ty
+      ),
+    );
+  }
+}
+
+struct CompileState<'a, 'b, E: CodeEmitter, T> {
   text: &'b str,
   code_emitter: &'a mut E,
   pending_jump_labels: Vec<(E::Addr, (usize, Range), Option<Label>)>,
   pending_datum_indices: Vec<(E::Addr, (usize, Range), Label)>,
   data_start: HashMap<Label, E::DatumIndex>,
   label_addrs: HashMap<Label, E::Addr>,
-  line: *mut ProgramLine,
+  parsed: *mut ParseResult<T>,
   linenum: usize,
 }
 
@@ -170,29 +207,31 @@ enum Type {
   Error,
 }
 
-impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E> {
+impl<'a, 'b, E: CodeEmitter, T> CompileState<'a, 'b, E, T> {
   fn add_error(&mut self, range: Range, message: impl ToString) {
-    unsafe { &mut *self.line }
+    unsafe { &mut *self.parsed }
       .diagnostics
       .push(Diagnostic::new_error(range, message));
   }
 
   fn add_warning(&mut self, range: Range, message: impl ToString) {
-    unsafe { &mut *self.line }
+    unsafe { &mut *self.parsed }
       .diagnostics
       .push(Diagnostic::new_warning(range, message));
   }
 
   fn expr_node(&self, expr: ExprId) -> &'a Expr {
-    unsafe { &(*self.line).expr_arena[expr] }
+    unsafe { &(*self.parsed).expr_arena[expr] }
   }
 
   fn stmt_node(&self, stmt: StmtId) -> &'a Stmt {
-    unsafe { &(*self.line).stmt_arena[stmt] }
+    unsafe { &(*self.parsed).stmt_arena[stmt] }
   }
+}
 
+impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E, ProgramLine> {
   fn label(&self) -> Option<Label> {
-    unsafe { (*self.line).label.as_ref().map(|x| x.1) }
+    unsafe { (*self.parsed).content.label.as_ref().map(|x| x.1) }
   }
 
   fn compile_prog(&mut self, text: &'b str, prog: &mut Program) {
@@ -200,10 +239,10 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E> {
     let mut text_offset = 0;
 
     for (i, line) in prog.lines.iter_mut().enumerate() {
-      self.text = &text[text_offset..text_offset + line.source_len];
+      self.text = &text[text_offset..text_offset + line.content.source_len];
       self.linenum = i;
-      self.line = line as *mut _;
-      if let Some((range, l)) = &line.label {
+      self.parsed = line as *mut _;
+      if let Some((range, l)) = &line.content.label {
         if l.0 as i32 <= last_label {
           self.add_error(range.clone(), "行号必须递增");
         }
@@ -215,11 +254,11 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E> {
 
       self.code_emitter.begin_line(i);
 
-      for &stmt in &line.stmts {
+      for &stmt in &line.content.stmts {
         self.compile_stmt(stmt);
       }
 
-      text_offset += line.source_len;
+      text_offset += line.content.source_len;
     }
 
     self.resolve_labels(prog);
@@ -394,8 +433,12 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E> {
       StmtKind::Kill(_) => self.code_emitter.emit_no_op(range),
       StmtKind::Let { var, value } => {
         let (_, _) = self.compile_lvalue(*var);
-        let _ = self.compile_expr(*value);
-        self.code_emitter.emit_op(range, &stmt.kind, 2);
+        let ty = self.compile_expr(*value);
+        if ty.matches(Type::Real) {
+          self.code_emitter.emit_assign_num(range);
+        } else {
+          self.code_emitter.emit_assign_str(range);
+        }
       }
       StmtKind::Line(args) => compile_draw_stmt!(&stmt, args, LINE, 4, 5),
       StmtKind::List(_) => self.code_emitter.emit_no_op(range),
@@ -467,6 +510,14 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E> {
       StmtKind::Write { filenum, data } => {
         self.compile_write(range, *filenum, data)
       }
+      StmtKind::Sleep(arg) => self.compile_unary_stmt(
+        range,
+        &stmt.kind,
+        *arg,
+        Type::Real,
+        "SLEEP",
+        "参数",
+      ),
       StmtKind::NoOp => self.code_emitter.emit_no_op(range),
     }
   }
@@ -774,7 +825,7 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E> {
 
   fn compile_write(
     &mut self,
-    _range: Range,
+    range: Range,
     filenum: Option<ExprId>,
     data: &NonEmptyVec<[WriteElement; 1]>,
   ) {
@@ -792,9 +843,10 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E> {
     }
 
     let to_file = filenum.is_some();
+    let mut printed = false;
 
     for (i, datum) in data.iter().enumerate() {
-      self.compile_expr(datum.datum);
+      let ty = self.compile_expr(datum.datum);
       if i < data.len().get() - 1 && !datum.comma {
         let range = self.expr_node(datum.datum).range.clone();
         self.add_warning(
@@ -804,13 +856,22 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E> {
       }
 
       let range = self.expr_node(datum.datum).range.clone();
-      if i == data.len().get() - 1 {
-        self.code_emitter.emit_write_end(range, to_file);
-      } else if datum.comma {
-        self.code_emitter.emit_write(range, to_file);
+      if i == data.len().get() - 1 || datum.comma {
+        printed = true;
+        if ty.matches(Type::Real) {
+          self.code_emitter.emit_write_num(range, to_file, !datum.comma);
+        } else {
+          self.code_emitter.emit_write_str(range, to_file, !datum.comma);
+        }
+      } else if ty.matches(Type::Real) {
+        self.code_emitter.emit_pop_num(range);
       } else {
-        self.code_emitter.emit_pop(range);
+        self.code_emitter.emit_pop_str(range);
       }
+    }
+
+    if !to_file && printed {
+      self.code_emitter.emit_flush(range);
     }
   }
 
@@ -974,10 +1035,7 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E> {
             if !ty.exact_matches(Type::Real) {
               self.add_error(
                 func_range.clone(),
-                format!(
-                  "变量类型错误。自定义函数必须是{:#}类型",
-                  Type::Real
-                ),
+                format!("变量类型错误。自定义函数必须是{:#}类型", Type::Real),
               );
             }
             func
@@ -1240,6 +1298,8 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E> {
     range: Range,
     elems: &SmallVec<[PrintElement; 2]>,
   ) {
+    let mut printed = false;
+
     for (i, elem) in elems.iter().enumerate() {
       match elem {
         PrintElement::Semicolon(_) => {
@@ -1291,11 +1351,17 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E> {
             if i == elems.len() - 1 {
               self.code_emitter.emit_print_newline(range.clone());
             }
+
+            printed = true;
           }
           _ => {
-            let _ = self.compile_expr(*expr);
+            let ty = self.compile_expr(*expr);
             let elem_range = &self.expr_node(*expr).range;
-            self.code_emitter.emit_print_value(elem_range.clone());
+            if ty.matches(Type::Real) {
+              self.code_emitter.emit_print_num(elem_range.clone());
+            } else {
+              self.code_emitter.emit_print_str(elem_range.clone());
+            }
             if i == elems.len() - 1 {
               self.code_emitter.emit_print_newline(range.clone());
             } else if matches!(&elems[i + 1], PrintElement::Expr(_)) {
@@ -1304,16 +1370,22 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E> {
                 .emit_number(elem_range.clone(), Mbf5::one());
               self.code_emitter.emit_print_spc(elem_range.clone());
             }
+
+            printed = true;
           }
         },
       }
     }
 
     if elems.is_empty() {
-      self.code_emitter.emit_print_newline(range);
+      self.code_emitter.emit_print_newline(range.clone());
+    } else if printed {
+      self.code_emitter.emit_flush(range);
     }
   }
+}
 
+impl<'a, 'b, E: CodeEmitter, T> CompileState<'a, 'b, E, T> {
   #[must_use]
   fn compile_expr(&mut self, expr: ExprId) -> Type {
     let expr = self.expr_node(expr);
@@ -1732,7 +1804,7 @@ impl Display for Type {
 mod tests {
   use super::*;
   use crate::machine::EmojiStyle;
-  use crate::parser::parse_prog;
+  use crate::parser::{parse_expr, parse_prog};
   use crate::vm::codegen::CodeGen;
   use insta::assert_debug_snapshot;
   use pretty_assertions::assert_eq;
@@ -1940,6 +2012,16 @@ mod tests {
   }
 
   #[test]
+  fn sleep() {
+    assert_debug_snapshot!(compile(
+      r#"
+10 sleep -2*x:sleep 0:sleep 300
+    "#
+      .trim()
+    ));
+  }
+
+  #[test]
   fn for_loop_to_sleep() {
     assert_debug_snapshot!(compile(
       r#"
@@ -2017,5 +2099,24 @@ mod tests {
         .trim()
       ));
     }
+  }
+
+  #[test]
+  fn fn_body() {
+    let text = r#"x + 3 * fn f(7) - 2"#;
+    let mut prog = parse_expr(text).0;
+    let mut codegen = CodeGen::new(EmojiStyle::New);
+    compile_fn_body(text, &mut prog, &mut codegen);
+    assert_eq!(prog.diagnostics, vec![]);
+    assert_debug_snapshot!(codegen);
+  }
+
+  #[test]
+  fn fn_body_type_mismatch() {
+    let text = r#"x$ + chr$(i)"#;
+    let mut prog = parse_expr(text).0;
+    let mut codegen = CodeGen::new(EmojiStyle::New);
+    compile_fn_body(text, &mut prog, &mut codegen);
+    assert_debug_snapshot!(prog.diagnostics);
   }
 }

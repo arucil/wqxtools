@@ -1,7 +1,6 @@
-use super::{Expr, Label, Range, Stmt, StmtId};
-use crate::diagnostic::Diagnostic;
-use id_arena::Arena;
+use super::{Label, Range, StmtId};
 use smallvec::SmallVec;
+use crate::parser::ParseResult;
 use std::fmt::{Debug, Write};
 
 #[derive(Debug, Clone)]
@@ -9,11 +8,8 @@ pub struct ProgramLine {
   /// Includes newline.
   pub source_len: usize,
   pub label: Option<(Range, Label)>,
-  pub stmt_arena: Arena<Stmt>,
-  pub expr_arena: Arena<Expr>,
   pub stmts: SmallVec<[StmtId; 1]>,
   pub eol: Eol,
-  pub diagnostics: Vec<Diagnostic>,
 }
 
 #[derive(Debug, Clone)]
@@ -24,18 +20,18 @@ pub enum Eol {
   CrLf,
 }
 
-impl ProgramLine {
+impl ParseResult<ProgramLine> {
   pub fn to_string(&self, text: &str) -> String {
     let mut f = String::new();
-    writeln!(&mut f, "label: {:?}", self.label).unwrap();
-    writeln!(&mut f, "len: {}", self.source_len).unwrap();
-    writeln!(&mut f, "eol: {:?}", self.eol).unwrap();
+    writeln!(&mut f, "label: {:?}", self.content.label).unwrap();
+    writeln!(&mut f, "len: {}", self.content.source_len).unwrap();
+    writeln!(&mut f, "eol: {:?}", self.content.eol).unwrap();
     writeln!(&mut f, "diagnostics: ").unwrap();
     for diag in &self.diagnostics {
       writeln!(&mut f, "  {:?}", diag).unwrap();
     }
     writeln!(&mut f, "-----------------").unwrap();
-    for &stmt in self.stmts.iter() {
+    for &stmt in self.content.stmts.iter() {
       self.stmt_arena[stmt]
         .print(&self.stmt_arena, &self.expr_arena, text, &mut f)
         .unwrap();

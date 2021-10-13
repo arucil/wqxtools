@@ -6,8 +6,10 @@ use std::num::NonZeroUsize;
 use std::time::Duration;
 
 use crate::ast::{self, SysFuncKind};
+use crate::compiler::compile_fn_body;
+use crate::diagnostic::{contains_errors, Diagnostic};
 use crate::machine::EmojiStyle;
-use crate::parser::read_number;
+use crate::parser::{parse_expr, read_number};
 use crate::util::mbf5::{Mbf5, ParseRealError, RealError};
 use crate::HashMap;
 
@@ -41,7 +43,9 @@ pub struct VirtualMachine<'d, D: Device> {
   code: Vec<Instr>,
   code_len: usize,
   control_stack: Vec<ControlRecord>,
-  value_stack: Vec<(Location, TmpValue)>,
+  num_stack: Vec<(Location, Mbf5)>,
+  str_stack: Vec<(Location, ByteString)>,
+  lval_stack: Vec<(Location, LValue)>,
   interner: StringInterner,
   store: Store,
   fn_call_stack: Vec<FnCallRecord>,
@@ -95,13 +99,6 @@ struct FnCallRecord {
   param: Symbol,
   param_org_value: Value,
   next_addr: Addr,
-}
-
-#[derive(Debug, Clone)]
-enum TmpValue {
-  LValue(LValue),
-  String(ByteString),
-  Real(Mbf5),
 }
 
 #[derive(Debug, Clone)]
@@ -210,6 +207,16 @@ struct RecordField {
   lvalue: LValue,
 }
 
+impl InputFuncBody {
+  pub fn new(codegen: CodeGen) -> Self {
+    assert!(codegen.data.is_empty());
+    Self {
+      interner: codegen.interner,
+      code: codegen.code,
+    }
+  }
+}
+
 impl<'d, D> VirtualMachine<'d, D>
 where
   D: Device,
@@ -223,7 +230,9 @@ where
       code_len: g.code.len(),
       code: g.code,
       control_stack: vec![],
-      value_stack: vec![],
+      num_stack: vec![],
+      str_stack: vec![],
+      lval_stack: vec![],
       interner: g.interner,
       store: Store::default(),
       fn_call_stack: vec![],
@@ -237,23 +246,33 @@ where
     vm
   }
 
-  pub fn reset(&mut self, reset_pc: bool) {
+  pub fn reset(&mut self, loc: Location, reset_pc: bool) -> Result<()> {
     self.data_ptr = 0;
     if reset_pc {
       self.pc = 0;
     }
     self.code.truncate(self.code_len);
     self.control_stack.clear();
-    self.value_stack.clear();
+    self.num_stack.clear();
+    self.str_stack.clear();
+    self.lval_stack.clear();
     self.store.clear();
     self.fn_call_stack.clear();
     //self.device.clear();
-    for file in &mut self.files {
-      file.take();
-    }
+    self.close_files(loc)?;
     self.rng = WyRand::new();
     self.current_rand = self.rng.generate();
     self.state = ExecState::Normal;
+    Ok(())
+  }
+
+  fn close_files(&mut self, loc: Location) -> Result<()> {
+    for file in &mut self.files {
+      if let Some(file) = file.take() {
+        self.state.io(loc.clone(), "关闭文件", file.file.close())?;
+      }
+    }
+    Ok(())
   }
 
   pub fn exec(
@@ -290,8 +309,70 @@ where
     *steps -= 1;
     let instr = &self.code[self.pc];
     let loc = instr.loc.clone();
+    let kind = instr.kind.clone();
 
-    match instr.kind.clone() {
+    let result = self.do_exec_instr(steps, loc.clone(), kind);
+    if let ExecState::Done = &self.state {
+      result.and(self.close_files(loc))
+    } else {
+      result
+    }
+  }
+
+  fn do_exec_instr(
+    &mut self,
+    steps: &mut usize,
+    loc: Location,
+    kind: InstrKind,
+  ) -> Result<()> {
+    macro_rules! write_file {
+      ($file:ident, $w:expr) => {
+        self.state.io(loc.clone(), "写入文件", $file.write($w))?;
+      };
+    }
+
+    macro_rules! do_write {
+      (
+        $to_file:ident,
+        $end:ident,
+        $file:ident => $write_file:expr,
+        $write_screen:expr
+      ) => {{
+        if $to_file {
+          let filenum = self.get_filenum($end)?;
+          if let Some(file) = &mut self.files[filenum as usize] {
+            if let FileMode::Output | FileMode::Append = file.mode {
+              let $file = &mut file.file;
+              $write_file;
+              if $end {
+                write_file!($file, &[0xffu8]);
+              } else {
+                write_file!($file, b",");
+              }
+            } else {
+              self.state.error(
+                loc,
+                format!(
+                  "LOF 函数只能用于以 OUTPUT 或 APPEND 模式打开的文件，\
+                  但 {} 号文件是以 {} 模式打开的",
+                  filenum + 1,
+                  file.mode
+                ),
+              )?;
+            }
+          } else {
+            self.state.error(loc, "未打开文件，不能执行 WRITE 操作")?;
+          }
+        } else {
+          $write_screen;
+          if !$end {
+            self.device.print(b",");
+          }
+        };
+      }}
+    }
+
+    match kind {
       InstrKind::DefFn { name, param, end } => {
         self.store.user_funcs.insert(
           name,
@@ -313,11 +394,10 @@ where
         let mut size = 1;
         let mut multiplier = 1;
         let mut dimensions = vec![];
-        let start = self.value_stack.len() - num_dimensions.get();
-        self.value_stack[start..].reverse();
+        let start = self.num_stack.len() - num_dimensions.get();
+        self.num_stack[start..].reverse();
         for _ in 0..num_dimensions.get() {
-          let (loc, value) = self.value_stack.pop().unwrap();
-          let value = value.unwrap_real();
+          let (loc, value) = self.num_stack.pop().unwrap();
           let bound = f64::from(value.truncate()) as isize;
           if bound < 0 {
             self.state.error(
@@ -337,18 +417,14 @@ where
         self.store.arrays.insert(name, Array { dimensions, data });
       }
       InstrKind::PushVarLValue { name } => {
-        self.value_stack.push((loc, LValue::Var { name }.into()));
+        self.lval_stack.push((loc, LValue::Var { name }));
       }
       InstrKind::PushIndexLValue { name, dimensions } => {
         let offset = self.calc_array_offset(name, dimensions)?;
-        self
-          .value_stack
-          .push((loc, LValue::Index { name, offset }.into()));
+        self.lval_stack.push((loc, LValue::Index { name, offset }));
       }
       InstrKind::PushFnLValue { name, param } => {
-        self
-          .value_stack
-          .push((loc, LValue::Fn { name, param }.into()));
+        self.lval_stack.push((loc, LValue::Fn { name, param }));
       }
       InstrKind::SetRecordFields { fields } => {
         self.exec_field(loc, fields.get())?
@@ -371,7 +447,7 @@ where
         return Ok(());
       }
       InstrKind::JumpIfZero(target) => {
-        let value = self.value_stack.pop().unwrap().1.unwrap_real();
+        let value = self.num_stack.pop().unwrap().1;
         if value.is_zero() {
           self.pc = target.0;
         } else {
@@ -381,7 +457,7 @@ where
       }
       InstrKind::CallFn(func) => {
         if let Some(func) = self.store.user_funcs.get(&func).cloned() {
-          let arg = self.value_stack.pop().unwrap();
+          let arg = self.num_stack.pop().unwrap();
           let param_org_value = self
             .store
             .load_value(&self.interner, LValue::Var { name: func.param });
@@ -390,7 +466,7 @@ where
             param_org_value,
             next_addr: Addr(self.pc + 1),
           });
-          self.store_tmp_value(LValue::Var { name: func.param }, arg)?;
+          self.store_num(LValue::Var { name: func.param }, arg)?;
           self.pc = func.body_addr.0;
         } else {
           self.state.error(loc, "自定义函数不存在")?;
@@ -450,58 +526,63 @@ where
           .state
           .error(loc, "之前没有执行过 GOSUB 语句，POP 语句无法执行")?;
       }
-      InstrKind::PopValue => {
-        self.value_stack.pop().unwrap();
+      InstrKind::PopNum => {
+        self.num_stack.pop().unwrap();
+      }
+      InstrKind::PopStr => {
+        self.str_stack.pop().unwrap();
       }
       InstrKind::PushNum(num) => {
-        self.value_stack.push((loc, num.into()));
+        self.num_stack.push((loc, num));
       }
-      InstrKind::PushVar(var) => {
-        let value = self.load_tmp_value(var);
-        self.value_stack.push((loc, value));
+      InstrKind::PushVar(name) => {
+        match self.store.load_value(&self.interner, LValue::Var { name }) {
+          Value::Integer(n) => self.num_stack.push((loc, n.into())),
+          Value::Real(n) => self.num_stack.push((loc, n)),
+          Value::String(s) => self.str_stack.push((loc, s)),
+        }
       }
       InstrKind::PushStr(str) => {
-        self.value_stack.push((loc, str.into()));
+        self.str_stack.push((loc, str));
       }
       InstrKind::PushInKey => {
         self.state.inkey()?;
       }
       InstrKind::PushIndex { name, dimensions } => {
         let offset = self.calc_array_offset(name, dimensions)?;
-        let value = match &self.store.arrays[&name].data {
-          ArrayData::Integer(arr) => Mbf5::from(arr[offset]).into(),
-          ArrayData::Real(arr) => arr[offset].into(),
-          ArrayData::String(arr) => arr[offset].clone().into(),
+        match &self.store.arrays[&name].data {
+          ArrayData::Integer(arr) => {
+            self.num_stack.push((loc, Mbf5::from(arr[offset])));
+          }
+          ArrayData::Real(arr) => {
+            self.num_stack.push((loc, arr[offset]));
+          }
+          ArrayData::String(arr) => {
+            self.str_stack.push((loc, arr[offset].clone().into()));
+          }
         };
-        self.value_stack.push((loc, value));
       }
       InstrKind::Not => {
-        let value = self.value_stack.pop().unwrap().1.unwrap_real();
-        self
-          .value_stack
-          .push((loc, Mbf5::from(value.is_zero()).into()));
+        let value = self.num_stack.pop().unwrap().1;
+        self.num_stack.push((loc, Mbf5::from(value.is_zero())));
       }
       InstrKind::Neg => {
-        let value = self.value_stack.pop().unwrap().1.unwrap_real();
-        self.value_stack.push((loc, (-value).into()));
+        let value = self.num_stack.pop().unwrap().1;
+        self.num_stack.push((loc, -value));
       }
       InstrKind::CmpNum(cmp) => {
-        let rhs = self.value_stack.pop().unwrap().1.unwrap_real();
-        let lhs = self.value_stack.pop().unwrap().1.unwrap_real();
-        self
-          .value_stack
-          .push((loc, Mbf5::from(cmp.cmp(lhs, rhs)).into()));
+        let rhs = self.num_stack.pop().unwrap().1;
+        let lhs = self.num_stack.pop().unwrap().1;
+        self.num_stack.push((loc, Mbf5::from(cmp.cmp(lhs, rhs))));
       }
       InstrKind::CmpStr(cmp) => {
-        let rhs = self.value_stack.pop().unwrap().1.unwrap_real();
-        let lhs = self.value_stack.pop().unwrap().1.unwrap_real();
-        self
-          .value_stack
-          .push((loc, Mbf5::from(cmp.cmp(lhs, rhs)).into()));
+        let rhs = self.str_stack.pop().unwrap().1;
+        let lhs = self.str_stack.pop().unwrap().1;
+        self.num_stack.push((loc, Mbf5::from(cmp.cmp(lhs, rhs))));
       }
       InstrKind::Concat => {
-        let mut rhs = self.value_stack.pop().unwrap().1.unwrap_string();
-        let mut lhs = self.value_stack.pop().unwrap().1.unwrap_string();
+        let mut rhs = self.str_stack.pop().unwrap().1;
+        let mut lhs = self.str_stack.pop().unwrap().1;
         lhs.append(&mut rhs);
         if lhs.len() > 255 {
           self.state.error(
@@ -512,13 +593,13 @@ where
             ),
           )?;
         }
-        self.value_stack.push((loc, lhs.into()));
+        self.str_stack.push((loc, lhs));
       }
       InstrKind::Add => {
-        let rhs = self.value_stack.pop().unwrap().1.unwrap_real();
-        let lhs = self.value_stack.pop().unwrap().1.unwrap_real();
+        let rhs = self.num_stack.pop().unwrap().1;
+        let lhs = self.num_stack.pop().unwrap().1;
         match lhs + rhs {
-          Ok(result) => self.value_stack.push((loc, result.into())),
+          Ok(result) => self.num_stack.push((loc, result)),
           Err(RealError::Infinite) => {
             self.state.error(
               loc,
@@ -532,10 +613,10 @@ where
         }
       }
       InstrKind::Sub => {
-        let rhs = self.value_stack.pop().unwrap().1.unwrap_real();
-        let lhs = self.value_stack.pop().unwrap().1.unwrap_real();
+        let rhs = self.num_stack.pop().unwrap().1;
+        let lhs = self.num_stack.pop().unwrap().1;
         match lhs - rhs {
-          Ok(result) => self.value_stack.push((loc, result.into())),
+          Ok(result) => self.num_stack.push((loc, result)),
           Err(RealError::Infinite) => {
             self.state.error(
               loc,
@@ -549,10 +630,10 @@ where
         }
       }
       InstrKind::Mul => {
-        let rhs = self.value_stack.pop().unwrap().1.unwrap_real();
-        let lhs = self.value_stack.pop().unwrap().1.unwrap_real();
+        let rhs = self.num_stack.pop().unwrap().1;
+        let lhs = self.num_stack.pop().unwrap().1;
         match lhs * rhs {
-          Ok(result) => self.value_stack.push((loc, result.into())),
+          Ok(result) => self.num_stack.push((loc, result)),
           Err(RealError::Infinite) => {
             self.state.error(
               loc,
@@ -566,13 +647,13 @@ where
         }
       }
       InstrKind::Div => {
-        let rhs = self.value_stack.pop().unwrap().1.unwrap_real();
+        let rhs = self.num_stack.pop().unwrap().1;
         if rhs.is_zero() {
           self.state.error(loc, "除以 0")?;
         }
-        let lhs = self.value_stack.pop().unwrap().1.unwrap_real();
+        let lhs = self.num_stack.pop().unwrap().1;
         match lhs / rhs {
-          Ok(result) => self.value_stack.push((loc, result.into())),
+          Ok(result) => self.num_stack.push((loc, result)),
           Err(RealError::Infinite) => {
             self.state.error(
               loc,
@@ -586,10 +667,10 @@ where
         }
       }
       InstrKind::Pow => {
-        let rhs = self.value_stack.pop().unwrap().1.unwrap_real();
-        let lhs = self.value_stack.pop().unwrap().1.unwrap_real();
+        let rhs = self.num_stack.pop().unwrap().1;
+        let lhs = self.num_stack.pop().unwrap().1;
         match lhs.pow(rhs) {
-          Ok(result) => self.value_stack.push((loc, result.into())),
+          Ok(result) => self.num_stack.push((loc, result)),
           Err(RealError::Infinite) => {
             self.state.error(
               loc,
@@ -608,22 +689,21 @@ where
         }
       }
       InstrKind::And => {
-        let rhs = self.value_stack.pop().unwrap().1.unwrap_real();
-        let lhs = self.value_stack.pop().unwrap().1.unwrap_real();
+        let rhs = self.num_stack.pop().unwrap().1;
+        let lhs = self.num_stack.pop().unwrap().1;
         self
-          .value_stack
-          .push((loc, Mbf5::from(!lhs.is_zero() && !rhs.is_zero()).into()));
+          .num_stack
+          .push((loc, Mbf5::from(!lhs.is_zero() && !rhs.is_zero())));
       }
       InstrKind::Or => {
-        let rhs = self.value_stack.pop().unwrap().1.unwrap_real();
-        let lhs = self.value_stack.pop().unwrap().1.unwrap_real();
+        let rhs = self.num_stack.pop().unwrap().1;
+        let lhs = self.num_stack.pop().unwrap().1;
         self
-          .value_stack
-          .push((loc, Mbf5::from(!lhs.is_zero() || !rhs.is_zero()).into()));
+          .num_stack
+          .push((loc, Mbf5::from(!lhs.is_zero() || !rhs.is_zero())));
       }
       InstrKind::SysFuncCall { kind, arity } => {
-        let value = self.exec_sys_func(loc.clone(), kind, arity)?;
-        self.value_stack.push((loc, value));
+        self.exec_sys_func(loc, kind, arity)?;
       }
       InstrKind::PrintNewLine => {
         self.device.print_newline();
@@ -642,13 +722,16 @@ where
         };
         self.device.print(&vec![b' '; spc_num as usize]);
       }
-      InstrKind::PrintValue => {
-        let value = self.value_stack.pop().unwrap().1;
-        match value {
-          TmpValue::Real(num) => self.device.print(num.to_string().as_bytes()),
-          TmpValue::String(s) => self.device.print(&s.to_print_form()),
-          _ => unreachable!(),
-        }
+      InstrKind::PrintNum => {
+        let value = self.num_stack.pop().unwrap().1;
+        self.device.print(value.to_string().as_bytes());
+      }
+      InstrKind::PrintStr => {
+        let value = self.str_stack.pop().unwrap().1;
+        self.device.print(&value.drop_0x1f().drop_null());
+      }
+      InstrKind::Flush => {
+        self.device.flush();
       }
       InstrKind::SetRow => {
         let row = self.pop_range(1, 5)? as u8 - 1;
@@ -656,13 +739,37 @@ where
       }
       InstrKind::SetColumn => {
         let col = self.pop_range(1, 20)? as u8 - 1;
-        self.device.set_row(col);
+        self.device.set_column(col);
       }
-      InstrKind::Write { to_file } => {
-        self.exec_write(loc, to_file, false)?;
+      InstrKind::WriteNum { to_file, end } => {
+        let num = self.num_stack.pop().unwrap().1;
+        do_write!(
+          to_file,
+          end,
+          file => {
+            write_file!(file, num.to_string().as_bytes());
+          },
+          {
+            self.device.print(num.to_string().as_bytes());
+          }
+        );
       }
-      InstrKind::WriteEnd { to_file } => {
-        self.exec_write(loc, to_file, true)?;
+      InstrKind::WriteStr { to_file, end } => {
+        let str = self.str_stack.pop().unwrap().1;
+        do_write!(
+          to_file,
+          end,
+          file => {
+            write_file!(file, b"\"");
+            write_file!(file, str.drop_null());
+            write_file!(file, b"\"");
+          },
+          {
+            self.device.print(b"\"");
+            self.device.print(str.drop_null());
+            self.device.print(b"\"");
+          }
+        );
       }
       InstrKind::KeyboardInput {
         prompt,
@@ -671,8 +778,7 @@ where
         let mut lvalues = vec![];
         let mut fields = vec![];
         for _ in 0..num_fields.get() {
-          let (lval_loc, lvalue) = self.value_stack.pop().unwrap();
-          let lvalue = lvalue.unwrap_lvalue();
+          let (lval_loc, lvalue) = self.lval_stack.pop().unwrap();
           match lvalue {
             LValue::Fn { name, param } => {
               fields.push(KeyboardInputType::Func {
@@ -690,6 +796,7 @@ where
         }
 
         fields.reverse();
+        lvalues.reverse();
         self.state.input(lvalues, prompt, fields)?;
       }
       InstrKind::FileInput { fields: num_fields } => {
@@ -710,13 +817,8 @@ where
           self.state.error(loc, "未打开文件")?;
         };
 
-        let mut fields = vec![];
-        for _ in 0..num_fields.get() {
-          let (lval_loc, lvalue) = self.value_stack.pop().unwrap();
-          let lvalue = lvalue.unwrap_lvalue();
-          fields.push((lval_loc, lvalue));
-        }
-        for (lval_loc, lvalue) in fields.into_iter().rev() {
+        let offset = self.lval_stack.len() - num_fields.get();
+        for (lval_loc, lvalue) in self.lval_stack.drain(offset..) {
           exec_file_input(
             &mut self.state,
             &mut self.store,
@@ -767,11 +869,13 @@ where
         self.device.draw_circle(x, y, r, fill, mode);
       }
       InstrKind::Clear => {
-        self.reset(false);
+        self.reset(loc, false)?;
       }
       InstrKind::CloseFile => {
         let filenum = self.get_filenum(true)?;
-        if self.files[filenum as usize].take().is_none() {
+        if let Some(file) = self.files[filenum as usize].take() {
+          self.state.io(loc, "关闭文件", file.file.close())?;
+        } else {
           self.state.error(loc, "未打开文件，不能关闭文件")?;
         }
       }
@@ -865,11 +969,15 @@ where
           Ok(())
         })?;
       }
-      InstrKind::Assign => {
-        let rvalue = self.value_stack.pop().unwrap();
-        let (_, lvalue) = self.value_stack.pop().unwrap();
-        let lvalue = lvalue.unwrap_lvalue();
-        self.store_tmp_value(lvalue, rvalue)?;
+      InstrKind::AssignNum => {
+        let (_, lvalue) = self.lval_stack.pop().unwrap();
+        let num = self.num_stack.pop().unwrap();
+        self.store_num(lvalue, num)?;
+      }
+      InstrKind::AssignStr => {
+        let (_, lvalue) = self.lval_stack.pop().unwrap();
+        let str = self.str_stack.pop().unwrap().1;
+        self.store.store_value(lvalue, Value::String(str));
       }
       InstrKind::DrawLine { has_mode } => {
         let mode = self.calc_draw_mode(has_mode)?;
@@ -885,7 +993,7 @@ where
         self.device.set_screen_mode(mode);
       }
       InstrKind::PlayNotes => {
-        let value = self.value_stack.pop().unwrap().1.unwrap_string();
+        let value = self.str_stack.pop().unwrap().1;
         self.device.play_notes(&value);
       }
       InstrKind::Poke => {
@@ -894,8 +1002,8 @@ where
         self.device.set_byte(addr, value);
       }
       InstrKind::Swap => {
-        let lvalue2 = self.value_stack.pop().unwrap().1.unwrap_lvalue();
-        let lvalue1 = self.value_stack.pop().unwrap().1.unwrap_lvalue();
+        let lvalue2 = self.lval_stack.pop().unwrap().1;
+        let lvalue1 = self.lval_stack.pop().unwrap().1;
         let value1 = self.store.load_value(&self.interner, lvalue1.clone());
         let value2 = self.store.load_value(&self.interner, lvalue2.clone());
         self.store.store_value(lvalue2, value1);
@@ -904,7 +1012,8 @@ where
       InstrKind::Restart => {
         self.device.set_screen_mode(ScreenMode::Text);
         self.device.cls();
-        self.reset(true);
+        self.reset(loc, true)?;
+        return Ok(());
       }
       InstrKind::SetPrintMode(mode) => {
         self.device.set_print_mode(mode);
@@ -927,7 +1036,7 @@ where
         return Ok(());
       }
       InstrKind::WhileLoop { start, end } => {
-        let value = self.value_stack.pop().unwrap().1.unwrap_real();
+        let value = self.num_stack.pop().unwrap().1;
         if value.is_zero() {
           self.pc = end.0;
         } else {
@@ -940,8 +1049,9 @@ where
         return Ok(());
       }
       InstrKind::Sleep => {
-        let value = self.value_stack.pop().unwrap().1.unwrap_real();
+        let value = self.num_stack.pop().unwrap().1;
         if value.is_positive() {
+          self.pc += 1;
           let ns = (self.device.sleep_unit().as_nanos() as f64
             * f64::from(value)) as u64;
           self.state.sleep(Duration::from_nanos(ns))?;
@@ -957,33 +1067,38 @@ where
     loc: Location,
     kind: SysFuncKind,
     arity: NonZeroUsize,
-  ) -> Result<TmpValue> {
+  ) -> Result<()> {
     match kind {
       SysFuncKind::Abs => {
-        let value = self.value_stack.pop().unwrap().1.unwrap_real();
-        Ok(value.abs().into())
+        let value = self.num_stack.pop().unwrap().1;
+        self.num_stack.push((loc, value.abs()));
+        Ok(())
       }
       SysFuncKind::Asc => {
-        let value = self.value_stack.pop().unwrap().1.unwrap_string();
+        let value = self.str_stack.pop().unwrap().1;
         if value.is_empty() {
           self.state.error(loc, "ASC 函数的参数为空字符串")?;
         }
-        Ok(Mbf5::from(value[0]).into())
+        self.num_stack.push((loc, Mbf5::from(value[0])));
+        Ok(())
       }
       SysFuncKind::Atn => {
-        let value = self.value_stack.pop().unwrap().1.unwrap_real();
-        Ok(value.atan().into())
+        let value = self.num_stack.pop().unwrap().1;
+        self.num_stack.push((loc, value.atan()));
+        Ok(())
       }
       SysFuncKind::Chr => {
         let value = self.pop_u8(false)?;
-        Ok(ByteString::from(vec![value]).into())
+        self.str_stack.push((loc, ByteString::from(vec![value])));
+        Ok(())
       }
       SysFuncKind::Cos => {
-        let value = self.value_stack.pop().unwrap().1.unwrap_real();
-        Ok(value.cos().into())
+        let value = self.num_stack.pop().unwrap().1;
+        self.num_stack.push((loc, value.cos()));
+        Ok(())
       }
       SysFuncKind::Cvi => {
-        let value = self.value_stack.pop().unwrap().1.unwrap_string();
+        let value = self.str_stack.pop().unwrap().1;
         if value.len() != 2 {
           self.state.error(
             loc,
@@ -995,10 +1110,13 @@ where
         }
         let lo = value[0] as u16;
         let hi = value[1] as u16;
-        Ok(Mbf5::from((lo + (hi << 8)) as i16).into())
+        self
+          .num_stack
+          .push((loc, Mbf5::from((lo + (hi << 8)) as i16)));
+        Ok(())
       }
       SysFuncKind::Cvs => {
-        let value = self.value_stack.pop().unwrap().1.unwrap_string();
+        let value = self.str_stack.pop().unwrap().1;
         if value.len() != 5 {
           self.state.error(
             loc,
@@ -1008,9 +1126,11 @@ where
             ),
           )?;
         }
-        Ok(
-          Mbf5::from([value[0], value[1], value[2], value[3], value[4]]).into(),
-        )
+        self.num_stack.push((
+          loc,
+          Mbf5::from([value[0], value[1], value[2], value[3], value[4]]),
+        ));
+        Ok(())
       }
       SysFuncKind::Eof => {
         let filenum = self.get_filenum(true)?;
@@ -1028,16 +1148,23 @@ where
             self
               .state
               .io(loc.clone(), "获取文件大小", file.file.len())?;
-          let pos = self.state.io(loc, "获取文件指针", file.file.pos())?;
-          Ok(Mbf5::from(pos >= len).into())
+          let pos =
+            self
+              .state
+              .io(loc.clone(), "获取文件指针", file.file.pos())?;
+          self.num_stack.push((loc, Mbf5::from(pos >= len)));
+          Ok(())
         } else {
           self.state.error(loc, "未打开文件")?;
         }
       }
       SysFuncKind::Exp => {
-        let value = self.value_stack.pop().unwrap().1.unwrap_real();
+        let value = self.num_stack.pop().unwrap().1;
         match value.exp() {
-          Ok(result) => Ok(result.into()),
+          Ok(value) => {
+            self.num_stack.push((loc, value));
+            Ok(())
+          }
           Err(RealError::Infinite) => self.state.error(
             loc,
             format!(
@@ -1052,18 +1179,23 @@ where
         }
       }
       SysFuncKind::Int => {
-        let value = self.value_stack.pop().unwrap().1.unwrap_real();
-        Ok(value.truncate().into())
+        let value = self.num_stack.pop().unwrap().1;
+        self.num_stack.push((loc, value));
+        Ok(())
       }
       SysFuncKind::Left => {
         let len = self.pop_u8(true)? as usize;
-        let value = self.value_stack.pop().unwrap().1.unwrap_string();
+        let value = self.str_stack.pop().unwrap().1;
         let len = len.max(value.len());
-        Ok(ByteString::from(value[..len].to_vec()).into())
+        self
+          .str_stack
+          .push((loc, ByteString::from(value[..len].to_vec())));
+        Ok(())
       }
       SysFuncKind::Len => {
-        let value = self.value_stack.pop().unwrap().1.unwrap_string();
-        Ok(Mbf5::from(value.len() as u32).into())
+        let value = self.str_stack.pop().unwrap().1;
+        self.num_stack.push((loc, Mbf5::from(value.len() as u32)));
+        Ok(())
       }
       SysFuncKind::Lof => {
         let filenum = self.get_filenum(true)?;
@@ -1077,16 +1209,23 @@ where
                 file.mode
               ))?;
           }
-          let len = self.state.io(loc, "获取文件大小", file.file.len())?;
-          Ok(Mbf5::from(len).into())
+          let len =
+            self
+              .state
+              .io(loc.clone(), "获取文件大小", file.file.len())?;
+          self.num_stack.push((loc, Mbf5::from(len)));
+          Ok(())
         } else {
           self.state.error(loc, "未打开文件")?;
         }
       }
       SysFuncKind::Log => {
-        let value = self.value_stack.pop().unwrap().1.unwrap_real();
+        let value = self.num_stack.pop().unwrap().1;
         match value.ln() {
-          Ok(result) => Ok(result.into()),
+          Ok(value) => {
+            self.num_stack.push((loc, value));
+            Ok(())
+          }
           Err(RealError::Infinite) => self.state.error(
             loc,
             format!(
@@ -1107,66 +1246,90 @@ where
           255
         };
         let pos = (self.pop_u8(true)? - 1) as usize;
-        let value = self.value_stack.pop().unwrap().1.unwrap_string();
+        let value = self.str_stack.pop().unwrap().1;
         let start = pos.max(value.len());
         let end = (start + len).max(value.len());
-        Ok(ByteString::from(value[start..end].to_vec()).into())
+        self
+          .str_stack
+          .push((loc, ByteString::from(value[start..end].to_vec())));
+        Ok(())
       }
       SysFuncKind::Mki => {
         let value = self.pop_range(-32768, 32767)? as i16;
         let lo = (value & 0xff) as u8;
         let hi = (value >> 8) as u8;
-        Ok(ByteString::from(vec![lo, hi]).into())
+        self.str_stack.push((loc, ByteString::from(vec![lo, hi])));
+        Ok(())
       }
       SysFuncKind::Mks => {
-        let value = self.value_stack.pop().unwrap().1.unwrap_real();
-        Ok(ByteString::from(<[u8; 5]>::from(value).to_vec()).into())
+        let value = self.num_stack.pop().unwrap().1;
+        self
+          .str_stack
+          .push((loc, ByteString::from(<[u8; 5]>::from(value).to_vec())));
+        Ok(())
       }
       SysFuncKind::Peek => {
         let addr = self.pop_range(-65535, 65535)? as u16;
         let value = self.device.get_byte(addr);
-        Ok(Mbf5::from(value).into())
+        self.num_stack.push((loc, Mbf5::from(value)));
+        Ok(())
       }
       SysFuncKind::Pos => {
-        self.value_stack.pop().unwrap();
-        Ok(Mbf5::from(self.device.get_column()).into())
+        self.num_stack.pop().unwrap();
+        self
+          .num_stack
+          .push((loc, Mbf5::from(self.device.get_column())));
+        Ok(())
       }
       SysFuncKind::Right => {
         let len = self.pop_u8(true)? as usize;
-        let value = self.value_stack.pop().unwrap().1.unwrap_string();
+        let value = self.str_stack.pop().unwrap().1;
         let len = len.max(value.len());
-        Ok(ByteString::from(value[value.len() - len..].to_vec()).into())
+        self
+          .str_stack
+          .push((loc, ByteString::from(value[value.len() - len..].to_vec())));
+        Ok(())
       }
       SysFuncKind::Rnd => {
-        let value = self.value_stack.pop().unwrap().1.unwrap_real();
+        let value = self.num_stack.pop().unwrap().1;
         if value.is_zero() {
-          return Ok(u32_to_random_number(self.current_rand).into());
+          self
+            .num_stack
+            .push((loc, u32_to_random_number(self.current_rand)));
+          return Ok(());
         }
         if value.is_negative() {
           self.rng.reseed(&<[u8; 5]>::from(value));
         }
         let value: u32 = self.rng.generate();
         self.current_rand = value;
-        Ok(u32_to_random_number(value).into())
+        self.num_stack.push((loc, u32_to_random_number(value)));
+        Ok(())
       }
       SysFuncKind::Sgn => {
-        let value = self.value_stack.pop().unwrap().1.unwrap_real();
-        if value.is_positive() {
-          Ok(Mbf5::one().into())
+        let value = self.num_stack.pop().unwrap().1;
+        let num = if value.is_positive() {
+          Mbf5::one().into()
         } else if value.is_negative() {
-          Ok(Mbf5::neg_one().into())
+          Mbf5::neg_one().into()
         } else {
-          Ok(Mbf5::zero().into())
-        }
+          Mbf5::zero().into()
+        };
+        self.num_stack.push((loc, num));
+        Ok(())
       }
       SysFuncKind::Sin => {
-        let value = self.value_stack.pop().unwrap().1.unwrap_real();
-        Ok(value.sin().into())
+        let value = self.num_stack.pop().unwrap().1;
+        self.num_stack.push((loc, value.sin()));
+        Ok(())
       }
       SysFuncKind::Sqr => {
-        let value = self.value_stack.pop().unwrap().1.unwrap_real();
+        let value = self.num_stack.pop().unwrap().1;
         match value.sqrt() {
-          Ok(result) => Ok(result.into()),
+          Ok(value) => {
+            self.num_stack.push((loc, value));
+            Ok(())
+          }
           Err(RealError::Nan) => self.state.error(
             loc,
             format!("超出 SQR 函数的定义域。参数值是：{}", value),
@@ -1175,13 +1338,19 @@ where
         }
       }
       SysFuncKind::Str => {
-        let value = self.value_stack.pop().unwrap().1.unwrap_real();
-        Ok(ByteString::from(value.to_string().into_bytes()).into())
+        let value = self.num_stack.pop().unwrap().1;
+        self
+          .str_stack
+          .push((loc, ByteString::from(value.to_string().into_bytes())));
+        Ok(())
       }
       SysFuncKind::Tan => {
-        let value = self.value_stack.pop().unwrap().1.unwrap_real();
+        let value = self.num_stack.pop().unwrap().1;
         match value.tan() {
-          Ok(result) => Ok(result.into()),
+          Ok(value) => {
+            self.num_stack.push((loc, value));
+            Ok(())
+          }
           Err(RealError::Infinite) => self.state.error(
             loc,
             format!(
@@ -1196,95 +1365,17 @@ where
         }
       }
       SysFuncKind::Val => {
-        let mut value = self.value_stack.pop().unwrap().1.unwrap_string();
+        let mut value = self.str_stack.pop().unwrap().1;
         value.retain(|&b| b != b' ');
         let (len, _) = read_number(&*value, false);
-        Ok(
-          unsafe { std::str::from_utf8_unchecked(&value[..len]) }
-            .parse::<Mbf5>()
-            .unwrap_or(Mbf5::zero())
-            .into(),
-        )
+        let num = unsafe { std::str::from_utf8_unchecked(&value[..len]) }
+          .parse::<Mbf5>()
+          .unwrap_or(Mbf5::zero());
+        self.num_stack.push((loc, num));
+        Ok(())
       }
       SysFuncKind::Tab | SysFuncKind::Spc => unreachable!(),
     }
-  }
-
-  fn exec_write(
-    &mut self,
-    loc: Location,
-    to_file: bool,
-    end: bool,
-  ) -> Result<()> {
-    let value = self.value_stack.pop().unwrap().1;
-    let file = if to_file {
-      let filenum = self.get_filenum(end)?;
-      if let Some(file) = &mut self.files[filenum as usize] {
-        if let FileMode::Output | FileMode::Append = file.mode {
-          Some(&mut file.file)
-        } else {
-          self.state.error(
-            loc,
-            format!(
-              "LOF 函数只能用于以 OUTPUT 或 APPEND 模式打开的文件，\
-              但 {} 号文件是以 {} 模式打开的",
-              filenum + 1,
-              file.mode
-            ),
-          )?;
-        }
-      } else {
-        self.state.error(loc, "未打开文件，不能执行 WRITE 操作")?;
-      }
-    } else {
-      None
-    };
-
-    macro_rules! write_file {
-      ($file:ident, $w:expr) => {
-        self.state.io(loc.clone(), "写入文件", $file.write($w))?;
-      };
-    }
-
-    match value {
-      TmpValue::Real(num) => {
-        if let Some(file) = file {
-          write_file!(file, num.to_string().as_bytes());
-          if end {
-            write_file!(file, &[0xffu8]);
-          } else {
-            write_file!(file, b",");
-          }
-        } else {
-          self.device.print(num.to_string().as_bytes());
-          if !end {
-            self.device.print(b",");
-          }
-        }
-      }
-      TmpValue::String(s) => {
-        if let Some(file) = file {
-          write_file!(file, b"\"");
-          write_file!(file, &s);
-          write_file!(file, b"\"");
-          if end {
-            write_file!(file, &[0xff]);
-          } else {
-            write_file!(file, b",");
-          }
-        } else {
-          self.device.print(b"\"");
-          self.device.print(&s.to_print_form());
-          self.device.print(b"\"");
-          if !end {
-            self.device.print(b",");
-          }
-        }
-      }
-      _ => unreachable!(),
-    }
-
-    Ok(())
   }
 
   fn exec_open(
@@ -1304,8 +1395,7 @@ where
     };
 
     let filenum = self.get_filenum(true)?;
-    let (name_loc, filename) = self.value_stack.pop().unwrap();
-    let mut filename = filename.unwrap_string();
+    let (name_loc, mut filename) = self.str_stack.pop().unwrap();
 
     if self.files[filenum as usize].is_some() {
       self
@@ -1371,7 +1461,7 @@ where
     let datum = &self.data[self.data_ptr];
     self.data_ptr += 1;
 
-    let lvalue = self.value_stack.pop().unwrap().1.unwrap_lvalue();
+    let lvalue = self.lval_stack.pop().unwrap().1;
     match lvalue.get_type(&self.interner) {
       Type::String => {
         let str = datum.value.clone();
@@ -1455,12 +1545,13 @@ where
         record_len = *len as u32;
       } else {
         self.state.error(
-              loc,
-              format!(
-                "FIELD 语句只能用于以 RANDOM 模式打开的文件，但 {} 号文件是以 {} 模式打开的",
-                filenum + 1,
-                file.mode
-              ))?;
+          loc,
+          format!(
+            "FIELD 语句只能用于以 RANDOM 模式打开的文件，但 {} 号文件是以 {} 模式打开的",
+            filenum + 1,
+            file.mode
+          )
+        )?;
       }
     } else {
       self.state.error(loc, "未打开文件")?;
@@ -1469,7 +1560,7 @@ where
     let mut fields = vec![];
     let mut total_len = 0u32;
     for _ in 0..num_fields {
-      let lvalue = self.value_stack.pop().unwrap().1.unwrap_lvalue();
+      let lvalue = self.lval_stack.pop().unwrap().1;
       let len = self.pop_u8(false)?;
       fields.push(RecordField { len, lvalue });
       total_len += len as u32;
@@ -1503,12 +1594,12 @@ where
     has_step: bool,
   ) -> Result<()> {
     let step = if has_step {
-      self.value_stack.pop().unwrap().1.unwrap_real()
+      self.num_stack.pop().unwrap().1
     } else {
       Mbf5::one()
     };
-    let end = self.value_stack.pop().unwrap().1.unwrap_real();
-    let start = self.value_stack.pop().unwrap();
+    let end = self.num_stack.pop().unwrap().1;
+    let start = self.num_stack.pop().unwrap();
 
     let mut prev_loop = None;
     for (i, item) in self.control_stack.iter().enumerate().rev() {
@@ -1533,7 +1624,7 @@ where
         step,
       }));
 
-    self.store_tmp_value(LValue::Var { name }, start)?;
+    self.store_num(LValue::Var { name }, start)?;
 
     Ok(())
   }
@@ -1559,7 +1650,10 @@ where
     }
 
     if let Some(record) = found {
-      let value = self.load_tmp_value(record.var).unwrap_real();
+      let value = self
+        .store
+        .load_value(&self.interner, LValue::Var { name: record.var })
+        .unwrap_real();
       let loc = self.code[record.addr.0].loc.clone();
       let new_value = match value + record.step {
         Ok(new_value) => new_value,
@@ -1572,10 +1666,7 @@ where
         Err(_) => unreachable!(),
       };
 
-      self.store_tmp_value(
-        LValue::Var { name: record.var },
-        (loc, new_value.into()),
-      )?;
+      self.store_num(LValue::Var { name: record.var }, (loc, new_value))?;
 
       let end_loop = if record.step.is_positive() {
         new_value > record.target
@@ -1599,29 +1690,29 @@ where
   }
 
   fn exec_set(&mut self, _loc: Location, align: Alignment) -> Result<()> {
-    let mut value = self.value_stack.pop().unwrap().1.unwrap_string();
-    let lvalue = self.value_stack.pop().unwrap().1.unwrap_lvalue();
+    let mut value = self.str_stack.pop().unwrap().1;
+    let lvalue = self.lval_stack.pop().unwrap().1;
 
-    let mut str = self
+    let mut dest = self
       .store
       .load_value(&self.interner, lvalue.clone())
       .unwrap_string();
-    if value.len() > str.len() {
-      value.truncate(str.len());
-      str = value;
+    if value.len() > dest.len() {
+      value.truncate(dest.len());
+      dest = value;
     } else {
       match align {
         Alignment::Left => {
-          str.clone_from_slice(&value);
+          dest[..value.len()].clone_from_slice(&value);
         }
         Alignment::Right => {
-          let padding = str.len() - value.len();
-          str[padding..].clone_from_slice(&value);
-          str[..padding].fill(b' ');
+          let padding = dest.len() - value.len();
+          dest[padding..].clone_from_slice(&value);
+          dest[..padding].fill(b' ');
         }
       }
     }
-    self.store.store_value(lvalue, Value::String(str));
+    self.store.store_value(lvalue, Value::String(dest));
 
     Ok(())
   }
@@ -1630,7 +1721,7 @@ where
   where
     F: FnOnce(&mut Self, usize) -> Result<()>,
   {
-    let record_loc = self.value_stack.last().unwrap().0.clone();
+    let record_loc = self.num_stack.last().unwrap().0.clone();
     let record = self.pop_range(-32768, 32767)? as i16;
     if record == 0 {
       self.state.error(record_loc, "记录序号不能为 0")?;
@@ -1665,8 +1756,8 @@ where
     match input {
       ExecInput::Key(key) => {
         self
-          .value_stack
-          .push((self.code[self.pc].loc.clone(), Mbf5::from(key).into()));
+          .str_stack
+          .push((self.code[self.pc].loc.clone(), ByteString::from(vec![key])));
       }
       _ => unreachable!(),
     }
@@ -1696,9 +1787,7 @@ where
               self.store.store_value(lvalue, Value::Real(num));
             }
             KeyboardInput::String(s) => {
-              self.device.print(b"\"");
-              self.device.print(&s.to_print_form());
-              self.device.print(b"\"");
+              self.device.print(&s);
               self.store.store_value(lvalue, Value::String(s));
             }
             KeyboardInput::Func { body } => {
@@ -1779,8 +1868,7 @@ where
     let array = &self.store.arrays[&name];
     let mut offset = 0;
     for i in (0..dimensions).rev() {
-      let (loc, value) = self.value_stack.pop().unwrap();
-      let value = value.unwrap_real();
+      let (loc, value) = self.num_stack.pop().unwrap();
       let bound = f64::from(value.truncate()) as isize;
       if bound < 0 {
         self.state.error(
@@ -1827,8 +1915,7 @@ where
   }
 
   fn pop_range(&mut self, min: i32, max: i32) -> Result<i32> {
-    let (value_loc, value) = self.value_stack.pop().unwrap();
-    let value = value.unwrap_real();
+    let (value_loc, value) = self.num_stack.pop().unwrap();
 
     let value = f64::from(value);
     if value <= min as f64 - 1.0 || value >= max as f64 + 1.0 {
@@ -1843,11 +1930,11 @@ where
   /// Returns [0, 2].
   fn get_filenum(&mut self, pop: bool) -> Result<u8> {
     let (loc, value) = if pop {
-      self.value_stack.pop().unwrap()
+      self.num_stack.pop().unwrap()
     } else {
-      self.value_stack.last().cloned().unwrap()
+      self.num_stack.last().cloned().unwrap()
     };
-    let int = f64::from(value.unwrap_real()) as i64;
+    let int = f64::from(value) as i64;
     if int >= 1 && int <= 3 {
       Ok(int as u8 - 1)
     } else {
@@ -1855,39 +1942,45 @@ where
     }
   }
 
-  fn load_tmp_value(&mut self, name: Symbol) -> TmpValue {
-    self
-      .store
-      .load_value(&self.interner, LValue::Var { name })
-      .into()
-  }
-
-  fn store_tmp_value(
+  fn store_num(
     &mut self,
     lvalue: LValue,
-    (rvalue_loc, rvalue): (Location, TmpValue),
+    (loc, num): (Location, Mbf5),
   ) -> Result<()> {
     let value = match lvalue.get_type(&self.interner) {
       Type::Integer => {
-        let value = rvalue.unwrap_real();
-        let int = f64::from(value.truncate());
+        let int = f64::from(num.truncate());
         if int <= -32769.0 || int >= 32768.0 {
           self.state.error(
-            rvalue_loc,
+            loc,
             format!(
               "运算结果数值过大，超出了整数的表示范围（-32768~32767），\
               无法赋值给整数变量。运算结果为：{}",
-              f64::from(value),
+              f64::from(num),
             ),
           )?;
         }
         Value::Integer(int as i16)
       }
-      Type::Real => Value::Real(rvalue.unwrap_real()),
-      Type::String => Value::String(rvalue.unwrap_string()),
+      Type::Real => Value::Real(num),
+      _ => unreachable!(),
     };
     self.store.store_value(lvalue, value);
     Ok(())
+  }
+
+  pub fn compile_fn_body(
+    &self,
+    input: &str,
+  ) -> std::result::Result<InputFuncBody, Vec<Diagnostic>> {
+    let (mut expr, _) = parse_expr(input);
+    let mut codegen = CodeGen::new(self.emoji_style);
+    compile_fn_body(input, &mut expr, &mut codegen);
+    if contains_errors(&expr.diagnostics) {
+      Err(expr.diagnostics)
+    } else {
+      Ok(InputFuncBody::new(codegen))
+    }
   }
 }
 
@@ -2064,10 +2157,10 @@ impl ExecState {
   }
 }
 
-impl TmpValue {
+impl Value {
   fn unwrap_real(self) -> Mbf5 {
     match self {
-      Self::Real(num) => num,
+      Self::Real(n) => n,
       _ => unreachable!(),
     }
   }
@@ -2077,50 +2170,6 @@ impl TmpValue {
       Self::String(s) => s,
       _ => unreachable!(),
     }
-  }
-
-  fn unwrap_lvalue(self) -> LValue {
-    match self {
-      Self::LValue(lval) => lval,
-      _ => unreachable!(),
-    }
-  }
-}
-
-impl Value {
-  fn unwrap_string(self) -> ByteString {
-    match self {
-      Self::String(s) => s,
-      _ => unreachable!(),
-    }
-  }
-}
-
-impl From<Value> for TmpValue {
-  fn from(v: Value) -> Self {
-    match v {
-      Value::Integer(n) => TmpValue::Real(n.into()),
-      Value::Real(n) => TmpValue::Real(n.into()),
-      Value::String(s) => TmpValue::String(s),
-    }
-  }
-}
-
-impl From<LValue> for TmpValue {
-  fn from(v: LValue) -> Self {
-    Self::LValue(v)
-  }
-}
-
-impl From<Mbf5> for TmpValue {
-  fn from(v: Mbf5) -> Self {
-    Self::Real(v)
-  }
-}
-
-impl From<ByteString> for TmpValue {
-  fn from(v: ByteString) -> Self {
-    Self::String(v)
   }
 }
 
@@ -2266,6 +2315,7 @@ mod tests {
     log: Rc<RefCell<String>>,
     mem: [u8; 65536],
     file: File,
+    cursor: (u8, u8),
   }
 
   #[derive(Debug, Clone)]
@@ -2286,6 +2336,7 @@ mod tests {
           pos: 0,
           data: vec![],
         },
+        cursor: (0, 0),
       }
     }
   }
@@ -2299,21 +2350,23 @@ mod tests {
     type File = File;
 
     fn get_row(&self) -> u8 {
-      add_log(self.log.clone(), "get row");
-      0
+      add_log(self.log.clone(), format!("get row: {}", self.cursor.0));
+      self.cursor.0
     }
 
     fn get_column(&self) -> u8 {
-      add_log(self.log.clone(), "get column");
-      0
+      add_log(self.log.clone(), format!("get column: {}", self.cursor.1));
+      self.cursor.1
     }
 
     fn set_row(&mut self, row: u8) {
       add_log(self.log.clone(), format!("set row to {}", row));
+      self.cursor.0 = row;
     }
 
     fn set_column(&mut self, column: u8) {
       add_log(self.log.clone(), format!("set column to {}", column));
+      self.cursor.1 = column;
     }
 
     fn print(&mut self, str: &[u8]) {
@@ -2331,6 +2384,10 @@ mod tests {
 
     fn print_newline(&mut self) {
       add_log(self.log.clone(), "print newline");
+    }
+
+    fn flush(&mut self) {
+      add_log(self.log.clone(), "flush");
     }
 
     fn draw_point(&mut self, x: u8, y: u8, mode: DrawMode) {
@@ -2517,6 +2574,11 @@ mod tests {
       add_log(self.log.clone(), format!("read from file: {:?} ", data));
       Ok(len)
     }
+
+    fn close(self) -> io::Result<()> {
+      add_log(self.log.clone(), "close file");
+      Ok(())
+    }
   }
 
   #[test]
@@ -2699,7 +2761,7 @@ mod tests {
       r#"
 10 data abc, "123", 1e3
 20 data ,,3e
-30 read a$,b$,c%,d:print a$;b$;c%;d
+30 read a$(10),b$,c%,d:print a$(10);b$;c%;d
 40 restore:read a$,b$,c%,d:print a$;b$;c%;d
 50 restore 20:read a$,b$,c%:print a$;b$;c%:read d
     "#
@@ -2806,6 +2868,315 @@ mod tests {
     assert_snapshot!(device.log.borrow());
   }
 
+  #[test]
+  fn jump() {
+    let codegen = compile(
+      r#"
+10 cls:goto 30
+20 print inkey$;:return
+30 gosub 20
+    "#
+      .trim(),
+    );
+    let mut device = DummyDevice::new();
+    let mut vm = VirtualMachine::new(codegen, &mut device);
+
+    let result = vm.exec(None, usize::MAX);
+    assert_eq!(result, ExecResult::InKey);
+
+    let result = vm.exec(Some(ExecInput::Key(66)), usize::MAX);
+    assert_eq!(result, ExecResult::End);
+
+    assert_snapshot!(device.log.borrow());
+  }
+
+  #[test]
+  fn r#if() {
+    let codegen = compile(
+      r#"
+10 a=1:b=2:if a>=b then print "a";:30 else print "b";:40
+20 print "come";:end
+30 graph:end
+40 if a<>b goto print "GO";:gosub 20:text:else print "go";:gosub 20:inverse
+    "#
+      .trim(),
+    );
+    let mut device = DummyDevice::new();
+    let mut vm = VirtualMachine::new(codegen, &mut device);
+
+    let result = vm.exec(None, usize::MAX);
+    assert_eq!(result, ExecResult::End);
+
+    assert_snapshot!(device.log.borrow());
+  }
+
+  #[test]
+  fn input() {
+    use std::convert::TryFrom;
+
+    let codegen = compile(
+      r#"
+10 input "foo"; a$, b
+20 input c%(2), fn f(y)
+30 def fn g(x)=x*x
+40 print a$; b; c%(2); fn f(3);
+    "#
+      .trim(),
+    );
+    let mut device = DummyDevice::new();
+    let mut vm = VirtualMachine::new(codegen, &mut device);
+
+    let result = vm.exec(None, usize::MAX);
+    assert_eq!(
+      result,
+      ExecResult::KeyboardInput {
+        prompt: Some("foo".to_owned()),
+        fields: vec![KeyboardInputType::String, KeyboardInputType::Real],
+      }
+    );
+
+    let result = vm.exec(
+      Some(ExecInput::KeyboardInput(vec![
+        KeyboardInput::String(b"ABc".to_vec().into()),
+        KeyboardInput::Real(Mbf5::try_from(3.5f64).unwrap()),
+      ])),
+      usize::MAX,
+    );
+    assert_eq!(
+      result,
+      ExecResult::KeyboardInput {
+        prompt: None,
+        fields: vec![
+          KeyboardInputType::Integer,
+          KeyboardInputType::Func {
+            name: "F".to_owned(),
+            param: "Y".to_owned()
+          }
+        ],
+      }
+    );
+
+    let body = vm.compile_fn_body("fn g(y)+2").unwrap();
+    let result = vm.exec(
+      Some(ExecInput::KeyboardInput(vec![
+        KeyboardInput::Integer(37),
+        KeyboardInput::Func { body },
+      ])),
+      usize::MAX,
+    );
+    assert_eq!(result, ExecResult::End);
+
+    assert_snapshot!(device.log.borrow());
+  }
+
+  #[test]
+  fn locate() {
+    let codegen = compile(
+      r#"
+10 locate 3:locate ,10:locate 5,1:locate 6
+    "#
+      .trim(),
+    );
+    let mut device = DummyDevice::new();
+    let mut vm = VirtualMachine::new(codegen, &mut device);
+
+    let result = vm.exec(None, usize::MAX);
+    assert_eq!(
+      result,
+      ExecResult::Error {
+        location: Location {
+          line: 0,
+          range: Range::new(41, 42),
+        },
+        message: format!("参数超出范围 1~5。运算结果为：6"),
+      }
+    );
+
+    assert_snapshot!(device.log.borrow());
+  }
+
+  #[test]
+  fn locate_error_column() {
+    let codegen = compile(
+      r#"
+10 locate 4, 2 0 +1:
+    "#
+      .trim(),
+    );
+    let mut device = DummyDevice::new();
+    let mut vm = VirtualMachine::new(codegen, &mut device);
+
+    let result = vm.exec(None, usize::MAX);
+    assert_eq!(
+      result,
+      ExecResult::Error {
+        location: Location {
+          line: 0,
+          range: Range::new(13, 19),
+        },
+        message: format!("参数超出范围 1~20。运算结果为：21"),
+      }
+    );
+
+    assert_snapshot!(device.log.borrow());
+  }
+
+  #[test]
+  fn set() {
+    let codegen = compile(
+      r#"
+10 a$="12345"
+20 lset a$="":print a$;
+30 lset a$="ab":print a$;
+40 lset a$="abcdefg":print a$;
+45 lset b$(3)="ab":print b$(3);
+50 rset a$="":print a$;
+60 rset a$="ab":print a$;
+70 rset a$="1234567890":print a$;
+80 rset b$(3)="ab":print b$(3);
+    "#
+      .trim(),
+    );
+    let mut device = DummyDevice::new();
+    let mut vm = VirtualMachine::new(codegen, &mut device);
+
+    let result = vm.exec(None, usize::MAX);
+    assert_eq!(result, ExecResult::End);
+
+    assert_snapshot!(device.log.borrow());
+  }
+
+  #[test]
+  fn on() {
+    let codegen = compile(
+      r#"
+10 a=10:gosub 30:a=4:gosub 30:a=7:gosub 30
+20 on 2 gosub 40, 50:end
+30 on (a>5)+(a<10)*2 goto 40, 50:print "A";:return
+40 print "B";:return
+50 print "C";:return
+    "#
+      .trim(),
+    );
+    let mut device = DummyDevice::new();
+    let mut vm = VirtualMachine::new(codegen, &mut device);
+
+    let result = vm.exec(None, usize::MAX);
+    assert_eq!(result, ExecResult::End);
+
+    assert_snapshot!(device.log.borrow());
+  }
+
+  #[test]
+  fn print() {
+    let codegen = compile(
+      r#"
+10 print:print;:print "foo":locate ,10:print spc(2)tab(13);
+20 a$="ABCDEFG":a=3:print a$tab(3)a
+    "#
+      .trim(),
+    );
+    let mut device = DummyDevice::new();
+    let mut vm = VirtualMachine::new(codegen, &mut device);
+
+    let result = vm.exec(None, usize::MAX);
+    assert_eq!(result, ExecResult::End);
+
+    assert_snapshot!(device.log.borrow());
+  }
+
+  #[test]
+  fn run() {
+    let codegen = compile(
+      r#"
+10 open "aaa" for input as 1:a$=a$+"E"
+20 if asc(inkey$) > 40 then print a$;:end else run
+    "#
+      .trim(),
+    );
+    let mut device = DummyDevice::new();
+    let mut vm = VirtualMachine::new(codegen, &mut device);
+
+    let result = vm.exec(None, usize::MAX);
+    assert_eq!(result, ExecResult::InKey);
+
+    let result = vm.exec(Some(ExecInput::Key(30)), usize::MAX);
+    assert_eq!(result, ExecResult::InKey);
+
+    let result = vm.exec(Some(ExecInput::Key(60)), usize::MAX);
+    assert_eq!(result, ExecResult::End);
+
+    assert_snapshot!(device.log.borrow());
+  }
+
+  #[test]
+  fn swap() {
+    let codegen = compile(
+      r#"
+10 a%=30:a%(2)=555:swap a%,a%(2):print a%;a%(2);
+20 a$="abc":b$="ABC-#":swap b$,a$:print a$;b$;
+    "#
+      .trim(),
+    );
+    let mut device = DummyDevice::new();
+    let mut vm = VirtualMachine::new(codegen, &mut device);
+
+    let result = vm.exec(None, usize::MAX);
+    assert_eq!(result, ExecResult::End);
+
+    assert_snapshot!(device.log.borrow());
+  }
+
+  #[test]
+  fn while_loop() {
+    let codegen = compile(
+      r#"
+10 while a<2:a=a+1:print a;:wend:
+20 while a>0:goto 50:wend:
+30 gosub 40:wend
+40 :while a<2:a=a+1:print a;:return:wend
+50 print ".";:a=a-1:wend:print "no"
+    "#
+      .trim(),
+    );
+    let mut device = DummyDevice::new();
+    let mut vm = VirtualMachine::new(codegen, &mut device);
+
+    let result = vm.exec(None, usize::MAX);
+    assert_eq!(
+      result,
+      ExecResult::Error {
+        location: Location {
+          line: 2,
+          range: Range::new(12, 16),
+        },
+        message: format!("WEND 语句找不到匹配的 WHILE 语句"),
+      }
+    );
+
+    assert_snapshot!(device.log.borrow());
+  }
+
+  #[test]
+  fn sleep() {
+    let codegen = compile(
+      r#"
+10 sleep -100:sleep 0:sleep 200:
+    "#
+      .trim(),
+    );
+    let mut device = DummyDevice::new();
+    let mut vm = VirtualMachine::new(codegen, &mut device);
+
+    let result = vm.exec(None, usize::MAX);
+    assert_eq!(result, ExecResult::Sleep(Duration::from_millis(200)));
+
+    let result = vm.exec(None, usize::MAX);
+    assert_eq!(result, ExecResult::End);
+
+    assert_snapshot!(device.log.borrow());
+  }
+
   mod file {
     use super::*;
     use pretty_assertions::assert_eq;
@@ -2842,6 +3213,7 @@ mod tests {
 30 print foo(x%(0),x%(6));
 40 print foo(x%(2),x%(8));
 50 print foo(x%(4),x%(10));
+60 print b(11);
     "#
         .trim(),
       );
@@ -2849,7 +3221,18 @@ mod tests {
       let mut vm = VirtualMachine::new(codegen, &mut device);
 
       let result = vm.exec(None, usize::MAX);
-      assert_eq!(result, ExecResult::End);
+      assert_eq!(
+        result,
+        ExecResult::Error {
+          location: Location {
+            line: 5,
+            range: Range::new(11, 13),
+          },
+          message: format!(
+            "数组下标超出上限。该下标的上限为：10，该下标的值为：11, 取整后的值为：11"
+          ),
+        }
+      );
 
       assert_snapshot!(device.log.borrow());
     }

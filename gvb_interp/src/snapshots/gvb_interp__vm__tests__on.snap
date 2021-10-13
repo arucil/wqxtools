@@ -3,12 +3,12 @@ source: gvb_interp/src/vm.rs
 expression: device.log.borrow()
 
 ---
-print "3"
+print "B"
 flush
-print "3.14159265"
+print "C"
 flush
-print "3"
+print "A"
 flush
-print "30"
+print "C"
 flush
 

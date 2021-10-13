@@ -4,19 +4,35 @@ expression: device.log.borrow()
 
 ---
 print "0"
+flush
 print "1"
+flush
 print "2"
+flush
 print "3"
+flush
 print "4000"
+flush
 print "9.5"
+flush
 print "7"
+flush
 print "4.5"
+flush
 print "2"
+flush
 print "0"
+flush
 print "1"
+flush
 print "2000"
+flush
 print "1"
+flush
 print "3000"
+flush
 print "-10"
+flush
 print "-9"
+flush
 

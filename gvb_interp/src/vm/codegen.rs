@@ -105,12 +105,11 @@ impl CodeEmitter for CodeGen {
       }
       StmtKind::InKey => {
         self.push_instr(range.clone(), InstrKind::PushInKey);
-        self.push_instr(range, InstrKind::PopValue);
+        self.push_instr(range, InstrKind::PopStr);
       }
       StmtKind::Inverse => {
         self.push_instr(range, InstrKind::SetPrintMode(PrintMode::Inverse))
       }
-      StmtKind::Let { .. } => self.push_instr(range, InstrKind::Assign),
       StmtKind::Line(_) => self.push_instr(
         range,
         InstrKind::DrawLine {
@@ -139,6 +138,7 @@ impl CodeEmitter for CodeGen {
       }
       StmtKind::Trace => self.push_instr(range, InstrKind::SetTrace(true)),
       StmtKind::Wend => self.push_instr(range, InstrKind::Wend),
+      StmtKind::Sleep(_) => self.push_instr(range, InstrKind::Sleep),
       _ => unreachable!(),
     }
   }
@@ -239,6 +239,14 @@ impl CodeEmitter for CodeGen {
     self.push_instr(range, InstrKind::NextFor { name: var });
   }
 
+  fn emit_assign_num(&mut self, range: Range) {
+    self.push_instr(range, InstrKind::AssignNum);
+  }
+
+  fn emit_assign_str(&mut self, range: Range) {
+    self.push_instr(range, InstrKind::AssignStr);
+  }
+
   fn make_symbol(&mut self, name: String) -> Self::Symbol {
     self.interner.get_or_intern(name)
   }
@@ -336,20 +344,32 @@ impl CodeEmitter for CodeGen {
     self.push_instr(range, InstrKind::PrintTab);
   }
 
-  fn emit_print_value(&mut self, range: Range) {
-    self.push_instr(range, InstrKind::PrintValue);
+  fn emit_print_num(&mut self, range: Range) {
+    self.push_instr(range, InstrKind::PrintNum);
   }
 
-  fn emit_pop(&mut self, range: Range) {
-    self.push_instr(range, InstrKind::PopValue);
+  fn emit_print_str(&mut self, range: Range) {
+    self.push_instr(range, InstrKind::PrintStr);
   }
 
-  fn emit_write(&mut self, range: Range, to_file: bool) {
-    self.push_instr(range, InstrKind::Write { to_file });
+  fn emit_flush(&mut self, range: Range) {
+    self.push_instr(range, InstrKind::Flush);
   }
 
-  fn emit_write_end(&mut self, range: Range, to_file: bool) {
-    self.push_instr(range, InstrKind::WriteEnd { to_file });
+  fn emit_pop_num(&mut self, range: Range) {
+    self.push_instr(range, InstrKind::PopNum);
+  }
+
+  fn emit_pop_str(&mut self, range: Range) {
+    self.push_instr(range, InstrKind::PopStr);
+  }
+
+  fn emit_write_num(&mut self, range: Range, to_file: bool, end: bool) {
+    self.push_instr(range, InstrKind::WriteNum { to_file, end });
+  }
+
+  fn emit_write_str(&mut self, range: Range, to_file: bool, end: bool) {
+    self.push_instr(range, InstrKind::WriteStr { to_file, end });
   }
 
   fn emit_while(&mut self, range: Range, cond_start: Addr) {

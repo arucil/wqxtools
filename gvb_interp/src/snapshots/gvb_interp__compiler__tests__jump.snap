@@ -14,28 +14,31 @@ emoji_style: New
 5     2:3..21   switch, num branches: 3
 6     2:15..17  goto 20
 7     2:18..18  goto 0
-8     2:19..21  goto 24
+8     2:19..21  goto 25
 9     2:27..28  push var X
 10    2:25..29  push index M, dimensions: 1
 11    2:22..35  switch, num branches: 1
 12    2:35..35  gosub 0
 13    2:39..40  push var M
 14    2:36..57  switch, num branches: 5
-15    2:47..49  gosub 24
-16    2:50..52  gosub 27
-17    2:53..55  gosub 24
+15    2:47..49  gosub 25
+16    2:50..52  gosub 29
+17    2:53..55  gosub 25
 18    2:56..56  gosub 0
 19    2:57..57  gosub 0
 20    3:9..10   push number 1
 21    3:9..10   print value
 22    3:3..10   print newline
-23    3:11..14  end
-24    4:9..10   push number 2
-25    4:9..10   print value
-26    4:12..15  end
-27    5:9..10   push number 3
-28    5:9..10   print value
-29    5:10..11  print newline
-30    5:12..15  end
-31    5:0..0    end
+23    3:3..10   flush
+24    3:11..14  end
+25    4:9..10   push number 2
+26    4:9..10   print value
+27    4:3..11   flush
+28    4:12..15  end
+29    5:9..10   push number 3
+30    5:9..10   print value
+31    5:10..11  print newline
+32    5:3..11   flush
+33    5:12..15  end
+34    5:0..0    end
 

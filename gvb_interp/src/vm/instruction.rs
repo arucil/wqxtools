@@ -75,7 +75,8 @@ pub enum InstrKind {
   RestoreDataPtr(DatumIndex),
   Return,
   Pop,
-  PopValue,
+  PopNum,
+  PopStr,
   PushNum(Mbf5),
   PushVar(Symbol),
   PushStr(ByteString),
@@ -103,14 +104,18 @@ pub enum InstrKind {
   PrintNewLine,
   PrintSpc,
   PrintTab,
-  PrintValue,
+  PrintNum,
+  PrintStr,
+  Flush,
   SetRow,
   SetColumn,
-  Write {
+  WriteNum {
     to_file: bool,
+    end: bool,
   },
-  WriteEnd {
+  WriteStr {
     to_file: bool,
+    end: bool,
   },
   KeyboardInput {
     prompt: Option<String>,
@@ -148,7 +153,8 @@ pub enum InstrKind {
   End,
   ReadRecord,
   WriteRecord,
-  Assign,
+  AssignNum,
+  AssignStr,
   DrawLine {
     has_mode: bool,
   },
@@ -289,7 +295,11 @@ impl InstrKind {
         format!("push var lvalue {}", sym!(name))
       }
       Self::PushIndexLValue { name, dimensions } => {
-        format!("push index lvalue {}, dimensions: {}", sym!(name), dimensions)
+        format!(
+          "push index lvalue {}, dimensions: {}",
+          sym!(name),
+          dimensions
+        )
       }
       Self::PushFnLValue { name, param } => {
         format!("push lvalue FN {}({})", sym!(name), sym!(param))
@@ -318,7 +328,8 @@ impl InstrKind {
       Self::RestoreDataPtr(ptr) => format!("restore data ptr: {}", ptr.0),
       Self::Return => format!("return"),
       Self::Pop => format!("pop sub"),
-      Self::PopValue => format!("pop value"),
+      Self::PopNum => format!("pop num"),
+      Self::PopStr => format!("pop str"),
       Self::PushNum(num) => format!("push number {}", num),
       Self::PushVar(name) => format!("push var {}", sym!(name)),
       Self::PushStr(str) => {
@@ -346,14 +357,24 @@ impl InstrKind {
       Self::PrintNewLine => format!("print newline"),
       Self::PrintSpc => format!("print SPC"),
       Self::PrintTab => format!("print TAB"),
-      Self::PrintValue => format!("print value"),
+      Self::PrintNum => format!("print num"),
+      Self::PrintStr => format!("print str"),
+      Self::Flush => format!("flush"),
       Self::SetRow => format!("set row"),
       Self::SetColumn => format!("set column"),
-      Self::Write { to_file } => {
-        format!("write to {}", if *to_file { "file" } else { "screen" })
+      Self::WriteNum { to_file, end } => {
+        format!(
+          "write num {}to {}",
+          if *end { "end " } else { "" },
+          if *to_file { "file" } else { "screen" }
+        )
       }
-      Self::WriteEnd { to_file } => {
-        format!("write end to {}", if *to_file { "file" } else { "screen" })
+      Self::WriteStr { to_file, end } => {
+        format!(
+          "write str {}to {}",
+          if *end { "end " } else { "" },
+          if *to_file { "file" } else { "screen" }
+        )
       }
       Self::KeyboardInput { prompt, fields } => {
         format!(
@@ -395,7 +416,8 @@ impl InstrKind {
       Self::End => format!("end"),
       Self::ReadRecord => format!("read record"),
       Self::WriteRecord => format!("write record"),
-      Self::Assign => format!("assign"),
+      Self::AssignNum => format!("assign num"),
+      Self::AssignStr => format!("assign str"),
       Self::DrawLine { has_mode } => {
         format!("draw line, has_mode: {}", has_mode)
       }

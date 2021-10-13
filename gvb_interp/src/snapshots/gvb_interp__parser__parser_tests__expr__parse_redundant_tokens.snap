@@ -1,0 +1,9 @@
+---
+source: gvb_interp/src/parser.rs
+expression: parse_expr(line).0.to_string(line)
+
+---
+diagnostics: 
+  Error<23..31>: 多余的代码
+-----------------
+(<ID: a> + (b%[<NUM: 2>, FN k(<NUM: 7>)] * <NUM: 3>))

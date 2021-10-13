@@ -4,5 +4,7 @@ expression: device.log.borrow()
 
 ---
 print "127"
+flush
 print "1"
+flush
 

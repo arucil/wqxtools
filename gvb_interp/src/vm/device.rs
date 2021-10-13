@@ -21,6 +21,8 @@ pub trait Device {
 
   fn print_newline(&mut self);
 
+  fn flush(&mut self);
+
   fn draw_point(&mut self, x: u8, y: u8, mode: DrawMode);
 
   fn draw_line(&mut self, x1: u8, y1: u8, x2: u8, y2: u8, mode: DrawMode);
@@ -98,4 +100,6 @@ pub trait FileHandle {
   fn write(&mut self, data: &[u8]) -> io::Result<()>;
 
   fn read(&mut self, data: &mut [u8]) -> io::Result<usize>;
+
+  fn close(self) -> io::Result<()>;
 }

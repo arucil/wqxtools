@@ -11,65 +11,75 @@ emoji_style: New
 2     0:29..31  push var A$
 3     0:29..31  print value
 4     0:23..31  print newline
-5     0:38..40  push var A$
-6     0:41..43  push var B$
-7     0:38..43  concat
-8     0:38..43  print value
-9     0:52..54  push var A$
-10    0:52..54  print value
-11    0:52..54  push number 1
-12    0:52..54  print SPC
-13    0:54..56  push var B$
-14    0:54..56  print value
-15    0:46..56  print newline
-16    1:9..11   push var A$
-17    1:9..11   print value
-18    1:9..11   push number 1
-19    1:9..11   print SPC
-20    1:12..13  push number 3
-21    1:12..13  print value
-22    1:18..19  push var N
-23    1:20..21  push number 1
-24    1:18..21  add
-25    1:14..22  print SPC
-26    1:23..24  push number 7
-27    1:23..24  print value
-28    1:3..24   print newline
-29    1:35..36  push number 2
-30    1:31..37  print SPC
-31    1:37..41  push var ABC$
-32    1:37..41  print value
-33    1:25..41  print newline
-34    1:50..51  push var T
-35    1:50..51  print value
-36    1:59..60  print newline
-37    1:63..64  push var K
-38    1:60..65  push index T%, dimensions: 1
-39    1:60..65  print value
-40    1:65..66  print newline
-41    1:66..67  print newline
-42    2:9..10   push number 3
-43    2:9..10   print value
-44    2:11..12  push number 4
-45    2:11..12  print value
-46    2:12..13  print newline
-47    2:17..18  push number 7
-48    2:13..19  print TAB
-49    2:19..20  push number 6
-50    2:19..20  print value
-51    2:20..21  print newline
-52    2:25..27  push number 12
-53    2:21..28  print TAB
-54    2:29..30  push number 8
-55    2:29..30  print value
-56    2:30..31  print newline
-57    3:13..14  push number 2
-58    3:9..15   print SPC
-59    3:3..15   print newline
-60    3:22..23  print newline
-61    3:23..24  print newline
-62    3:28..29  push number 3
-63    3:24..30  print TAB
-64    3:16..30  print newline
-65    3:0..0    end
+5     0:23..31  flush
+6     0:38..40  push var A$
+7     0:41..43  push var B$
+8     0:38..43  concat
+9     0:38..43  print value
+10    0:32..44  flush
+11    0:52..54  push var A$
+12    0:52..54  print value
+13    0:52..54  push number 1
+14    0:52..54  print SPC
+15    0:54..56  push var B$
+16    0:54..56  print value
+17    0:46..56  print newline
+18    0:46..56  flush
+19    1:9..11   push var A$
+20    1:9..11   print value
+21    1:9..11   push number 1
+22    1:9..11   print SPC
+23    1:12..13  push number 3
+24    1:12..13  print value
+25    1:18..19  push var N
+26    1:20..21  push number 1
+27    1:18..21  add
+28    1:14..22  print SPC
+29    1:23..24  push number 7
+30    1:23..24  print value
+31    1:3..24   print newline
+32    1:3..24   flush
+33    1:35..36  push number 2
+34    1:31..37  print SPC
+35    1:37..41  push var ABC$
+36    1:37..41  print value
+37    1:25..41  print newline
+38    1:25..41  flush
+39    1:50..51  push var T
+40    1:50..51  print value
+41    1:43..52  flush
+42    1:59..60  print newline
+43    1:63..64  push var K
+44    1:60..65  push index T%, dimensions: 1
+45    1:60..65  print value
+46    1:65..66  print newline
+47    1:66..67  print newline
+48    1:53..68  flush
+49    2:9..10   push number 3
+50    2:9..10   print value
+51    2:11..12  push number 4
+52    2:11..12  print value
+53    2:12..13  print newline
+54    2:17..18  push number 7
+55    2:13..19  print TAB
+56    2:19..20  push number 6
+57    2:19..20  print value
+58    2:20..21  print newline
+59    2:25..27  push number 12
+60    2:21..28  print TAB
+61    2:29..30  push number 8
+62    2:29..30  print value
+63    2:30..31  print newline
+64    2:3..31   flush
+65    3:13..14  push number 2
+66    3:9..15   print SPC
+67    3:3..15   print newline
+68    3:3..15   flush
+69    3:22..23  print newline
+70    3:23..24  print newline
+71    3:28..29  push number 3
+72    3:24..30  print TAB
+73    3:16..30  print newline
+74    3:16..30  flush
+75    3:0..0    end
 

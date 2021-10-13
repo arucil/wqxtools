@@ -1,0 +1,22 @@
+---
+source: gvb_interp/src/vm.rs
+expression: device.log.borrow()
+
+---
+print "12345"
+flush
+print "ab345"
+flush
+print "abcde"
+flush
+print ""
+flush
+print "     "
+flush
+print "   ab"
+flush
+print "12345"
+flush
+print ""
+flush
+

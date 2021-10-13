@@ -1,3 +1,4 @@
+use bstr::ByteSlice;
 use std::ops::{Deref, DerefMut};
 
 use crate::machine::EmojiStyle;
@@ -90,7 +91,7 @@ impl ByteString {
     self.0.append(&mut other.0);
   }
 
-  pub fn to_print_form(&self) -> ByteString {
+  pub fn drop_0x1f(&self) -> ByteString {
     let mut buf = vec![];
     let mut v = 0;
     for &b in &self.0 {
@@ -99,13 +100,19 @@ impl ByteString {
         v -= 1;
       } else if b == 0x1f {
         v = 2;
-      } else if b == 0 {
-        break;
       } else {
         buf.push(b);
       }
     }
     Self(buf)
+  }
+
+  pub fn drop_null(&self) -> &[u8] {
+    if let Some(i) = self.find_byte(0) {
+      &self[..i]
+    } else {
+      &self
+    }
   }
 }
 

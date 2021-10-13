@@ -12,6 +12,14 @@ use std::fmt::Write;
 
 pub mod symbol;
 
+#[derive(Debug, Clone)]
+pub struct ParseResult<T> {
+  pub stmt_arena: Arena<Stmt>,
+  pub expr_arena: Arena<Expr>,
+  pub content: T,
+  pub diagnostics: Vec<Diagnostic>,
+}
+
 pub fn parse_prog(input: &str) -> Program {
   let mut line_start = 0;
   let mut lines = vec![];
@@ -25,8 +33,29 @@ pub fn parse_prog(input: &str) -> Program {
   Program { lines }
 }
 
+pub fn parse_expr(input: &str) -> (ParseResult<ExprId>, Option<SymbolSet>) {
+  let node_builder = ArenaNodeBuilder {
+    stmt_arena: Arena::new(),
+    expr_arena: Arena::new(),
+  };
+  let mut parser = LineParser::new(input, node_builder);
+
+  parser.read_token(false);
+  let expr = parser.parse_expr();
+  if parser.token.1 != TokenKind::Eof {
+    parser
+      .add_error(Range::new(parser.token.0.start, input.len()), "多余的代码");
+  }
+
+  let expected_symbols_at_eof = parser.expected_symbols_at_eof.take();
+  let expr = parser.into_expr(expr);
+  (expr, expected_symbols_at_eof)
+}
+
 /// `line_with_eol` may contain newline.
-pub fn parse_line(line_with_eol: &str) -> (ProgramLine, Option<SymbolSet>) {
+pub fn parse_line(
+  line_with_eol: &str,
+) -> (ParseResult<ProgramLine>, Option<SymbolSet>) {
   let bytes = line_with_eol.as_bytes();
   let line;
   let eol;
@@ -613,6 +642,7 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
       Keyword(Kw::Wend) => self.parse_nullary_cmd(StmtKind::Wend),
       Keyword(Kw::While) => self.parse_unary_cmd(StmtKind::While),
       Keyword(Kw::Write) => self.parse_write_stmt(),
+      Keyword(Kw::Sleep) => self.parse_unary_cmd(StmtKind::Sleep),
       Label => match self.label_value.take().unwrap() {
         Ok(label) => {
           let range = self.token.0.clone();
@@ -2083,14 +2113,26 @@ impl<'a> LineParser<'a, ArenaNodeBuilder> {
     eol: Eol,
     label: Option<(Range, Label)>,
     stmts: SmallVec<[StmtId; 1]>,
-  ) -> ProgramLine {
-    ProgramLine {
-      source_len: line.len(),
-      label,
+  ) -> ParseResult<ProgramLine> {
+    ParseResult {
       stmt_arena: self.node_builder.stmt_arena,
       expr_arena: self.node_builder.expr_arena,
-      stmts,
-      eol,
+      content: ProgramLine {
+        source_len: line.len(),
+        label,
+        stmts,
+        eol,
+      },
+      diagnostics: self.diagnostics,
+    }
+  }
+
+  fn into_expr(self, expr: ExprId) -> ParseResult<ExprId> {
+    assert!(self.node_builder.stmt_arena.len() == 0);
+    ParseResult {
+      stmt_arena: self.node_builder.stmt_arena,
+      expr_arena: self.node_builder.expr_arena,
+      content: expr,
       diagnostics: self.diagnostics,
     }
   }
@@ -2389,6 +2431,22 @@ mod lex_tests {
       r#"LoCaTe 3,2:PrInT "啊A":lOcAtE 3,18-LeN(STr$(Et)):PriNT ET:DRaW 100,38"#,
     );
     assert_debug_snapshot!(tokens);
+  }
+}
+
+#[cfg(test)]
+impl ParseResult<ExprId> {
+  fn to_string(&self, text: &str) -> String {
+    let mut f = String::new();
+    writeln!(&mut f, "diagnostics: ").unwrap();
+    for diag in &self.diagnostics {
+      writeln!(&mut f, "  {:?}", diag).unwrap();
+    }
+    writeln!(&mut f, "-----------------").unwrap();
+    self.expr_arena[self.content]
+      .print(&self.expr_arena, text, &mut f)
+      .unwrap();
+    f
   }
 }
 
@@ -2717,6 +2775,18 @@ mod parser_tests {
     fn logical() {
       let line = r#"10 A b % =a and not 4 + 2 or -asc(left$(f$,k))"#;
       assert_snapshot!(parse_line(line).0.to_string(line));
+    }
+
+    #[test]
+    fn parse() {
+      let line = r#"a + b%(2, fn k(7)) * 3"#;
+      assert_snapshot!(parse_expr(line).0.to_string(line));
+    }
+
+    #[test]
+    fn parse_redundant_tokens() {
+      let line = r#"a + b%(2, fn k(7)) * 3 print, 2"#;
+      assert_snapshot!(parse_expr(line).0.to_string(line));
     }
   }
 }

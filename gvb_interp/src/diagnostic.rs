@@ -33,6 +33,10 @@ impl Diagnostic {
   }
 }
 
+pub(crate) fn contains_errors(diags: &[Diagnostic]) -> bool {
+  diags.iter().any(|diag| diag.severity == Severity::Error)
+}
+
 impl Debug for Diagnostic {
   fn fmt(&self, f: &mut Formatter) -> fmt::Result {
     write!(f, "{:?}<{:?}>: {}", self.severity, self.range, self.message)

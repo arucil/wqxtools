@@ -3,10 +3,8 @@ source: gvb_interp/src/vm.rs
 expression: device.log.borrow()
 
 ---
-print "2"
-flush
-print "100"
-flush
-print "6"
-flush
+set row to 2
+set column to 9
+set row to 4
+set column to 0
 

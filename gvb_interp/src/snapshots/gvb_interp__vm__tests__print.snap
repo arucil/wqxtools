@@ -3,20 +3,19 @@ source: gvb_interp/src/vm.rs
 expression: device.log.borrow()
 
 ---
-print "abc"
-print "123"
-print "1000"
-print "0"
+print newline
+print "foo"
 print newline
 flush
-print "abc"
-print "123"
-print "1000"
-print "0"
-print newline
+set column to 9
+print "  "
+get column: 9
+print "   "
 flush
-print ""
-print ""
+print "ABCDEFG"
+print " "
+get column: 9
+print "             "
 print "3"
 print newline
 flush

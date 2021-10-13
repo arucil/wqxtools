@@ -9,9 +9,13 @@ print "2"
 print "a 1"
 print "a 2"
 print newline
+flush
+close file
 open file "foo.DAT", read: false, write: true, truncate: true
 print "0"
 print "0"
 print "a 1"
 print newline
+flush
+close file
 

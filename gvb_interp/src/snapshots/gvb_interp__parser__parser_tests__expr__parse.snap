@@ -1,0 +1,8 @@
+---
+source: gvb_interp/src/parser.rs
+expression: parse_expr(line).0.to_string(line)
+
+---
+diagnostics: 
+-----------------
+(<ID: a> + (b%[<NUM: 2>, FN k(<NUM: 7>)] * <NUM: 3>))

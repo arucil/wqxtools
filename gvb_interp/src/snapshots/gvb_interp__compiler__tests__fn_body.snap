@@ -1,0 +1,17 @@
+---
+source: gvb_interp/src/compiler.rs
+expression: codegen
+
+---
+emoji_style: New
+--------- data ----------
+--------- code ----------
+0     0:0..1    push var X
+1     0:4..5    push number 3
+2     0:13..14  push number 7
+3     0:8..15   call FN F
+4     0:4..15   mul
+5     0:0..15   add
+6     0:18..19  push number 2
+7     0:0..19   sub
+

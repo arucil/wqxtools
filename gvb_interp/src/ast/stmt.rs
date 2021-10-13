@@ -160,6 +160,7 @@ pub enum StmtKind {
     filenum: Option<ExprId>,
     data: NonEmptyVec<[WriteElement; 1]>,
   },
+  Sleep(ExprId),
   NoOp,
 }
 
@@ -701,6 +702,11 @@ fn print_stmt(
           write!(f, " ")?;
         }
       }
+      writeln!(f)
+    }
+    StmtKind::Sleep(arg) => {
+      write!(f, "SLEEP ")?;
+      expr_arena[*arg].print(expr_arena, text, f)?;
       writeln!(f)
     }
     StmtKind::NoOp => writeln!(f, ":"),

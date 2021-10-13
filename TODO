@@ -2,8 +2,22 @@
 - 同名的数组只能定义一个？
 - [x] 所有 parse_expr （所有extend_symbol）前面要 reset first_symbols
 - [x] match多个token时 first_symbols 不对（match_token只能处理单个token的情况）
-- document:
-    - semantic token
-    - symbol highlight
 - READ、键盘 INPUT 输入实数，忽略实数后面的字符串？文件 INPUT 输入实数，实数后面不行？
 - FOR、FN的函数名和参数只能是实数？
+- WRITE 输出0x00后面的引号？剔除 0x1f？
+
+
+- document:
+    + load bas/txt
+    + save
+    + diagnostics
+    + auto completion
+    + compile to vm
+    + set machine name
+    + get machine name
+    + edit
+    + get semantic token
+    - symbol highlight
+- vm:
+    - compile expr to InputFuncBody
+    - exec

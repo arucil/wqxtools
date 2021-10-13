@@ -3,10 +3,4 @@ source: gvb_interp/src/vm.rs
 expression: device.log.borrow()
 
 ---
-print "2"
-flush
-print "100"
-flush
-print "6"
-flush
 

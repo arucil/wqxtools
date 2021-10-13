@@ -1,0 +1,19 @@
+---
+source: gvb_interp/src/compiler.rs
+expression: "compile(r#\"\n10 sleep -2*x:sleep 0:sleep 300\n    \"#.trim())"
+
+---
+emoji_style: New
+--------- data ----------
+--------- code ----------
+0     0:10..11  push number 2
+1     0:9..11   neg
+2     0:12..13  push var X
+3     0:9..13   mul
+4     0:3..13   sleep
+5     0:20..21  push number 0
+6     0:14..21  sleep
+7     0:28..31  push number 300
+8     0:22..31  sleep
+9     0:0..0    end
+

@@ -1,0 +1,14 @@
+---
+source: gvb_interp/src/vm.rs
+expression: device.log.borrow()
+
+---
+open file "aaa.DAT", read: true, write: false, truncate: false
+set screen mode to Text
+cls
+close file
+open file "aaa.DAT", read: true, write: false, truncate: false
+print "E"
+flush
+close file
+

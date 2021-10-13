@@ -1,7 +1,8 @@
 use smallvec::{Array, SmallVec};
 use std::fmt::{self, Debug, Formatter};
-use std::ops::{Deref, DerefMut};
 use std::num::NonZeroUsize;
+use std::ops::{Deref, DerefMut};
+use crate::parser::ParseResult;
 
 pub mod expr;
 pub mod label;
@@ -19,7 +20,7 @@ pub use self::token::*;
 
 #[derive(Clone)]
 pub struct Program {
-  pub lines: Vec<ProgramLine>,
+  pub lines: Vec<ParseResult<ProgramLine>>,
 }
 
 pub struct NonEmptyVec<T: Array>(pub SmallVec<T>);
@@ -61,9 +62,9 @@ impl Program {
     let mut buf = String::new();
     let mut offset = 0;
     for line in &self.lines {
-      buf += &line.to_string(&text[offset..offset + line.source_len]);
+      buf += &line.to_string(&text[offset..offset + line.content.source_len]);
       buf += "==================================\n";
-      offset += line.source_len;
+      offset += line.content.source_len;
     }
     buf
   }
