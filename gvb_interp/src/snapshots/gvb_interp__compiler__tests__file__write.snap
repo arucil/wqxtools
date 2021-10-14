@@ -10,25 +10,25 @@ emoji_style: New
 1     0:12..13  push number 1
 2     0:10..13  add
 3     0:15..19  push var ABC$
-4     0:15..19  pop value
+4     0:15..19  pop str
 5     0:20..22  push number 12
 6     0:32..33  push var K
 7     0:27..34  call sys func CHR$, arity: 1
 8     0:23..35  call sys func VAL, arity: 1
 9     0:20..35  add
-10    0:20..35  write to file
+10    0:20..35  write num to file
 11    0:40..41  push number 2
 12    0:37..42  push index S%, dimensions: 1
-13    0:37..42  write end to file
+13    0:37..42  write num end to file
 14    0:51..52  push number 2
 15    0:53..54  push var A
-16    0:53..54  write to file
+16    0:53..54  write num to file
 17    0:57..58  push number 1
 18    0:59..60  push number 2
 19    0:61..62  push number 3
 20    0:55..63  push index B, dimensions: 3
-21    0:55..63  write to file
+21    0:55..63  write num to file
 22    0:64..65  push var C
-23    0:64..65  write end to file
+23    0:64..65  write num end to file
 24    0:0..0    end
 

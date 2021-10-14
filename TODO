@@ -5,6 +5,7 @@
 - READ、键盘 INPUT 输入实数，忽略实数后面的字符串？文件 INPUT 输入实数，实数后面不行？
 - FOR、FN的函数名和参数只能是实数？
 - WRITE 输出0x00后面的引号？剔除 0x1f？
+- OPEN 文件名以0x00结尾？
 
 
 - document:

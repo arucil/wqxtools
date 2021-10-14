@@ -18,7 +18,7 @@ emoji_style: New
 9     2:28..31  pop sub
 10    2:32..38  return
 11    2:39..45  push inkey
-12    2:39..45  pop value
+12    2:39..45  pop str
 13    2:46..51  set trace mode: true
 14    2:52..64  restart
 15    2:0..0    end

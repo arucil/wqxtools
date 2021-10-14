@@ -91,27 +91,31 @@ impl ByteString {
     self.0.append(&mut other.0);
   }
 
-  pub fn drop_0x1f(&self) -> ByteString {
-    let mut buf = vec![];
-    let mut v = 0;
-    for &b in &self.0 {
-      if v > 0 {
-        buf.push(b);
-        v -= 1;
-      } else if b == 0x1f {
-        v = 2;
-      } else {
-        buf.push(b);
+  pub fn drop_0x1f(&mut self) {
+    if let Some(mut i) = self.find_byte(0x1f) {
+      let mut j = i;
+      let mut c = 2;
+      i += 1;
+      while i < self.len() {
+        if c > 0 {
+          self[j] = self[i];
+          j += 1;
+          c -= 1;
+        } else if self[i] == 0x1f {
+          c = 2;
+        } else {
+          self[j] = self[i];
+          j += 1;
+        }
+        i += 1;
       }
+      self.truncate(j);
     }
-    Self(buf)
   }
 
-  pub fn drop_null(&self) -> &[u8] {
+  pub fn drop_null(&mut self) {
     if let Some(i) = self.find_byte(0) {
-      &self[..i]
-    } else {
-      &self
+      self.truncate(i);
     }
   }
 }

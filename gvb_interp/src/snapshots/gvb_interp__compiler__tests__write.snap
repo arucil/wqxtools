@@ -9,18 +9,20 @@ emoji_style: New
 0     0:9..10   push number 1
 1     0:11..12  push number 2
 2     0:9..12   add
-3     0:9..12   write to screen
+3     0:9..12   write num to screen
 4     0:17..18  push var T
 5     0:19..20  push number 1
 6     0:17..20  add
 7     0:14..21  push index C$, dimensions: 1
-8     0:14..21  write end to screen
-9     0:29..31  push var A$
-10    0:29..31  pop value
-11    0:31..32  push var B
-12    0:31..32  write to screen
-13    0:38..39  push var J
-14    0:33..40  call sys func MKI$, arity: 1
-15    0:33..40  write end to screen
-16    0:0..0    end
+8     0:14..21  write str end to screen
+9     0:3..22   flush
+10    0:29..31  push var A$
+11    0:29..31  pop str
+12    0:31..32  push var B
+13    0:31..32  write num to screen
+14    0:38..39  push var J
+15    0:33..40  call sys func MKI$, arity: 1
+16    0:33..40  write str end to screen
+17    0:23..40  flush
+18    0:0..0    end
 

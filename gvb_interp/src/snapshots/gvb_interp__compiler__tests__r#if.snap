@@ -30,7 +30,7 @@ emoji_style: New
 21    2:19..20  push var X
 22    2:21..22  push number 1
 23    2:19..22  add
-24    2:17..22  assign
+24    2:17..22  assign num
 25    2:23..25  goto 6
 26    2:26..28  goto 16
 27    2:32..33  push var X
@@ -47,7 +47,7 @@ emoji_style: New
 38    2:72..73  push number 2
 39    2:70..73  div
 40    2:66..74  call sys func INT, arity: 1
-41    2:61..74  assign
+41    2:61..74  assign num
 42    2:3..82   goto 44
 43    2:80..82  goto 0
 44    3:0..0    end

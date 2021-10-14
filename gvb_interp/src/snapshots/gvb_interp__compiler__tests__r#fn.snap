@@ -26,6 +26,6 @@ emoji_style: New
 17    1:16..26  add
 18    1:11..27  call FN K
 19    1:9..27   add
-20    1:3..27   assign
+20    1:3..27   assign num
 21    1:0..0    end
 

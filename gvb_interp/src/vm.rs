@@ -727,8 +727,10 @@ where
         self.device.print(value.to_string().as_bytes());
       }
       InstrKind::PrintStr => {
-        let value = self.str_stack.pop().unwrap().1;
-        self.device.print(&value.drop_0x1f().drop_null());
+        let mut value = self.str_stack.pop().unwrap().1;
+        value.drop_null();
+        value.drop_0x1f();
+        self.device.print(&value);
       }
       InstrKind::Flush => {
         self.device.flush();
@@ -755,19 +757,19 @@ where
         );
       }
       InstrKind::WriteStr { to_file, end } => {
-        let str = self.str_stack.pop().unwrap().1;
+        let mut str = self.str_stack.pop().unwrap().1;
+        str.push(b'"');
+        str.drop_null();
         do_write!(
           to_file,
           end,
           file => {
             write_file!(file, b"\"");
-            write_file!(file, str.drop_null());
-            write_file!(file, b"\"");
+            write_file!(file, &str);
           },
           {
             self.device.print(b"\"");
-            self.device.print(str.drop_null());
-            self.device.print(b"\"");
+            self.device.print(&str);
           }
         );
       }
@@ -1180,7 +1182,7 @@ where
       }
       SysFuncKind::Int => {
         let value = self.num_stack.pop().unwrap().1;
-        self.num_stack.push((loc, value));
+        self.num_stack.push((loc, value.truncate()));
         Ok(())
       }
       SysFuncKind::Left => {
@@ -1396,6 +1398,8 @@ where
 
     let filenum = self.get_filenum(true)?;
     let (name_loc, mut filename) = self.str_stack.pop().unwrap();
+    filename.drop_null();
+    filename.drop_0x1f();
 
     if self.files[filenum as usize].is_some() {
       self
@@ -2149,6 +2153,7 @@ impl ExecState {
           io::ErrorKind::AlreadyExists => "文件已存在".to_owned(),
           io::ErrorKind::IsADirectory => "是文件夹".to_owned(),
           io::ErrorKind::PermissionDenied => "没有权限".to_owned(),
+          io::ErrorKind::FileTooLarge => "文件大小超出64KB的限制".to_owned(),
           _ => err.to_string(),
         };
         self.error(loc, format!("{}时发生错误：{}", op, err))?

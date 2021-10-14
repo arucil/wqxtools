@@ -858,10 +858,11 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E, ProgramLine> {
       let range = self.expr_node(datum.datum).range.clone();
       if i == data.len().get() - 1 || datum.comma {
         printed = true;
+        let end = i == data.len().get() - 1;
         if ty.matches(Type::Real) {
-          self.code_emitter.emit_write_num(range, to_file, !datum.comma);
+          self.code_emitter.emit_write_num(range, to_file, end);
         } else {
-          self.code_emitter.emit_write_str(range, to_file, !datum.comma);
+          self.code_emitter.emit_write_str(range, to_file, end);
         }
       } else if ty.matches(Type::Real) {
         self.code_emitter.emit_pop_num(range);

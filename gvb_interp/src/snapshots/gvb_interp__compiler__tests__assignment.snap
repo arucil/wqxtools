@@ -19,6 +19,6 @@ emoji_style: New
 10    0:14..31  pow
 11    0:9..31   div
 12    0:5..31   add
-13    0:3..31   assign
+13    0:3..31   assign num
 14    0:0..0    end
 
