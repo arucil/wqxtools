@@ -1,0 +1,20 @@
+---
+source: gvb_interp/src/vm.rs
+expression: "run(r#\"\n10 print 10 <= 9; 9 <= 10; -7 <= -7;\n20 print \"abc\" <= \"abC\"; \"Abx\" <= \"abC\"; \"abc\" <= \"abc\";\n30 print \"a\" <= \"\"; \"ab\" <= \"abc\"; \"aBc\" <= \"ab\"; \"abc\" <= \"ab\"\n    \"#.trim(),\n    vec![(ExecResult :: End, None)])"
+
+---
+print "0"
+print "1"
+print "1"
+flush
+print "0"
+print "1"
+print "1"
+flush
+print "0"
+print "1"
+print "1"
+print "0"
+print newline
+flush
+

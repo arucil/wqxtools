@@ -1,0 +1,6 @@
+---
+source: gvb_interp/src/vm.rs
+expression: "run(r#\"\n10 print 10^40\n    \"#.trim(),\n    vec![(exec_error(0, 9, 14,\n                     \"运算结果数值过大，超出了实数的表示范围。底数为：10，指数为：40\"),\n          None)])"
+
+---
+

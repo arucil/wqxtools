@@ -1,0 +1,8 @@
+---
+source: gvb_interp/src/vm.rs
+expression: "run(r#\"\n10 print asc(\"A\"); asc(\"123\"); asc(\"\");\n    \"#.trim(),\n    vec![(exec_error(0, 31, 38, \"ASC 函数的参数不能为空字符串\"),\n          None)])"
+
+---
+print "65"
+print "49"
+

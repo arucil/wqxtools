@@ -1,0 +1,31 @@
+---
+source: gvb_interp/src/vm.rs
+expression: "run_with_file(r#\"\n10 open \"f\" input as 3\n20 input #3, a$, b$(3), c, d$\n30 print a$;b$(3);c;d$\n    \"#.trim(),\n              vec![(ExecResult :: End, None)], b\"f.DAT\",\n              File::new(b\"AB,\\\",ab\\xff12\\\"\\xff1e3\".to_vec()))"
+
+---
+open file "f.DAT", read: true, write: false, truncate: false
+read from file: [65] 
+read from file: [66] 
+read from file: [44] 
+read from file: [34] 
+read from file: [44] 
+read from file: [97] 
+read from file: [98] 
+read from file: [255] 
+read from file: [49] 
+read from file: [50] 
+read from file: [34] 
+read from file: [255] 
+read from file: [49] 
+read from file: [101] 
+read from file: [51] 
+read from file: [0] 
+read from file: [0] 
+print "AB"
+print [44, 97, 98, 255, 49, 50]
+print "1000"
+print ""
+print newline
+flush
+close file
+

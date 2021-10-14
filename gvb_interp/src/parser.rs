@@ -686,10 +686,11 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
 
     setup_first! { self : }
     let arg = self.parse_expr();
+    let end = self.node_builder.expr_node(arg).range.end;
 
     self.node_builder.new_stmt(Stmt {
       kind: ctor(arg),
-      range: Range::new(start, self.last_token_end),
+      range: Range::new(start, end),
     })
   }
 
@@ -704,10 +705,11 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
 
     setup_first! { self : }
     let filenum = self.parse_expr();
+    let end = self.node_builder.expr_node(filenum).range.end;
 
     self.node_builder.new_stmt(Stmt {
       kind: StmtKind::Close { filenum },
-      range: Range::new(start, self.last_token_end),
+      range: Range::new(start, end),
     })
   }
 
@@ -827,6 +829,7 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
     setup_first! { self : }
     setup_follow! { self, old_follow : }
     let body = self.parse_expr();
+    let end = self.node_builder.expr_node(body).range.end;
 
     self.node_builder.new_stmt(Stmt {
       kind: StmtKind::Def {
@@ -834,7 +837,7 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
         param: param_range,
         body,
       },
-      range: Range::new(def_range.start, self.last_token_end),
+      range: Range::new(def_range.start, end),
     })
   }
 
@@ -1192,15 +1195,18 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
       setup_first! { self : }
     }
     setup_follow! { self, old_follow : (punc Comma) }
-    let var = if let TokenKind::Keyword(Keyword::Fn) = self.token.1 {
-      self.parse_fn()
-    } else {
-      self.parse_lvalue()
-    };
+    let var =
+      if allow_fn && matches!(self.token.1, TokenKind::Keyword(Keyword::Fn)) {
+        self.parse_fn()
+      } else {
+        self.parse_lvalue()
+      };
     vars.push(var);
     while let TokenKind::Punc(Punc::Comma) = self.token.1 {
       self.read_token(false);
-      let var = if let TokenKind::Keyword(Keyword::Fn) = self.token.1 {
+      let var = if allow_fn
+        && matches!(self.token.1, TokenKind::Keyword(Keyword::Fn))
+      {
         self.parse_fn()
       } else {
         self.parse_lvalue()
@@ -1499,13 +1505,13 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
         .match_token(TokenKind::Punc(Punc::Eq), false, false)
         .is_err()
       {
-        self.add_error(len_range, "LEN 之后缺少等号");
+        self.add_error(len_range.clone(), "LEN 之后缺少等号");
       }
 
       setup_first! { self : }
       setup_follow! { self, old_follow : }
       let l = self.parse_expr();
-      len = Some(l);
+      len = Some((Range::new(len_range.start, self.last_token_end), l));
     }
 
     self.node_builder.new_stmt(Stmt {

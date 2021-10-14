@@ -332,8 +332,8 @@ impl CodeEmitter for CodeGen {
     self.push_instr(range, InstrKind::ReadData);
   }
 
-  fn emit_print_newline(&mut self, range: Range) {
-    self.push_instr(range, InstrKind::PrintNewLine);
+  fn emit_newline(&mut self, range: Range) {
+    self.push_instr(range, InstrKind::NewLine);
   }
 
   fn emit_print_spc(&mut self, range: Range) {

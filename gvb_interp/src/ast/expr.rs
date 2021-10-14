@@ -2,7 +2,7 @@ use id_arena::Arena;
 
 use super::{ExprId, NonEmptyVec, Range};
 use num_derive::FromPrimitive;
-use std::fmt::{self, Debug, Formatter, Write, Display};
+use std::fmt::{self, Debug, Display, Formatter, Write};
 use std::str::FromStr;
 
 #[derive(Debug, Clone)]

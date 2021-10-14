@@ -1,0 +1,16 @@
+---
+source: gvb_interp/src/vm.rs
+expression: "run_with_files(r#\"\n10 open \"f\" for output as 1\n20 write #1, 1e3, \". +\"\n30 write #1,\"A和B\"\n    \"#.trim(),\n               vec![(ExecResult :: End, None)],\n               vec![(b\"f.DAT\", File :: new(b\"0123456789\".to_vec()),\n                     b\"1000,\\\". +\\\"\\xff\\\"A\\xba\\xcdB\\\"\\xff\".to_vec())])"
+
+---
+open file "f.DAT", read: false, write: true, truncate: true
+write to file: [49, 48, 48, 48] 
+write to file: [44] 
+write to file: [34] 
+write to file: [46, 32, 43, 34] 
+write to file: [255] 
+write to file: [34] 
+write to file: [65, 186, 205, 66, 34] 
+write to file: [255] 
+close file
+

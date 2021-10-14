@@ -1,6 +1,6 @@
 use super::{Label, Range, StmtId};
-use smallvec::SmallVec;
 use crate::parser::ParseResult;
+use smallvec::SmallVec;
 use std::fmt::{Debug, Write};
 
 #[derive(Debug, Clone)]

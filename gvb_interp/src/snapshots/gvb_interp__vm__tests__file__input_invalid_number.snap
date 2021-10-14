@@ -1,0 +1,11 @@
+---
+source: gvb_interp/src/vm.rs
+expression: "run_with_file(r#\"\n10 open \"f\" input as 3\n20 input #3, a\n    \"#.trim(),\n              vec![(exec_error(1, 13, 14,\n                               \"读取到的数据：AB，不符合实数的格式\"),\n                    None)], b\"f.DAT\",\n              File::new(b\"AB,\\\",ab\\xff12\\\"\\xff1e3\".to_vec()))"
+
+---
+open file "f.DAT", read: true, write: false, truncate: false
+read from file: [65] 
+read from file: [66] 
+read from file: [44] 
+close file
+

@@ -28,7 +28,7 @@ emoji_style: New
 19    2:57..57  gosub 0
 20    3:9..10   push number 1
 21    3:9..10   print num
-22    3:3..10   print newline
+22    3:3..10   newline
 23    3:3..10   flush
 24    3:11..14  end
 25    4:9..10   push number 2
@@ -37,7 +37,7 @@ emoji_style: New
 28    4:12..15  end
 29    5:9..10   push number 3
 30    5:9..10   print num
-31    5:10..11  print newline
+31    5:10..11  newline
 32    5:3..11   flush
 33    5:12..15  end
 34    5:0..0    end

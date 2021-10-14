@@ -10,7 +10,7 @@ emoji_style: New
 1     0:12..23  push string "AB=号即"
 2     0:9..23   str Gt
 3     0:3..23   start while loop, cond start addr: 0, end addr: 6
-4     0:24..29  print newline
+4     0:24..29  newline
 5     0:30..34  wend
 6     0:41..42  push var A
 7     0:44..45  push var B

@@ -1,0 +1,10 @@
+---
+source: gvb_interp/src/vm.rs
+expression: "run(r#\"\n10 print abs(-7); abs(0); abs(13+1);\n    \"#.trim(),\n    vec![(ExecResult :: End, None)])"
+
+---
+print "7"
+print "0"
+print "14"
+flush
+

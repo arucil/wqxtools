@@ -1,0 +1,8 @@
+---
+source: gvb_interp/src/vm.rs
+expression: device.log.borrow()
+
+---
+cls
+cls
+

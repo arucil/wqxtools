@@ -1,0 +1,22 @@
+---
+source: gvb_interp/src/vm.rs
+expression: "run(r#\"\n10 print 3 and 0; 0 and -30; 0 and 13-13; rnd(1) and +50\n20 print 3 or 0; 0 or -30; 0 or 13-13; rnd(1) or +50\n30 print not 0; not -7\n    \"#.trim(),\n    vec![(ExecResult :: End, None)])"
+
+---
+print "0"
+print "0"
+print "0"
+print "1"
+print newline
+flush
+print "1"
+print "1"
+print "0"
+print "1"
+print newline
+flush
+print "1"
+print "0"
+print newline
+flush
+

@@ -1,0 +1,19 @@
+---
+source: gvb_interp/src/vm.rs
+expression: device.log.borrow()
+
+---
+open file "f.DAT", read: true, write: true, truncate: false
+print "1"
+print "0"
+print "2"
+print "1"
+flush
+seek file: 4
+read from file: [69, 70, 71, 72] 
+print "E"
+print "FG"
+print "H"
+flush
+close file
+

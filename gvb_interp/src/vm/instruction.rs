@@ -101,7 +101,7 @@ pub enum InstrKind {
     kind: SysFuncKind,
     arity: NonZeroUsize,
   },
-  PrintNewLine,
+  NewLine,
   PrintSpc,
   PrintTab,
   PrintNum,
@@ -354,7 +354,7 @@ impl InstrKind {
       Self::SysFuncCall { kind, arity } => {
         format!("call sys func {:?}, arity: {}", kind, arity)
       }
-      Self::PrintNewLine => format!("print newline"),
+      Self::NewLine => format!("newline"),
       Self::PrintSpc => format!("print SPC"),
       Self::PrintTab => format!("print TAB"),
       Self::PrintNum => format!("print num"),

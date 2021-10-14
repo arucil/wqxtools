@@ -9,7 +9,7 @@ emoji_style: New
 0     0:9..10   no op
 1     0:14..16  push number 30
 2     0:3..16   sleep
-3     0:22..23  no op
+3     0:17..23  no op
 4     0:30..31  no op
 5     0:35..39  push number 2000
 6     0:45..46  no op
@@ -29,11 +29,11 @@ emoji_style: New
 20    2:14..15  push var T
 21    2:21..22  no op
 22    2:3..22   sleep
-23    2:28..29  no op
+23    2:23..29  no op
 24    2:36..37  push number 1
 25    2:41..42  push var T
 26    2:48..49  push number 1
 27    2:30..49  start for loop, var: K, has_step: true
-28    2:55..56  next for loop, var: Some(T)
+28    2:50..56  next for loop, var: Some(T)
 29    2:0..0    end
 

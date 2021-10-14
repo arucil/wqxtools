@@ -1,0 +1,9 @@
+---
+source: gvb_interp/src/vm.rs
+expression: "run(r#\"\n10 print chr$(32); chr$(0); chr$(255); chr$(300)\n    \"#.trim(),\n    vec![(exec_error(0, 44, 47,\n                     \"参数超出范围 0~255。运算结果为：300\"),\n          None)])"
+
+---
+print " "
+print ""
+print [255]
+

@@ -1,0 +1,6 @@
+---
+source: gvb_interp/src/vm.rs
+expression: "run(r#\"\n10 print 1e30/1e-10\n    \"#.trim(),\n    vec![(exec_error(0, 9, 19,\n                     \"运算结果数值过大，超出了实数的表示范围。\\\n            除法运算的两个运算数分别为：1E+30，1E-10\"),\n          None)])"
+
+---
+

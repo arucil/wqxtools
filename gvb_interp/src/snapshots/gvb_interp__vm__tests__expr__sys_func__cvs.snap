@@ -1,0 +1,7 @@
+---
+source: gvb_interp/src/vm.rs
+expression: "run(r#\"\n10 print cvs$(chr$(152)+chr$(53)+chr$(68)+chr$(122)+chr$(0)); cvs$(\"ab\");\n    \"#.trim(),\n    vec![(exec_error(0, 62, 72,\n                     \"CVS$ 函数的参数字符串长度不等于 5。参数字符串长度为：2\"),\n          None)])"
+
+---
+print "11879546"
+

@@ -1,0 +1,10 @@
+---
+source: gvb_interp/src/vm.rs
+expression: "run_with_file(r#\"\n10 open \"f\" for random as 2 len=4:field 2, 1 as a$,2 as b$(3)\n20 get 2, 4\n    \"#.trim(),\n              vec![(ExecResult :: Error\n                    {\n                        location : Location\n                        { line : 1, range : Range :: new(3, 11), }, message :\n                        format! (\"不能在文件末尾读取记录\"),\n                    }, None)], File::new(b\"ABCDEFGHIJKL\".to_vec()))"
+
+---
+open file "f.DAT", read: true, write: true, truncate: false
+seek file: 12
+read from file: [0, 0, 0, 0] 
+close file
+

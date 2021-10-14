@@ -117,7 +117,7 @@ pub enum StmtKind {
     filename: ExprId,
     mode: FileMode,
     filenum: ExprId,
-    len: Option<ExprId>,
+    len: Option<(Range, ExprId)>,
   },
   Play(ExprId),
   Poke {
@@ -588,7 +588,7 @@ fn print_stmt(
       expr_arena[*filename].print(expr_arena, text, f)?;
       write!(f, " FOR {:?} AS # ", mode)?;
       expr_arena[*filenum].print(expr_arena, text, f)?;
-      if let Some(len) = len {
+      if let Some((_, len)) = len {
         write!(f, " LEN = ")?;
         expr_arena[*len].print(expr_arena, text, f)?;
       }

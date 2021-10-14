@@ -1,0 +1,19 @@
+---
+source: gvb_interp/src/vm.rs
+expression: device.log.borrow()
+
+---
+print "1"
+print ","
+print """
+print "foo""
+print ","
+print """
+print "Ab"
+flush
+print "21"
+print ","
+print """
+print [97, 186, 205, 67, 34]
+flush
+

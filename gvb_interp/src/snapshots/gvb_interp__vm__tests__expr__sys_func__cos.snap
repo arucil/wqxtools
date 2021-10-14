@@ -1,0 +1,11 @@
+---
+source: gvb_interp/src/vm.rs
+expression: "run(r#\"\n10 print cos(0); cos(atn(1)*4/3); cos(atn(1)*2)\n    \"#.trim(),\n    vec![(ExecResult :: End, None)])"
+
+---
+print "1"
+print ".5"
+print "6.123234E-17"
+print newline
+flush
+

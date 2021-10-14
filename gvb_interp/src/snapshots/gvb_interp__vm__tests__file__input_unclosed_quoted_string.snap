@@ -1,0 +1,19 @@
+---
+source: gvb_interp/src/vm.rs
+expression: "run_with_file(r#\"\n10 open \"f\" input as 3\n20 input #3, a$\n30 input #3, a$\n    \"#.trim(),\n              vec![(exec_error(2, 13, 15,\n                               \"读取字符串时遇到未匹配的双引号\"),\n                    None)], b\"f.DAT\", File::new(b\"AB,\\\",ab\\xff12\".to_vec()))"
+
+---
+open file "f.DAT", read: true, write: false, truncate: false
+read from file: [65] 
+read from file: [66] 
+read from file: [44] 
+read from file: [34] 
+read from file: [44] 
+read from file: [97] 
+read from file: [98] 
+read from file: [255] 
+read from file: [49] 
+read from file: [50] 
+read from file: [0] 
+close file
+

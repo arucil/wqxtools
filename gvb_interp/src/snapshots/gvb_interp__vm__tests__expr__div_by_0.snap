@@ -1,0 +1,6 @@
+---
+source: gvb_interp/src/vm.rs
+expression: "run(r#\"\n10 print 1e30/(a-b)\n    \"#.trim(),\n    vec![(exec_error(0, 9, 19, \"除以 0\"), None)])"
+
+---
+

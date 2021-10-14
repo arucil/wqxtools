@@ -1,8 +1,8 @@
+use crate::parser::ParseResult;
 use smallvec::{Array, SmallVec};
 use std::fmt::{self, Debug, Formatter};
 use std::num::NonZeroUsize;
 use std::ops::{Deref, DerefMut};
-use crate::parser::ParseResult;
 
 pub mod expr;
 pub mod label;

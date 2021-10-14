@@ -1,0 +1,10 @@
+---
+source: gvb_interp/src/vm.rs
+expression: "run_with_files(r#\"\n10 open \"f.dat\" for random as 2 len=4:field 2, 1 as a$,2 as b$(3)\n20 lset a$=\" \":lset b$(3)=\"0.\":put 2, 2\n    \"#.trim(),\n               vec![(ExecResult :: End, None)],\n               vec![(b\"f.dat\", File :: new(b\"ABCDEFGHIJKLMN\".to_vec()),\n                     b\"ABCD 0.\\0IJKLMN\".to_vec())])"
+
+---
+open file "f.dat", read: true, write: true, truncate: false
+seek file: 4
+write to file: [32, 48, 46, 0] 
+close file
+

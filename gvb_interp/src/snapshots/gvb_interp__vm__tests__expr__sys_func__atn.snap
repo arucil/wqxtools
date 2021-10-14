@@ -1,0 +1,11 @@
+---
+source: gvb_interp/src/vm.rs
+expression: "run(r#\"\n10 print atn(1); atn(-1); atn(0)\n    \"#.trim(),\n    vec![(ExecResult :: End, None)])"
+
+---
+print ".785398163"
+print "-.785398163"
+print "0"
+print newline
+flush
+

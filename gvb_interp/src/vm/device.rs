@@ -19,7 +19,7 @@ pub trait Device {
 
   fn print(&mut self, str: &[u8]);
 
-  fn print_newline(&mut self);
+  fn newline(&mut self);
 
   fn flush(&mut self);
 

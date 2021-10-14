@@ -1,0 +1,10 @@
+---
+source: gvb_interp/src/vm.rs
+expression: device.log.borrow()
+
+---
+print "1"
+flush
+print "2"
+flush
+

@@ -1,0 +1,8 @@
+---
+source: gvb_interp/src/vm.rs
+expression: "run(r#\"\n10 print cvi$(chr$(224+8)+chr$(3)); cvi$(chr$(123)+chr$(0)); cvi$(\"abc\");\n    \"#.trim(),\n    vec![(exec_error(0, 61, 72,\n                     \"CVI$ 函数的参数字符串长度不等于 2。参数字符串长度为：3\"),\n          None)])"
+
+---
+print "1000"
+print "123"
+

@@ -1,0 +1,6 @@
+---
+source: gvb_interp/src/vm.rs
+expression: "run(r#\"\n10 print (-3.2)^(-5.2)\n    \"#.trim(),\n    vec![(exec_error(0, 9, 22,\n                     \"超出乘方运算的定义域。底数为：-3.2，指数为：-5.2\"),\n          None)])"
+
+---
+

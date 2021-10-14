@@ -97,7 +97,7 @@ pub trait CodeEmitter {
 
   fn emit_read(&mut self, range: Range);
 
-  fn emit_print_newline(&mut self, range: Range);
+  fn emit_newline(&mut self, range: Range);
   fn emit_print_spc(&mut self, range: Range);
   fn emit_print_tab(&mut self, range: Range);
   fn emit_print_num(&mut self, range: Range);
@@ -158,7 +158,7 @@ pub fn compile_prog<E: CodeEmitter>(
   state.compile_prog(text, prog);
 }
 
-pub fn compile_fn_body<E: CodeEmitter>(
+pub(crate) fn compile_fn_body<E: CodeEmitter>(
   text: impl AsRef<str>,
   expr: &mut ParseResult<ExprId>,
   code_emitter: &mut E,
@@ -463,7 +463,13 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E, ProgramLine> {
         mode,
         filenum,
         len,
-      } => self.compile_open(range, *filename, *mode, *filenum, *len),
+      } => self.compile_open(
+        range,
+        *filename,
+        *mode,
+        *filenum,
+        len.as_ref().cloned(),
+      ),
       StmtKind::Play(arg) => self.compile_unary_stmt(
         range,
         &stmt.kind,
@@ -751,7 +757,7 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E, ProgramLine> {
 
   fn compile_read(&mut self, _range: Range, vars: &NonEmptyVec<[ExprId; 1]>) {
     for &var in vars.iter() {
-      self.compile_lvalue(var);
+      let (_, _) = self.compile_lvalue(var);
       let range = self.expr_node(var).range.clone();
       self.code_emitter.emit_read(range);
     }
@@ -1066,7 +1072,7 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E, ProgramLine> {
           }
         }
       } else {
-        self.compile_lvalue(var);
+        let (_, _) = self.compile_lvalue(var);
       }
     }
     match source {
@@ -1181,7 +1187,7 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E, ProgramLine> {
     filename: ExprId,
     mode: FileMode,
     filenum: ExprId,
-    len: Option<ExprId>,
+    len: Option<(Range, ExprId)>,
   ) {
     let ty = self.compile_expr(filename);
     if !ty.matches(Type::String) {
@@ -1209,16 +1215,15 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E, ProgramLine> {
       );
     }
 
-    if let Some(len) = len {
-      let range = &self.expr_node(len).range;
+    if let Some((len_range, len)) = len {
       if !matches!(mode, FileMode::Random | FileMode::Error) {
-        self
-          .add_error(range.clone(), "LEN 参数只能用于以 RANDOM 模式打开的文件")
+        self.add_error(len_range, "LEN 参数只能用于以 RANDOM 模式打开的文件")
       }
       let ty = self.compile_expr(len);
       if !ty.matches(Type::Real) {
+        let range = self.expr_node(len).range.clone();
         self.add_error(
-          range.clone(),
+          range,
           format!(
             "表达式类型错误。OPEN 语句的记录长度必须是{}类型，而这个表达式是{}类型",
             Type::Real,
@@ -1226,10 +1231,11 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E, ProgramLine> {
           ),
         );
       }
-    }
-
-    if !matches!(mode, FileMode::Error) {
-      self.code_emitter.emit_open(range, mode, len.is_some());
+      if !matches!(mode, FileMode::Error) {
+        self.code_emitter.emit_open(range, mode, true);
+      }
+    } else {
+      self.code_emitter.emit_open(range, mode, false);
     }
   }
 
@@ -1252,7 +1258,14 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E, ProgramLine> {
                     Type::Real,
                     ty));
           }
-          self.code_emitter.emit_next(var_range.clone(), Some(var));
+          self.code_emitter.emit_next(
+            if vars.len() == 1 {
+              range.clone()
+            } else {
+              var_range.clone()
+            },
+            Some(var),
+          );
         }
       }
     }
@@ -1307,7 +1320,7 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E, ProgramLine> {
           // do nothing
         }
         PrintElement::Comma(elem_range) => {
-          self.code_emitter.emit_print_newline(elem_range.clone());
+          self.code_emitter.emit_newline(elem_range.clone());
         }
         PrintElement::Expr(expr) => match &self.expr_node(*expr).kind {
           ExprKind::SysFuncCall {
@@ -1350,7 +1363,7 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E, ProgramLine> {
             }
 
             if i == elems.len() - 1 {
-              self.code_emitter.emit_print_newline(range.clone());
+              self.code_emitter.emit_newline(range.clone());
             }
 
             printed = true;
@@ -1364,7 +1377,7 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E, ProgramLine> {
               self.code_emitter.emit_print_str(elem_range.clone());
             }
             if i == elems.len() - 1 {
-              self.code_emitter.emit_print_newline(range.clone());
+              self.code_emitter.emit_newline(range.clone());
             } else if matches!(&elems[i + 1], PrintElement::Expr(_)) {
               self
                 .code_emitter
@@ -1379,7 +1392,7 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E, ProgramLine> {
     }
 
     if elems.is_empty() {
-      self.code_emitter.emit_print_newline(range.clone());
+      self.code_emitter.emit_newline(range.clone());
     } else if printed {
       self.code_emitter.emit_flush(range);
     }
@@ -1714,6 +1727,7 @@ impl<'a, 'b, E: CodeEmitter, T> CompileState<'a, 'b, E, T> {
           (true, Type::Error)
         }
       }
+      ExprKind::Error => (false, Type::Error),
       _ => unreachable!(),
     }
   }

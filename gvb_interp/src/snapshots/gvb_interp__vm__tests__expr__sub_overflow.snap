@@ -1,0 +1,6 @@
+---
+source: gvb_interp/src/vm.rs
+expression: "run(r#\"\n10 print -1.70141183e+38-0.00000001e38\n    \"#.trim(),\n    vec![(exec_error(0, 9, 38,\n                     \"运算结果数值过大，超出了实数的表示范围。\\\n            减法运算的两个运算数分别为：-1.70141183E+38，1E+30\"),\n          None)])"
+
+---
+

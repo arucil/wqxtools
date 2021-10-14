@@ -10,7 +10,7 @@ emoji_style: New
 1     0:8..9    push var B
 2     0:6..9    add
 3     0:3..24   if zero goto 6
-4     0:15..20  print newline
+4     0:15..20  newline
 5     0:21..23  goto 16
 6     1:8..9    push var X
 7     1:6..10   push index F, dimensions: 1

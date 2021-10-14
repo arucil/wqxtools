@@ -1,0 +1,10 @@
+---
+source: gvb_interp/src/vm.rs
+expression: device.log.borrow()
+
+---
+open file [65, 186, 205, 66, 46, 68, 65, 84], read: true, write: false, truncate: false
+close file
+open file "foo.dat", read: false, write: true, truncate: true
+close file
+

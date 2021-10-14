@@ -1,0 +1,8 @@
+---
+source: gvb_interp/src/vm.rs
+expression: "run_with_file(r#\"\n10 open \"f\" input as 3\n20 write #3, \"a\"\n    \"#.trim(),\n              vec![(exec_error(1, 13, 16,\n                               \"WRITE 语句只能用于以 OUTPUT 或 APPEND 模式打开的文件，\\\n              但 3 号文件是以 INPUT 模式打开的\"),\n                    None)], b\"f.DAT\", File::new(b\"AB,\\\",ab\\xff12\".to_vec()))"
+
+---
+open file "f.DAT", read: true, write: false, truncate: false
+close file
+

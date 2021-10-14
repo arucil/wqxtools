@@ -1,7 +1,6 @@
 #![feature(
   exclusive_range_pattern,
   extend_one,
-  const_panic,
   const_mut_refs,
   never_type,
   io_error_more

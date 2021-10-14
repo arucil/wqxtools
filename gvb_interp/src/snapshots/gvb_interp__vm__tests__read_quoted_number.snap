@@ -1,0 +1,6 @@
+---
+source: gvb_interp/src/vm.rs
+expression: "run(r#\"\n10 data \"123\"\n30 read a\n    \"#.trim(),\n    vec![(exec_error(1, 8, 9,\n                     \"读取到的数据：\\\"123\\\"，是用引号括起来的字符串，无法转换为数值\"),\n          None)])"
+
+---
+

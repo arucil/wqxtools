@@ -353,7 +353,7 @@ where
               self.state.error(
                 loc,
                 format!(
-                  "LOF 函数只能用于以 OUTPUT 或 APPEND 模式打开的文件，\
+                  "WRITE 语句只能用于以 OUTPUT 或 APPEND 模式打开的文件，\
                   但 {} 号文件是以 {} 模式打开的",
                   filenum + 1,
                   file.mode
@@ -370,6 +370,52 @@ where
           }
         };
       }}
+    }
+
+    macro_rules! do_get_put {
+      (
+        $op:literal,
+        $record_len:ident,
+        $fields:ident,
+        $file:ident => $body:expr
+      ) => {
+        let record_loc = self.num_stack.last().unwrap().0.clone();
+        let record = self.pop_range(-32768, 32767)? as i16;
+        if record == 0 {
+          self.state.error(record_loc, "记录序号不能为 0")?;
+        }
+        let record = (record - 1) as u16;
+
+        let filenum = self.get_filenum(true)?;
+        if let Some(file) = &mut self.files[filenum as usize] {
+          if let FileMode::Random { record_len, fields } = &file.mode {
+            let offset = record as u64 * *record_len as u64;
+            self.state.io(
+              loc.clone(),
+              "设置文件指针",
+              file.file.seek(offset),
+            )?;
+
+            let $record_len = *record_len;
+            let $fields = &fields[..];
+            let $file = &mut file.file;
+            $body;
+          } else {
+            self.state.error(
+              loc,
+              format!(
+                "{} 语句只能用于以 RANDOM 模式打开的文件，\
+                  但 {} 号文件是以 {} 模式打开的",
+                $op,
+                filenum + 1,
+                file.mode
+              ),
+            )?;
+          }
+        } else {
+          self.state.error(loc, "未打开文件")?;
+        }
+      };
     }
 
     match kind {
@@ -705,8 +751,8 @@ where
       InstrKind::SysFuncCall { kind, arity } => {
         self.exec_sys_func(loc, kind, arity)?;
       }
-      InstrKind::PrintNewLine => {
-        self.device.print_newline();
+      InstrKind::NewLine => {
+        self.device.newline();
       }
       InstrKind::PrintSpc => {
         let value = self.pop_u8(false)?;
@@ -760,6 +806,7 @@ where
         let mut str = self.str_stack.pop().unwrap().1;
         str.push(b'"');
         str.drop_null();
+        str.drop_0x1f();
         do_write!(
           to_file,
           end,
@@ -810,10 +857,12 @@ where
             self.state.error(
               loc,
               format!(
-                "INPUT 语句只能用于以 INPUT 模式打开的文件，但 {} 号文件是以 {} 模式打开的",
+                "INPUT 语句只能用于以 INPUT 模式打开的文件，\
+                  但 {} 号文件是以 {} 模式打开的",
                 filenum + 1,
                 file.mode
-              ))?;
+              ),
+            )?;
           }
         } else {
           self.state.error(loc, "未打开文件")?;
@@ -910,29 +959,22 @@ where
         self.state.end()?;
       }
       InstrKind::ReadRecord => {
-        self.exec_get_put(loc.clone(), |this, filenum| {
-          let file = this.files[filenum].as_mut().unwrap();
-          let (record_len, fields) = match &file.mode {
-            FileMode::Random { record_len, fields } => (*record_len, fields),
-            _ => unreachable!(),
-          };
-          let file = &mut file.file;
-
+        do_get_put!("GET", record_len, fields, file => {
           let mut buf = vec![0; record_len as usize];
           let read_len =
-            this
+            self
               .state
               .io(loc.clone(), "读取文件", file.read(&mut buf))?;
           if read_len == 0 {
-            this.state.error(loc, "不能在文件末尾读取记录")?;
+            self.state.error(loc, "不能在文件末尾读取记录")?;
           }
           if read_len < record_len as usize {
-            this.state.error(loc, "文件大小不是记录长度的整数倍")?;
+            self.state.error(loc, "文件大小不是记录长度的整数倍")?;
           }
 
           let mut offset = 0;
           for field in fields {
-            this.store.store_value(
+            self.store.store_value(
               field.lvalue.clone(),
               Value::String(
                 buf[offset..offset + field.len as usize].to_owned().into(),
@@ -940,25 +982,16 @@ where
             );
             offset += field.len as usize;
           }
-
-          Ok(())
-        })?;
+        });
       }
       InstrKind::WriteRecord => {
-        self.exec_get_put(loc.clone(), |this, filenum| {
-          let file = this.files[filenum].as_mut().unwrap();
-          let (record_len, fields) = match &file.mode {
-            FileMode::Random { record_len, fields } => (*record_len, fields),
-            _ => unreachable!(),
-          };
-          let file = &mut file.file;
-
+        do_get_put!("PUT", record_len, fields, file => {
           let mut buf = vec![0u8; record_len as usize];
           let mut offset = 0;
           for field in fields {
-            let str = this
+            let str = self
               .store
-              .load_value(&this.interner, field.lvalue.clone())
+              .load_value(&self.interner, field.lvalue.clone())
               .unwrap_string();
             if str.len() == field.len as usize {
               buf[offset..offset + field.len as usize].clone_from_slice(&str);
@@ -966,10 +999,8 @@ where
             offset += field.len as usize;
           }
 
-          this.state.io(loc.clone(), "写入文件", file.write(&buf))?;
-
-          Ok(())
-        })?;
+          self.state.io(loc.clone(), "写入文件", file.write(&buf))?;
+        });
       }
       InstrKind::AssignNum => {
         let (_, lvalue) = self.lval_stack.pop().unwrap();
@@ -1079,7 +1110,7 @@ where
       SysFuncKind::Asc => {
         let value = self.str_stack.pop().unwrap().1;
         if value.is_empty() {
-          self.state.error(loc, "ASC 函数的参数为空字符串")?;
+          self.state.error(loc, "ASC 函数的参数不能为空字符串")?;
         }
         self.num_stack.push((loc, Mbf5::from(value[0])));
         Ok(())
@@ -1407,7 +1438,9 @@ where
         .error(loc, format!("重复打开 {} 号文件", filenum + 1))?;
     }
 
-    if let Some(i) = filename.find_byteset(b"/\\") {
+    if filename.is_empty() {
+      self.state.error(name_loc, "文件名不能为空")?;
+    } else if let Some(i) = filename.find_byteset(b"/\\") {
       self.state.error(
         name_loc,
         format!("文件名中不能包含\"{}\"字符", filename[i] as char),
@@ -1498,13 +1531,13 @@ where
                 let int = f64::from(num.truncate());
                 if int <= -32769.0 || int >= 32768.0 {
                   self.state.error(
-                        loc,
-                        format!(
-                          "读取到的数据：{}，超出了整数的表示范围（-32768~32767），\
-                          无法赋值给整数变量",
-                          f64::from(num),
-                        ),
-                      )?;
+                    loc,
+                    format!(
+                      "读取到的数据：{}，超出了整数的表示范围（-32768~32767），\
+                        无法赋值给整数变量",
+                      f64::from(num),
+                    ),
+                  )?;
                 } else {
                   self.store.store_value(lvalue, Value::Integer(int as i16));
                 }
@@ -1566,6 +1599,10 @@ where
     for _ in 0..num_fields {
       let lvalue = self.lval_stack.pop().unwrap().1;
       let len = self.pop_u8(false)?;
+      self.store.store_value(
+        lvalue.clone(),
+        Value::String(vec![0u8; len as usize].into()),
+      );
       fields.push(RecordField { len, lvalue });
       total_len += len as u32;
     }
@@ -1721,41 +1758,6 @@ where
     Ok(())
   }
 
-  fn exec_get_put<F>(&mut self, loc: Location, action: F) -> Result<()>
-  where
-    F: FnOnce(&mut Self, usize) -> Result<()>,
-  {
-    let record_loc = self.num_stack.last().unwrap().0.clone();
-    let record = self.pop_range(-32768, 32767)? as i16;
-    if record == 0 {
-      self.state.error(record_loc, "记录序号不能为 0")?;
-    }
-    let record = (record - 1) as u16;
-
-    let filenum = self.get_filenum(true)?;
-    if let Some(file) = &mut self.files[filenum as usize] {
-      if let FileMode::Random { record_len, .. } = &file.mode {
-        let offset = record as u64 * *record_len as u64;
-        self
-          .state
-          .io(loc.clone(), "设置文件指针", file.file.seek(offset))?;
-
-        action(self, filenum as usize)
-      } else {
-        self.state.error(
-          loc,
-          format!(
-            "GET 语句只能用于以 RANDOM 模式打开的文件，但 {} 号文件是以 {} 模式打开的",
-            filenum + 1,
-            file.mode
-          )
-        )?;
-      }
-    } else {
-      self.state.error(loc, "未打开文件")?;
-    }
-  }
-
   fn assign_key(&mut self, input: ExecInput) {
     match input {
       ExecInput::Key(key) => {
@@ -1836,7 +1838,7 @@ where
       }
       _ => unreachable!(),
     }
-    self.device.print_newline();
+    self.device.newline();
     self.pc += 1;
   }
 
@@ -1972,19 +1974,19 @@ where
     self.store.store_value(lvalue, value);
     Ok(())
   }
+}
 
-  pub fn compile_fn_body(
-    &self,
-    input: &str,
-  ) -> std::result::Result<InputFuncBody, Vec<Diagnostic>> {
-    let (mut expr, _) = parse_expr(input);
-    let mut codegen = CodeGen::new(self.emoji_style);
-    compile_fn_body(input, &mut expr, &mut codegen);
-    if contains_errors(&expr.diagnostics) {
-      Err(expr.diagnostics)
-    } else {
-      Ok(InputFuncBody::new(codegen))
-    }
+pub fn compile_fn(
+  input: &str,
+  emoji_style: EmojiStyle,
+) -> std::result::Result<InputFuncBody, Vec<Diagnostic>> {
+  let (mut expr, _) = parse_expr(input);
+  let mut codegen = CodeGen::new(emoji_style);
+  compile_fn_body(input, &mut expr, &mut codegen);
+  if contains_errors(&expr.diagnostics) {
+    Err(expr.diagnostics)
+  } else {
+    Ok(InputFuncBody::new(codegen))
   }
 }
 
@@ -1999,35 +2001,55 @@ fn exec_file_input<F: FileHandle>(
 ) -> Result<()> {
   let mut buf = vec![];
   let mut quoted = false;
-  {
+  loop {
     let mut byte = [0];
     let len = state.io(loc.clone(), "读取文件", file.read(&mut byte))?;
-    if len != 0 {
-      if byte[0] == b'"' {
-        quoted = true;
-      } else {
-        buf.push(byte[0]);
-      }
-
-      loop {
-        let mut byte = [0];
-        let len = state.io(loc.clone(), "读取文件", file.read(&mut byte))?;
-        if len == 0 {
-          if quoted {
-            state.error(loc.clone(), "读取字符串时遇到未匹配的双引号")?
-          }
-          break;
-        }
-        if quoted {
-          if byte[0] == b'"' {
-            break;
-          }
-        } else if byte[0] == 0xff || byte[0] == b',' {
-          break;
-        }
-        buf.push(byte[0]);
-      }
+    if len == 0 {
+      break;
     }
+
+    if byte[0] == b'"' {
+      quoted = true;
+    } else if byte[0] == 0xff || byte[0] == b',' {
+      break;
+    } else {
+      buf.push(byte[0]);
+    }
+
+    let mut str_end = false;
+    loop {
+      let mut byte = [0];
+      let len = state.io(loc.clone(), "读取文件", file.read(&mut byte))?;
+      if len == 0 {
+        if quoted && !str_end {
+          state.error(loc.clone(), "读取字符串时遇到未匹配的双引号")?
+        }
+        break;
+      }
+      if quoted {
+        if str_end {
+          if byte[0] == 0xff || byte[0] == b',' {
+            break;
+          } else {
+            state.error(
+              loc,
+              format!(
+                "读取到的数据：\"{}\"，没有以逗号或 U+00FF 字符结尾",
+                ByteString::from(buf).to_string_lossy(emoji_style)
+              ),
+            )?
+          }
+        } else if byte[0] == b'"' {
+          str_end = true;
+          continue;
+        }
+      } else if byte[0] == 0xff || byte[0] == b',' {
+        break;
+      }
+      buf.push(byte[0]);
+    }
+
+    break;
   }
 
   let value = match lvalue.get_type(interner) {
@@ -2051,7 +2073,7 @@ fn exec_file_input<F: FileHandle>(
                 loc,
                 format!(
                   "读取到的数值：{}，超出了整数的表示范围（-32768~32767），\
-                          无法赋值给整数变量",
+                    无法赋值给整数变量",
                   f64::from(num),
                 ),
               )?;
@@ -2316,10 +2338,86 @@ mod tests {
     codegen
   }
 
-  struct DummyDevice {
+  fn run_vm(
+    mut vm: VirtualMachine<TestDevice>,
+    seq: Vec<(ExecResult, Option<ExecInput>)>,
+  ) {
+    let mut input = None;
+    for (result, next_input) in seq {
+      let r = vm.exec(input, usize::MAX);
+      assert_eq!(r, result);
+      input = next_input;
+    }
+  }
+
+  fn run(text: &str, seq: Vec<(ExecResult, Option<ExecInput>)>) -> String {
+    let codegen = compile(text);
+    let mut device = TestDevice::new();
+    let vm = VirtualMachine::new(codegen, &mut device);
+
+    run_vm(vm, seq);
+
+    let log = device.log.borrow();
+    (*log).clone()
+  }
+
+  fn run_with_file(
+    text: &str,
+    seq: Vec<(ExecResult, Option<ExecInput>)>,
+    name: &[u8],
+    file: File,
+  ) -> String {
+    let codegen = compile(text);
+    let mut device = TestDevice::new().with_file(name.to_vec(), file);
+    let vm = VirtualMachine::new(codegen, &mut device);
+
+    run_vm(vm, seq);
+
+    let log = device.log.borrow();
+    (*log).clone()
+  }
+
+  fn run_with_files(
+    text: &str,
+    seq: Vec<(ExecResult, Option<ExecInput>)>,
+    files: Vec<(&[u8], File, Vec<u8>)>,
+  ) -> String {
+    let codegen = compile(text);
+    let mut device = TestDevice::new();
+    for (name, file, _) in &files {
+      device = device.with_file(name.to_vec(), file.clone());
+    }
+    let vm = VirtualMachine::new(codegen, &mut device);
+
+    run_vm(vm, seq);
+
+    for (name, _, data) in files {
+      assert_eq!(*device.files[name].data.borrow(), data);
+    }
+
+    let log = device.log.borrow();
+    (*log).clone()
+  }
+
+  fn exec_error(
+    line: usize,
+    start: usize,
+    end: usize,
+    msg: impl ToString,
+  ) -> ExecResult {
+    ExecResult::Error {
+      location: Location {
+        line,
+        range: Range::new(start, end),
+      },
+      message: msg.to_string(),
+    }
+  }
+
+  struct TestDevice {
     log: Rc<RefCell<String>>,
     mem: [u8; 65536],
-    file: File,
+    files: HashMap<Vec<u8>, File>,
     cursor: (u8, u8),
   }
 
@@ -2327,21 +2425,33 @@ mod tests {
   struct File {
     log: Rc<RefCell<String>>,
     pos: usize,
-    data: Vec<u8>,
+    data: Rc<RefCell<Vec<u8>>>,
   }
 
-  impl DummyDevice {
+  impl TestDevice {
     fn new() -> Self {
       let log = Rc::new(RefCell::new(String::new()));
       Self {
         log: Rc::clone(&log),
         mem: [0; 65536],
-        file: File {
-          log,
-          pos: 0,
-          data: vec![],
-        },
+        files: HashMap::default(),
         cursor: (0, 0),
+      }
+    }
+
+    fn with_file(mut self, name: Vec<u8>, mut file: File) -> Self {
+      file.log = self.log.clone();
+      self.files.insert(name, file);
+      self
+    }
+  }
+
+  impl File {
+    fn new(data: Vec<u8>) -> Self {
+      Self {
+        log: Rc::new(RefCell::new(String::new())),
+        pos: 0,
+        data: Rc::new(RefCell::new(data)),
       }
     }
   }
@@ -2351,7 +2461,7 @@ mod tests {
     log.borrow_mut().push('\n');
   }
 
-  impl Device for DummyDevice {
+  impl Device for TestDevice {
     type File = File;
 
     fn get_row(&self) -> u8 {
@@ -2387,7 +2497,7 @@ mod tests {
       }
     }
 
-    fn print_newline(&mut self) {
+    fn newline(&mut self) {
       add_log(self.log.clone(), "print newline");
     }
 
@@ -2485,16 +2595,20 @@ mod tests {
       add_log(
         self.log.clone(),
         format!(
-          "open file \"{}\", read: {:?}, write: {:?}, truncate: {:?}",
-          unsafe { std::str::from_utf8_unchecked(name) },
+          "open file {}, read: {:?}, write: {:?}, truncate: {:?}",
+          if name.bytes().all(|b| b < 0x80) {
+            format!("\"{}\"", unsafe { std::str::from_utf8_unchecked(name) })
+          } else {
+            format!("{:?}", &name[..])
+          },
           read,
           write,
           truncate
         ),
       );
-      let mut file = self.file.clone();
+      let file = self.files[name].clone();
       if truncate {
-        file.data.clear();
+        file.data.borrow_mut().clear();
       }
       Ok(file)
     }
@@ -2541,14 +2655,14 @@ mod tests {
     fn len(&self) -> io::Result<u64> {
       add_log(
         self.log.clone(),
-        format!("get file len: {}", self.data.len()),
+        format!("get file len: {}", self.data.borrow().len()),
       );
-      Ok(self.data.len() as u64)
+      Ok(self.data.borrow().len() as u64)
     }
 
     fn seek(&mut self, pos: u64) -> io::Result<()> {
       add_log(self.log.clone(), format!("seek file: {}", pos));
-      if pos > self.data.len() as u64 {
+      if pos > self.data.borrow().len() as u64 {
         Err(io::Error::new(io::ErrorKind::Other, "out of range"))
       } else {
         self.pos = pos as usize;
@@ -2563,20 +2677,24 @@ mod tests {
 
     fn write(&mut self, data: &[u8]) -> io::Result<()> {
       add_log(self.log.clone(), format!("write to file: {:?} ", data));
-      if self.pos + data.len() > self.data.len() {
-        self.data.resize(self.pos + data.len(), 0);
+      if self.pos + data.len() > self.data.borrow().len() {
+        self.data.borrow_mut().resize(self.pos + data.len(), 0);
       }
-      self.data[self.pos..self.pos + data.len()].copy_from_slice(data);
+      self.data.borrow_mut()[self.pos..self.pos + data.len()]
+        .copy_from_slice(data);
+      self.pos += data.len();
       Ok(())
     }
 
     fn read(&mut self, data: &mut [u8]) -> io::Result<usize> {
       let mut len = data.len();
-      if self.pos + len > self.data.len() {
-        len = self.data.len() - self.pos;
+      if self.pos + len > self.data.borrow().len() {
+        len = self.data.borrow().len() - self.pos;
       }
-      data.copy_from_slice(&self.data[self.pos..self.pos + len]);
+      data[..len]
+        .copy_from_slice(&self.data.borrow()[self.pos..self.pos + len]);
       add_log(self.log.clone(), format!("read from file: {:?} ", data));
+      self.pos += len;
       Ok(len)
     }
 
@@ -2588,37 +2706,29 @@ mod tests {
 
   #[test]
   fn assign() {
-    let codegen = compile(
+    assert_snapshot!(run(
       r#"
 10 let a =1:b=a*3+10:dim c(5):c(0)=10:c(1)=20:c(2)=30:c(3)=40:c(4)=50:c(5)=60:
 20 c=c(a):print a,b,c,"abC",c(3)+c(0)*10
 30 c%=32767+1
     "#
       .trim(),
-    );
-    let mut device = DummyDevice::new();
-    let mut vm = VirtualMachine::new(codegen, &mut device);
-
-    let result = vm.exec(None, usize::MAX);
-    assert_eq!(
-      result,
-      ExecResult::Error {
-        location: Location {
-          line: 2,
-          range: Range::new(6, 13),
-        },
-        message: "运算结果数值过大，超出了整数的表示范围（-32768~32767），\
-          无法赋值给整数变量。运算结果为：32768"
-          .to_owned(),
-      }
-    );
-
-    assert_snapshot!(device.log.borrow());
+      vec![(
+        exec_error(
+          2,
+          6,
+          13,
+          "运算结果数值过大，超出了整数的表示范围（-32768~32767），\
+            无法赋值给整数变量。运算结果为：32768"
+        ),
+        None,
+      )],
+    ));
   }
 
   #[test]
   fn draw() {
-    let codegen = compile(
+    assert_snapshot!(run(
       r#"
 0 x=10:y=20:x1=11:y1=22:x2=33:y2=44:r=6:f=3:m=2
 10 draw x,y+1:draw x1,y1,m
@@ -2628,141 +2738,86 @@ mod tests {
 50 ellipse x,y,7,3:ellipse x,y,7,3,1:ellipse x,y,7,3,f,m
     "#
       .trim(),
-    );
-    let mut device = DummyDevice::new();
-    let mut vm = VirtualMachine::new(codegen, &mut device);
-
-    let result = vm.exec(None, usize::MAX);
-    assert_eq!(result, ExecResult::End);
-
-    assert_snapshot!(device.log.borrow());
+      vec![(ExecResult::End, None)],
+    ));
   }
 
   #[test]
   fn nullary_statement() {
-    let codegen = compile(
+    assert_snapshot!(run(
       r#"
 10 beep:cls:cont:flash:graph:inkey$:inverse:normal:text
 20 :
 30 end:print 3
     "#
       .trim(),
-    );
-    let mut device = DummyDevice::new();
-    let mut vm = VirtualMachine::new(codegen, &mut device);
-
-    let result = vm.exec(None, usize::MAX);
-    assert_eq!(result, ExecResult::InKey);
-
-    let result = vm.exec(Some(ExecInput::Key(65)), usize::MAX);
-    assert_eq!(result, ExecResult::End);
-
-    assert_snapshot!(device.log.borrow());
+      vec![
+        (ExecResult::InKey, Some(ExecInput::Key(65))),
+        (ExecResult::End, None),
+      ],
+    ));
   }
 
   #[test]
   fn ppc() {
-    let codegen = compile(
+    assert_snapshot!(run(
       r#"
 10 for i=100 to 105:poke i,i-99:next:print peek(101);peek(104):call 1000
 20 call -2
     "#
       .trim(),
-    );
-    let mut device = DummyDevice::new();
-    let mut vm = VirtualMachine::new(codegen, &mut device);
-
-    let result = vm.exec(None, usize::MAX);
-    assert_eq!(result, ExecResult::End);
-
-    assert_snapshot!(device.log.borrow());
+      vec![(ExecResult::End, None)],
+    ));
   }
 
   #[test]
   fn clear() {
-    let codegen = compile(
+    assert_snapshot!(run_with_file(
       r#"
 10 open "foo" input as1:a=100:a(10)=2:read c1$,c2$:print a;a(10);c1$;c2$:clear
 20 open "foo" output as1:read c3$:print a;a(10);c3$:gosub 30
 30 data a 1, "a 2" , a 3:clear:pop
     "#
       .trim(),
-    );
-    let mut device = DummyDevice::new();
-    let mut vm = VirtualMachine::new(codegen, &mut device);
-
-    let result = vm.exec(None, usize::MAX);
-    assert_eq!(
-      result,
-      ExecResult::Error {
-        location: Location {
-          line: 2,
-          range: Range::new(31, 34),
-        },
-        message: "之前没有执行过 GOSUB 语句，POP 语句无法执行".to_owned(),
-      }
-    );
-
-    assert_snapshot!(device.log.borrow());
+      vec![(
+        exec_error(2, 31, 34, "之前没有执行过 GOSUB 语句，POP 语句无法执行"),
+        None,
+      )],
+      b"foo.DAT",
+      File::new(vec![])
+    ));
   }
 
   #[test]
   fn clear_loop() {
-    let codegen = compile(
+    assert_snapshot!(run(
       r#"
 10 for i=1 to 3:clear:next
     "#
       .trim(),
-    );
-    let mut device = DummyDevice::new();
-    let mut vm = VirtualMachine::new(codegen, &mut device);
-
-    let result = vm.exec(None, usize::MAX);
-    assert_eq!(
-      result,
-      ExecResult::Error {
-        location: Location {
-          line: 0,
-          range: Range::new(22, 26),
-        },
-        message: "NEXT 语句找不到匹配的 FOR 语句".to_owned(),
-      }
-    );
-
-    assert_snapshot!(device.log.borrow());
+      vec![(
+        exec_error(0, 22, 26, "NEXT 语句找不到匹配的 FOR 语句"),
+        None
+      )]
+    ));
   }
 
   #[test]
   fn r#fn() {
-    let codegen = compile(
+    assert_snapshot!(run(
       r#"
 10 def fn pi(x)=atn(1)*4*x:x=3:print x;:print fn pi(1);:print x;:
 20 def fn pi(y)=int(y)*10:print fn pi(3.5);
 30 clear:print fn pi(1)
     "#
       .trim(),
-    );
-    let mut device = DummyDevice::new();
-    let mut vm = VirtualMachine::new(codegen, &mut device);
-
-    let result = vm.exec(None, usize::MAX);
-    assert_eq!(
-      result,
-      ExecResult::Error {
-        location: Location {
-          line: 2,
-          range: Range::new(15, 23),
-        },
-        message: "自定义函数不存在".to_owned(),
-      }
-    );
-
-    assert_snapshot!(device.log.borrow());
+      vec![(exec_error(2, 15, 23, "自定义函数不存在"), None)]
+    ));
   }
 
   #[test]
   fn read() {
-    let codegen = compile(
+    assert_snapshot!(run(
       r#"
 10 data abc, "123", 1e3
 20 data ,,3e
@@ -2771,81 +2826,67 @@ mod tests {
 50 restore 20:read a$,b$,c%:print a$;b$;c%:read d
     "#
       .trim(),
-    );
-    let mut device = DummyDevice::new();
-    let mut vm = VirtualMachine::new(codegen, &mut device);
+      vec![(
+        exec_error(4, 48, 49, "DATA 已经读取结束，没有更多 DATA 可供读取"),
+        None
+      )]
+    ));
+  }
 
-    let result = vm.exec(None, usize::MAX);
-    assert_eq!(
-      result,
-      ExecResult::Error {
-        location: Location {
-          line: 4,
-          range: Range::new(48, 49),
-        },
-        message: "DATA 已经读取结束，没有更多 DATA 可供读取".to_owned(),
-      }
-    );
-
-    assert_snapshot!(device.log.borrow());
+  #[test]
+  fn read_quoted_number() {
+    assert_snapshot!(run(
+      r#"
+10 data "123"
+30 read a
+    "#
+      .trim(),
+      vec![(
+        exec_error(
+          1,
+          8,
+          9,
+          "读取到的数据：\"123\"，是用引号括起来的字符串，无法转换为数值"
+        ),
+        None
+      )]
+    ));
   }
 
   #[test]
   fn dim() {
-    let codegen = compile(
+    assert_snapshot!(run(
       r#"
 10 dim a,a,a$(3):a$(4)=a
     "#
       .trim(),
-    );
-    let mut device = DummyDevice::new();
-    let mut vm = VirtualMachine::new(codegen, &mut device);
-
-    let result = vm.exec(None, usize::MAX);
-    assert_eq!(
-      result,
-      ExecResult::Error {
-        location: Location {
-          line: 0,
-          range: Range::new(20, 21),
-        },
-        message: "数组下标超出上限。该下标的上限为：3，该下标的值为：4, 取整后的值为：4"
-          .to_owned(),
-      }
-    );
-
-    assert_snapshot!(device.log.borrow());
+      vec![(
+        exec_error(
+          0,
+          20,
+          21,
+          "数组下标超出上限。该下标的上限为：3，该下标的值为：4, \
+            取整后的值为：4"
+        ),
+        None
+      )]
+    ));
   }
 
   #[test]
   fn redefine_array() {
-    let codegen = compile(
+    assert_snapshot!(run(
       r#"
 10 dim a,a,a$(3):dim a$(2,7):
     "#
       .trim(),
-    );
-    let mut device = DummyDevice::new();
-    let mut vm = VirtualMachine::new(codegen, &mut device);
-
-    let result = vm.exec(None, usize::MAX);
-    assert_eq!(
-      result,
-      ExecResult::Error {
-        location: Location {
-          line: 0,
-          range: Range::new(21, 23),
-        },
-        message: "重复定义数组".to_owned(),
-      }
-    );
-
-    assert_snapshot!(device.log.borrow());
+      vec![(exec_error(0, 21, 23, "重复定义数组"), None)]
+    ));
   }
 
   #[test]
   fn for_loop() {
-    let codegen = compile(
+    assert_snapshot!(run(
       r#"
 10 for i=i to i+3:print i;:next i:print i*1e3;
 20 for k=10 to 1 step -2:k=k-0.5:print k;:next:print k*1e3;
@@ -2854,50 +2895,32 @@ mod tests {
 50 for i=1 to 10:for i=-10 to -9:print i;:next:next
     "#
       .trim(),
-    );
-    let mut device = DummyDevice::new();
-    let mut vm = VirtualMachine::new(codegen, &mut device);
-
-    let result = vm.exec(None, usize::MAX);
-    assert_eq!(
-      result,
-      ExecResult::Error {
-        location: Location {
-          line: 4,
-          range: Range::new(47, 51),
-        },
-        message: "NEXT 语句找不到匹配的 FOR 语句".to_owned(),
-      }
-    );
-
-    assert_snapshot!(device.log.borrow());
+      vec![(
+        exec_error(4, 47, 51, "NEXT 语句找不到匹配的 FOR 语句"),
+        None,
+      )]
+    ));
   }
 
   #[test]
   fn jump() {
-    let codegen = compile(
+    assert_snapshot!(run(
       r#"
 10 cls:goto 30
 20 print inkey$;:return
 30 gosub 20
     "#
       .trim(),
-    );
-    let mut device = DummyDevice::new();
-    let mut vm = VirtualMachine::new(codegen, &mut device);
-
-    let result = vm.exec(None, usize::MAX);
-    assert_eq!(result, ExecResult::InKey);
-
-    let result = vm.exec(Some(ExecInput::Key(66)), usize::MAX);
-    assert_eq!(result, ExecResult::End);
-
-    assert_snapshot!(device.log.borrow());
+      vec![
+        (ExecResult::InKey, Some(ExecInput::Key(66)),),
+        (ExecResult::End, None)
+      ]
+    ));
   }
 
   #[test]
   fn r#if() {
-    let codegen = compile(
+    assert_snapshot!(run(
       r#"
 10 a=1:b=2:if a>=b then print "a";:30 else print "b";:40
 20 print "come";:end
@@ -2905,21 +2928,15 @@ mod tests {
 40 if a<>b goto print "GO";:gosub 20:text:else print "go";:gosub 20:inverse
     "#
       .trim(),
-    );
-    let mut device = DummyDevice::new();
-    let mut vm = VirtualMachine::new(codegen, &mut device);
-
-    let result = vm.exec(None, usize::MAX);
-    assert_eq!(result, ExecResult::End);
-
-    assert_snapshot!(device.log.borrow());
+      vec![(ExecResult::End, None)]
+    ));
   }
 
   #[test]
   fn input() {
     use std::convert::TryFrom;
 
-    let codegen = compile(
+    assert_snapshot!(run(
       r#"
 10 input "foo"; a$, b
 20 input c%(2), fn f(y)
@@ -2927,108 +2944,72 @@ mod tests {
 40 print a$; b; c%(2); fn f(3);
     "#
       .trim(),
-    );
-    let mut device = DummyDevice::new();
-    let mut vm = VirtualMachine::new(codegen, &mut device);
-
-    let result = vm.exec(None, usize::MAX);
-    assert_eq!(
-      result,
-      ExecResult::KeyboardInput {
-        prompt: Some("foo".to_owned()),
-        fields: vec![KeyboardInputType::String, KeyboardInputType::Real],
-      }
-    );
-
-    let result = vm.exec(
-      Some(ExecInput::KeyboardInput(vec![
-        KeyboardInput::String(b"ABc".to_vec().into()),
-        KeyboardInput::Real(Mbf5::try_from(3.5f64).unwrap()),
-      ])),
-      usize::MAX,
-    );
-    assert_eq!(
-      result,
-      ExecResult::KeyboardInput {
-        prompt: None,
-        fields: vec![
-          KeyboardInputType::Integer,
-          KeyboardInputType::Func {
-            name: "F".to_owned(),
-            param: "Y".to_owned()
+      vec![
+        (
+          ExecResult::KeyboardInput {
+            prompt: Some("foo".to_owned()),
+            fields: vec![KeyboardInputType::String, KeyboardInputType::Real],
+          },
+          Some(ExecInput::KeyboardInput(vec![
+            KeyboardInput::String(b"ABc".to_vec().into()),
+            KeyboardInput::Real(Mbf5::try_from(3.5f64).unwrap()),
+          ])),
+        ),
+        (
+          ExecResult::KeyboardInput {
+            prompt: None,
+            fields: vec![
+              KeyboardInputType::Integer,
+              KeyboardInputType::Func {
+                name: "F".to_owned(),
+                param: "Y".to_owned()
+              }
+            ],
+          },
+          {
+            let body = compile_fn("fn g(y)+2", EmojiStyle::New).unwrap();
+            Some(ExecInput::KeyboardInput(vec![
+              KeyboardInput::Integer(37),
+              KeyboardInput::Func { body },
+            ]))
           }
-        ],
-      }
-    );
-
-    let body = vm.compile_fn_body("fn g(y)+2").unwrap();
-    let result = vm.exec(
-      Some(ExecInput::KeyboardInput(vec![
-        KeyboardInput::Integer(37),
-        KeyboardInput::Func { body },
-      ])),
-      usize::MAX,
-    );
-    assert_eq!(result, ExecResult::End);
-
-    assert_snapshot!(device.log.borrow());
+        ),
+        (ExecResult::End, None)
+      ]
+    ));
   }
 
   #[test]
   fn locate() {
-    let codegen = compile(
+    assert_snapshot!(run(
       r#"
 10 locate 3:locate ,10:locate 5,1:locate 6
     "#
       .trim(),
-    );
-    let mut device = DummyDevice::new();
-    let mut vm = VirtualMachine::new(codegen, &mut device);
-
-    let result = vm.exec(None, usize::MAX);
-    assert_eq!(
-      result,
-      ExecResult::Error {
-        location: Location {
-          line: 0,
-          range: Range::new(41, 42),
-        },
-        message: format!("参数超出范围 1~5。运算结果为：6"),
-      }
-    );
-
-    assert_snapshot!(device.log.borrow());
+      vec![(
+        exec_error(0, 41, 42, "参数超出范围 1~5。运算结果为：6"),
+        None
+      )]
+    ));
   }
 
   #[test]
   fn locate_error_column() {
-    let codegen = compile(
+    assert_snapshot!(run(
       r#"
 10 locate 4, 2 0 +1:
     "#
       .trim(),
-    );
-    let mut device = DummyDevice::new();
-    let mut vm = VirtualMachine::new(codegen, &mut device);
-
-    let result = vm.exec(None, usize::MAX);
-    assert_eq!(
-      result,
-      ExecResult::Error {
-        location: Location {
-          line: 0,
-          range: Range::new(13, 19),
-        },
-        message: format!("参数超出范围 1~20。运算结果为：21"),
-      }
-    );
-
-    assert_snapshot!(device.log.borrow());
+      vec![(
+        exec_error(0, 13, 19, "参数超出范围 1~20。运算结果为：21"),
+        None
+      )]
+    ));
   }
 
   #[test]
   fn set() {
-    let codegen = compile(
+    assert_snapshot!(run(
       r#"
 10 a$="12345"
 20 lset a$="":print a$;
@@ -3041,19 +3022,13 @@ mod tests {
 80 rset b$(3)="ab":print b$(3);
     "#
       .trim(),
-    );
-    let mut device = DummyDevice::new();
-    let mut vm = VirtualMachine::new(codegen, &mut device);
-
-    let result = vm.exec(None, usize::MAX);
-    assert_eq!(result, ExecResult::End);
-
-    assert_snapshot!(device.log.borrow());
+      vec![(ExecResult::End, None)]
+    ));
   }
 
   #[test]
   fn on() {
-    let codegen = compile(
+    assert_snapshot!(run(
       r#"
 10 a=10:gosub 30:a=4:gosub 30:a=7:gosub 30
 20 on 2 gosub 40, 50:end
@@ -3062,79 +3037,55 @@ mod tests {
 50 print "C";:return
     "#
       .trim(),
-    );
-    let mut device = DummyDevice::new();
-    let mut vm = VirtualMachine::new(codegen, &mut device);
-
-    let result = vm.exec(None, usize::MAX);
-    assert_eq!(result, ExecResult::End);
-
-    assert_snapshot!(device.log.borrow());
+      vec![(ExecResult::End, None)]
+    ));
   }
 
   #[test]
   fn print() {
-    let codegen = compile(
+    assert_snapshot!(run(
       r#"
 10 print:print;:print "foo":locate ,10:print spc(2)tab(13);
 20 a$="ABCDEFG":a=3:print a$tab(3)a
     "#
       .trim(),
-    );
-    let mut device = DummyDevice::new();
-    let mut vm = VirtualMachine::new(codegen, &mut device);
-
-    let result = vm.exec(None, usize::MAX);
-    assert_eq!(result, ExecResult::End);
-
-    assert_snapshot!(device.log.borrow());
+      vec![(ExecResult::End, None)]
+    ));
   }
 
   #[test]
-  fn run() {
-    let codegen = compile(
+  fn run_stmt() {
+    assert_snapshot!(run_with_file(
       r#"
 10 open "aaa" for input as 1:a$=a$+"E"
 20 if asc(inkey$) > 40 then print a$;:end else run
     "#
       .trim(),
-    );
-    let mut device = DummyDevice::new();
-    let mut vm = VirtualMachine::new(codegen, &mut device);
-
-    let result = vm.exec(None, usize::MAX);
-    assert_eq!(result, ExecResult::InKey);
-
-    let result = vm.exec(Some(ExecInput::Key(30)), usize::MAX);
-    assert_eq!(result, ExecResult::InKey);
-
-    let result = vm.exec(Some(ExecInput::Key(60)), usize::MAX);
-    assert_eq!(result, ExecResult::End);
-
-    assert_snapshot!(device.log.borrow());
+      vec![
+        (ExecResult::InKey, Some(ExecInput::Key(30))),
+        (ExecResult::InKey, Some(ExecInput::Key(60))),
+        (ExecResult::End, None)
+      ],
+      b"aaa.DAT",
+      File::new(vec![])
+    ));
   }
 
   #[test]
   fn swap() {
-    let codegen = compile(
+    assert_snapshot!(run(
       r#"
 10 a%=30:a%(2)=555:swap a%,a%(2):print a%;a%(2);
 20 a$="abc":b$="ABC-#":swap b$,a$:print a$;b$;
     "#
       .trim(),
-    );
-    let mut device = DummyDevice::new();
-    let mut vm = VirtualMachine::new(codegen, &mut device);
-
-    let result = vm.exec(None, usize::MAX);
-    assert_eq!(result, ExecResult::End);
-
-    assert_snapshot!(device.log.borrow());
+      vec![(ExecResult::End, None)]
+    ));
   }
 
   #[test]
   fn while_loop() {
-    let codegen = compile(
+    assert_snapshot!(run(
       r#"
 10 while a<2:a=a+1:print a;:wend:
 20 while a>0:goto 50:wend:
@@ -3143,75 +3094,832 @@ mod tests {
 50 print ".";:a=a-1:wend:print "no"
     "#
       .trim(),
-    );
-    let mut device = DummyDevice::new();
-    let mut vm = VirtualMachine::new(codegen, &mut device);
+      vec![(
+        exec_error(2, 12, 16, "WEND 语句找不到匹配的 WHILE 语句"),
+        None
+      )]
+    ));
+  }
 
-    let result = vm.exec(None, usize::MAX);
-    assert_eq!(
-      result,
-      ExecResult::Error {
-        location: Location {
-          line: 2,
-          range: Range::new(12, 16),
-        },
-        message: format!("WEND 语句找不到匹配的 WHILE 语句"),
-      }
-    );
-
-    assert_snapshot!(device.log.borrow());
+  #[test]
+  fn write() {
+    assert_snapshot!(run(
+      r#"
+10 a=10:write 1, "foo", "Ab"+chr$(0)+"c": write 1 a*2+1, "a和C",:
+    "#
+      .trim(),
+      vec![(ExecResult::End, None)]
+    ));
   }
 
   #[test]
   fn sleep() {
-    let codegen = compile(
+    assert_snapshot!(run(
       r#"
 10 sleep -100:sleep 0:sleep 200:
     "#
       .trim(),
-    );
-    let mut device = DummyDevice::new();
-    let mut vm = VirtualMachine::new(codegen, &mut device);
+      vec![
+        (ExecResult::Sleep(Duration::from_millis(200)), None),
+        (ExecResult::End, None)
+      ]
+    ));
+  }
 
-    let result = vm.exec(None, usize::MAX);
-    assert_eq!(result, ExecResult::Sleep(Duration::from_millis(200)));
+  #[test]
+  fn for_replaces_while() {
+    assert_snapshot!(run(
+      r#"
+10 for i=1 to 10:while 1:for i=1 to 2:cls:next i:wend
+    "#
+      .trim(),
+      vec![(
+        exec_error(0, 49, 53, "WEND 语句找不到匹配的 WHILE 语句"),
+        None
+      )]
+    ));
+  }
 
-    let result = vm.exec(None, usize::MAX);
-    assert_eq!(result, ExecResult::End);
+  #[test]
+  fn for_replaces_sub() {
+    assert_snapshot!(run(
+      r#"
+10 for i=1 to 2:print i;:gosub 20:
+20 next i:return
+    "#
+      .trim(),
+      vec![(
+        exec_error(1, 10, 16, "之前没有执行过 GOSUB 语句，RETURN 语句无法执行"),
+        None
+      )]
+    ));
+  }
 
-    assert_snapshot!(device.log.borrow());
+  #[test]
+  fn while_replaces_for() {
+    assert_snapshot!(run(
+      r#"
+10 while i<2:for j=1 to 10:i=i+1:print i;:wend:next j
+    "#
+      .trim(),
+      vec![(
+        exec_error(0, 47, 53, "NEXT 语句找不到匹配的 FOR 语句"),
+        None
+      )]
+    ));
+  }
+
+  #[test]
+  fn while_replaces_sub() {
+    assert_snapshot!(run(
+      r#"
+10 while i<2:i=i+1:print i;:gosub 20
+20 wend:return
+    "#
+      .trim(),
+      vec![(
+        exec_error(1, 8, 14, "之前没有执行过 GOSUB 语句，RETURN 语句无法执行"),
+        None
+      )]
+    ));
+  }
+
+  #[test]
+  fn sub_replaces_while() {
+    assert_snapshot!(run(
+      r#"
+10 gosub 20:wend
+20 while 1:return:wend
+    "#
+      .trim(),
+      vec![(
+        exec_error(0, 12, 16, "WEND 语句找不到匹配的 WHILE 语句"),
+        None
+      )]
+    ));
   }
 
   mod file {
     use super::*;
-    use pretty_assertions::assert_eq;
+
+    #[test]
+    fn close() {
+      assert_snapshot!(run_with_files(
+        r#"
+10 open "A和B" input as 1:close 1:open "foo.dat" for output as #1
+    "#
+        .trim(),
+        vec![(ExecResult::End, None)],
+        vec![
+          (
+            &[65, 186, 205, 66, 46, 68, 65, 84],
+            File::new(vec![]),
+            vec![]
+          ),
+          (b"foo.dat", File::new(vec![]), vec![]),
+        ]
+      ));
+    }
+
+    #[test]
+    fn open_empty_filename() {
+      assert_snapshot!(run(
+        r#"
+10 open "" for input as 1
+    "#
+        .trim(),
+        vec![(exec_error(0, 8, 10, "文件名不能为空"), None)]
+      ));
+    }
+
+    #[test]
+    fn reopen_file() {
+      assert_snapshot!(run_with_file(
+        r#"
+10 open "f" for output as 2:open "g" for input as 2:
+    "#
+        .trim(),
+        vec![(exec_error(0, 28, 51, "重复打开 2 号文件"), None)],
+        b"f.DAT",
+        File::new(vec![]),
+      ));
+    }
+
+    #[test]
+    fn field() {
+      assert_snapshot!(run_with_file(
+        r#"
+10 open "f" random as 2 len=4:field 2, 1 as a$,2 as b$(3),1 as c$
+20 print len(a$);asc(a$);len(b$(3));len(c$);:get 2, 2:print a$;b$(3);c$;
+    "#
+        .trim(),
+        vec![(ExecResult::End, None)],
+        b"f.DAT",
+        File::new(b"ABCDEFGHIJKL".to_vec())
+      ));
+    }
+
+    #[test]
+    fn field_record_too_short() {
+      assert_snapshot!(run_with_file(
+        r#"
+10 open "f" random as 2 len=3:field 2, 1 as a$,2 as b$(3),1 as c$
+    "#
+        .trim(),
+        vec![(
+          exec_error(
+            0,
+            30,
+            65,
+            "FIELD 语句定义的字段总长度 4 超出了打开文件时所指定的记录长度 3"
+          ),
+          None
+        )],
+        b"f.DAT",
+        File::new(vec![])
+      ));
+    }
+
+    #[test]
+    fn field_not_open() {
+      assert_snapshot!(run(
+        r#"
+10 field 2, 1 as a$:::
+    "#
+        .trim(),
+        vec![(exec_error(0, 3, 19, "未打开文件"), None)]
+      ));
+    }
+
+    #[test]
+    fn field_mode_error() {
+      assert_snapshot!(run_with_file(
+        r#"
+10 open "f" append as 2:field 2, 1 as a$,2 as b$(3),1 as c$
+    "#
+        .trim(),
+        vec![(
+          exec_error(
+            0,
+            24,
+            59,
+            "FIELD 语句只能用于以 RANDOM 模式打开的文件，\
+              但 2 号文件是以 APPEND 模式打开的"
+          ),
+          None
+        )],
+        b"f.DAT",
+        File::new(vec![])
+      ));
+    }
+
+    #[test]
+    fn field_not_fill_record() {
+      assert_snapshot!(run_with_file(
+        r#"
+10 open "f" for random as 2 len=4:field 2, 1 as a$,2 as b$(3)
+20 get 2, 1:print a$;b$(3)
+    "#
+        .trim(),
+        vec![(ExecResult::End, None)],
+        b"f.DAT",
+        File::new(b"ABCDEFGHIJKL".to_vec())
+      ));
+    }
+
+    #[test]
+    fn get_file_too_short() {
+      assert_snapshot!(run_with_file(
+        r#"
+10 open "f" for random as 2 len=4:field 2, 1 as a$,2 as b$(3)
+20 get 2, 3
+    "#
+        .trim(),
+        vec![(exec_error(1, 3, 11, "文件大小不是记录长度的整数倍"), None,)],
+        b"f.DAT",
+        File::new(b"ABCDEFGHIJK".to_vec())
+      ));
+    }
+
+    #[test]
+    fn get_at_eof() {
+      assert_snapshot!(run_with_file(
+        r#"
+10 open "f" for random as 2 len=4:field 2, 1 as a$,2 as b$(3)
+20 get 2, 4
+    "#
+        .trim(),
+        vec![(exec_error(1, 3, 11, "不能在文件末尾读取记录"), None)],
+        b"f.DAT",
+        File::new(b"ABCDEFGHIJKL".to_vec())
+      ));
+    }
+
+    #[test]
+    fn get_after_eof() {
+      assert_snapshot!(run_with_file(
+        r#"
+10 open "f" for random as 2 len=4:field 2, 1 as a$,2 as b$(3)
+20 get 2, 5
+    "#
+        .trim(),
+        vec![(
+          exec_error(1, 3, 11, "设置文件指针时发生错误：out of range"),
+          None
+        )],
+        b"f.DAT",
+        File::new(b"ABCDEFGHIJKL".to_vec())
+      ));
+    }
+
+    #[test]
+    fn get_mode_error() {
+      assert_snapshot!(run_with_file(
+        r#"
+10 open "f" for input as 2
+20 get 2, 5
+    "#
+        .trim(),
+        vec![(
+          exec_error(
+            1,
+            3,
+            11,
+            "GET 语句只能用于以 RANDOM 模式打开的文件，\
+              但 2 号文件是以 INPUT 模式打开的"
+          ),
+          None
+        )],
+        b"f.DAT",
+        File::new(b"ABCDEFGHIJKL".to_vec())
+      ));
+    }
+
+    #[test]
+    fn put_mode_error() {
+      assert_snapshot!(run_with_file(
+        r#"
+10 open "f" output as 2
+20 put 2, 1
+    "#
+        .trim(),
+        vec![(
+          exec_error(
+            1,
+            3,
+            11,
+            "PUT 语句只能用于以 RANDOM 模式打开的文件，\
+              但 2 号文件是以 OUTPUT 模式打开的"
+          ),
+          None
+        )],
+        b"f.DAT",
+        File::new(b"ABCDEFGHIJKL".to_vec())
+      ));
+    }
+
+    #[test]
+    fn put() {
+      assert_snapshot!(run_with_files(
+        r#"
+10 open "f.dat" for random as 2 len=3:field 2, 1 as a$,2 as b$(3)
+20 lset a$="A":lset b$(3)="BC":put 2, 1
+30 lset a$="1":lset b$(3)="23":put 2, 2
+40 lset a$="x":lset b$(3)="yz":put 2, 3
+50 lset a$="@":lset b$(3)=" .":put 2, 2
+60 close 2
+    "#
+        .trim(),
+        vec![(ExecResult::End, None)],
+        vec![(b"f.dat", File::new(vec![]), b"ABC@ .xyz".to_vec())]
+      ));
+    }
+
+    #[test]
+    fn put_not_fill_record() {
+      assert_snapshot!(run_with_files(
+        r#"
+10 open "f.dat" for random as 2 len=4:field 2, 1 as a$,2 as b$(3)
+20 lset a$=" ":lset b$(3)="0.":put 2, 2
+    "#
+        .trim(),
+        vec![(ExecResult::End, None)],
+        vec![(
+          b"f.dat",
+          File::new(b"ABCDEFGHIJKLMN".to_vec()),
+          b"ABCD 0.\0IJKLMN".to_vec()
+        )]
+      ));
+    }
+
+    #[test]
+    fn put_after_eof() {
+      assert_snapshot!(run_with_file(
+        r#"
+10 open "f" for random as 2 len=4
+20 put 2, 5
+    "#
+        .trim(),
+        vec![(
+          exec_error(1, 3, 11, "设置文件指针时发生错误：out of range"),
+          None
+        )],
+        b"f.DAT",
+        File::new(b"ABCDEFGHIJKL".to_vec())
+      ));
+    }
+
+    #[test]
+    fn input() {
+      assert_snapshot!(run_with_file(
+        r#"
+10 open "f" input as 3
+20 input #3, a$, b$(3)
+25 input #3 , c, d$
+30 print a$;b$(3);c;d$
+    "#
+        .trim(),
+        vec![(ExecResult::End, None)],
+        b"f.DAT",
+        File::new(b"AB,\",ab\xff12\"\xff1e3".to_vec())
+      ));
+    }
+
+    #[test]
+    fn input_mode_error() {
+      assert_snapshot!(run_with_file(
+        r#"
+10 open "f" output as 3
+20 input #3, a
+    "#
+        .trim(),
+        vec![(
+          exec_error(
+            1,
+            3,
+            14,
+            "INPUT 语句只能用于以 INPUT 模式打开的文件，\
+              但 3 号文件是以 OUTPUT 模式打开的"
+          ),
+          None
+        )],
+        b"f.DAT",
+        File::new(b"AB,\",ab\xff12\"\xff1e3".to_vec())
+      ));
+    }
+
+    #[test]
+    fn input_invalid_number() {
+      assert_snapshot!(run_with_file(
+        r#"
+10 open "f" input as 3
+20 input #3, a
+    "#
+        .trim(),
+        vec![(
+          exec_error(1, 13, 14, "读取到的数据：AB，不符合实数的格式"),
+          None
+        )],
+        b"f.DAT",
+        File::new(b"AB,\",ab\xff12\"\xff1e3".to_vec())
+      ));
+    }
+
+    #[test]
+    fn input_quoted_number() {
+      assert_snapshot!(run_with_file(
+        r#"
+10 open "f" input as 3
+20 input #3, a$,b%
+    "#
+        .trim(),
+        vec![(
+          exec_error(
+            1,
+            16,
+            18,
+            "读取到的数据：\",ab 12\"，是用引号括起来的字符串，无法转换为数值"
+          ),
+          None
+        )],
+        b"f.DAT",
+        File::new(b"AB,\",ab 12\"\xff1e3".to_vec())
+      ));
+    }
+
+    #[test]
+    fn input_invalid_quoted_string() {
+      assert_snapshot!(run_with_file(
+        r#"
+10 open "f" input as 3
+20 input #3, a$
+30 input #3, a$
+    "#
+        .trim(),
+        vec![(
+          exec_error(
+            2,
+            13,
+            15,
+            "读取到的数据：\",ab 12\"，没有以逗号或 U+00FF 字符结尾"
+          ),
+          None
+        )],
+        b"f.DAT",
+        File::new(b"AB,\",ab 12\"1e3".to_vec())
+      ));
+    }
+
+    #[test]
+    fn input_unclosed_quoted_string() {
+      assert_snapshot!(run_with_file(
+        r#"
+10 open "f" input as 3
+20 input #3, a$
+30 input #3, a$
+    "#
+        .trim(),
+        vec![(
+          exec_error(2, 13, 15, "读取字符串时遇到未匹配的双引号"),
+          None
+        )],
+        b"f.DAT",
+        File::new(b"AB,\",ab\xff12".to_vec())
+      ));
+    }
+
+    #[test]
+    fn write_mode_error() {
+      assert_snapshot!(run_with_file(
+        r#"
+10 open "f" input as 3
+20 write #3, "a"
+    "#
+        .trim(),
+        vec![(
+          exec_error(
+            1,
+            13,
+            16,
+            "WRITE 语句只能用于以 OUTPUT 或 APPEND 模式打开的文件，\
+              但 3 号文件是以 INPUT 模式打开的"
+          ),
+          None
+        )],
+        b"f.DAT",
+        File::new(b"AB,\",ab\xff12".to_vec())
+      ));
+    }
+
+    #[test]
+    fn output_write() {
+      assert_snapshot!(run_with_files(
+        r#"
+10 open "f" for output as 1
+20 write #1, 1e3, ". +"
+30 write #1,"A和B"
+    "#
+        .trim(),
+        vec![(ExecResult::End, None)],
+        vec![(
+          b"f.DAT",
+          File::new(b"0123456789".to_vec()),
+          b"1000,\". +\"\xff\"A\xba\xcdB\"\xff".to_vec()
+        )]
+      ));
+    }
+
+    #[test]
+    fn append_write() {
+      assert_snapshot!(run_with_files(
+        r#"
+0 open "f" for output as 2: write #2,123456:close #2
+10 open "f" for append as 1
+20 write #1, 1e3, ". +"
+30 write #1,"A和B"
+    "#
+        .trim(),
+        vec![(ExecResult::End, None)],
+        vec![(
+          b"f.DAT",
+          File::new(b"  abcdefghi".to_vec()),
+          b"123456\xff1000,\". +\"\xff\"A\xba\xcdB\"\xff".to_vec()
+        )]
+      ));
+    }
+
+    #[test]
+    fn multiple_files() {
+      assert_snapshot!(run_with_files(
+        r#"
+0 open "a" for random as 1 len =2:field 1, 2 asa$(2):
+10 open "b.DAT" for input as 2
+20 open "c.dat" for output as 3
+30 get 1, 3:input #2, b:write #3, a$(2)+str$(b)
+40 lset a$(2)=mki$(b):put 1,1
+50 input #2, b$:lset a$(2)=b$:put 1,3
+    "#
+        .trim(),
+        vec![(ExecResult::End, None)],
+        vec![
+          (
+            b"a.DAT",
+            File::new(b"abcdefgh".to_vec()),
+            b"\x7b\x00cd+ gh".to_vec(),
+          ),
+          (
+            b"b.DAT",
+            File::new(b"123\xff+ ,%/".to_vec()),
+            b"123\xff+ ,%/".to_vec()
+          ),
+          (
+            b"c.dat",
+            File::new(b"+-*/".to_vec()),
+            b"\"ef123\"\xff".to_vec()
+          ),
+        ]
+      ));
+    }
   }
 
   mod expr {
     use super::*;
-    use pretty_assertions::assert_eq;
 
     #[test]
     fn r#fn() {
-      let codegen = compile(
+      assert_snapshot!(run(
         r#"
 10 def fn f(x)=x*x+fn g(x):def fn g(x)=x*2+7
 20 x=1:print fn f(10);:print x;
     "#
         .trim(),
-      );
-      let mut device = DummyDevice::new();
-      let mut vm = VirtualMachine::new(codegen, &mut device);
+        vec![(ExecResult::End, None)]
+      ));
+    }
 
-      let result = vm.exec(None, usize::MAX);
-      assert_eq!(result, ExecResult::End);
+    #[test]
+    fn add_overflow() {
+      assert_snapshot!(run(
+        r#"
+10 print 1.70141183e+38+0.00000001e38
+    "#
+        .trim(),
+        vec![(
+          exec_error(
+            0,
+            9,
+            37,
+            "运算结果数值过大，超出了实数的表示范围。\
+            加法运算的两个运算数分别为：1.70141183E+38，1E+30"
+          ),
+          None
+        )]
+      ));
+    }
 
-      assert_snapshot!(device.log.borrow());
+    #[test]
+    fn sub_overflow() {
+      assert_snapshot!(run(
+        r#"
+10 print -1.70141183e+38-0.00000001e38
+    "#
+        .trim(),
+        vec![(
+          exec_error(
+            0,
+            9,
+            38,
+            "运算结果数值过大，超出了实数的表示范围。\
+            减法运算的两个运算数分别为：-1.70141183E+38，1E+30"
+          ),
+          None
+        )]
+      ));
+    }
+
+    #[test]
+    fn mul_overflow() {
+      assert_snapshot!(run(
+        r#"
+10 print 1e30*1e10
+    "#
+        .trim(),
+        vec![(
+          exec_error(
+            0,
+            9,
+            18,
+            "运算结果数值过大，超出了实数的表示范围。\
+            乘法运算的两个运算数分别为：1E+30，1E+10"
+          ),
+          None
+        )]
+      ));
+    }
+
+    #[test]
+    fn div_overflow() {
+      assert_snapshot!(run(
+        r#"
+10 print 1e30/1e-10
+    "#
+        .trim(),
+        vec![(
+          exec_error(
+            0,
+            9,
+            19,
+            "运算结果数值过大，超出了实数的表示范围。\
+            除法运算的两个运算数分别为：1E+30，1E-10"
+          ),
+          None
+        )]
+      ));
+    }
+
+    #[test]
+    fn div_by_0() {
+      assert_snapshot!(run(
+        r#"
+10 print 1e30/(a-b)
+    "#
+        .trim(),
+        vec![(exec_error(0, 9, 19, "除以 0"), None)]
+      ));
+    }
+
+    #[test]
+    fn pow_overflow() {
+      assert_snapshot!(run(
+        r#"
+10 print 10^40
+    "#
+        .trim(),
+        vec![(
+          exec_error(
+            0,
+            9,
+            14,
+            "运算结果数值过大，超出了实数的表示范围。底数为：10，指数为：40"
+          ),
+          None
+        )]
+      ));
+    }
+
+    #[test]
+    fn pow_out_of_domain() {
+      assert_snapshot!(run(
+        r#"
+10 print (-3.2)^(-5.2)
+    "#
+        .trim(),
+        vec![(
+          exec_error(
+            0,
+            9,
+            22,
+            "超出乘方运算的定义域。底数为：-3.2，指数为：-5.2"
+          ),
+          None
+        )]
+      ));
+    }
+
+    #[test]
+    fn logical() {
+      assert_snapshot!(run(
+        r#"
+10 print 3 and 0; 0 and -30; 0 and 13-13; rnd(1) and +50
+20 print 3 or 0; 0 or -30; 0 or 13-13; rnd(1) or +50
+30 print not 0; not -7
+    "#
+        .trim(),
+        vec![(ExecResult::End, None)]
+      ));
+    }
+
+    #[test]
+    fn gt() {
+      assert_snapshot!(run(
+        r#"
+10 print 10 > 9; 9 > 10; -7 > -7;
+20 print "abc" > "abC"; "Abx" > "abC"; "abc" > "abc";
+30 print "a" > ""; "ab" > "abc"; "aBc" > "ab"; "abc" > "ab"
+    "#
+        .trim(),
+        vec![(ExecResult::End, None)]
+      ));
+    }
+
+    #[test]
+    fn lt() {
+      assert_snapshot!(run(
+        r#"
+10 print 10 < 9; 9 < 10; -7 < -7;
+20 print "abc" < "abC"; "Abx" < "abC"; "abc" < "abc";
+30 print "a" < ""; "ab" < "abc"; "aBc" < "ab"; "abc" < "ab"
+    "#
+        .trim(),
+        vec![(ExecResult::End, None)]
+      ));
+    }
+
+    #[test]
+    fn ge() {
+      assert_snapshot!(run(
+        r#"
+10 print 10 >= 9; 9 >= 10; -7 >= -7;
+20 print "abc" >= "abC"; "Abx" >= "abC"; "abc" >= "abc";
+30 print "a" >= ""; "ab" >= "abc"; "aBc" >= "ab"; "abc" >= "ab"
+    "#
+        .trim(),
+        vec![(ExecResult::End, None)]
+      ));
+    }
+
+    #[test]
+    fn le() {
+      assert_snapshot!(run(
+        r#"
+10 print 10 <= 9; 9 <= 10; -7 <= -7;
+20 print "abc" <= "abC"; "Abx" <= "abC"; "abc" <= "abc";
+30 print "a" <= ""; "ab" <= "abc"; "aBc" <= "ab"; "abc" <= "ab"
+    "#
+        .trim(),
+        vec![(ExecResult::End, None)]
+      ));
+    }
+
+    #[test]
+    fn eq() {
+      assert_snapshot!(run(
+        r#"
+10 print 10 = 9; 9 = 10; -7 = -7;
+20 print "abc" = "abC"; "Abx" = "abC"; "abc" = "abc";
+30 print "a" = ""; "ab" = "abc"; "aBc" = "ab"; "abc" = "ab"
+    "#
+        .trim(),
+        vec![(ExecResult::End, None)]
+      ));
+    }
+
+    #[test]
+    fn ne() {
+      assert_snapshot!(run(
+        r#"
+10 print 10 <> 9; 9 <> 10; -7 <> -7;
+20 print "abc" <> "abC"; "Abx" <> "abC"; "abc" <> "abc";
+30 print "a" <> ""; "ab" <> "abc"; "aBc" <> "ab"; "abc" <> "ab"
+    "#
+        .trim(),
+        vec![(ExecResult::End, None)]
+      ));
     }
 
     #[test]
     fn array() {
-      let codegen = compile(
+      assert_snapshot!(run(
         r#"
 10 dim foo(1,2):x%(0)=1::x%(4)=1:x%(6)=0:x%(8)=1:x%(10)=2:
 20 foo(0,0)=10:foo(0,1)=100:foo(0, 2)=1000:foo(1,0)=2:foo(1,1)=4:foo(1,2)=6
@@ -3221,30 +3929,117 @@ mod tests {
 60 print b(11);
     "#
         .trim(),
-      );
-      let mut device = DummyDevice::new();
-      let mut vm = VirtualMachine::new(codegen, &mut device);
-
-      let result = vm.exec(None, usize::MAX);
-      assert_eq!(
-        result,
-        ExecResult::Error {
-          location: Location {
-            line: 5,
-            range: Range::new(11, 13),
-          },
-          message: format!(
-            "数组下标超出上限。该下标的上限为：10，该下标的值为：11, 取整后的值为：11"
+        vec![(
+          exec_error(
+            5,
+            11,
+            13,
+            "数组下标超出上限。该下标的上限为：10，该下标的值为：11, \
+              取整后的值为：11"
           ),
-        }
-      );
-
-      assert_snapshot!(device.log.borrow());
+          None
+        )]
+      ));
     }
 
     mod sys_func {
       use super::*;
-      use pretty_assertions::assert_eq;
+
+      #[test]
+      fn abs() {
+        assert_snapshot!(run(
+          r#"
+10 print abs(-7); abs(0); abs(13+1);
+    "#
+          .trim(),
+          vec![(ExecResult::End, None)]
+        ));
+      }
+
+      #[test]
+      fn asc() {
+        assert_snapshot!(run(
+          r#"
+10 print asc("A"); asc("123"); asc("");
+    "#
+          .trim(),
+          vec![(exec_error(0, 31, 38, "ASC 函数的参数不能为空字符串"), None)]
+        ));
+      }
+
+      #[test]
+      fn atn() {
+        assert_snapshot!(run(
+          r#"
+10 print atn(1); atn(-1); atn(0)
+    "#
+          .trim(),
+          vec![(ExecResult::End, None)]
+        ));
+      }
+
+      #[test]
+      fn chr() {
+        assert_snapshot!(run(
+          r#"
+10 print chr$(32); chr$(0); chr$(255); chr$(300)
+    "#
+          .trim(),
+          vec![(
+            exec_error(0, 44, 47, "参数超出范围 0~255。运算结果为：300"),
+            None
+          )]
+        ));
+      }
+
+      #[test]
+      fn cos() {
+        assert_snapshot!(run(
+          r#"
+10 print cos(0); cos(atn(1)*4/3); cos(atn(1)*2)
+    "#
+          .trim(),
+          vec![(ExecResult::End, None)]
+        ));
+      }
+
+      #[test]
+      fn cvi() {
+        assert_snapshot!(run(
+          r#"
+10 print cvi$(chr$(224+8)+chr$(3)); cvi$(chr$(123)+chr$(0)); cvi$("abc");
+    "#
+          .trim(),
+          vec![(
+            exec_error(
+              0,
+              61,
+              72,
+              "CVI$ 函数的参数字符串长度不等于 2。参数字符串长度为：3"
+            ),
+            None
+          )]
+        ));
+      }
+
+      #[test]
+      fn cvs() {
+        assert_snapshot!(run(
+          r#"
+10 print cvs$(chr$(152)+chr$(53)+chr$(68)+chr$(122)+chr$(0)); cvs$("ab");
+    "#
+          .trim(),
+          vec![(
+            exec_error(
+              0,
+              62,
+              72,
+              "CVS$ 函数的参数字符串长度不等于 5。参数字符串长度为：2"
+            ),
+            None
+          )]
+        ));
+      }
     }
   }
 }
