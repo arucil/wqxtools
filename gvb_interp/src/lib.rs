@@ -6,7 +6,7 @@
   io_error_more
 )]
 
-pub mod ast;
+mod ast;
 mod compiler;
 pub mod diagnostic;
 pub mod document;
@@ -14,6 +14,9 @@ mod machine;
 mod parser;
 pub mod util;
 pub mod vm;
+
+pub use self::document::*;
+pub use self::vm::*;
 
 mod gb2312 {
   include!(concat!(env!("OUT_DIR"), "/gb2312.rs"));

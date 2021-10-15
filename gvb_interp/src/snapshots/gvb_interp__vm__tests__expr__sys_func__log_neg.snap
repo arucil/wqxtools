@@ -1,0 +1,6 @@
+---
+source: gvb_interp/src/vm.rs
+expression: "run(r#\"\n10 print log(-2);\n    \"#.trim(),\n    vec![(exec_error(0, 13, 15,\n                     \"超出 LOG 函数的定义域。参数值是：-2\"),\n          None)])"
+
+---
+

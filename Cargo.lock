@@ -270,6 +270,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "gvb_cpp_binding"
+version = "0.1.0"
+dependencies = [
+ "gvb_interp",
+]
+
+[[package]]
 name = "gvb_interp"
 version = "0.1.0"
 dependencies = [

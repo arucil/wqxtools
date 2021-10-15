@@ -1431,7 +1431,7 @@ impl<'a, 'b, E: CodeEmitter, T> CompileState<'a, 'b, E, T> {
           Err(ParseRealError::Infinite) => {
             self.add_error(range, "数值过大，超出实数的表示范围")
           }
-          Err(_) => unreachable!("{:?} {}", range, text),
+          Err(_) => unreachable!(),
         }
         Type::Real
       }

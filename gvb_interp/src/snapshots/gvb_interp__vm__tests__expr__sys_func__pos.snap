@@ -1,0 +1,14 @@
+---
+source: gvb_interp/src/vm.rs
+expression: "run(r#\"\n10 locate ,7: print pos(-2749);\n20 locate ,13:print pos(14);\n    \"#.trim(),\n    vec![(ExecResult :: End, None)])"
+
+---
+set column to 6
+get column: 6
+print "6"
+flush
+set column to 12
+get column: 12
+print "12"
+flush
+

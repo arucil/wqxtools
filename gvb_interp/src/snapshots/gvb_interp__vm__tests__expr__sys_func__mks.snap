@@ -1,0 +1,10 @@
+---
+source: gvb_interp/src/vm.rs
+expression: "run(r#\"\n10 print mks$(1); mks$(-1); mks$(-11879546);\n    \"#.trim(),\n    vec![(ExecResult :: End, None)])"
+
+---
+print [129]
+print [129, 128]
+print [152, 181, 68, 122]
+flush
+

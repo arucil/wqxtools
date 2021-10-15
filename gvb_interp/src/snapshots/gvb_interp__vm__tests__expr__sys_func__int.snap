@@ -1,0 +1,13 @@
+---
+source: gvb_interp/src/vm.rs
+expression: "run(r#\"\n10 print int(21758); int(174989.546); int(0); int(-147.275); int(-1326790)\n    \"#.trim(),\n    vec![(ExecResult :: End, None)])"
+
+---
+print "21758"
+print "174989"
+print "0"
+print "-147"
+print "-1326790"
+print newline
+flush
+

@@ -1,0 +1,13 @@
+---
+source: gvb_interp/src/vm.rs
+expression: "run(r#\"\n10 poke 12345, 78\n20 print peek(12345); peek(12345-65536)\n    \"#.trim(),\n    vec![(ExecResult :: End, None)])"
+
+---
+poke 12345, 78
+peek 12345: 78
+print "78"
+peek 12345: 78
+print "78"
+print newline
+flush
+

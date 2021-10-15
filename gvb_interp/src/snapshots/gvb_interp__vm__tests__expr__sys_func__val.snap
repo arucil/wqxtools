@@ -1,0 +1,12 @@
+---
+source: gvb_interp/src/vm.rs
+expression: "run(r#\"\n10 print val(\"1e3\"); val(\"\"); val(\"abc\"); val(\"- 1.52f%U7\"); val(\"1 .  2 e + 2K\");\n    \"#.trim(),\n    vec![(ExecResult :: End, None)])"
+
+---
+print "1000"
+print "0"
+print "0"
+print "-1.52"
+print "120"
+flush
+

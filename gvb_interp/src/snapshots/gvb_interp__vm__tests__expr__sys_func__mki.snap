@@ -1,0 +1,10 @@
+---
+source: gvb_interp/src/vm.rs
+expression: "run(r#\"\n10 print mki$(1000); mki$(123); asc(mki$(-32768)); asc(mid$(mki$(-32768),2)); mki$(32768);\n    \"#.trim(),\n    vec![(exec_error(0, 83, 88,\n                     \"参数超出范围 -32768~32767。运算结果为：32768\"),\n          None)])"
+
+---
+print [232, 3]
+print "{"
+print "0"
+print "128"
+

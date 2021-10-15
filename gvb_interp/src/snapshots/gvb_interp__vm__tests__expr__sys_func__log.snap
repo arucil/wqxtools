@@ -1,0 +1,9 @@
+---
+source: gvb_interp/src/vm.rs
+expression: "run(r#\"\n10 print log(1); log(exp(1)); log(2); log(0)\n    \"#.trim(),\n    vec![(exec_error(0, 38, 44,\n                     \"运算结果数值过大，超出实数的表示范围。参数值是：0\"),\n          None)])"
+
+---
+print "0"
+print "1"
+print ".693147181"
+

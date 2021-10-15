@@ -9,16 +9,25 @@
 
 
 - document:
-    + load bas/txt
-    + save
-    + diagnostics
-    + auto completion
-    + compile to vm
-    + set machine name
-    + get machine name
-    + edit
-    + get semantic token
-    - symbol highlight
+    + create new: () => (document, string)
+    + get path: () => option<path>
+    + load bas/txt: path -> (document, string)
+    + save: option<path> -> ()
+    + diagnostics: () -> vec
+    + auto completion: () -> completion list
+    + compile to vm: device -> vm
+    + set machine name: string -> ()
+    + get machine name: () -> string
+    + edit: edit list -> ()
+    + get semantic token: () -> vec
+    + symbol highlight: () -> vec
+    + create device: () -> device
 - vm:
-    - compile expr to InputFuncBody
-    - exec
+    - compile expr to InputFuncBody: string -> body
+    - exec: input -> exec result
+- mbf5:
+    - parse string: string -> result<mbf5>
+- device:
+    - get key
+    - fire key down
+    - fire key up

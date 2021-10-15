@@ -1,0 +1,10 @@
+---
+source: gvb_interp/src/vm.rs
+expression: "run(r#\"\n10 a$=\"ABCD\":print right$(a$,2); right$(a$,1); right$(a$,10); right$(\"\",3); right$(a$,0);\n    \"#.trim(),\n    vec![(exec_error(0, 86, 87,\n                     \"参数超出范围 1~255。运算结果为：0\"),\n          None)])"
+
+---
+print "CD"
+print "D"
+print "ABCD"
+print ""
+

@@ -168,6 +168,7 @@ pub enum KeyboardInputType {
 }
 
 pub enum ExecInput {
+  None,
   KeyboardInput(Vec<KeyboardInput>),
   Key(u8),
 }
@@ -277,14 +278,14 @@ where
 
   pub fn exec(
     &mut self,
-    input: Option<ExecInput>,
+    input: ExecInput,
     mut steps: usize,
   ) -> ExecResult {
     match std::mem::replace(&mut self.state, ExecState::Normal) {
       ExecState::Done => return ExecResult::End,
-      ExecState::WaitForKey => self.assign_key(input.unwrap()),
+      ExecState::WaitForKey => self.assign_key(input),
       ExecState::WaitForKeyboardInput { lvalues } => {
-        self.assign_input(input.unwrap(), lvalues)
+        self.assign_input(input, lvalues)
       }
       ExecState::AsmSuspend => {
         if !self.device.exec_asm(&mut steps, None) {
@@ -1108,9 +1109,9 @@ where
         Ok(())
       }
       SysFuncKind::Asc => {
-        let value = self.str_stack.pop().unwrap().1;
+        let (arg_loc, value) = self.str_stack.pop().unwrap();
         if value.is_empty() {
-          self.state.error(loc, "ASC 函数的参数不能为空字符串")?;
+          self.state.error(arg_loc, "ASC 函数的参数不能为空字符串")?;
         }
         self.num_stack.push((loc, Mbf5::from(value[0])));
         Ok(())
@@ -1131,10 +1132,10 @@ where
         Ok(())
       }
       SysFuncKind::Cvi => {
-        let value = self.str_stack.pop().unwrap().1;
+        let (arg_loc, value) = self.str_stack.pop().unwrap();
         if value.len() != 2 {
           self.state.error(
-            loc,
+            arg_loc,
             format!(
               "CVI$ 函数的参数字符串长度不等于 2。参数字符串长度为：{}",
               value.len()
@@ -1149,10 +1150,10 @@ where
         Ok(())
       }
       SysFuncKind::Cvs => {
-        let value = self.str_stack.pop().unwrap().1;
+        let (arg_loc, value) = self.str_stack.pop().unwrap();
         if value.len() != 5 {
           self.state.error(
-            loc,
+            arg_loc,
             format!(
               "CVS$ 函数的参数字符串长度不等于 5。参数字符串长度为：{}",
               value.len()
@@ -1205,10 +1206,7 @@ where
               value
             ),
           )?,
-          Err(RealError::Nan) => self.state.error(
-            loc,
-            format!("超出 EXP 函数的定义域。参数值是：{}", value),
-          )?,
+          Err(RealError::Nan) => unreachable!(),
         }
       }
       SysFuncKind::Int => {
@@ -1219,7 +1217,7 @@ where
       SysFuncKind::Left => {
         let len = self.pop_u8(true)? as usize;
         let value = self.str_stack.pop().unwrap().1;
-        let len = len.max(value.len());
+        let len = len.min(value.len());
         self
           .str_stack
           .push((loc, ByteString::from(value[..len].to_vec())));
@@ -1253,7 +1251,7 @@ where
         }
       }
       SysFuncKind::Log => {
-        let value = self.num_stack.pop().unwrap().1;
+        let (arg_loc, value) = self.num_stack.pop().unwrap();
         match value.ln() {
           Ok(value) => {
             self.num_stack.push((loc, value));
@@ -1267,7 +1265,7 @@ where
             ),
           )?,
           Err(RealError::Nan) => self.state.error(
-            loc,
+            arg_loc,
             format!("超出 LOG 函数的定义域。参数值是：{}", value),
           )?,
         }
@@ -1280,8 +1278,8 @@ where
         };
         let pos = (self.pop_u8(true)? - 1) as usize;
         let value = self.str_stack.pop().unwrap().1;
-        let start = pos.max(value.len());
-        let end = (start + len).max(value.len());
+        let start = pos.min(value.len());
+        let end = (start + len).min(value.len());
         self
           .str_stack
           .push((loc, ByteString::from(value[start..end].to_vec())));
@@ -1317,7 +1315,7 @@ where
       SysFuncKind::Right => {
         let len = self.pop_u8(true)? as usize;
         let value = self.str_stack.pop().unwrap().1;
-        let len = len.max(value.len());
+        let len = len.min(value.len());
         self
           .str_stack
           .push((loc, ByteString::from(value[value.len() - len..].to_vec())));
@@ -1357,14 +1355,14 @@ where
         Ok(())
       }
       SysFuncKind::Sqr => {
-        let value = self.num_stack.pop().unwrap().1;
+        let (arg_loc, value) = self.num_stack.pop().unwrap();
         match value.sqrt() {
           Ok(value) => {
             self.num_stack.push((loc, value));
             Ok(())
           }
           Err(RealError::Nan) => self.state.error(
-            loc,
+            arg_loc,
             format!("超出 SQR 函数的定义域。参数值是：{}", value),
           )?,
           Err(RealError::Infinite) => unreachable!(),
@@ -1378,7 +1376,7 @@ where
         Ok(())
       }
       SysFuncKind::Tan => {
-        let value = self.num_stack.pop().unwrap().1;
+        let (arg_loc, value) = self.num_stack.pop().unwrap();
         match value.tan() {
           Ok(value) => {
             self.num_stack.push((loc, value));
@@ -1392,7 +1390,7 @@ where
             ),
           )?,
           Err(RealError::Nan) => self.state.error(
-            loc,
+            arg_loc,
             format!("超出 TAN 函数的定义域。参数值是：{}", value),
           )?,
         }
@@ -2222,6 +2220,18 @@ fn u32_to_random_number(x: u32) -> Mbf5 {
   Mbf5::from([exponent, mant1, mant2, mant3, mant4])
 }
 
+#[test]
+fn test_u32_to_random_number() {
+  assert_eq!(
+    u32_to_random_number(0x61_00_00_00),
+    Mbf5::from([0x7fu8, 0x42, 0, 0, 0])
+  );
+  assert_eq!(
+    u32_to_random_number(0x00_00_00_01),
+    Mbf5::from([0x61u8, 0, 0, 0, 0])
+  );
+}
+
 impl ArrayData {
   fn new(ty: Type, size: usize) -> Self {
     match ty {
@@ -2340,9 +2350,9 @@ mod tests {
 
   fn run_vm(
     mut vm: VirtualMachine<TestDevice>,
-    seq: Vec<(ExecResult, Option<ExecInput>)>,
+    seq: Vec<(ExecResult, ExecInput)>,
   ) {
-    let mut input = None;
+    let mut input = ExecInput::None;
     for (result, next_input) in seq {
       let r = vm.exec(input, usize::MAX);
       assert_eq!(r, result);
@@ -2350,7 +2360,7 @@ mod tests {
     }
   }
 
-  fn run(text: &str, seq: Vec<(ExecResult, Option<ExecInput>)>) -> String {
+  fn run(text: &str, seq: Vec<(ExecResult, ExecInput)>) -> String {
     let codegen = compile(text);
     let mut device = TestDevice::new();
     let vm = VirtualMachine::new(codegen, &mut device);
@@ -2363,7 +2373,7 @@ mod tests {
 
   fn run_with_file(
     text: &str,
-    seq: Vec<(ExecResult, Option<ExecInput>)>,
+    seq: Vec<(ExecResult, ExecInput)>,
     name: &[u8],
     file: File,
   ) -> String {
@@ -2379,7 +2389,7 @@ mod tests {
 
   fn run_with_files(
     text: &str,
-    seq: Vec<(ExecResult, Option<ExecInput>)>,
+    seq: Vec<(ExecResult, ExecInput)>,
     files: Vec<(&[u8], File, Vec<u8>)>,
   ) -> String {
     let codegen = compile(text);
@@ -2721,7 +2731,7 @@ mod tests {
           "运算结果数值过大，超出了整数的表示范围（-32768~32767），\
             无法赋值给整数变量。运算结果为：32768"
         ),
-        None,
+        ExecInput::None,
       )],
     ));
   }
@@ -2738,7 +2748,7 @@ mod tests {
 50 ellipse x,y,7,3:ellipse x,y,7,3,1:ellipse x,y,7,3,f,m
     "#
       .trim(),
-      vec![(ExecResult::End, None)],
+      vec![(ExecResult::End, ExecInput::None)],
     ));
   }
 
@@ -2752,8 +2762,8 @@ mod tests {
     "#
       .trim(),
       vec![
-        (ExecResult::InKey, Some(ExecInput::Key(65))),
-        (ExecResult::End, None),
+        (ExecResult::InKey, ExecInput::Key(65)),
+        (ExecResult::End, ExecInput::None),
       ],
     ));
   }
@@ -2766,7 +2776,7 @@ mod tests {
 20 call -2
     "#
       .trim(),
-      vec![(ExecResult::End, None)],
+      vec![(ExecResult::End, ExecInput::None)],
     ));
   }
 
@@ -2781,7 +2791,7 @@ mod tests {
       .trim(),
       vec![(
         exec_error(2, 31, 34, "之前没有执行过 GOSUB 语句，POP 语句无法执行"),
-        None,
+        ExecInput::None,
       )],
       b"foo.DAT",
       File::new(vec![])
@@ -2797,7 +2807,7 @@ mod tests {
       .trim(),
       vec![(
         exec_error(0, 22, 26, "NEXT 语句找不到匹配的 FOR 语句"),
-        None
+        ExecInput::None
       )]
     ));
   }
@@ -2811,7 +2821,7 @@ mod tests {
 30 clear:print fn pi(1)
     "#
       .trim(),
-      vec![(exec_error(2, 15, 23, "自定义函数不存在"), None)]
+      vec![(exec_error(2, 15, 23, "自定义函数不存在"), ExecInput::None)]
     ));
   }
 
@@ -2828,7 +2838,7 @@ mod tests {
       .trim(),
       vec![(
         exec_error(4, 48, 49, "DATA 已经读取结束，没有更多 DATA 可供读取"),
-        None
+        ExecInput::None
       )]
     ));
   }
@@ -2848,7 +2858,7 @@ mod tests {
           9,
           "读取到的数据：\"123\"，是用引号括起来的字符串，无法转换为数值"
         ),
-        None
+        ExecInput::None
       )]
     ));
   }
@@ -2868,7 +2878,7 @@ mod tests {
           "数组下标超出上限。该下标的上限为：3，该下标的值为：4, \
             取整后的值为：4"
         ),
-        None
+        ExecInput::None
       )]
     ));
   }
@@ -2880,7 +2890,7 @@ mod tests {
 10 dim a,a,a$(3):dim a$(2,7):
     "#
       .trim(),
-      vec![(exec_error(0, 21, 23, "重复定义数组"), None)]
+      vec![(exec_error(0, 21, 23, "重复定义数组"), ExecInput::None)]
     ));
   }
 
@@ -2897,7 +2907,7 @@ mod tests {
       .trim(),
       vec![(
         exec_error(4, 47, 51, "NEXT 语句找不到匹配的 FOR 语句"),
-        None,
+        ExecInput::None,
       )]
     ));
   }
@@ -2912,8 +2922,8 @@ mod tests {
     "#
       .trim(),
       vec![
-        (ExecResult::InKey, Some(ExecInput::Key(66)),),
-        (ExecResult::End, None)
+        (ExecResult::InKey, ExecInput::Key(66)),
+        (ExecResult::End, ExecInput::None)
       ]
     ));
   }
@@ -2928,7 +2938,7 @@ mod tests {
 40 if a<>b goto print "GO";:gosub 20:text:else print "go";:gosub 20:inverse
     "#
       .trim(),
-      vec![(ExecResult::End, None)]
+      vec![(ExecResult::End, ExecInput::None)]
     ));
   }
 
@@ -2950,10 +2960,10 @@ mod tests {
             prompt: Some("foo".to_owned()),
             fields: vec![KeyboardInputType::String, KeyboardInputType::Real],
           },
-          Some(ExecInput::KeyboardInput(vec![
+          ExecInput::KeyboardInput(vec![
             KeyboardInput::String(b"ABc".to_vec().into()),
             KeyboardInput::Real(Mbf5::try_from(3.5f64).unwrap()),
-          ])),
+          ]),
         ),
         (
           ExecResult::KeyboardInput {
@@ -2968,13 +2978,13 @@ mod tests {
           },
           {
             let body = compile_fn("fn g(y)+2", EmojiStyle::New).unwrap();
-            Some(ExecInput::KeyboardInput(vec![
+            ExecInput::KeyboardInput(vec![
               KeyboardInput::Integer(37),
               KeyboardInput::Func { body },
-            ]))
+            ])
           }
         ),
-        (ExecResult::End, None)
+        (ExecResult::End, ExecInput::None)
       ]
     ));
   }
@@ -2988,7 +2998,7 @@ mod tests {
       .trim(),
       vec![(
         exec_error(0, 41, 42, "参数超出范围 1~5。运算结果为：6"),
-        None
+        ExecInput::None
       )]
     ));
   }
@@ -3002,7 +3012,7 @@ mod tests {
       .trim(),
       vec![(
         exec_error(0, 13, 19, "参数超出范围 1~20。运算结果为：21"),
-        None
+        ExecInput::None
       )]
     ));
   }
@@ -3022,7 +3032,7 @@ mod tests {
 80 rset b$(3)="ab":print b$(3);
     "#
       .trim(),
-      vec![(ExecResult::End, None)]
+      vec![(ExecResult::End, ExecInput::None)]
     ));
   }
 
@@ -3037,7 +3047,7 @@ mod tests {
 50 print "C";:return
     "#
       .trim(),
-      vec![(ExecResult::End, None)]
+      vec![(ExecResult::End, ExecInput::None)]
     ));
   }
 
@@ -3049,7 +3059,7 @@ mod tests {
 20 a$="ABCDEFG":a=3:print a$tab(3)a
     "#
       .trim(),
-      vec![(ExecResult::End, None)]
+      vec![(ExecResult::End, ExecInput::None)]
     ));
   }
 
@@ -3062,9 +3072,9 @@ mod tests {
     "#
       .trim(),
       vec![
-        (ExecResult::InKey, Some(ExecInput::Key(30))),
-        (ExecResult::InKey, Some(ExecInput::Key(60))),
-        (ExecResult::End, None)
+        (ExecResult::InKey, ExecInput::Key(30)),
+        (ExecResult::InKey, ExecInput::Key(60)),
+        (ExecResult::End, ExecInput::None)
       ],
       b"aaa.DAT",
       File::new(vec![])
@@ -3079,7 +3089,7 @@ mod tests {
 20 a$="abc":b$="ABC-#":swap b$,a$:print a$;b$;
     "#
       .trim(),
-      vec![(ExecResult::End, None)]
+      vec![(ExecResult::End, ExecInput::None)]
     ));
   }
 
@@ -3096,7 +3106,7 @@ mod tests {
       .trim(),
       vec![(
         exec_error(2, 12, 16, "WEND 语句找不到匹配的 WHILE 语句"),
-        None
+        ExecInput::None
       )]
     ));
   }
@@ -3108,7 +3118,7 @@ mod tests {
 10 a=10:write 1, "foo", "Ab"+chr$(0)+"c": write 1 a*2+1, "a和C",:
     "#
       .trim(),
-      vec![(ExecResult::End, None)]
+      vec![(ExecResult::End, ExecInput::None)]
     ));
   }
 
@@ -3120,8 +3130,8 @@ mod tests {
     "#
       .trim(),
       vec![
-        (ExecResult::Sleep(Duration::from_millis(200)), None),
-        (ExecResult::End, None)
+        (ExecResult::Sleep(Duration::from_millis(200)), ExecInput::None),
+        (ExecResult::End, ExecInput::None)
       ]
     ));
   }
@@ -3135,7 +3145,7 @@ mod tests {
       .trim(),
       vec![(
         exec_error(0, 49, 53, "WEND 语句找不到匹配的 WHILE 语句"),
-        None
+        ExecInput::None
       )]
     ));
   }
@@ -3150,7 +3160,7 @@ mod tests {
       .trim(),
       vec![(
         exec_error(1, 10, 16, "之前没有执行过 GOSUB 语句，RETURN 语句无法执行"),
-        None
+        ExecInput::None
       )]
     ));
   }
@@ -3164,7 +3174,7 @@ mod tests {
       .trim(),
       vec![(
         exec_error(0, 47, 53, "NEXT 语句找不到匹配的 FOR 语句"),
-        None
+        ExecInput::None
       )]
     ));
   }
@@ -3179,7 +3189,7 @@ mod tests {
       .trim(),
       vec![(
         exec_error(1, 8, 14, "之前没有执行过 GOSUB 语句，RETURN 语句无法执行"),
-        None
+        ExecInput::None
       )]
     ));
   }
@@ -3194,7 +3204,7 @@ mod tests {
       .trim(),
       vec![(
         exec_error(0, 12, 16, "WEND 语句找不到匹配的 WHILE 语句"),
-        None
+        ExecInput::None
       )]
     ));
   }
@@ -3209,7 +3219,7 @@ mod tests {
 10 open "A和B" input as 1:close 1:open "foo.dat" for output as #1
     "#
         .trim(),
-        vec![(ExecResult::End, None)],
+        vec![(ExecResult::End, ExecInput::None)],
         vec![
           (
             &[65, 186, 205, 66, 46, 68, 65, 84],
@@ -3228,7 +3238,7 @@ mod tests {
 10 open "" for input as 1
     "#
         .trim(),
-        vec![(exec_error(0, 8, 10, "文件名不能为空"), None)]
+        vec![(exec_error(0, 8, 10, "文件名不能为空"), ExecInput::None)]
       ));
     }
 
@@ -3239,7 +3249,7 @@ mod tests {
 10 open "f" for output as 2:open "g" for input as 2:
     "#
         .trim(),
-        vec![(exec_error(0, 28, 51, "重复打开 2 号文件"), None)],
+        vec![(exec_error(0, 28, 51, "重复打开 2 号文件"), ExecInput::None)],
         b"f.DAT",
         File::new(vec![]),
       ));
@@ -3253,7 +3263,7 @@ mod tests {
 20 print len(a$);asc(a$);len(b$(3));len(c$);:get 2, 2:print a$;b$(3);c$;
     "#
         .trim(),
-        vec![(ExecResult::End, None)],
+        vec![(ExecResult::End, ExecInput::None)],
         b"f.DAT",
         File::new(b"ABCDEFGHIJKL".to_vec())
       ));
@@ -3273,7 +3283,7 @@ mod tests {
             65,
             "FIELD 语句定义的字段总长度 4 超出了打开文件时所指定的记录长度 3"
           ),
-          None
+          ExecInput::None
         )],
         b"f.DAT",
         File::new(vec![])
@@ -3287,7 +3297,7 @@ mod tests {
 10 field 2, 1 as a$:::
     "#
         .trim(),
-        vec![(exec_error(0, 3, 19, "未打开文件"), None)]
+        vec![(exec_error(0, 3, 19, "未打开文件"), ExecInput::None)]
       ));
     }
 
@@ -3306,7 +3316,7 @@ mod tests {
             "FIELD 语句只能用于以 RANDOM 模式打开的文件，\
               但 2 号文件是以 APPEND 模式打开的"
           ),
-          None
+          ExecInput::None
         )],
         b"f.DAT",
         File::new(vec![])
@@ -3321,7 +3331,7 @@ mod tests {
 20 get 2, 1:print a$;b$(3)
     "#
         .trim(),
-        vec![(ExecResult::End, None)],
+        vec![(ExecResult::End, ExecInput::None)],
         b"f.DAT",
         File::new(b"ABCDEFGHIJKL".to_vec())
       ));
@@ -3335,7 +3345,7 @@ mod tests {
 20 get 2, 3
     "#
         .trim(),
-        vec![(exec_error(1, 3, 11, "文件大小不是记录长度的整数倍"), None,)],
+        vec![(exec_error(1, 3, 11, "文件大小不是记录长度的整数倍"), ExecInput::None,)],
         b"f.DAT",
         File::new(b"ABCDEFGHIJK".to_vec())
       ));
@@ -3349,7 +3359,7 @@ mod tests {
 20 get 2, 4
     "#
         .trim(),
-        vec![(exec_error(1, 3, 11, "不能在文件末尾读取记录"), None)],
+        vec![(exec_error(1, 3, 11, "不能在文件末尾读取记录"), ExecInput::None)],
         b"f.DAT",
         File::new(b"ABCDEFGHIJKL".to_vec())
       ));
@@ -3365,7 +3375,7 @@ mod tests {
         .trim(),
         vec![(
           exec_error(1, 3, 11, "设置文件指针时发生错误：out of range"),
-          None
+          ExecInput::None
         )],
         b"f.DAT",
         File::new(b"ABCDEFGHIJKL".to_vec())
@@ -3388,7 +3398,7 @@ mod tests {
             "GET 语句只能用于以 RANDOM 模式打开的文件，\
               但 2 号文件是以 INPUT 模式打开的"
           ),
-          None
+          ExecInput::None
         )],
         b"f.DAT",
         File::new(b"ABCDEFGHIJKL".to_vec())
@@ -3411,7 +3421,7 @@ mod tests {
             "PUT 语句只能用于以 RANDOM 模式打开的文件，\
               但 2 号文件是以 OUTPUT 模式打开的"
           ),
-          None
+          ExecInput::None
         )],
         b"f.DAT",
         File::new(b"ABCDEFGHIJKL".to_vec())
@@ -3430,7 +3440,7 @@ mod tests {
 60 close 2
     "#
         .trim(),
-        vec![(ExecResult::End, None)],
+        vec![(ExecResult::End, ExecInput::None)],
         vec![(b"f.dat", File::new(vec![]), b"ABC@ .xyz".to_vec())]
       ));
     }
@@ -3443,7 +3453,7 @@ mod tests {
 20 lset a$=" ":lset b$(3)="0.":put 2, 2
     "#
         .trim(),
-        vec![(ExecResult::End, None)],
+        vec![(ExecResult::End, ExecInput::None)],
         vec![(
           b"f.dat",
           File::new(b"ABCDEFGHIJKLMN".to_vec()),
@@ -3462,7 +3472,7 @@ mod tests {
         .trim(),
         vec![(
           exec_error(1, 3, 11, "设置文件指针时发生错误：out of range"),
-          None
+          ExecInput::None
         )],
         b"f.DAT",
         File::new(b"ABCDEFGHIJKL".to_vec())
@@ -3479,7 +3489,7 @@ mod tests {
 30 print a$;b$(3);c;d$
     "#
         .trim(),
-        vec![(ExecResult::End, None)],
+        vec![(ExecResult::End, ExecInput::None)],
         b"f.DAT",
         File::new(b"AB,\",ab\xff12\"\xff1e3".to_vec())
       ));
@@ -3501,7 +3511,7 @@ mod tests {
             "INPUT 语句只能用于以 INPUT 模式打开的文件，\
               但 3 号文件是以 OUTPUT 模式打开的"
           ),
-          None
+          ExecInput::None
         )],
         b"f.DAT",
         File::new(b"AB,\",ab\xff12\"\xff1e3".to_vec())
@@ -3518,7 +3528,7 @@ mod tests {
         .trim(),
         vec![(
           exec_error(1, 13, 14, "读取到的数据：AB，不符合实数的格式"),
-          None
+          ExecInput::None
         )],
         b"f.DAT",
         File::new(b"AB,\",ab\xff12\"\xff1e3".to_vec())
@@ -3540,7 +3550,7 @@ mod tests {
             18,
             "读取到的数据：\",ab 12\"，是用引号括起来的字符串，无法转换为数值"
           ),
-          None
+          ExecInput::None
         )],
         b"f.DAT",
         File::new(b"AB,\",ab 12\"\xff1e3".to_vec())
@@ -3563,7 +3573,7 @@ mod tests {
             15,
             "读取到的数据：\",ab 12\"，没有以逗号或 U+00FF 字符结尾"
           ),
-          None
+          ExecInput::None
         )],
         b"f.DAT",
         File::new(b"AB,\",ab 12\"1e3".to_vec())
@@ -3581,7 +3591,7 @@ mod tests {
         .trim(),
         vec![(
           exec_error(2, 13, 15, "读取字符串时遇到未匹配的双引号"),
-          None
+          ExecInput::None
         )],
         b"f.DAT",
         File::new(b"AB,\",ab\xff12".to_vec())
@@ -3604,7 +3614,7 @@ mod tests {
             "WRITE 语句只能用于以 OUTPUT 或 APPEND 模式打开的文件，\
               但 3 号文件是以 INPUT 模式打开的"
           ),
-          None
+          ExecInput::None
         )],
         b"f.DAT",
         File::new(b"AB,\",ab\xff12".to_vec())
@@ -3620,7 +3630,7 @@ mod tests {
 30 write #1,"A和B"
     "#
         .trim(),
-        vec![(ExecResult::End, None)],
+        vec![(ExecResult::End, ExecInput::None)],
         vec![(
           b"f.DAT",
           File::new(b"0123456789".to_vec()),
@@ -3639,7 +3649,7 @@ mod tests {
 30 write #1,"A和B"
     "#
         .trim(),
-        vec![(ExecResult::End, None)],
+        vec![(ExecResult::End, ExecInput::None)],
         vec![(
           b"f.DAT",
           File::new(b"  abcdefghi".to_vec()),
@@ -3660,7 +3670,7 @@ mod tests {
 50 input #2, b$:lset a$(2)=b$:put 1,3
     "#
         .trim(),
-        vec![(ExecResult::End, None)],
+        vec![(ExecResult::End, ExecInput::None)],
         vec![
           (
             b"a.DAT",
@@ -3693,7 +3703,7 @@ mod tests {
 20 x=1:print fn f(10);:print x;
     "#
         .trim(),
-        vec![(ExecResult::End, None)]
+        vec![(ExecResult::End, ExecInput::None)]
       ));
     }
 
@@ -3712,7 +3722,7 @@ mod tests {
             "运算结果数值过大，超出了实数的表示范围。\
             加法运算的两个运算数分别为：1.70141183E+38，1E+30"
           ),
-          None
+          ExecInput::None
         )]
       ));
     }
@@ -3732,7 +3742,7 @@ mod tests {
             "运算结果数值过大，超出了实数的表示范围。\
             减法运算的两个运算数分别为：-1.70141183E+38，1E+30"
           ),
-          None
+          ExecInput::None
         )]
       ));
     }
@@ -3752,7 +3762,7 @@ mod tests {
             "运算结果数值过大，超出了实数的表示范围。\
             乘法运算的两个运算数分别为：1E+30，1E+10"
           ),
-          None
+          ExecInput::None
         )]
       ));
     }
@@ -3772,7 +3782,7 @@ mod tests {
             "运算结果数值过大，超出了实数的表示范围。\
             除法运算的两个运算数分别为：1E+30，1E-10"
           ),
-          None
+          ExecInput::None
         )]
       ));
     }
@@ -3784,7 +3794,7 @@ mod tests {
 10 print 1e30/(a-b)
     "#
         .trim(),
-        vec![(exec_error(0, 9, 19, "除以 0"), None)]
+        vec![(exec_error(0, 9, 19, "除以 0"), ExecInput::None)]
       ));
     }
 
@@ -3802,7 +3812,7 @@ mod tests {
             14,
             "运算结果数值过大，超出了实数的表示范围。底数为：10，指数为：40"
           ),
-          None
+          ExecInput::None
         )]
       ));
     }
@@ -3821,7 +3831,7 @@ mod tests {
             22,
             "超出乘方运算的定义域。底数为：-3.2，指数为：-5.2"
           ),
-          None
+          ExecInput::None
         )]
       ));
     }
@@ -3835,7 +3845,7 @@ mod tests {
 30 print not 0; not -7
     "#
         .trim(),
-        vec![(ExecResult::End, None)]
+        vec![(ExecResult::End, ExecInput::None)]
       ));
     }
 
@@ -3848,7 +3858,7 @@ mod tests {
 30 print "a" > ""; "ab" > "abc"; "aBc" > "ab"; "abc" > "ab"
     "#
         .trim(),
-        vec![(ExecResult::End, None)]
+        vec![(ExecResult::End, ExecInput::None)]
       ));
     }
 
@@ -3861,7 +3871,7 @@ mod tests {
 30 print "a" < ""; "ab" < "abc"; "aBc" < "ab"; "abc" < "ab"
     "#
         .trim(),
-        vec![(ExecResult::End, None)]
+        vec![(ExecResult::End, ExecInput::None)]
       ));
     }
 
@@ -3874,7 +3884,7 @@ mod tests {
 30 print "a" >= ""; "ab" >= "abc"; "aBc" >= "ab"; "abc" >= "ab"
     "#
         .trim(),
-        vec![(ExecResult::End, None)]
+        vec![(ExecResult::End, ExecInput::None)]
       ));
     }
 
@@ -3887,7 +3897,7 @@ mod tests {
 30 print "a" <= ""; "ab" <= "abc"; "aBc" <= "ab"; "abc" <= "ab"
     "#
         .trim(),
-        vec![(ExecResult::End, None)]
+        vec![(ExecResult::End, ExecInput::None)]
       ));
     }
 
@@ -3900,7 +3910,7 @@ mod tests {
 30 print "a" = ""; "ab" = "abc"; "aBc" = "ab"; "abc" = "ab"
     "#
         .trim(),
-        vec![(ExecResult::End, None)]
+        vec![(ExecResult::End, ExecInput::None)]
       ));
     }
 
@@ -3913,7 +3923,7 @@ mod tests {
 30 print "a" <> ""; "ab" <> "abc"; "aBc" <> "ab"; "abc" <> "ab"
     "#
         .trim(),
-        vec![(ExecResult::End, None)]
+        vec![(ExecResult::End, ExecInput::None)]
       ));
     }
 
@@ -3937,7 +3947,7 @@ mod tests {
             "数组下标超出上限。该下标的上限为：10，该下标的值为：11, \
               取整后的值为：11"
           ),
-          None
+          ExecInput::None
         )]
       ));
     }
@@ -3952,7 +3962,7 @@ mod tests {
 10 print abs(-7); abs(0); abs(13+1);
     "#
           .trim(),
-          vec![(ExecResult::End, None)]
+          vec![(ExecResult::End, ExecInput::None)]
         ));
       }
 
@@ -3963,7 +3973,7 @@ mod tests {
 10 print asc("A"); asc("123"); asc("");
     "#
           .trim(),
-          vec![(exec_error(0, 31, 38, "ASC 函数的参数不能为空字符串"), None)]
+          vec![(exec_error(0, 35, 37, "ASC 函数的参数不能为空字符串"), ExecInput::None)]
         ));
       }
 
@@ -3974,7 +3984,7 @@ mod tests {
 10 print atn(1); atn(-1); atn(0)
     "#
           .trim(),
-          vec![(ExecResult::End, None)]
+          vec![(ExecResult::End, ExecInput::None)]
         ));
       }
 
@@ -3987,7 +3997,7 @@ mod tests {
           .trim(),
           vec![(
             exec_error(0, 44, 47, "参数超出范围 0~255。运算结果为：300"),
-            None
+            ExecInput::None
           )]
         ));
       }
@@ -3999,7 +4009,7 @@ mod tests {
 10 print cos(0); cos(atn(1)*4/3); cos(atn(1)*2)
     "#
           .trim(),
-          vec![(ExecResult::End, None)]
+          vec![(ExecResult::End, ExecInput::None)]
         ));
       }
 
@@ -4013,11 +4023,11 @@ mod tests {
           vec![(
             exec_error(
               0,
-              61,
-              72,
+              66,
+              71,
               "CVI$ 函数的参数字符串长度不等于 2。参数字符串长度为：3"
             ),
-            None
+            ExecInput::None
           )]
         ));
       }
@@ -4032,11 +4042,333 @@ mod tests {
           vec![(
             exec_error(
               0,
-              62,
-              72,
+              67,
+              71,
               "CVS$ 函数的参数字符串长度不等于 5。参数字符串长度为：2"
             ),
-            None
+            ExecInput::None
+          )]
+        ));
+      }
+
+      #[test]
+      fn eof() {
+        assert_snapshot!(run_with_file(
+          r#"
+10 open "f" input as 3
+20 input #3,b$,b$: print eof(3);
+30 input #3,c:print eof(3);
+40 input #3,d$:print eof(3);
+50 input #3,d$:print eof(3);
+60 print eof(1);
+    "#
+          .trim(),
+          vec![(exec_error(5, 9, 15, "未打开文件",), ExecInput::None)],
+          b"f.DAT",
+          File::new(b"AB,\",ab\"\xff12\xff\xff".to_vec())
+        ));
+      }
+
+      #[test]
+      fn eof_mode_error() {
+        assert_snapshot!(run_with_file(
+          r#"
+10 open "f" random as 2
+20 print eof(2)
+    "#
+          .trim(),
+          vec![(
+            exec_error(
+              1,
+              9,
+              15,
+              "EOF 函数只能用于以 INPUT 模式打开的文件，\
+                但 2 号文件是以 RANDOM 模式打开的"
+            ),
+            ExecInput::None
+          )],
+          b"f.DAT",
+          File::new(b"AB,\",ab\"\xff12\xff\xff".to_vec())
+        ));
+      }
+
+      #[test]
+      fn exp() {
+        assert_snapshot!(run(
+          r#"
+10 print exp(1); exp(2); exp(-1);
+    "#
+          .trim(),
+          vec![(ExecResult::End, ExecInput::None)]
+        ));
+      }
+
+      #[test]
+      fn int() {
+        assert_snapshot!(run(
+          r#"
+10 print int(21758); int(174989.546); int(0); int(-147.275); int(-1326790)
+    "#
+          .trim(),
+          vec![(ExecResult::End, ExecInput::None)]
+        ));
+      }
+
+      #[test]
+      fn left() {
+        assert_snapshot!(run(
+          r#"
+10 a$="ABCD":print left$(a$,2); left$(a$,1); left$(a$,10); left$("",3); left$(a$,0);
+    "#
+          .trim(),
+          vec![(exec_error(0, 81, 82, "参数超出范围 1~255。运算结果为：0"), ExecInput::None)]
+        ));
+      }
+
+      #[test]
+      fn len() {
+        assert_snapshot!(run(
+          r#"
+10 print len("abcd"); len("A和B 从"); len("");
+    "#
+          .trim(),
+          vec![(ExecResult::End, ExecInput::None)]
+        ));
+      }
+
+      #[test]
+      fn lof() {
+        assert_snapshot!(run_with_file(
+          r#"
+10 open "f" random as 2 len=3:field 2, 2 as a$, 1 as b$
+20 print lof(2);:put 2,3
+30 print lof(2);:put 2,4
+40 print lof(2);
+50 print lof(1);
+    "#
+          .trim(),
+          vec![(exec_error(4, 9, 15, "未打开文件",), ExecInput::None)],
+          b"f.DAT",
+          File::new(b"0123456789".to_vec())
+        ));
+      }
+
+      #[test]
+      fn lof_mode_error() {
+        assert_snapshot!(run_with_file(
+          r#"
+10 open "f" append as 2
+20 print lof(2)
+    "#
+          .trim(),
+          vec![(
+            exec_error(
+              1,
+              9,
+              15,
+              "LOF 函数只能用于以 RANDOM 模式打开的文件，\
+                但 2 号文件是以 APPEND 模式打开的"
+            ),
+            ExecInput::None
+          )],
+          b"f.DAT",
+          File::new(b"AB,\",ab\"\xff12\xff\xff".to_vec())
+        ));
+      }
+
+      #[test]
+      fn log() {
+        assert_snapshot!(run(
+          r#"
+10 print log(1); log(exp(1)); log(2); log(0)
+    "#
+          .trim(),
+          vec![(
+            exec_error(
+              0,
+              38,
+              44,
+              "运算结果数值过大，超出实数的表示范围。参数值是：0"
+            ),
+            ExecInput::None
+          )]
+        ));
+      }
+
+      #[test]
+      fn log_neg() {
+        assert_snapshot!(run(
+          r#"
+10 print log(-2);
+    "#
+          .trim(),
+          vec![(
+            exec_error(0, 13, 15, "超出 LOG 函数的定义域。参数值是：-2"),
+            ExecInput::None
+          )]
+        ));
+      }
+
+      #[test]
+      fn mid() {
+        assert_snapshot!(run(
+          r#"
+10 a$="ABCDEF":print mid$(a$,3,2); mid$(a$,3,7); mid$(a$,3,0); mid$(a$,7,2)
+20 print mid$(a$,3); mid$(a$,10); mid$(a$,0)
+    "#
+          .trim(),
+          vec![(
+            exec_error(1, 42, 43, "参数超出范围 1~255。运算结果为：0"),
+            ExecInput::None
+          )]
+        ));
+      }
+
+      #[test]
+      fn mki() {
+        assert_snapshot!(run(
+          r#"
+10 print mki$(1000); mki$(123); asc(mki$(-32768)); asc(mid$(mki$(-32768),2)); mki$(32768);
+    "#
+          .trim(),
+          vec![(
+            exec_error(
+              0,
+              83,
+              88,
+              "参数超出范围 -32768~32767。运算结果为：32768"
+            ),
+            ExecInput::None
+          )]
+        ));
+      }
+
+      #[test]
+      fn mks() {
+        assert_snapshot!(run(
+          r#"
+10 print mks$(1); mks$(-1); mks$(-11879546);
+    "#
+          .trim(),
+          vec![(ExecResult::End, ExecInput::None)]
+        ));
+      }
+
+      #[test]
+      fn peek() {
+        assert_snapshot!(run(
+          r#"
+10 poke 12345, 78
+20 print peek(12345); peek(12345-65536)
+    "#
+          .trim(),
+          vec![(ExecResult::End, ExecInput::None)]
+        ));
+      }
+
+      #[test]
+      fn pos() {
+        assert_snapshot!(run(
+          r#"
+10 locate ,7: print pos(-2749);
+20 locate ,13:print pos(14);
+    "#
+          .trim(),
+          vec![(ExecResult::End, ExecInput::None)]
+        ));
+      }
+
+      #[test]
+      fn right() {
+        assert_snapshot!(run(
+          r#"
+10 a$="ABCD":print right$(a$,2); right$(a$,1); right$(a$,10); right$("",3); right$(a$,0);
+    "#
+          .trim(),
+          vec![(exec_error(0, 86, 87, "参数超出范围 1~255。运算结果为：0"), ExecInput::None)]
+        ));
+      }
+
+      #[test]
+      fn rnd() {
+        assert_snapshot!(run(
+          r#"
+10 print rnd(-300); rnd(1); rnd(1); rnd(0); rnd(0)
+20 print rnd(-300); rnd(1); rnd(1);
+    "#
+          .trim(),
+          vec![(ExecResult::End, ExecInput::None)]
+        ));
+      }
+
+      #[test]
+      fn sgn() {
+        assert_snapshot!(run(
+          r#"
+10 print sgn(1247); sgn(0); sgn(-12479.14)
+    "#
+          .trim(),
+          vec![(ExecResult::End, ExecInput::None)]
+        ));
+      }
+
+      #[test]
+      fn sin() {
+        assert_snapshot!(run(
+          r#"
+10 print sin(atn(1)*2); sin(atn(1)*2/3); sin(0); sin(-atn(1)*2);
+    "#
+          .trim(),
+          vec![(ExecResult::End, ExecInput::None)]
+        ));
+      }
+
+      #[test]
+      fn sqr() {
+        assert_snapshot!(run(
+          r#"
+10 print sqr(16); sqr(10); sqr(0); sqr(-52)
+    "#
+          .trim(),
+          vec![(
+            exec_error(0, 39, 42, "超出 SQR 函数的定义域。参数值是：-52",),
+            ExecInput::None
+          )]
+        ));
+      }
+
+      #[test]
+      fn str() {
+        assert_snapshot!(run(
+          r#"
+10 print str$(-0.003765e-1); str$(0); str$(1741579.23);
+    "#
+          .trim(),
+          vec![(ExecResult::End, ExecInput::None)]
+        ));
+      }
+
+      #[test]
+      fn tan() {
+        assert_snapshot!(run(
+          r#"
+10 print tan(0); tan(1); tan(-1); tan(atn(1)*2);
+    "#
+          .trim(),
+          vec![(ExecResult::End, ExecInput::None)]
+        ));
+      }
+
+      #[test]
+      fn val() {
+        assert_snapshot!(run(
+          r#"
+10 print val("1e3"); val(""); val("abc"); val("- 1.52f%U7"); val("1 .  2 e + 2K");
+    "#
+          .trim(),
+          vec![(
+            ExecResult::End,
+            ExecInput::None
           )]
         ));
       }

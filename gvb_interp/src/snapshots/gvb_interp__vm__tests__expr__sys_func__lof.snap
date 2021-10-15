@@ -1,0 +1,21 @@
+---
+source: gvb_interp/src/vm.rs
+expression: "run_with_file(r#\"\n10 open \"f\" random as 2 len=3:field 2, 2 as a$, 1 as b$\n20 print lof(2);:put 2,3\n30 print lof(2);:put 2,4\n40 print lof(2);\n50 print lof(1);\n    \"#.trim(),\n              vec![(exec_error(4, 9, 15, \"未打开文件\",), None)],\n              b\"f.DAT\", File::new(b\"0123456789\".to_vec()))"
+
+---
+open file "f.DAT", read: true, write: true, truncate: false
+get file len: 10
+print "10"
+flush
+seek file: 6
+write to file: [0, 0, 0] 
+get file len: 10
+print "10"
+flush
+seek file: 9
+write to file: [0, 0, 0] 
+get file len: 12
+print "12"
+flush
+close file
+

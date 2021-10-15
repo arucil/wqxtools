@@ -43,7 +43,10 @@ impl From<binary::LoadError<(usize, usize)>> for DocumentError {
 
 impl Document {
   /// Load a `.BAS` or `.txt` file.
-  pub fn load<P>(path: impl AsRef<Path>) -> Result<Self, DocumentError> {
+  pub fn load<P>(path: P) -> Result<Self, DocumentError>
+  where
+    P: AsRef<Path>,
+  {
     let path = path.as_ref();
     let ext = path.extension().map(|ext| ext.to_ascii_lowercase());
     let is_bas = if let Some(ext) = ext {
@@ -99,9 +102,9 @@ fn detect_machine_props(
   if let Some(start) = first_line.rfind('{') {
     let first_line = &first_line[start + 1..];
     if let Some(end) = first_line.find('}') {
-      let name = first_line[..end].trim();
+      let name = first_line[..end].trim().to_ascii_uppercase();
       if !name.is_empty() {
-        match crate::machine::MACHINES.get(name) {
+        match crate::machine::MACHINES.get(&name) {
           Some(props) => return Some(Ok(props)),
           None => return Some(Err(())),
         }

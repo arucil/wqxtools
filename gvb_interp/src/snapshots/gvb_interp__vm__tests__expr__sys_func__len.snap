@@ -1,0 +1,10 @@
+---
+source: gvb_interp/src/vm.rs
+expression: "run(r#\"\n10 print len(\"abcd\"); len(\"A和B 从\"); len(\"\");\n    \"#.trim(),\n    vec![(ExecResult :: End, None)])"
+
+---
+print "4"
+print "9"
+print "0"
+flush
+

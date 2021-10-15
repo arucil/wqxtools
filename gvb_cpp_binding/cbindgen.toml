@@ -1,0 +1,11 @@
+language = "C++"
+include_guard = "GVB_H"
+namespace = "gvb"
+no_includes = true
+sys_includes = ["cstdint"]
+after_includes = """
+using std::size_t;
+"""
+
+line_length = 80
+usize_is_size_t = true

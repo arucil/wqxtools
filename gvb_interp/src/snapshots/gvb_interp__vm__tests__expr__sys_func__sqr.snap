@@ -1,0 +1,9 @@
+---
+source: gvb_interp/src/vm.rs
+expression: "run(r#\"\n10 print sqr(16); sqr(10); sqr(0); sqr(-52)\n    \"#.trim(),\n    vec![(exec_error(0, 39, 42,\n                     \"超出 SQR 函数的定义域。参数值是：-52\",),\n          None)])"
+
+---
+print "4"
+print "3.16227766"
+print "0"
+

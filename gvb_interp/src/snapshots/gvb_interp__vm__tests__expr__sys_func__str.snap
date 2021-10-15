@@ -1,0 +1,10 @@
+---
+source: gvb_interp/src/vm.rs
+expression: "run(r#\"\n10 print str$(-0.003765e-1); str$(0); str$(1741579.23);\n    \"#.trim(),\n    vec![(ExecResult :: End, None)])"
+
+---
+print "-3.765E-04"
+print "0"
+print "1741579.23"
+flush
+

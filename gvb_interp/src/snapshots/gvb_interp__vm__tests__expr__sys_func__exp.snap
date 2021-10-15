@@ -1,0 +1,10 @@
+---
+source: gvb_interp/src/vm.rs
+expression: "run(r#\"\n10 print exp(1); exp(2); exp(-1);\n    \"#.trim(),\n    vec![(ExecResult :: End, None)])"
+
+---
+print "2.71828183"
+print "7.3890561"
+print ".367879441"
+flush
+

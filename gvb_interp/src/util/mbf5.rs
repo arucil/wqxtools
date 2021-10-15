@@ -430,7 +430,7 @@ impl Mbf5 {
   }
 
   pub fn neg_one() -> Self {
-    Self(1.0)
+    Self(-1.0)
   }
 
   pub fn is_positive(&self) -> bool {
@@ -567,6 +567,14 @@ mod tests {
     assert_eq!(
       "1.70141183E+38",
       &Mbf5::from([0xff, 0x7f, 0xff, 0xff, 0xff]).to_string()
+    );
+  }
+
+  #[test]
+  fn fmt_mbf5_mantissa_max() {
+    assert_eq!(
+      "0.9999999997671694",
+      &Mbf5::from([0x80, 0x7f, 0xff, 0xff, 0xff]).0.to_string()
     );
   }
 

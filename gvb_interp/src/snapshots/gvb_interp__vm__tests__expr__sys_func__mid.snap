@@ -1,0 +1,14 @@
+---
+source: gvb_interp/src/vm.rs
+expression: "run(r#\"\n10 a$=\"ABCDEF\":print mid$(a$,3,2); mid$(a$,3,7); mid$(a$,3,0); mid$(a$,7,2)\n20 print mid$(a$,3); mid$(a$,10); mid$(a$,0)\n    \"#.trim(),\n    vec![(exec_error(1, 42, 43,\n                     \"参数超出范围 1~255。运算结果为：0\"),\n          None)])"
+
+---
+print "CD"
+print "CDEF"
+print ""
+print ""
+print newline
+flush
+print "CDEF"
+print ""
+

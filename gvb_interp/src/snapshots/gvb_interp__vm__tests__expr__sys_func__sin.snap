@@ -1,0 +1,11 @@
+---
+source: gvb_interp/src/vm.rs
+expression: "run(r#\"\n10 print sin(atn(1)*2); sin(atn(1)*2/3); sin(0); sin(-atn(1)*2);\n    \"#.trim(),\n    vec![(ExecResult :: End, None)])"
+
+---
+print "1"
+print ".5"
+print "0"
+print "-1"
+flush
+

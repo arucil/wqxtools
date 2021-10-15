@@ -1,0 +1,38 @@
+---
+source: gvb_interp/src/vm.rs
+expression: "run_with_file(r#\"\n10 open \"f\" input as 3\n20 input #3,b$,b$: print eof(3);\n30 input #3,c:print eof(3);\n40 input #3,d$:print eof(3);\n50 input #3,d$:print eof(3);\n60 print eof(1);\n    \"#.trim(),\n              vec![(exec_error(5, 9, 15, \"未打开文件\",), None)],\n              b\"f.DAT\", File::new(b\"AB,\\\",ab\\\"\\xff12\\xff\\xff\".to_vec()))"
+
+---
+open file "f.DAT", read: true, write: false, truncate: false
+read from file: [65] 
+read from file: [66] 
+read from file: [44] 
+read from file: [34] 
+read from file: [44] 
+read from file: [97] 
+read from file: [98] 
+read from file: [34] 
+read from file: [255] 
+get file len: 13
+get file pos: 9
+print "0"
+flush
+read from file: [49] 
+read from file: [50] 
+read from file: [255] 
+get file len: 13
+get file pos: 12
+print "0"
+flush
+read from file: [255] 
+get file len: 13
+get file pos: 13
+print "1"
+flush
+read from file: [0] 
+get file len: 13
+get file pos: 13
+print "1"
+flush
+close file
+

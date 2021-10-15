@@ -138,7 +138,7 @@ fn build_machine_props_map() -> Result<(), Box<dyn Error>> {
   writeln!(
     &mut file,
     "pub const DEFAULT_MACHINE: &'static str = \"{}\";",
-    map["default"].get::<String>().unwrap()
+    map["default"].get::<String>().unwrap().to_ascii_uppercase()
   )?;
   writeln!(
     &mut file,
@@ -154,8 +154,9 @@ fn build_machine_props_map() -> Result<(), Box<dyn Error>> {
     writeln!(
       &mut file,
       "  \"{}\" => MachineProps {{",
-      name.to_ascii_lowercase(),
+      name.to_ascii_uppercase(),
     )?;
+    writeln!(&mut file, "    name: {:?},", name.to_ascii_uppercase())?;
 
     let emoji_style = props["emoji_style"].get::<String>().unwrap();
     let emoji_style = if emoji_style == "new" { "New" } else { "Old" };

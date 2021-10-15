@@ -1,0 +1,17 @@
+---
+source: gvb_interp/src/vm.rs
+expression: "run(r#\"\n10 print rnd(-300); rnd(1); rnd(1); rnd(0); rnd(0)\n20 print rnd(-300); rnd(1); rnd(1);\n    \"#.trim(),\n    vec![(ExecResult :: End, None)])"
+
+---
+print ".426402554"
+print ".410138985"
+print ".591715045"
+print ".591715045"
+print ".591715045"
+print newline
+flush
+print ".426402554"
+print ".410138985"
+print ".591715045"
+flush
+
