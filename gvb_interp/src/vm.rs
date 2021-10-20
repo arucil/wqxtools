@@ -276,11 +276,7 @@ where
     Ok(())
   }
 
-  pub fn exec(
-    &mut self,
-    input: ExecInput,
-    mut steps: usize,
-  ) -> ExecResult {
+  pub fn exec(&mut self, input: ExecInput, mut steps: usize) -> ExecResult {
     match std::mem::replace(&mut self.state, ExecState::Normal) {
       ExecState::Done => return ExecResult::End,
       ExecState::WaitForKey => self.assign_key(input),
@@ -296,6 +292,8 @@ where
         // do nothing
       }
     }
+
+    self.device.clear_cursor();
 
     while steps > 0 {
       if let Err(result) = self.exec_instr(&mut steps) {
@@ -366,7 +364,9 @@ where
           }
         } else {
           $write_screen;
-          if !$end {
+          if $end {
+            self.device.flush();
+          } else {
             self.device.print(b",");
           }
         };
@@ -843,6 +843,11 @@ where
             },
           }
           lvalues.push((lval_loc, lvalue));
+        }
+
+        if let Some(prompt) = &prompt {
+          self.device.print(prompt.as_bytes());
+          self.device.flush();
         }
 
         fields.reverse();
@@ -1837,6 +1842,7 @@ where
       _ => unreachable!(),
     }
     self.device.newline();
+    self.device.flush();
     self.pc += 1;
   }
 
@@ -2582,6 +2588,8 @@ mod tests {
       add_log(self.log.clone(), "clear");
     }
 
+    fn clear_cursor(&mut self) {}
+
     fn get_byte(&self, addr: u16) -> u8 {
       add_log(
         self.log.clone(),
@@ -3130,7 +3138,10 @@ mod tests {
     "#
       .trim(),
       vec![
-        (ExecResult::Sleep(Duration::from_millis(200)), ExecInput::None),
+        (
+          ExecResult::Sleep(Duration::from_millis(200)),
+          ExecInput::None
+        ),
         (ExecResult::End, ExecInput::None)
       ]
     ));
@@ -3345,7 +3356,10 @@ mod tests {
 20 get 2, 3
     "#
         .trim(),
-        vec![(exec_error(1, 3, 11, "文件大小不是记录长度的整数倍"), ExecInput::None,)],
+        vec![(
+          exec_error(1, 3, 11, "文件大小不是记录长度的整数倍"),
+          ExecInput::None,
+        )],
         b"f.DAT",
         File::new(b"ABCDEFGHIJK".to_vec())
       ));
@@ -3359,7 +3373,10 @@ mod tests {
 20 get 2, 4
     "#
         .trim(),
-        vec![(exec_error(1, 3, 11, "不能在文件末尾读取记录"), ExecInput::None)],
+        vec![(
+          exec_error(1, 3, 11, "不能在文件末尾读取记录"),
+          ExecInput::None
+        )],
         b"f.DAT",
         File::new(b"ABCDEFGHIJKL".to_vec())
       ));
@@ -3973,7 +3990,10 @@ mod tests {
 10 print asc("A"); asc("123"); asc("");
     "#
           .trim(),
-          vec![(exec_error(0, 35, 37, "ASC 函数的参数不能为空字符串"), ExecInput::None)]
+          vec![(
+            exec_error(0, 35, 37, "ASC 函数的参数不能为空字符串"),
+            ExecInput::None
+          )]
         ));
       }
 

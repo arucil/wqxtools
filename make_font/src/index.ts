@@ -22,7 +22,7 @@ const SCALE = 100
     ...makeIconGlyphs()
   ]
   const font = new opentype.Font({
-    familyName: 'WenQuXing-GB2312',
+    familyName: 'WenQuXing',
     styleName: 'Medium',
     unitsPerEm: 16 * SCALE,
     ascender: 16 * SCALE,

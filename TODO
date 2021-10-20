@@ -31,3 +31,5 @@
     - get key
     - fire key down
     - fire key up
+    - blink cursor: () -> ()
+    - get screen update rect

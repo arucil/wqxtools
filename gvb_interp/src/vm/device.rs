@@ -81,6 +81,8 @@ pub trait Device {
   fn beep(&mut self);
 
   fn play_notes(&mut self, notes: &[u8]);
+
+  fn clear_cursor(&mut self);
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
