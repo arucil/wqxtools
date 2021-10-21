@@ -1,0 +1,7 @@
+/.vscode/
+/build/
+/scintilla/
+.qmake.stash
+Makefile
+/lib/
+/*.tgz

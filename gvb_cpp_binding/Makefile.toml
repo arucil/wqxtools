@@ -1,0 +1,3 @@
+[tasks.header]
+command = "cbindgen"
+args = ["--output", "../gui/src/gvb.h"]

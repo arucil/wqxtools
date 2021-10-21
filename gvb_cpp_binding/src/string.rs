@@ -6,12 +6,31 @@ pub struct CString {
   pub len: usize,
 }
 
-pub(crate) fn new_cstring(str: String) -> CString {
-  let len = str.len();
-  let ptr = Box::into_raw(Box::<[u8]>::from(str.into_boxed_str())).as_mut_ptr();
-  CString {
-    data: ptr as *const c_char,
-    len,
+#[repr(C)]
+pub struct CStr {
+  pub data: *const c_char,
+  pub len: usize,
+}
+
+impl CString {
+  pub(crate) unsafe fn new(str: String) -> Self {
+    let len = str.len();
+    let ptr =
+      Box::into_raw(Box::<[u8]>::from(str.into_boxed_str())).as_mut_ptr();
+    Self {
+      data: ptr as *const c_char,
+      len,
+    }
+  }
+}
+
+impl CStr {
+  pub(crate) unsafe fn new(str: &str) -> Self {
+    let len = str.len();
+    Self {
+      data: str.as_ptr() as *const _,
+      len,
+    }
   }
 }
 

@@ -1,16 +1,20 @@
 ---
 source: gvb_interp/src/vm.rs
-expression: device.log.borrow()
+expression: "run(r#\"\n10 input \"foo\"; a$, b\n20 input c%(2), fn f(y)\n30 def fn g(x)=x*x\n40 print a$; b; c%(2); fn f(3);\n    \"#.trim(),\n    vec![(ExecResult :: KeyboardInput\n          {\n              prompt : Some(\"foo\".to_owned()), fields : vec!\n              [KeyboardInputType :: String, KeyboardInputType :: Real],\n          }, ExecInput ::\n          KeyboardInput(vec!\n                        [KeyboardInput :: String(b\"ABc\".to_vec().into()),\n                         KeyboardInput ::\n                         Real(Mbf5 :: try_from(3.5f64).unwrap()),]),),\n         (ExecResult :: KeyboardInput\n          {\n              prompt : None, fields : vec!\n              [KeyboardInputType :: Integer, KeyboardInputType :: Func\n               { name : \"F\".to_owned(), param : \"Y\".to_owned() }],\n          },\n          {\n              let body = compile_fn(\"fn g(y)+2\", EmojiStyle :: New).unwrap() ;\n              ExecInput ::\n              KeyboardInput(vec!\n                            [KeyboardInput :: Integer(37), KeyboardInput ::\n                             Func { body },])\n          }), (ExecResult :: End, ExecInput :: None)])"
 
 ---
+print "foo"
+flush
 print "ABc"
 print ","
 print "3.5"
 print newline
+flush
 print "37"
 print ","
 print "FN F(Y)"
 print newline
+flush
 print "ABc"
 print "3.5"
 print "37"

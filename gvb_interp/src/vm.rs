@@ -364,9 +364,7 @@ where
           }
         } else {
           $write_screen;
-          if $end {
-            self.device.flush();
-          } else {
+          if !$end {
             self.device.print(b",");
           }
         };

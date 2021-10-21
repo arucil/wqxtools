@@ -1,0 +1,8 @@
+- download scintilla
+- extract to current dir
+- cd scintilla/qt/ScintillaEdit
+- python WidgetGen.py
+- qmake CONFIG+=staticlib
+- make
+- cd ../../..
+- make sure that libScintillaEdit.a (or libScintillaEdit.lib on Windows) exists in scintilla/bin

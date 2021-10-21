@@ -13,6 +13,7 @@ pub struct Document {
   base_addr: u16,
   emoji_style: EmojiStyle,
   machine_props: Option<MachineProps>,
+  text: String,
 }
 
 #[derive(Debug)]
@@ -91,7 +92,12 @@ impl Document {
       base_addr: doc.base_addr,
       emoji_style,
       machine_props,
+      text: doc.text,
     })
+  }
+
+  pub fn text(&self) -> &str {
+    &self.text
   }
 }
 
