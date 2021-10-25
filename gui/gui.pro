@@ -12,7 +12,8 @@ INCLUDEPATH += \
     scintilla/src \
     scintilla/include
 
-HEADERS += src/mainwindow.h
+HEADERS += src/mainwindow.h \
+    src/gvbeditor.h
 SOURCES += src/*.cpp
 
 QT += widgets
