@@ -25,7 +25,7 @@ const SCALE = 100
     familyName: 'WenQuXing',
     styleName: 'Medium',
     unitsPerEm: 16 * SCALE,
-    ascender: 16 * SCALE,
+    ascender: 17 * SCALE,
     descender: 0,
     glyphs,
   })
