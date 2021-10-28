@@ -1,7 +1,8 @@
 #pragma once
 
-#include "capability.h"
 #include <QWidget>
+#include "capability.h"
+#include "gvb.h"
 
 class QAction;
 class QToolBar;
@@ -38,4 +39,5 @@ private:
   QAction *m_actStart;
   QAction *m_actStop;
   ScintillaEdit *m_edit;
+  gvb::Document *m_doc;
 };

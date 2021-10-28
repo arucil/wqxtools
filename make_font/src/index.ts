@@ -24,8 +24,8 @@ const SCALE = 100
   const font = new opentype.Font({
     familyName: 'WenQuXing',
     styleName: 'Medium',
-    unitsPerEm: 16 * SCALE,
-    ascender: 17 * SCALE,
+    unitsPerEm: 16.4 * SCALE,
+    ascender: 15.9 * SCALE,
     descender: 0,
     glyphs,
   })
@@ -157,6 +157,7 @@ function makeGlyph(
   const getY = (y: number) => height - y - 1
 
   for (let y = 0; y < height; ++y) {
+    const y1 = y - (codepoint < 256 ? 2 : 1)
     for (let x = 0; x < width; ++x) {
       const bitMask = getBitMask(x)
       if ((data[getY(y) * byteWidth + (x >>> 3)] & bitMask) === 0) {
@@ -165,29 +166,29 @@ function makeGlyph(
 
       // top
       if (y === height - 1 || (data[getY(y + 1) * byteWidth + (x >>> 3)] & bitMask) === 0) {
-        const from = (y + 1) * 100 + x
-        const to = (y + 1) * 100 + (x + 1)
+        const from = (y1 + 1) * 100 + x
+        const to = (y1 + 1) * 100 + (x + 1)
         initValue(unitSegments, from).push(to)
       }
 
       // bottom
       if (y === 0 || (data[getY(y - 1) * byteWidth + (x >>> 3)] & bitMask) === 0) {
-        const from = y * 100 + (x + 1)
-        const to = y * 100 + x
+        const from = y1 * 100 + (x + 1)
+        const to = y1 * 100 + x
         initValue(unitSegments, from).push(to)
       }
 
       // left
       if (x === 0 || (data[getY(y) * byteWidth + ((x - 1) >>> 3)] & getBitMask(x - 1)) === 0) {
-        const from = y * 100 + x
-        const to = (y + 1) * 100 + x
+        const from = y1 * 100 + x
+        const to = (y1 + 1) * 100 + x
         initValue(unitSegments, from).push(to)
       }
 
       // right
       if (x === width - 1 || (data[getY(y) * byteWidth + ((x + 1) >>> 3)] & getBitMask(x + 1)) === 0) {
-        const from = (y + 1) * 100 + (x + 1)
-        const to = y * 100 + (x + 1)
+        const from = (y1 + 1) * 100 + (x + 1)
+        const to = y1 * 100 + (x + 1)
         initValue(unitSegments, from).push(to)
       }
     }
@@ -248,7 +249,7 @@ function makeGlyph(
   }
 
   return new opentype.Glyph({
-    name: 'U+' + codepoint.toString(16).padStart(4),
+    name: 'U+' + codepoint.toString(16).padStart(4, '0'),
     unicode: codepoint,
     advanceWidth: width * SCALE,
     path,

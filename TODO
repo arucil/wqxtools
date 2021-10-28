@@ -33,3 +33,10 @@
     - fire key up
     - blink cursor: () -> ()
     - get screen update rect
+
+- 设置：
+    - 字体大小
+    - gvb: 屏幕放大倍数
+
+- 状态：
+    - 窗口大小、窗口位置

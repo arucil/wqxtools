@@ -7,6 +7,7 @@ CONFIG += c++17
 TARGET = wqxtools
 
 INCLUDEPATH += \
+    include \
     scintilla/qt/ScintillaEdit \
     scintilla/qt/ScintillaEditBase \
     scintilla/src \
@@ -24,7 +25,8 @@ RESOURCES += wqxtools.qrc
 
 LIBS += $$PWD/scintilla/bin/libScintillaEdit.a \
     $$PWD/lib/libgvb_cpp_binding.a \
-    -lpthread
+    -lpthread \
+    -ldl
 
 
 release: DESTDIR = build/release
