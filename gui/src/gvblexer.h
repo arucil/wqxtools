@@ -38,14 +38,16 @@ public:
   const char *SCI_METHOD PropertyNames() override;
   int SCI_METHOD PropertyType(const char *name) override;
   const char *SCI_METHOD DescribeProperty(const char *name) override;
-  Sci_Position SCI_METHOD PropertySet(const char *key,
-                                      const char *val) override;
+  Sci_Position SCI_METHOD
+  PropertySet(const char *key, const char *val) override;
   const char *SCI_METHOD DescribeWordListSets() override;
   Sci_Position SCI_METHOD WordListSet(int n, const char *wl) override;
-  void SCI_METHOD Lex(Sci_PositionU startPos, Sci_Position lengthDoc,
-                      int initStyle, Scintilla::IDocument *pAccess) override;
-  void SCI_METHOD Fold(Sci_PositionU startPos, Sci_Position lengthDoc,
-                       int initStyle, Scintilla::IDocument *pAccess) override;
+  void SCI_METHOD
+  Lex(Sci_PositionU startPos, Sci_Position lengthDoc, int initStyle,
+      Scintilla::IDocument *pAccess) override;
+  void SCI_METHOD Fold(
+      Sci_PositionU startPos, Sci_Position lengthDoc, int initStyle,
+      Scintilla::IDocument *pAccess) override;
   void *SCI_METHOD PrivateCall(int operation, void *pointer) override;
   int SCI_METHOD LineEndTypesSupported() override;
   int SCI_METHOD AllocateSubStyles(int styleBase, int numberStyles) override;

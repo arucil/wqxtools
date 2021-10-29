@@ -1,4 +1,4 @@
-use crate::{CStr, CString, Either};
+use crate::{Utf8Str, Utf8String, Utf16Str, ByteSlice, Either};
 use gvb_interp as gvb;
 use std::io;
 use std::os::raw::c_ushort;
@@ -7,15 +7,14 @@ pub struct Document(gvb::Document);
 
 #[no_mangle]
 pub extern "C" fn load_document(
-  path: *const c_ushort,
-  len: usize,
-) -> Either<CString, *mut Document> {
-  let path = String::from_utf16(unsafe {
-    std::slice::from_raw_parts(path as *const u16, len)
-  })
-  .unwrap();
+  path: Utf16Str,
+) -> Either<Utf8String, *mut Document> {
+  let path = unsafe { path.to_string() }.unwrap();
   match gvb::Document::load(path) {
-    Ok(doc) => Either::Right(Box::into_raw(box Document(doc))),
+    Ok(doc) => {
+      println!(">>>>>>>>>>>> {}", doc.text());
+      Either::Right(Box::into_raw(box Document(doc)))
+    },
     Err(err) => {
       let msg = match err {
         gvb::DocumentError::Io(err) => match err.kind() {
@@ -30,11 +29,14 @@ pub extern "C" fn load_document(
         gvb::DocumentError::LoadTxt(err) => {
           format!("第 {} 行，错误信息: {}", err.location.0 + 1, err.message)
         }
-        gvb::DocumentError::UnknownExt(_) => {
+        gvb::DocumentError::UnknownExt(Some(_)) => {
           format!("无法识别的后缀名")
         }
+        gvb::DocumentError::UnknownExt(None) => {
+          format!("文件缺少后缀名")
+        }
       };
-      Either::Left(unsafe { CString::new(msg) })
+      Either::Left(unsafe { Utf8String::new(msg) })
     }
   }
 }
@@ -45,9 +47,9 @@ pub extern "C" fn destroy_document(doc: *mut Document) {
 }
 
 #[no_mangle]
-pub extern "C" fn document_text(doc: *mut Document) -> CStr {
+pub extern "C" fn document_text(doc: *mut Document) -> Utf8Str {
   let text = unsafe { (*doc).0.text() };
-  CStr {
+  Utf8Str {
     data: text.as_bytes().as_ptr() as *const u8 as *const _,
     len: text.len(),
   }

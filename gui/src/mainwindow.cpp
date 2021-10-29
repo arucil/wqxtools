@@ -1,11 +1,16 @@
 #include "mainwindow.h"
 #include "gvbeditor.h"
+#include "tool_factory.h"
 #include "value.h"
 #include <QApplication>
 #include <QCloseEvent>
+#include <QFileDialog>
+#include <QFileInfo>
 #include <QMenu>
 #include <QMenuBar>
+#include <QMessageBox>
 #include <QSplitter>
+#include <QTimer>
 
 MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
   initUi();
@@ -16,27 +21,6 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
 
 void MainWindow::initUi() {
   initMenu();
-
-  auto editor = new GvbEditor(this);
-  connect(&editor->m_copyCutEnabled, &BoolValue::changed, m_actCopy,
-          &QAction::setEnabled);
-  connect(&editor->m_copyCutEnabled, &BoolValue::changed, m_actCut,
-          &QAction::setEnabled);
-  connect(&editor->m_pasteEnabled, &BoolValue::changed, m_actPaste,
-          &QAction::setEnabled);
-  connect(&editor->m_undoEnabled, &BoolValue::changed, m_actUndo,
-          &QAction::setEnabled);
-  connect(&editor->m_redoEnabled, &BoolValue::changed, m_actRedo,
-          &QAction::setEnabled);
-  connect(m_actCopy, &QAction::triggered, [editor] { editor->copy(); });
-  connect(m_actCut, &QAction::triggered, [editor] { editor->cut(); });
-  connect(m_actPaste, &QAction::triggered, [editor] { editor->paste(); });
-  connect(m_actUndo, &QAction::triggered, [editor] { editor->undo(); });
-  connect(m_actRedo, &QAction::triggered, [editor] { editor->redo(); });
-  connect(m_actFind, &QAction::triggered, [editor] { editor->find(); });
-  connect(m_actReplace, &QAction::triggered, [editor] { editor->replace(); });
-
-  setCentralWidget(editor);
 }
 
 void MainWindow::initMenu() {
@@ -100,7 +84,102 @@ void MainWindow::closeEvent(QCloseEvent *event) {
 }
 
 void MainWindow::openFile() {
-  // TODO
+  QString filter;
+  auto semi = false;
+  for (const auto &i : ToolFactoryRegistry::getExtensions()) {
+    if (semi) {
+      filter += ";;";
+    }
+    semi = true;
+    filter += i.first;
+    filter += " (";
+    for (auto &ext : i.second) {
+      filter += "*.";
+      filter += ext;
+      filter += " ";
+    }
+    filter += ")";
+  }
+  auto path = QFileDialog::getOpenFileName(
+      this, "", "", filter, nullptr,
+      QFileDialog::Option::DontResolveSymlinks |
+          QFileDialog::Option::DontUseNativeDialog);
+  openFileByPath(path);
+}
+
+void MainWindow::openFileByPath(const QString &path) {
+  if (path.isEmpty()) {
+    return;
+  }
+
+  // TODO confirm if m_doc is dirty
+  auto old = centralWidget();
+  if (auto oldWidget = dynamic_cast<EditCapabilities *>(old)) {
+    if (oldWidget->m_dirty {
+    }
+  }
+
+  auto ext = QFileInfo(path).suffix();
+  if (ext.isEmpty()) {
+    QMessageBox::critical(
+        this, "文件打开失败", "文件缺少后缀名，无法识别文件类型");
+    return;
+  }
+
+  auto ctor = ToolFactoryRegistry::get(ext.toLower());
+
+  if (ctor.has_value()) {
+    auto widget = ctor.value()(this);
+    setCentralWidget(widget);
+    QTimer::singleShot(0, [widget, path] {
+      widget->load(path);
+    });
+
+    auto canSave = dynamic_cast<FileCapabilities *>(widget) != nullptr;
+    m_actSave->setEnabled(canSave);
+    m_actSaveAs->setEnabled(canSave);
+
+    if (auto editor = dynamic_cast<EditCapabilities *>(widget)) {
+      connect(
+          &editor->m_copyCutEnabled, &BoolValue::changed, m_actCopy,
+          &QAction::setEnabled);
+      connect(
+          &editor->m_copyCutEnabled, &BoolValue::changed, m_actCut,
+          &QAction::setEnabled);
+      connect(
+          &editor->m_pasteEnabled, &BoolValue::changed, m_actPaste,
+          &QAction::setEnabled);
+      connect(
+          &editor->m_undoEnabled, &BoolValue::changed, m_actUndo,
+          &QAction::setEnabled);
+      connect(
+          &editor->m_redoEnabled, &BoolValue::changed, m_actRedo,
+          &QAction::setEnabled);
+      connect(m_actCopy, &QAction::triggered, [editor] {
+        editor->copy();
+      });
+      connect(m_actCut, &QAction::triggered, [editor] {
+        editor->cut();
+      });
+      connect(m_actPaste, &QAction::triggered, [editor] {
+        editor->paste();
+      });
+      connect(m_actUndo, &QAction::triggered, [editor] {
+        editor->undo();
+      });
+      connect(m_actRedo, &QAction::triggered, [editor] {
+        editor->redo();
+      });
+      connect(m_actFind, &QAction::triggered, [editor] {
+        editor->find();
+      });
+      connect(m_actReplace, &QAction::triggered, [editor] {
+        editor->replace();
+      });
+    }
+  } else {
+    QMessageBox::critical(this, "文件打开失败", "无法识别该文件类型");
+  }
 }
 
 void MainWindow::createFile() {

@@ -2,4 +2,4 @@
 
 #include <QMainWindow>
 
-QMainWindow* getMainWindow();
+QMainWindow *getMainWindow();

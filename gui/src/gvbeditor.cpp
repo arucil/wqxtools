@@ -8,7 +8,7 @@
 #include <QVBoxLayout>
 #include <ScintillaEdit.h>
 
-GvbEditor::GvbEditor(QWidget *parent) : QWidget(parent) {
+GvbEditor::GvbEditor(QWidget *parent) : Tool(parent), m_dirty(false) {
   initUi();
 
   QTimer::singleShot(0, [this] {
@@ -17,29 +17,14 @@ GvbEditor::GvbEditor(QWidget *parent) : QWidget(parent) {
     m_redoEnabled.setValue(false);
     m_copyCutEnabled.setValue(true);
   });
-
-  QTimer::singleShot(0, [this] {
-    auto name = QString("小爬虫.BAS");
-    auto result = gvb::load_document(name.utf16(), name.size());
-    if (result.tag == gvb::Either<gvb::CString, gvb::Document *>::Tag::Left) {
-      auto msg = result.left._0;
-      auto msgbox =
-          new QMessageBox(QMessageBox::Icon::Critical, "打开失败",
-                          QString::fromUtf8(QByteArray(msg.data, msg.len)),
-                          QMessageBox::StandardButton::Ok, getMainWindow());
-      gvb::destroy_string(msg);
-      msgbox->show();
-    } else {
-      m_doc = result.right._0;
-
-      auto text = gvb::document_text(m_doc);
-
-      m_edit->setText(text.data);
-    }
-  });
 }
 
-GvbEditor::~GvbEditor() {}
+GvbEditor::~GvbEditor() {
+  if (m_doc) {
+    gvb::destroy_document(m_doc);
+    m_doc = nullptr;
+  }
+}
 
 void GvbEditor::initUi() {
   auto layout = new QVBoxLayout(this);
@@ -121,8 +106,8 @@ QToolBar *GvbEditor::initToolBar() {
   auto actCopy =
       toolbar->addAction(QPixmap(":/assets/images/Copy.png"), "复制");
   connect(actCopy, &QAction::triggered, this, &GvbEditor::copy);
-  connect(&m_copyCutEnabled, &BoolValue::changed, actCopy,
-          &QAction::setEnabled);
+  connect(
+      &m_copyCutEnabled, &BoolValue::changed, actCopy, &QAction::setEnabled);
 
   auto actCut = toolbar->addAction(QPixmap(":/assets/images/Cut.svg"), "剪切");
   connect(actCut, &QAction::triggered, this, &GvbEditor::cut);
@@ -144,6 +129,31 @@ void GvbEditor::saveAs(const QString &) {
   // TODO
 }
 
+void GvbEditor::create() {
+  // TODO
+}
+
+void GvbEditor::load(const QString &path) {
+  auto result =
+      gvb::load_document({path.utf16(), static_cast<size_t>(path.size())});
+  if (result.tag == gvb::Either<gvb::Utf8String, gvb::Document *>::Tag::Left) {
+    auto msg = result.left._0;
+    QMessageBox::critical(
+        getMainWindow(), "文件打开失败", QString::fromUtf8(msg.data, msg.len));
+    gvb::destroy_string(msg);
+  } else {
+    if (m_doc) {
+      gvb::destroy_document(m_doc);
+    }
+
+    m_doc = result.right._0;
+
+    auto text = gvb::document_text(m_doc);
+
+    m_edit->setText(text.data);
+  }
+}
+
 void GvbEditor::find() {
   // TODO
 }
@@ -152,12 +162,22 @@ void GvbEditor::replace() {
   // TODO
 }
 
-void GvbEditor::cut() { m_edit->cut(); }
+void GvbEditor::cut() {
+  m_edit->cut();
+}
 
-void GvbEditor::copy() { m_edit->copy(); }
+void GvbEditor::copy() {
+  m_edit->copy();
+}
 
-void GvbEditor::paste() { m_edit->paste(); }
+void GvbEditor::paste() {
+  m_edit->paste();
+}
 
-void GvbEditor::undo() { m_edit->undo(); }
+void GvbEditor::undo() {
+  m_edit->undo();
+}
 
-void GvbEditor::redo() { m_edit->redo(); }
+void GvbEditor::redo() {
+  m_edit->redo();
+}

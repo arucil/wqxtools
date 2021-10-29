@@ -2,6 +2,9 @@
 
 #include <QMainWindow>
 
+class QWidget;
+class QCloseEvent;
+class QString;
 class QAction;
 
 class MainWindow : public QMainWindow {
@@ -19,6 +22,9 @@ private slots:
   void createFile();
   void saveFile();
   void saveFileAs();
+
+private:
+  void openFileByPath(const QString &);
 
 protected:
   void closeEvent(QCloseEvent *) override;

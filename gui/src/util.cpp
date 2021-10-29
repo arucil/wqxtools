@@ -1,5 +1,5 @@
-#include <QApplication>
 #include "util.h"
+#include <QApplication>
 
 QMainWindow *getMainWindow() {
   foreach (QWidget *widget, qApp->topLevelWidgets())

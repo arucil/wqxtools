@@ -17,8 +17,8 @@ int SCI_METHOD GvbLexer::PropertyType(const char *) { return SC_TYPE_BOOLEAN; }
 
 const char *SCI_METHOD GvbLexer::DescribeProperty(const char *) { return ""; }
 
-Sci_Position SCI_METHOD GvbLexer::PropertySet(const char *key,
-                                              const char *val) {}
+Sci_Position SCI_METHOD
+GvbLexer::PropertySet(const char *key, const char *val) {}
 
 const char *SCI_METHOD GvbLexer::PropertyGet(const char *key) {
   return nullptr;
@@ -27,15 +27,15 @@ const char *SCI_METHOD GvbLexer::PropertyGet(const char *key) {
 const char *SCI_METHOD GvbLexer::DescribeWordListSets() { return ""; }
 
 Sci_Position SCI_METHOD GvbLexer::WordListSet(int n, const char *wl) {
-    /* TODO
-  if (n < numWordLists) {
-    if (keyWordLists[n]->Set(wl)) {
-      return 0;
-    }
+  /* TODO
+if (n < numWordLists) {
+  if (keyWordLists[n]->Set(wl)) {
+    return 0;
   }
-  return -1;
-  */
- return 0;
+}
+return -1;
+*/
+  return 0;
 }
 
 void *SCI_METHOD GvbLexer::PrivateCall(int, void *) { return nullptr; }
@@ -76,14 +76,16 @@ const char *SCI_METHOD GvbLexer::GetName() { return ""; }
 
 int SCI_METHOD GvbLexer::GetIdentifier() { return SCLEX_AUTOMATIC; }
 
-void SCI_METHOD GvbLexer::Lex(Sci_PositionU startPos, Sci_Position lengthDoc,
-                              int initStyle, Scintilla::IDocument *pAccess) {
-                                /* TODO
-  Accessor astyler(pAccess, &props);
-  module->Lex(startPos, lengthDoc, initStyle, keyWordLists, astyler);
-  astyler.Flush();
-  */
+void SCI_METHOD GvbLexer::Lex(
+    Sci_PositionU startPos, Sci_Position lengthDoc, int initStyle,
+    Scintilla::IDocument *pAccess) {
+  /* TODO
+Accessor astyler(pAccess, &props);
+module->Lex(startPos, lengthDoc, initStyle, keyWordLists, astyler);
+astyler.Flush();
+*/
 }
 
-void SCI_METHOD GvbLexer::Fold(Sci_PositionU startPos, Sci_Position lengthDoc,
-                               int initStyle, Scintilla::IDocument *pAccess) {}
+void SCI_METHOD GvbLexer::Fold(
+    Sci_PositionU startPos, Sci_Position lengthDoc, int initStyle,
+    Scintilla::IDocument *pAccess) {}
