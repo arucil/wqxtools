@@ -1,6 +1,8 @@
 #pragma once
 
 #include "value.h"
+#include "util.h"
+#include <QAction>
 
 class QObject;
 class QString;
@@ -16,18 +18,18 @@ struct EditCapabilities {
   virtual void find() = 0;
   virtual void replace() = 0;
 
-  EditCapabilities() : m_dirty(false) {}
-
 public:
   BoolValue m_copyCutEnabled;
   BoolValue m_pasteEnabled;
   BoolValue m_undoEnabled;
   BoolValue m_redoEnabled;
-  bool m_dirty;
+  BoolValue m_dirty;
 };
 
 struct FileCapabilities {
-  virtual void save() = 0;
-  virtual void saveAs(const QString &) = 0;
+  virtual ActionResult save(const QString &) = 0;
   virtual void create() = 0;
+
+public:
+  QAction *m_actSave;
 };

@@ -2,13 +2,17 @@
 #include "util.h"
 #include <QApplication>
 #include <QByteArray>
+#include <QFileInfo>
 #include <QMessageBox>
 #include <QTimer>
 #include <QToolBar>
 #include <QVBoxLayout>
 #include <ScintillaEdit.h>
+#include <algorithm>
+#include <cmath>
+#include <string>
 
-GvbEditor::GvbEditor(QWidget *parent) : Tool(parent), m_dirty(false) {
+GvbEditor::GvbEditor(QWidget *parent) : Tool(parent), m_doc(nullptr) {
   initUi();
 
   QTimer::singleShot(0, [this] {
@@ -55,21 +59,23 @@ void GvbEditor::initEdit() {
   m_edit->styleSetSize(0, 12);
 
   m_edit->setMarginTypeN(2, SC_MARGIN_NUMBER);
-  auto digitWidth = m_edit->textWidth(STYLE_LINENUMBER, "9");
-  m_edit->setMarginWidthN(2, digitWidth);
 
   m_edit->setModEventMask(SC_MOD_INSERTTEXT | SC_MOD_DELETETEXT);
 
   m_edit->setElementColour(SC_ELEMENT_CARET_LINE_BACK, 0xff'f6'ee'e0);
   m_edit->setCaretLineVisibleAlways(true);
+
+  connect(m_edit, &ScintillaEdit::notify, this, &GvbEditor::notified);
+
+  connect(m_edit, &ScintillaEdit::savePointChanged, this, [this](bool dirty) {
+    m_dirty.setValue(dirty);
+  });
 }
 
 QToolBar *GvbEditor::initToolBar() {
   auto toolbar = new QToolBar;
 
-  auto actSave =
-      toolbar->addAction(QPixmap(":/assets/images/Save.svg"), "保存");
-  connect(actSave, &QAction::triggered, this, &GvbEditor::save);
+  m_actSave = toolbar->addAction(QPixmap(":/assets/images/Save.svg"), "保存");
 
   toolbar->addSeparator();
 
@@ -121,19 +127,17 @@ QToolBar *GvbEditor::initToolBar() {
   return toolbar;
 }
 
-void GvbEditor::save() {
+ActionResult GvbEditor::save(const QString &) {
+  m_edit->setSavePoint();
   // TODO
-}
-
-void GvbEditor::saveAs(const QString &) {
-  // TODO
+  return ActionResult::Succeed;
 }
 
 void GvbEditor::create() {
   // TODO
 }
 
-void GvbEditor::load(const QString &path) {
+ActionResult GvbEditor::load(const QString &path) {
   auto result =
       gvb::load_document({path.utf16(), static_cast<size_t>(path.size())});
   if (result.tag == gvb::Either<gvb::Utf8String, gvb::Document *>::Tag::Left) {
@@ -141,6 +145,7 @@ void GvbEditor::load(const QString &path) {
     QMessageBox::critical(
         getMainWindow(), "文件打开失败", QString::fromUtf8(msg.data, msg.len));
     gvb::destroy_string(msg);
+    return ActionResult::Fail;
   } else {
     if (m_doc) {
       gvb::destroy_document(m_doc);
@@ -150,8 +155,22 @@ void GvbEditor::load(const QString &path) {
 
     auto text = gvb::document_text(m_doc);
 
-    m_edit->setText(text.data);
+    m_edit->setText(std::string(text.data, text.len).c_str());
+    m_edit->setSavePoint();
+    m_edit->emptyUndoBuffer();
+
+    auto digits = static_cast<size_t>(
+        std::log10(std::count(text.data, text.data + text.len, '\n') + 1));
+    auto digitWidth = m_edit->textWidth(STYLE_LINENUMBER, "9") * digits;
+    m_edit->setMarginWidthN(2, digitWidth);
+
+    return ActionResult::Succeed;
   }
+}
+
+bool GvbEditor::canLoad(const QString &path) const {
+  auto ext = QFileInfo(path).suffix().toLower();
+  return ext == "bas" || ext == "txt";
 }
 
 void GvbEditor::find() {
@@ -180,4 +199,32 @@ void GvbEditor::undo() {
 
 void GvbEditor::redo() {
   m_edit->redo();
+}
+
+void GvbEditor::notified(Scintilla::NotificationData *data) {
+  switch (data->nmhdr.code) {
+  case Scintilla::Notification::SavePointReached:
+    m_dirty.setValue(false);
+    break;
+  case Scintilla::Notification::SavePointLeft:
+    m_dirty.setValue(true);
+    break;
+  case Scintilla::Notification::Modified: {
+    m_undoEnabled.setValue(m_edit->canUndo());
+    m_redoEnabled.setValue(m_edit->canRedo());
+    auto bits = static_cast<int>(data->modificationType);
+    if (bits & SC_MOD_INSERTTEXT) {
+      printf(
+          "position: %ld, length: %ld, text: %s, linesAdded: %ld\n", data->position,
+          data->length, data->text, data->linesAdded);
+    } else if (bits & SC_MOD_DELETETEXT) {
+      printf(
+          "position: %ld, length: %ld, text: %s, linesAdded: %ld\n", data->position,
+          data->length, data->text, data->linesAdded);
+    }
+    break;
+  }
+  default:
+    break;
+  }
 }

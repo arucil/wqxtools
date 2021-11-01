@@ -12,15 +12,19 @@
 #include <QSplitter>
 #include <QTimer>
 
+#define WINDOW_TITLE "WQX 工具箱"
+
 MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
   initUi();
 
   resize(800, 540);
-  setWindowTitle("WQX工具箱");
 }
 
 void MainWindow::initUi() {
   initMenu();
+
+  connect(&m_openFilePath, &StrValue::changed, this, &MainWindow::setTitle);
+  setTitle();
 }
 
 void MainWindow::initMenu() {
@@ -78,7 +82,8 @@ void MainWindow::initMenu() {
 }
 
 void MainWindow::closeEvent(QCloseEvent *event) {
-  if (0) {
+  auto widget = static_cast<Tool *>(centralWidget());
+  if (confirmSaveIfDirty(widget) == ActionResult::Fail) {
     event->ignore();
   }
 }
@@ -112,84 +117,174 @@ void MainWindow::openFileByPath(const QString &path) {
     return;
   }
 
-  // TODO confirm if m_doc is dirty
-  auto old = centralWidget();
-  if (auto oldWidget = dynamic_cast<EditCapabilities *>(old)) {
-    if (oldWidget->m_dirty {
-    }
+  auto widget = static_cast<Tool *>(centralWidget());
+  if (confirmSaveIfDirty(widget) == ActionResult::Fail) {
+    return;
   }
 
-  auto ext = QFileInfo(path).suffix();
+  auto fileinfo = QFileInfo(path);
+  auto ext = fileinfo.suffix();
   if (ext.isEmpty()) {
     QMessageBox::critical(
         this, "文件打开失败", "文件缺少后缀名，无法识别文件类型");
     return;
   }
 
-  auto ctor = ToolFactoryRegistry::get(ext.toLower());
+  if (!widget || !widget->canLoad(path)) {
+    auto ctor = ToolFactoryRegistry::get(ext.toLower());
+    if (!ctor.has_value()) {
+      QMessageBox::critical(this, "文件打开失败", "无法识别该文件类型");
+      return;
+    }
 
-  if (ctor.has_value()) {
-    auto widget = ctor.value()(this);
+    widget = ctor.value()(this);
     setCentralWidget(widget);
-    QTimer::singleShot(0, [widget, path] {
-      widget->load(path);
+  }
+  QTimer::singleShot(0, [widget, path, this] {
+    if (widget->load(path) == ActionResult::Fail) {
+      setCentralWidget(nullptr);
+      m_openFilePath.setValue(QString());
+    }
+  });
+
+  m_openFilePath.setValue(fileinfo.fileName());
+
+  auto canSave = dynamic_cast<FileCapabilities *>(widget) != nullptr;
+  m_actSave->setEnabled(canSave);
+  m_actSaveAs->setEnabled(canSave);
+
+  if (auto editor = dynamic_cast<EditCapabilities *>(widget)) {
+    connect(
+        &editor->m_copyCutEnabled, &BoolValue::changed, m_actCopy,
+        &QAction::setEnabled);
+    connect(
+        &editor->m_copyCutEnabled, &BoolValue::changed, m_actCut,
+        &QAction::setEnabled);
+    connect(
+        &editor->m_pasteEnabled, &BoolValue::changed, m_actPaste,
+        &QAction::setEnabled);
+    connect(
+        &editor->m_undoEnabled, &BoolValue::changed, m_actUndo,
+        &QAction::setEnabled);
+    connect(
+        &editor->m_redoEnabled, &BoolValue::changed, m_actRedo,
+        &QAction::setEnabled);
+    connect(m_actCopy, &QAction::triggered, [editor] {
+      editor->copy();
+    });
+    connect(m_actCut, &QAction::triggered, [editor] {
+      editor->cut();
+    });
+    connect(m_actPaste, &QAction::triggered, [editor] {
+      editor->paste();
+    });
+    connect(m_actUndo, &QAction::triggered, [editor] {
+      editor->undo();
+    });
+    connect(m_actRedo, &QAction::triggered, [editor] {
+      editor->redo();
+    });
+    connect(m_actFind, &QAction::triggered, [editor] {
+      editor->find();
+    });
+    connect(m_actReplace, &QAction::triggered, [editor] {
+      editor->replace();
     });
 
-    auto canSave = dynamic_cast<FileCapabilities *>(widget) != nullptr;
-    m_actSave->setEnabled(canSave);
-    m_actSaveAs->setEnabled(canSave);
-
-    if (auto editor = dynamic_cast<EditCapabilities *>(widget)) {
-      connect(
-          &editor->m_copyCutEnabled, &BoolValue::changed, m_actCopy,
-          &QAction::setEnabled);
-      connect(
-          &editor->m_copyCutEnabled, &BoolValue::changed, m_actCut,
-          &QAction::setEnabled);
-      connect(
-          &editor->m_pasteEnabled, &BoolValue::changed, m_actPaste,
-          &QAction::setEnabled);
-      connect(
-          &editor->m_undoEnabled, &BoolValue::changed, m_actUndo,
-          &QAction::setEnabled);
-      connect(
-          &editor->m_redoEnabled, &BoolValue::changed, m_actRedo,
-          &QAction::setEnabled);
-      connect(m_actCopy, &QAction::triggered, [editor] {
-        editor->copy();
-      });
-      connect(m_actCut, &QAction::triggered, [editor] {
-        editor->cut();
-      });
-      connect(m_actPaste, &QAction::triggered, [editor] {
-        editor->paste();
-      });
-      connect(m_actUndo, &QAction::triggered, [editor] {
-        editor->undo();
-      });
-      connect(m_actRedo, &QAction::triggered, [editor] {
-        editor->redo();
-      });
-      connect(m_actFind, &QAction::triggered, [editor] {
-        editor->find();
-      });
-      connect(m_actReplace, &QAction::triggered, [editor] {
-        editor->replace();
-      });
-    }
-  } else {
-    QMessageBox::critical(this, "文件打开失败", "无法识别该文件类型");
+    connect(&editor->m_dirty, &BoolValue::changed, this, &MainWindow::setTitle);
   }
+
+  if (auto editor = dynamic_cast<FileCapabilities *>(widget)) {
+    if (editor->m_actSave != nullptr) {
+      connect(
+          editor->m_actSave, &QAction::triggered, this, &MainWindow::saveFile);
+    }
+  }
+}
+
+ActionResult MainWindow::confirmSaveIfDirty(Tool *widget) {
+  if (auto oldWidget = dynamic_cast<EditCapabilities *>(widget)) {
+    if (oldWidget->m_dirty.value()) {
+      auto btn = QMessageBox::question(
+          this, "文件改动",
+          tr("文件 %1 有改动，是否保存？")
+              .arg(QFileInfo(m_openFilePath.value()).fileName()),
+          QMessageBox::StandardButton::Yes | QMessageBox::StandardButton::No |
+              QMessageBox::StandardButton::Cancel);
+      switch (btn) {
+      case QMessageBox::StandardButton::Yes:
+        return saveFile();
+      case QMessageBox::StandardButton::No:
+        return ActionResult::Succeed;
+      default:
+        return ActionResult::Fail;
+      }
+    }
+  }
+  return ActionResult::Succeed;
 }
 
 void MainWindow::createFile() {
   // TODO
 }
 
-void MainWindow::saveFile() {
-  // TODO
+ActionResult MainWindow::saveFile() {
+  if (m_openFilePath.value().isEmpty()) {
+    return saveFileAs(true);
+  }
+  if (auto edit = dynamic_cast<FileCapabilities *>(centralWidget())) {
+    return edit->save(m_openFilePath.value());
+  }
+  return ActionResult::Succeed;
 }
 
-void MainWindow::saveFileAs() {
-  // TODO
+ActionResult MainWindow::saveFileAs(bool save) {
+  if (auto edit = dynamic_cast<FileCapabilities *>(centralWidget())) {
+    auto ext = QFileInfo(m_openFilePath.value()).suffix();
+    QString filter;
+    auto semi = false;
+    for (const auto &i : ToolFactoryRegistry::getExtensions()) {
+      if (semi) {
+        filter += ";;";
+      }
+      semi = true;
+      if (i.second.count(ext)) {
+        filter += i.first;
+        filter += " (*.";
+        filter += ext;
+        filter += ")";
+      }
+    }
+    auto path = QFileDialog::getSaveFileName(
+        this, save ? "保存文件" : "另存为", "", filter, nullptr,
+        QFileDialog::Option::DontResolveSymlinks |
+            QFileDialog::Option::DontUseNativeDialog);
+    if (path.isEmpty()) {
+      return ActionResult::Fail;
+    }
+    m_openFilePath.setValue(path);
+    return edit->save(path);
+  } else {
+    return ActionResult::Succeed;
+  }
+}
+
+void MainWindow::setTitle() {
+  if (auto edit = dynamic_cast<EditCapabilities *>(centralWidget())) {
+    auto dirty = edit->m_dirty.value();
+    if (m_openFilePath.value().isEmpty()) {
+      setWindowTitle(tr(WINDOW_TITLE " - %1").arg(dirty ? "*" : ""));
+    } else {
+      auto name = QFileInfo(m_openFilePath.value()).completeBaseName();
+      setWindowTitle(
+          tr(WINDOW_TITLE " - %1%2").arg(name).arg(dirty ? "*" : ""));
+    }
+  } else {
+    if (m_openFilePath.value().isEmpty()) {
+      setWindowTitle(tr(WINDOW_TITLE));
+    } else {
+      auto name = QFileInfo(m_openFilePath.value()).completeBaseName();
+      setWindowTitle(tr(WINDOW_TITLE " - %1").arg(name));
+    }
+  }
 }

@@ -100,7 +100,7 @@ pub fn load_bas(
 
   for line in lines {
     if newline {
-      text.push('\n');
+      text.push_str("\r\n");
     }
     newline = true;
 

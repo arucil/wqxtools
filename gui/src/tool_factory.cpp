@@ -2,7 +2,7 @@
 
 static std::map<QString, std::function<ToolCtor>> toolFactories;
 
-static std::map<QString, std::vector<QString>> extensions;
+static std::map<QString, std::set<QString>> extensions;
 
 std::optional<std::function<ToolCtor>>
 ToolFactoryRegistry::get(const QString &ext) {
@@ -23,7 +23,7 @@ void ToolFactoryRegistry::registerFactory(
   extensions[name] = factory.extensions;
 }
 
-const std::map<QString, std::vector<QString>> &
+const std::map<QString, std::set<QString>> &
 ToolFactoryRegistry::getExtensions() {
   return extensions;
 }

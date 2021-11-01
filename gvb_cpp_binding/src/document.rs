@@ -12,7 +12,6 @@ pub extern "C" fn load_document(
   let path = unsafe { path.to_string() }.unwrap();
   match gvb::Document::load(path) {
     Ok(doc) => {
-      println!(">>>>>>>>>>>> {}", doc.text());
       Either::Right(Box::into_raw(box Document(doc)))
     },
     Err(err) => {

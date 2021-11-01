@@ -1,11 +1,15 @@
 #pragma once
 
+#include "util.h"
+#include "value.h"
 #include <QMainWindow>
 
 class QWidget;
 class QCloseEvent;
 class QString;
 class QAction;
+class QString;
+class Tool;
 
 class MainWindow : public QMainWindow {
   Q_OBJECT
@@ -16,12 +20,14 @@ public:
 private:
   void initUi();
   void initMenu();
+  ActionResult confirmSaveIfDirty(Tool *);
 
 private slots:
   void openFile();
   void createFile();
-  void saveFile();
-  void saveFileAs();
+  ActionResult saveFile();
+  ActionResult saveFileAs(bool save = false);
+  void setTitle();
 
 private:
   void openFileByPath(const QString &);
@@ -40,4 +46,6 @@ private:
   QAction *m_actPaste;
   QAction *m_actFind;
   QAction *m_actReplace;
+
+  StrValue m_openFilePath;
 };

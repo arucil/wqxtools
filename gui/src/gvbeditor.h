@@ -10,6 +10,10 @@ class QToolBar;
 class ScintillaEdit;
 class QShowEvent;
 
+namespace Scintilla {
+  class NotificationData;
+}
+
 struct GvbEditor : Tool, EditCapabilities, FileCapabilities {
 private:
   Q_OBJECT
@@ -24,8 +28,7 @@ private:
   QToolBar *initToolBar();
 
 public slots:
-  void save();
-  void saveAs(const QString &);
+  ActionResult save(const QString &);
   void create();
   void find();
   void replace();
@@ -34,12 +37,15 @@ public slots:
   void paste();
   void undo();
   void redo();
-  void load(const QString &);
+  ActionResult load(const QString &);
+  bool canLoad(const QString &) const;
+
+private slots:
+  void notified(Scintilla::NotificationData *);
 
 private:
   QAction *m_actStart;
   QAction *m_actStop;
   ScintillaEdit *m_edit;
   gvb::Document *m_doc;
-  bool m_dirty;
 };

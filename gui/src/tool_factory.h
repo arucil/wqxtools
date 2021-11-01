@@ -4,7 +4,7 @@
 #include <functional>
 #include <map>
 #include <optional>
-#include <vector>
+#include <set>
 
 class Tool;
 class QWidget;
@@ -12,7 +12,7 @@ class QWidget;
 typedef Tool *ToolCtor(QWidget *);
 
 struct ToolFactory {
-  std::vector<QString> extensions;
+  std::set<QString> extensions;
   std::function<ToolCtor> ctor;
 };
 
@@ -21,5 +21,5 @@ struct ToolFactoryRegistry {
 
   static void registerFactory(const QString &name, const ToolFactory &);
 
-  static const std::map<QString, std::vector<QString>> &getExtensions();
+  static const std::map<QString, std::set<QString>> &getExtensions();
 };
