@@ -48,4 +48,5 @@ private:
   QAction *m_actStop;
   ScintillaEdit *m_edit;
   gvb::Document *m_doc;
+  bool m_textLoaded;
 };

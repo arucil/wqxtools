@@ -12,7 +12,8 @@
 #include <cmath>
 #include <string>
 
-GvbEditor::GvbEditor(QWidget *parent) : Tool(parent), m_doc(nullptr) {
+GvbEditor::GvbEditor(QWidget *parent)
+    : Tool(parent), m_doc(nullptr), m_textLoaded(false) {
   initUi();
 
   QTimer::singleShot(0, [this] {
@@ -64,6 +65,8 @@ void GvbEditor::initEdit() {
 
   m_edit->setElementColour(SC_ELEMENT_CARET_LINE_BACK, 0xff'f6'ee'e0);
   m_edit->setCaretLineVisibleAlways(true);
+
+  m_edit->setEOLMode(SC_EOL_CRLF);
 
   connect(m_edit, &ScintillaEdit::notify, this, &GvbEditor::notified);
 
@@ -156,6 +159,7 @@ ActionResult GvbEditor::load(const QString &path) {
     auto text = gvb::document_text(m_doc);
 
     m_edit->setText(std::string(text.data, text.len).c_str());
+    m_textLoaded = false;
     m_edit->setSavePoint();
     m_edit->emptyUndoBuffer();
 
@@ -210,17 +214,24 @@ void GvbEditor::notified(Scintilla::NotificationData *data) {
     m_dirty.setValue(true);
     break;
   case Scintilla::Notification::Modified: {
+    auto bits = static_cast<int>(data->modificationType);
+    if (!m_textLoaded && (bits & SC_MOD_INSERTTEXT)) {
+      m_textLoaded = true;
+      return;
+    }
+
     m_undoEnabled.setValue(m_edit->canUndo());
     m_redoEnabled.setValue(m_edit->canRedo());
-    auto bits = static_cast<int>(data->modificationType);
     if (bits & SC_MOD_INSERTTEXT) {
       printf(
-          "position: %ld, length: %ld, text: %s, linesAdded: %ld\n", data->position,
-          data->length, data->text, data->linesAdded);
+          "position: %ld, length: %ld, linesAdded: %ld, text: %.*s\n",
+          data->position, data->length, data->linesAdded, (int)data->length,
+          data->text);
     } else if (bits & SC_MOD_DELETETEXT) {
       printf(
-          "position: %ld, length: %ld, text: %s, linesAdded: %ld\n", data->position,
-          data->length, data->text, data->linesAdded);
+          "position: %ld, length: %ld, linesAdded: %ld, text: %.*s\n",
+          data->position, data->length, data->linesAdded, (int)data->length,
+          data->text);
     }
     break;
   }

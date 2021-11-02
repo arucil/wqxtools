@@ -4,13 +4,13 @@ use super::{Expr, ExprId, Label, NonEmptyVec, Range, StmtId};
 use id_arena::Arena;
 use smallvec::SmallVec;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Stmt {
   pub kind: StmtKind,
   pub range: Range,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum StmtKind {
   /// identical to REM
   Auto(Range),
@@ -164,14 +164,14 @@ pub enum StmtKind {
   NoOp,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Datum {
   /// Includes quotes.
   pub range: Range,
   pub is_quoted: bool,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FieldSpec {
   pub range: Range,
   pub len: ExprId,
@@ -179,7 +179,7 @@ pub struct FieldSpec {
   pub var: ExprId,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum InputSource {
   /// file num expr
   File(ExprId),
@@ -197,14 +197,14 @@ pub enum FileMode {
   Error,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PrintElement {
   Expr(ExprId),
   Comma(Range),
   Semicolon(Range),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WriteElement {
   pub datum: ExprId,
   pub comma: bool,

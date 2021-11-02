@@ -5,13 +5,13 @@ use num_derive::FromPrimitive;
 use std::fmt::{self, Debug, Display, Formatter, Write};
 use std::str::FromStr;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Expr {
   pub kind: ExprKind,
   pub range: Range,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ExprKind {
   Ident,
   StringLit,

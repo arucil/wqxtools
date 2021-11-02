@@ -12,7 +12,7 @@ use std::fmt::Write;
 
 pub mod symbol;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ParseResult<T> {
   pub stmt_arena: Arena<Stmt>,
   pub expr_arena: Arena<Expr>,
@@ -1722,7 +1722,7 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
     })
   }
 
-  fn parse_cmd<A: Array<Item = ExprId>>(
+  fn parse_cmd<A: Array<Item = ExprId> + PartialEq + Eq>(
     &mut self,
     ctor: fn(NonEmptyVec<A>) -> StmtKind,
   ) -> StmtId {

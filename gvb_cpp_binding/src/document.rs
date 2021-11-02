@@ -1,9 +1,20 @@
-use crate::{Utf8Str, Utf8String, Utf16Str, ByteSlice, Either};
+use crate::{Either, Utf16Str, Utf8Str, Utf8String};
 use gvb_interp as gvb;
 use std::io;
-use std::os::raw::c_ushort;
 
 pub struct Document(gvb::Document);
+
+#[repr(C)]
+pub struct InsertText {
+  pub pos: usize,
+  pub str: Utf8Str,
+}
+
+#[repr(C)]
+pub struct DeleteText {
+  pub pos: usize,
+  pub len: usize,
+}
 
 #[no_mangle]
 pub extern "C" fn load_document(
@@ -11,9 +22,7 @@ pub extern "C" fn load_document(
 ) -> Either<Utf8String, *mut Document> {
   let path = unsafe { path.to_string() }.unwrap();
   match gvb::Document::load(path) {
-    Ok(doc) => {
-      Either::Right(Box::into_raw(box Document(doc)))
-    },
+    Ok(doc) => Either::Right(Box::into_raw(box Document(doc))),
     Err(err) => {
       let msg = match err {
         gvb::DocumentError::Io(err) => match err.kind() {
@@ -37,6 +46,26 @@ pub extern "C" fn load_document(
       };
       Either::Left(unsafe { Utf8String::new(msg) })
     }
+  }
+}
+
+#[no_mangle]
+pub extern "C" fn document_apply_edit(
+  doc: *mut Document,
+  edit: Either<InsertText, DeleteText>,
+) {
+  let edit = match edit {
+    Either::Left(insert) => gvb::Edit {
+      pos: insert.pos,
+      kind: gvb::EditKind::Insert(unsafe { insert.str.as_str() }),
+    },
+    Either::Right(delete) => gvb::Edit {
+      pos: delete.pos,
+      kind: gvb::EditKind::Delete(delete.len),
+    },
+  };
+  unsafe {
+    (*doc).0.apply_edit(edit);
   }
 }
 

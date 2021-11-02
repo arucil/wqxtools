@@ -31,15 +31,25 @@ pub struct Range {
   pub end: usize,
 }
 
+impl<T: Array> PartialEq for NonEmptyVec<T>
+where
+  T::Item: PartialEq,
+{
+  fn eq(&self, other: &Self) -> bool {
+    self.0.eq(&other.0)
+  }
+}
+
+impl<T: Array> Eq for NonEmptyVec<T> where T::Item: Eq {}
+
 impl<T: Array> NonEmptyVec<T> {
   pub fn len(&self) -> NonZeroUsize {
     unsafe { NonZeroUsize::new_unchecked(self.0.len()) }
   }
 }
 
-impl<T> Clone for NonEmptyVec<T>
+impl<T: Array> Clone for NonEmptyVec<T>
 where
-  T: Array,
   T::Item: Clone,
 {
   fn clone(&self) -> Self {
@@ -47,9 +57,8 @@ where
   }
 }
 
-impl<T> Debug for NonEmptyVec<T>
+impl<T: Array> Debug for NonEmptyVec<T>
 where
-  T: Array,
   T::Item: Debug,
 {
   fn fmt(&self, f: &mut Formatter) -> fmt::Result {

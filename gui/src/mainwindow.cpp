@@ -275,7 +275,7 @@ void MainWindow::setTitle() {
     if (m_openFilePath.value().isEmpty()) {
       setWindowTitle(tr(WINDOW_TITLE " - %1").arg(dirty ? "*" : ""));
     } else {
-      auto name = QFileInfo(m_openFilePath.value()).completeBaseName();
+      auto name = QFileInfo(m_openFilePath.value()).fileName();
       setWindowTitle(
           tr(WINDOW_TITLE " - %1%2").arg(name).arg(dirty ? "*" : ""));
     }
@@ -283,7 +283,7 @@ void MainWindow::setTitle() {
     if (m_openFilePath.value().isEmpty()) {
       setWindowTitle(tr(WINDOW_TITLE));
     } else {
-      auto name = QFileInfo(m_openFilePath.value()).completeBaseName();
+      auto name = QFileInfo(m_openFilePath.value()).fileName();
       setWindowTitle(tr(WINDOW_TITLE " - %1").arg(name));
     }
   }

@@ -3,7 +3,7 @@ use crate::parser::ParseResult;
 use smallvec::SmallVec;
 use std::fmt::{Debug, Write};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProgramLine {
   /// Includes newline.
   pub source_len: usize,
@@ -12,7 +12,7 @@ pub struct ProgramLine {
   pub eol: Eol,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Eol {
   /// Only applies to last line.
   None,
