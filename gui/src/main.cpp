@@ -1,9 +1,11 @@
 #include "gvbeditor.h"
 #include "mainwindow.h"
 #include "tool_factory.h"
+#include "gvb.h"
 #include <QApplication>
 #include <QFontDatabase>
 #include <QWidget>
+#include <vector>
 
 void loadResources();
 void initTools();
@@ -13,6 +15,8 @@ int main(int argc, char *argv[]) {
 
   loadResources();
   initTools();
+
+  qRegisterMetaType<std::vector<Diagnostic>>();
 
   MainWindow window;
   window.show();

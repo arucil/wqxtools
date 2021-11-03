@@ -4,10 +4,12 @@ use std::io;
 use std::path::Path;
 use std::path::PathBuf;
 
-use crate::ast::ProgramLine;
+use crate::ast::{Program, ProgramLine};
+use crate::compiler::compile_prog;
 use crate::machine::EmojiStyle;
 use crate::machine::MachineProps;
-use crate::parser::ParseResult;
+use crate::parser::{parse_line, ParseResult};
+use crate::{CodeGen, Diagnostic};
 
 mod binary;
 
@@ -17,6 +19,16 @@ pub struct Document {
   emoji_style: EmojiStyle,
   machine_props: Option<MachineProps>,
   lines: Vec<DocLine>,
+  version: DocVer,
+  compile_cache: Option<CompileCache>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct DocVer(u64);
+
+struct CompileCache {
+  version: DocVer,
+  codegen: CodeGen,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -24,6 +36,12 @@ struct DocLine<T = ParseResult<ProgramLine>> {
   /// includes EOL
   text: String,
   parsed: Option<T>,
+}
+
+#[derive(Debug, Clone)]
+pub struct LineDiagnosis {
+  pub line_start: usize,
+  pub diagnostics: Vec<Diagnostic>,
 }
 
 #[derive(Debug)]
@@ -117,11 +135,56 @@ impl Document {
       emoji_style,
       machine_props,
       lines,
+      version: DocVer(0),
+      compile_cache: None,
     })
+  }
+
+  pub fn diagnostics(&mut self) -> Vec<LineDiagnosis> {
+    let mut prog = Program {
+      lines: self
+        .lines
+        .iter_mut()
+        .map(|line| {
+          if let Some(p) = line.parsed.as_ref().cloned() {
+            p
+          } else {
+            let p = parse_line(&line.text).0;
+            line.parsed = Some(p.clone());
+            p
+          }
+        })
+        .collect(),
+    };
+    let text = self.text();
+    let mut codegen = CodeGen::new(self.emoji_style);
+    compile_prog(text, &mut prog, &mut codegen);
+    self.compile_cache = Some(CompileCache {
+      version: self.version,
+      codegen,
+    });
+
+    let mut line_diags: Vec<_> = prog
+      .lines
+      .into_iter()
+      .map(|line| LineDiagnosis {
+        line_start: 0,
+        diagnostics: line.diagnostics,
+      })
+      .collect();
+
+    let mut line_start = 0;
+    for (i, line) in self.lines.iter().enumerate() {
+      line_diags[i].line_start = line_start;
+      line_start += line.text.len();
+    }
+
+    line_diags
   }
 
   pub fn apply_edit(&mut self, edit: Edit) {
     apply_edit(&mut self.lines, edit);
+    self.version.0 += 1;
   }
 
   pub fn text(&self) -> String {

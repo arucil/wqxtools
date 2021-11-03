@@ -1,4 +1,4 @@
-use crate::{Either, Utf16Str, Utf8Str, Utf8String};
+use crate::{destroy_string, Array, Either, Utf16Str, Utf8Str, Utf8String};
 use gvb_interp as gvb;
 use std::io;
 
@@ -49,11 +49,10 @@ pub extern "C" fn load_document(
   }
 }
 
+pub type Modification = Either<InsertText, DeleteText>;
+
 #[no_mangle]
-pub extern "C" fn document_apply_edit(
-  doc: *mut Document,
-  edit: Either<InsertText, DeleteText>,
-) {
+pub extern "C" fn document_apply_edit(doc: *mut Document, edit: Modification) {
   let edit = match edit {
     Either::Left(insert) => gvb::Edit {
       pos: insert.pos,
@@ -69,16 +68,71 @@ pub extern "C" fn document_apply_edit(
   }
 }
 
+#[repr(C)]
+pub enum Severity {
+  Warning,
+  Error,
+}
+
+#[repr(C)]
+pub struct Diagnostic {
+  pub line: usize,
+  pub start: usize,
+  pub end: usize,
+  pub message: Utf8String,
+  pub severity: Severity,
+}
+
+#[no_mangle]
+pub extern "C" fn document_diagnostics(
+  doc: *mut Document,
+) -> Array<Diagnostic> {
+  let line_diags = unsafe { (*doc).0.diagnostics() };
+  let diags = line_diags
+    .into_iter()
+    .enumerate()
+    .flat_map(|(line, line_diag)| {
+      let line_start = line_diag.line_start;
+      line_diag
+        .diagnostics
+        .into_iter()
+        .map(move |diag| Diagnostic {
+          line,
+          start: line_start + diag.range.start,
+          end: line_start + diag.range.end,
+          message: unsafe { Utf8String::new(diag.message) },
+          severity: match diag.severity {
+            gvb::Severity::Warning => Severity::Warning,
+            gvb::Severity::Error => Severity::Error,
+          },
+        })
+    })
+    .collect();
+  unsafe { Array::new(diags) }
+}
+
 #[no_mangle]
 pub extern "C" fn destroy_document(doc: *mut Document) {
   drop(unsafe { Box::from_raw(doc) });
 }
 
 #[no_mangle]
-pub extern "C" fn document_text(doc: *mut Document) -> Utf8Str {
-  let text = unsafe { (*doc).0.text() };
-  Utf8Str {
-    data: text.as_bytes().as_ptr() as *const u8 as *const _,
-    len: text.len(),
+pub extern "C" fn document_text(doc: *mut Document) -> Utf8String {
+  unsafe {
+    let text = (*doc).0.text();
+    Utf8String::new(text)
+  }
+}
+
+#[no_mangle]
+pub extern "C" fn destroy_diagnostic_array(arr: Array<Diagnostic>) {
+  let diags = unsafe {
+    Box::from_raw(std::ptr::slice_from_raw_parts_mut(
+      arr.data as *const _ as *mut Diagnostic,
+      arr.len,
+    ))
+  };
+  for diag in diags.iter() {
+    destroy_string(diag.message.clone());
   }
 }

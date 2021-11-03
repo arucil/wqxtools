@@ -16,6 +16,7 @@ pub struct ByteSlice {
 }
 
 #[repr(C)]
+#[derive(Clone)]
 pub struct Utf8String {
   pub data: *const c_char,
   pub len: usize,
