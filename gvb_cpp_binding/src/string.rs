@@ -51,7 +51,8 @@ impl Utf8Str {
 
   pub(crate) unsafe fn as_str<'a>(&self) -> &'a str {
     std::str::from_utf8_unchecked(std::slice::from_raw_parts(
-      self.data as *const _, self.len,
+      self.data as *const _,
+      self.len,
     ))
   }
 }

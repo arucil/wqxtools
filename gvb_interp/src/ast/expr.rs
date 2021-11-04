@@ -1,8 +1,11 @@
+#[cfg(test)]
 use id_arena::Arena;
 
 use super::{ExprId, NonEmptyVec, Range};
 use num_derive::FromPrimitive;
-use std::fmt::{self, Debug, Display, Formatter, Write};
+#[cfg(test)]
+use std::fmt::Write;
+use std::fmt::{self, Debug, Display, Formatter};
 use std::str::FromStr;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -233,6 +236,7 @@ impl Debug for UnaryOpKind {
   }
 }
 
+#[cfg(test)]
 impl Expr {
   pub fn print(
     &self,

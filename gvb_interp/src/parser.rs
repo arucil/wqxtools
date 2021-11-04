@@ -1,9 +1,11 @@
 use self::symbol::{Nonterminal, Symbol, SymbolSet};
+#[cfg(test)]
+use crate::ast::Program;
 use crate::ast::{
   BinaryOpKind, Datum, Eol, Expr, ExprId, ExprKind, FieldSpec, FileMode,
   InputSource, Keyword, Label, NodeBuilder, NonEmptyVec, ParseLabelError,
-  PrintElement, Program, ProgramLine, Punc, Range, Stmt, StmtId, StmtKind,
-  SysFuncKind, TokenKind, UnaryOpKind, WriteElement,
+  PrintElement, ProgramLine, Punc, Range, Stmt, StmtId, StmtKind, SysFuncKind,
+  TokenKind, UnaryOpKind, WriteElement,
 };
 use crate::diagnostic::Diagnostic;
 use id_arena::Arena;
@@ -20,6 +22,7 @@ pub struct ParseResult<T> {
   pub diagnostics: Vec<Diagnostic>,
 }
 
+#[cfg(test)]
 pub fn parse_prog(input: &str) -> Program {
   let mut line_start = 0;
   let mut lines = vec![];
@@ -220,12 +223,6 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
     self.diagnostics.push(Diagnostic::new_error(range, message));
   }
 
-  fn add_warning(&mut self, range: Range, message: impl ToString) {
-    self
-      .diagnostics
-      .push(Diagnostic::new_warning(range, message));
-  }
-
   fn advance(&mut self, count: usize) {
     self.offset += count;
     self.input = &self.input[count..];
@@ -293,7 +290,8 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
           self.set_token(start, TokenKind::String);
         }
         b'0'..=b'9' | b'.' => {
-          let (len, is_nat) = read_number(self.input.as_bytes(), true);
+          let (len, is_nat) =
+            read_number(self.input.as_bytes(), true, read_label);
           let start = self.offset;
           if is_nat && read_label {
             let label = self.input[..len].parse::<Label>();
@@ -2152,12 +2150,16 @@ fn count_space(input: &[u8], start: usize) -> usize {
   i - start
 }
 
-/// Returns (number length, is natural number).
-///
+/// Returns (number length, is_label).
+//
 /// ```regexp
 /// [-+]?\d*(\.\d*)?(E[-+]?\d*)?
 /// ```
-pub fn read_number(input: &[u8], allow_space: bool) -> (usize, bool) {
+pub fn read_number(
+  input: &[u8],
+  allow_space: bool,
+  read_label: bool,
+) -> (usize, bool) {
   let mut i = 0;
   let mut is_nat = true;
 
@@ -2181,32 +2183,14 @@ pub fn read_number(input: &[u8], allow_space: bool) -> (usize, bool) {
     }
   }
 
-  if let Some(b'.') = input.get(i) {
-    is_nat = false;
-    i += 1;
-    loop {
-      match input.get(i) {
-        Some(c) if c.is_ascii_digit() => i += 1,
-        Some(b' ') if allow_space => i += 1,
-        _ => break,
+  loop {
+    if let Some(b'.') = input.get(i) {
+      if read_label && is_nat {
+        break;
       }
-    }
-  }
 
-  if let Some(b'e' | b'E') = input.get(i) {
-    if input
-      .get(i + 1)
-      .filter(|c| c.is_ascii_alphabetic())
-      .is_none()
-    {
       is_nat = false;
       i += 1;
-      if allow_space {
-        i += count_space(input, i);
-      }
-      if let Some(b'+' | b'-') = input.get(i) {
-        i += 1;
-      }
       loop {
         match input.get(i) {
           Some(c) if c.is_ascii_digit() => i += 1,
@@ -2215,6 +2199,34 @@ pub fn read_number(input: &[u8], allow_space: bool) -> (usize, bool) {
         }
       }
     }
+
+    if let Some(b'e' | b'E') = input.get(i) {
+      if input
+        .get(i + 1)
+        .filter(|c| c.is_ascii_alphabetic())
+        .is_none()
+      {
+        if read_label && is_nat {
+          break;
+        }
+        is_nat = false;
+        i += 1;
+        if allow_space {
+          i += count_space(input, i);
+        }
+        if let Some(b'+' | b'-') = input.get(i) {
+          i += 1;
+        }
+        loop {
+          match input.get(i) {
+            Some(c) if c.is_ascii_digit() => i += 1,
+            Some(b' ') if allow_space => i += 1,
+            _ => break,
+          }
+        }
+      }
+    }
+    break;
   }
 
   if allow_space {
@@ -2685,6 +2697,12 @@ mod parser_tests {
   fn write() {
     let line =
       r#"10 write a$(i+j*10),b fn f(x):wriTE #3-a,asc(a)x+2 x*6 , o$,"#;
+    assert_snapshot!(parse_line(line).0.to_string(line));
+  }
+
+  #[test]
+  fn label_followed_by_e() {
+    let line = r#"10 e=1"#;
     assert_snapshot!(parse_line(line).0.to_string(line));
   }
 

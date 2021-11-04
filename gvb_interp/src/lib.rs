@@ -15,9 +15,9 @@ mod parser;
 pub mod util;
 pub mod vm;
 
+pub use self::diagnostic::*;
 pub use self::document::*;
 pub use self::vm::*;
-pub use self::diagnostic::*;
 
 mod gb2312 {
   include!(concat!(env!("OUT_DIR"), "/gb2312.rs"));

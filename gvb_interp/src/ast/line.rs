@@ -1,7 +1,8 @@
 use super::{Label, Range, StmtId};
-use crate::parser::ParseResult;
 use smallvec::SmallVec;
-use std::fmt::{Debug, Write};
+use std::fmt::Debug;
+#[cfg(test)]
+use std::fmt::Write;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProgramLine {
@@ -20,7 +21,8 @@ pub enum Eol {
   CrLf,
 }
 
-impl ParseResult<ProgramLine> {
+#[cfg(test)]
+impl crate::parser::ParseResult<ProgramLine> {
   pub fn to_string(&self, text: &str) -> String {
     let mut f = String::new();
     writeln!(&mut f, "label: {:?}", self.content.label).unwrap();

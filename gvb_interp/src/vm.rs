@@ -1401,7 +1401,7 @@ where
       SysFuncKind::Val => {
         let mut value = self.str_stack.pop().unwrap().1;
         value.retain(|&b| b != b' ');
-        let (len, _) = read_number(&*value, false);
+        let (len, _) = read_number(&*value, false, false);
         let num = unsafe { std::str::from_utf8_unchecked(&value[..len]) }
           .parse::<Mbf5>()
           .unwrap_or(Mbf5::zero());

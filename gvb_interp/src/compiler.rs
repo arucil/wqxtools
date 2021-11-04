@@ -1104,9 +1104,6 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E, ProgramLine> {
         }
         self.code_emitter.emit_file_input(range, vars.len());
       }
-      InputSource::Error => {
-        // do nothing
-      }
     }
   }
 

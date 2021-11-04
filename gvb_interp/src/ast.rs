@@ -66,6 +66,7 @@ where
   }
 }
 
+#[cfg(test)]
 impl Program {
   pub fn to_string(&self, text: &str) -> String {
     let mut buf = String::new();

@@ -1,6 +1,11 @@
-use std::fmt::{self, Debug, Formatter, Write};
+#[cfg(test)]
+use std::fmt::Write;
+use std::fmt::{self, Debug, Formatter};
 
-use super::{Expr, ExprId, Label, NonEmptyVec, Range, StmtId};
+#[cfg(test)]
+use super::Expr;
+use super::{ExprId, Label, NonEmptyVec, Range, StmtId};
+#[cfg(test)]
 use id_arena::Arena;
 use smallvec::SmallVec;
 
@@ -185,7 +190,6 @@ pub enum InputSource {
   File(ExprId),
   /// prompt string literal
   Keyboard(Option<Range>),
-  Error,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -223,6 +227,7 @@ impl Debug for FileMode {
   }
 }
 
+#[cfg(test)]
 impl Stmt {
   pub fn print(
     &self,
@@ -235,6 +240,7 @@ impl Stmt {
   }
 }
 
+#[cfg(test)]
 fn print_stmt(
   stmt: &Stmt,
   indent: usize,
@@ -471,7 +477,6 @@ fn print_stmt(
           expr_arena[*filenum].print(expr_arena, text, f)?;
           write!(f, ", ")?;
         }
-        InputSource::Error => write!(f, "<ERROR>, ")?,
       }
       let mut comma = false;
       for &arg in vars.iter() {
