@@ -25,28 +25,33 @@ pub extern "C" fn load_document(
     Ok(doc) => Either::Right(Box::into_raw(box Document(doc))),
     Err(err) => {
       let msg = match err {
-        gvb::DocumentError::Io(err) => match err.kind() {
+        gvb::LoadDocumentError::Io(err) => match err.kind() {
           io::ErrorKind::PermissionDenied => format!("无权限"),
           io::ErrorKind::NotFound => format!("文件不存在"),
           io::ErrorKind::IsADirectory => format!("是文件夹"),
           _ => err.to_string(),
         },
-        gvb::DocumentError::LoadBas(err) => {
+        gvb::LoadDocumentError::LoadBas(err) => {
           format!("文件偏移: {}, 错误信息: {}", err.location, err.message)
         }
-        gvb::DocumentError::LoadTxt(err) => {
+        gvb::LoadDocumentError::LoadTxt(err) => {
           format!("第 {} 行，错误信息: {}", err.location.0 + 1, err.message)
         }
-        gvb::DocumentError::UnknownExt(Some(_)) => {
+        gvb::LoadDocumentError::UnknownExt(Some(_)) => {
           format!("无法识别的后缀名")
         }
-        gvb::DocumentError::UnknownExt(None) => {
+        gvb::LoadDocumentError::UnknownExt(None) => {
           format!("文件缺少后缀名")
         }
       };
       Either::Left(unsafe { Utf8String::new(msg) })
     }
   }
+}
+
+#[no_mangle]
+pub extern "C" fn create_document() -> *mut Document {
+  Box::into_raw(box Document(gvb::Document::new()))
 }
 
 pub type Modification = Either<InsertText, DeleteText>;

@@ -12,4 +12,8 @@ pub struct MachineProps {
   pub sleep_unit: Duration,
 }
 
+pub fn names() -> Vec<&'static str> {
+  MACHINES.keys().map(|&s| s).collect()
+}
+
 include!(concat!(env!("OUT_DIR"), "/machines.rs"));

@@ -2,7 +2,6 @@ use itertools::Itertools;
 use std::fs;
 use std::io;
 use std::path::Path;
-use std::path::PathBuf;
 
 use crate::ast::{Program, ProgramLine};
 use crate::compiler::compile_prog;
@@ -14,10 +13,9 @@ use crate::{CodeGen, Diagnostic};
 mod binary;
 
 pub struct Document {
-  path: PathBuf,
   base_addr: u16,
   emoji_style: EmojiStyle,
-  machine_props: Option<MachineProps>,
+  machine_props: MachineProps,
   lines: Vec<DocLine>,
   version: DocVer,
   compile_cache: Option<CompileCache>,
@@ -45,11 +43,18 @@ pub struct LineDiagnosis {
 }
 
 #[derive(Debug)]
-pub enum DocumentError {
+pub enum LoadDocumentError {
   Io(io::Error),
   UnknownExt(Option<String>),
   LoadBas(binary::LoadError<usize>),
   LoadTxt(binary::LoadError<(usize, usize)>),
+}
+
+#[derive(Debug)]
+pub enum SaveDocumentError {
+  Io(io::Error),
+  InvalidExt(Option<String>),
+  Save(binary::SaveError),
 }
 
 #[derive(Debug)]
@@ -64,27 +69,51 @@ pub enum EditKind<'a> {
   Delete(usize),
 }
 
-impl From<io::Error> for DocumentError {
+impl From<io::Error> for LoadDocumentError {
   fn from(err: io::Error) -> Self {
     Self::Io(err)
   }
 }
 
-impl From<binary::LoadError<usize>> for DocumentError {
+impl From<binary::LoadError<usize>> for LoadDocumentError {
   fn from(err: binary::LoadError<usize>) -> Self {
     Self::LoadBas(err)
   }
 }
 
-impl From<binary::LoadError<(usize, usize)>> for DocumentError {
+impl From<binary::LoadError<(usize, usize)>> for LoadDocumentError {
   fn from(err: binary::LoadError<(usize, usize)>) -> Self {
     Self::LoadTxt(err)
   }
 }
 
+impl From<io::Error> for SaveDocumentError {
+  fn from(err: io::Error) -> Self {
+    Self::Io(err)
+  }
+}
+
+impl From<binary::SaveError> for SaveDocumentError {
+  fn from(err: binary::SaveError) -> Self {
+    Self::Save(err)
+  }
+}
+
 impl Document {
+  pub fn new() -> Self {
+    Self {
+      base_addr: binary::DEFAULT_BASE_ADDR,
+      emoji_style: EmojiStyle::New,
+      machine_props: crate::machine::MACHINES[crate::machine::DEFAULT_MACHINE]
+        .clone(),
+      lines: text_to_doc_lines("10 "),
+      version: DocVer(0),
+      compile_cache: None,
+    }
+  }
+
   /// Load a `.BAS` or `.txt` file.
-  pub fn load<P>(path: P) -> Result<Self, DocumentError>
+  pub fn load<P>(path: P) -> Result<Self, LoadDocumentError>
   where
     P: AsRef<Path>,
   {
@@ -95,11 +124,13 @@ impl Document {
         Some("bas") => true,
         Some("txt") => false,
         ext => {
-          return Err(DocumentError::UnknownExt(ext.map(|ext| ext.to_owned())))
+          return Err(LoadDocumentError::UnknownExt(
+            ext.map(|ext| ext.to_owned()),
+          ))
         }
       }
     } else {
-      return Err(DocumentError::UnknownExt(None));
+      return Err(LoadDocumentError::UnknownExt(None));
     };
 
     let data = fs::read(path)?;
@@ -112,25 +143,26 @@ impl Document {
 
     let mut emoji_style = doc.guessed_emoji_style;
 
-    let mut machine_props = detect_machine_props(&doc.text)
+    let machine_props;
+    if let Some(props) = detect_machine_props(&doc.text)
       .and_then(|p| p.ok())
-      .cloned();
-    if let Some(props) = &machine_props {
+      .cloned()
+    {
       emoji_style = props.emoji_style;
       doc = if is_bas {
         binary::load_bas(&data, Some(emoji_style))?
       } else {
         binary::load_txt(&data, Some(emoji_style))?
       };
+      machine_props = props;
     } else {
       machine_props =
-        Some(crate::machine::MACHINES[crate::machine::DEFAULT_MACHINE].clone());
+        crate::machine::MACHINES[crate::machine::DEFAULT_MACHINE].clone();
     }
 
     let lines = text_to_doc_lines(doc.text);
 
     Ok(Document {
-      path: path.to_owned(),
       base_addr: doc.base_addr,
       emoji_style,
       machine_props,
@@ -138,6 +170,38 @@ impl Document {
       version: DocVer(0),
       compile_cache: None,
     })
+  }
+
+  /// Save to a `.BAS` or `.txt` file.
+  pub fn save<P>(&self, path: P) -> Result<(), SaveDocumentError>
+  where
+    P: AsRef<Path>,
+  {
+    let path = path.as_ref();
+    let ext = path.extension().map(|ext| ext.to_ascii_lowercase());
+    let is_bas = if let Some(ext) = ext {
+      match ext.to_str() {
+        Some("bas") => true,
+        Some("txt") => false,
+        ext => {
+          return Err(SaveDocumentError::InvalidExt(
+            ext.map(|ext| ext.to_owned()),
+          ))
+        }
+      }
+    } else {
+      return Err(SaveDocumentError::InvalidExt(None));
+    };
+
+    let data = if is_bas {
+      binary::save_bas(self.text(), self.emoji_style, self.base_addr)?
+    } else {
+      binary::save_txt(self.text(), self.emoji_style)?
+    };
+
+    fs::write(path, data)?;
+
+    Ok(())
   }
 
   pub fn diagnostics(&mut self) -> Vec<LineDiagnosis> {
@@ -190,14 +254,32 @@ impl Document {
   pub fn text(&self) -> String {
     self.lines.iter().map(|line| &line.text).join("")
   }
+
+  pub fn machine_name(&self) -> &'static str {
+    self.machine_props.name
+  }
+
+  pub fn sync_machine(&mut self) {
+    if let Some(Ok(props)) = detect_machine_props(self.text()) {
+      self.machine_props = props.clone();
+    } else {
+      self.machine_props =
+        crate::machine::MACHINES[crate::machine::DEFAULT_MACHINE].clone();
+    }
+    todo!("set emoji_style, reload text")
+  }
+
+  pub fn set_machine_name(&self, name: &str) -> bool {
+    todo!("set emoji_style, reload text, set machine_props")
+  }
 }
 
 fn detect_machine_props(
-  text: &str,
+  text: impl AsRef<str>,
 ) -> Option<Result<&'static MachineProps, ()>> {
-  let first_line = text.lines().next().unwrap();
-  if let Some(start) = first_line.rfind('{') {
-    let first_line = &first_line[start + 1..];
+  let last_line = text.as_ref().lines().last().unwrap();
+  if let Some(start) = last_line.rfind('{') {
+    let first_line = &last_line[start + 1..];
     if let Some(end) = first_line.find('}') {
       let name = first_line[..end].trim().to_ascii_uppercase();
       if !name.is_empty() {
@@ -276,14 +358,17 @@ fn apply_edit(lines: &mut Vec<DocLine>, edit: Edit) {
       } else if start == 0 && del_len == len {
         lines.remove(i);
       }
-      if i < lines.len() - 1 && !lines[i].text.ends_with('\n') {
+      if !lines.is_empty()
+        && i < lines.len() - 1
+        && !lines[i].text.ends_with('\n')
+      {
         let next_line = lines.remove(i + 1).text;
         lines[i].text.push_str(&next_line);
       }
     }
   }
 
-  if lines.last().unwrap().text.ends_with('\n') {
+  if lines.is_empty() || lines.last().unwrap().text.ends_with('\n') {
     lines.push(DocLine {
       text: String::new(),
       parsed: None,
@@ -608,6 +693,20 @@ no";
   }
 
   #[test]
+  fn delete_all() {
+    let mut lines = make_lines(INPUT);
+    apply_edit(
+      &mut lines,
+      Edit {
+        pos: 0,
+        kind: EditKind::Delete(21),
+      },
+    );
+
+    assert_eq!(doc_lines(lines), vec![dirty_doc_line(""),]);
+  }
+
+  #[test]
   fn insert_middle() {
     let mut lines = make_lines(INPUT);
     apply_edit(
@@ -627,6 +726,20 @@ no";
         doc_line("no")
       ]
     );
+  }
+
+  #[test]
+  fn insert_into_empty() {
+    let mut lines = make_lines("");
+    apply_edit(
+      &mut lines,
+      Edit {
+        pos: 0,
+        kind: EditKind::Insert("123"),
+      },
+    );
+
+    assert_eq!(doc_lines(lines), vec![dirty_doc_line("123"),]);
   }
 
   #[test]

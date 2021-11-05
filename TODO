@@ -10,15 +10,15 @@
 
 - document:
     + create new: () => (document, string)
-    + get path: () => option<path>
-    + load bas/txt: path -> (document, string)
+    + ~~get path: () => option<path>~~
+    + [x] load bas/txt: path -> (document, string)
     + save: option<path> -> ()
-    + diagnostics: () -> vec
+    + [x] diagnostics: () -> vec
     + auto completion: () -> completion list
     + compile to vm: device -> vm
     + set machine name: string -> ()
     + get machine name: () -> string
-    + edit: edit list -> ()
+    + [x] edit: edit list -> ()
     + get semantic token: () -> vec
     + symbol highlight: () -> vec
     + create device: () -> device

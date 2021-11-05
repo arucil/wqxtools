@@ -3,6 +3,8 @@ use std::fmt::Write;
 
 include!(concat!(env!("OUT_DIR"), "/keyword.rs"));
 
+pub const DEFAULT_BASE_ADDR: u16 = 0x7000;
+
 pub struct BasTextDocument {
   pub base_addr: u16,
   pub guessed_emoji_style: EmojiStyle,
@@ -13,6 +15,13 @@ pub struct BasTextDocument {
 pub struct LoadError<L> {
   pub location: L,
   pub message: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct SaveError {
+  pub line: usize,
+  pub message: String,
+  pub bas_specific: bool,
 }
 
 pub fn load_bas(
@@ -28,6 +37,8 @@ pub fn load_bas(
   } else {
     vec![EmojiStyle::New, EmojiStyle::Old]
   };
+
+  let mut second_line_addr = 0;
 
   loop {
     if content.len() < 3 {
@@ -49,8 +60,17 @@ pub fn load_bas(
       break;
     }
 
-    if base_addr == 0 {
-      base_addr = addr;
+    if second_line_addr == 0 {
+      second_line_addr = addr;
+    } else if base_addr == 0 {
+      if let Some(b) = second_line_addr.checked_sub(offset as u16 + 1) {
+        base_addr = b;
+      } else {
+        return Err(LoadError {
+          location: 1,
+          message: format!("address underflow"),
+        });
+      }
     }
 
     let mut i = 5;
@@ -167,7 +187,7 @@ pub fn load_txt(
   content: impl AsRef<[u8]>,
   emoji_style: Option<EmojiStyle>,
 ) -> Result<BasTextDocument, LoadError<(usize, usize)>> {
-  let base_addr = 0x100;
+  let base_addr = DEFAULT_BASE_ADDR;
   let mut guessed_emoji_styles = if let Some(emoji_style) = emoji_style {
     vec![emoji_style]
   } else {
@@ -223,6 +243,173 @@ pub fn load_txt(
   })
 }
 
+pub fn save_bas(
+  text: impl AsRef<str>,
+  emoji_style: EmojiStyle,
+  base_addr: u16,
+) -> Result<Vec<u8>, SaveError> {
+  let text = save_txt(text, emoji_style)?;
+  let mut bytes = vec![0u8];
+
+  let mut line = 0;
+  let mut i = 0;
+  while i < text.len() {
+    if !text[i].is_ascii_digit() {
+      return Err(SaveError {
+        line,
+        message: format!("缺少行号"),
+        bas_specific: true,
+      });
+    }
+
+    line += 1;
+
+    let label_start = i;
+    while i < text.len() && text[i].is_ascii_digit() {
+      i += 1;
+    }
+
+    let label =
+      match unsafe { std::str::from_utf8_unchecked(&text[label_start..i]) }
+        .parse::<u16>()
+      {
+        Ok(label) if label <= 9999 => label,
+        _ => {
+          return Err(SaveError {
+            line,
+            message: format!("行号超出范围（0~9999）"),
+            bas_specific: true,
+          });
+        }
+      };
+
+    let line_start = bytes.len();
+
+    bytes.push(0);
+    bytes.push(0);
+    bytes.push(label as u8);
+    bytes.push((label >> 8) as u8);
+
+    while i < text.len() {
+      let b = text[i];
+      if b >= 128 {
+        bytes.push(0x1f);
+        bytes.push(b);
+        if i < text.len() - 1 {
+          bytes.push(text[i + 1]);
+          i += 2;
+        } else {
+          i += 1;
+        }
+      } else if b.is_ascii_alphabetic() {
+        let start = i;
+        while i < text.len() && text[i].is_ascii_alphabetic() {
+          i += 1;
+        }
+        if i < text.len() && text[i] == b'$' {
+          i += 1;
+        }
+        if let Some(&b) = KEYWORD_TO_BYTE.get(
+          &unsafe { std::str::from_utf8_unchecked(&text[start..i]) }
+            .to_ascii_uppercase(),
+        ) {
+          bytes.push(b);
+        } else {
+          bytes.extend(&text[start..i]);
+        }
+      } else if b == b'\r' {
+        i += 1;
+        // do nothing
+      } else if b == b'\n' {
+        i += 1;
+        break;
+      } else if let Some(&b) = KEYWORD_TO_BYTE
+        .get(unsafe { std::str::from_utf8_unchecked(&text[i..i + 1]) })
+      {
+        bytes.push(b);
+        i += 1;
+      } else {
+        bytes.push(b);
+        i += 1;
+      }
+    }
+
+    bytes.push(0);
+    let line_len = bytes.len() - line_start;
+    if line_len > 256 {
+      return Err(SaveError {
+        line,
+        message: format!("该行经过转译(tokenization)后超过了256字节"),
+        bas_specific: true,
+      });
+    }
+    if let Some(next_line_start) = base_addr.checked_add(line_len as u16) {
+      bytes[line_start] = next_line_start as u8;
+      bytes[line_start + 1] = (next_line_start >> 8) as u8;
+    } else {
+      return Err(SaveError {
+        line,
+        message: format!("转译(tokenization)后文件大小超过了64KB"),
+        bas_specific: true,
+      });
+    }
+
+    if i == text.len() {
+      bytes.push(0);
+      bytes.push(0);
+    }
+  }
+
+  if bytes.len() > 65536 {
+    return Err(SaveError {
+      line,
+      message: format!("转译(tokenization)后文件大小超过了64KB"),
+      bas_specific: true,
+    });
+  }
+
+  Ok(bytes)
+}
+
+pub fn save_txt(
+  text: impl AsRef<str>,
+  emoji_style: EmojiStyle,
+) -> Result<Vec<u8>, SaveError> {
+  let text = text.as_ref();
+  let mut bytes = vec![];
+  let mut line = 1;
+  for c in text.chars() {
+    if c == '\n' {
+      line += 1;
+    }
+    if (c as u32) < 256 {
+      bytes.push(c as u8);
+    } else if (c as u32) < 65536 {
+      if let Some(&gbcode) = crate::gb2312::UNICODE_TO_GB2312.get(&(c as u16)) {
+        bytes.push((gbcode >> 8) as u8);
+        bytes.push(gbcode as u8);
+      } else if let Some(gbcode) = emoji_style.char_to_code(c) {
+        bytes.push((gbcode >> 8) as u8);
+        bytes.push(gbcode as u8);
+      } else {
+        return Err(SaveError {
+          line,
+          message: format!("非法字符：U+{:04X}", c as u32),
+          bas_specific: false,
+        });
+      }
+    } else {
+      return Err(SaveError {
+        line,
+        message: format!("非法字符：U+{:06X}", c as u32),
+        bas_specific: false,
+      });
+    }
+  }
+
+  Ok(bytes)
+}
+
 #[cfg(test)]
 mod tests {
   use super::*;
@@ -250,6 +437,23 @@ mod tests {
     let doc = load_bas(bytes, None).unwrap();
 
     assert_debug_snapshot!(doc);
+  }
+
+  #[test]
+  fn test_save_bas() {
+    let bytes = std::fs::read(
+      std::env::current_dir()
+        .unwrap()
+        .join("test/fixtures/鹿逐中原.bas"),
+    )
+    .unwrap();
+
+    let doc = load_bas(&bytes, None).unwrap();
+
+    let saved =
+      save_bas(doc.text, doc.guessed_emoji_style, doc.base_addr).unwrap();
+
+    assert_eq!(bytes, saved);
   }
 
   #[test]

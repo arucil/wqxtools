@@ -262,6 +262,21 @@ ActionResult MainWindow::saveFileAs(bool save) {
     if (path.isEmpty()) {
       return ActionResult::Fail;
     }
+
+    auto f = QFileInfo(path);
+    if (f.exists()) {
+      auto res = QMessageBox::question(
+          this, save ? "保存文件" : "另存为",
+          tr("文件 %1 已存在，是否覆盖？").arg(f.fileName()),
+          QMessageBox::StandardButton::Yes | QMessageBox::StandardButton::No |
+              QMessageBox::StandardButton::Cancel);
+      if (res == QMessageBox::StandardButton::Cancel) {
+        return ActionResult::Fail;
+      } else if (res == QMessageBox::StandardButton::No) {
+        return ActionResult::Succeed;
+      }
+    }
+
     m_openFilePath.setValue(path);
     return edit->save(path);
   } else {

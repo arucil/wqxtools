@@ -3,7 +3,7 @@ source: gvb_interp/src/document/binary.rs
 expression: doc
 
 ---
-base_addr: 0x2050
+base_addr: 0x2000
 guessed_emoji_style: New
 -------------------------------------
 3 N$(2)="曹操":N$(3)="董卓":N$(4)="袁绍":N$(5)="袁术":N$(6)="孙策"

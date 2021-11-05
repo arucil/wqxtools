@@ -172,7 +172,7 @@ QToolBar *GvbEditor::initToolBar() {
 QStatusBar *GvbEditor::initStatusBar() {
   auto statusbar = new QStatusBar;
   m_posLabel = new QLabel;
-  m_posLabel->setMinimumWidth(100);
+  m_posLabel->setMinimumWidth(120);
   statusbar->addPermanentWidget(m_posLabel);
 
   connect(&m_curPos, &SizeValue::changed, this, &GvbEditor::updatePosLabel);
@@ -208,6 +208,7 @@ ActionResult GvbEditor::load(const QString &path) {
 
     auto text = gvb::document_text(m_doc);
 
+    m_textLoaded = false;
     m_edit->setText(std::string(text.data, text.len).c_str());
     m_textLoaded = true;
     m_edit->setSavePoint();

@@ -17,7 +17,7 @@ num-traits = "0.2.14"
 phf = { version = "0.10.0", features = ["macros"] }
 rand = "0.8.4"
 smallvec = "1.7.0"
-string-interner = "0.13.0"
+string-interner = "0.14.0"
 
 [dev-dependencies]
 insta = "1.8.0"
