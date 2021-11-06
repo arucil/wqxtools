@@ -251,6 +251,7 @@ pub fn save_bas(
   let text = save_txt(text, emoji_style)?;
   let mut bytes = vec![0u8];
 
+  let mut line_start_addr = base_addr + 1;
   let mut line = 0;
   let mut i = 0;
   while i < text.len() {
@@ -284,58 +285,115 @@ pub fn save_bas(
       };
 
     let line_start = bytes.len();
+    let mut skip_space = true;
 
     bytes.push(0);
     bytes.push(0);
     bytes.push(label as u8);
     bytes.push((label >> 8) as u8);
 
-    while i < text.len() {
+    'line_loop: while i < text.len() {
       let b = text[i];
-      if b >= 128 {
-        bytes.push(0x1f);
-        bytes.push(b);
-        if i < text.len() - 1 {
-          bytes.push(text[i + 1]);
-          i += 2;
-        } else {
+      match b {
+        128..=255 => {
+          if i < text.len() - 1 && text[i + 1] >= 128 {
+            bytes.push(0x1f);
+            bytes.push(b);
+            bytes.push(text[i + 1]);
+            i += 2;
+          } else {
+            return Err(SaveError {
+              line,
+              message: format!("非法字符：U+{:04X}", b),
+              bas_specific: true,
+            });
+          }
+          skip_space = true;
+        }
+        b'a'..=b'z' | b'A'..=b'Z' => {
+          let start = i;
+          while i < text.len() && text[i].is_ascii_alphabetic() {
+            i += 1;
+          }
+          if i < text.len() && text[i] == b'$' {
+            i += 1;
+          }
+          if let Some(&b) = KEYWORD_TO_BYTE.get(
+            &unsafe { std::str::from_utf8_unchecked(&text[start..i]) }
+              .to_ascii_uppercase(),
+          ) {
+            bytes.push(b);
+            skip_space = true;
+          } else {
+            bytes.extend(&text[start..i]);
+            skip_space = false;
+          }
+        }
+        b'\r' => {
           i += 1;
         }
-      } else if b.is_ascii_alphabetic() {
-        let start = i;
-        while i < text.len() && text[i].is_ascii_alphabetic() {
+        b'\n' => {
+          i += 1;
+          break 'line_loop;
+        }
+        b' ' => {
+          if !skip_space {
+            bytes.push(b' ');
+            skip_space = true;
+          }
           i += 1;
         }
-        if i < text.len() && text[i] == b'$' {
+        b'"' => {
+          bytes.push(b'"');
           i += 1;
+          while i < text.len() {
+            let b = text[i];
+            if let b'\r' | b'\n' | b'"' = b {
+              break;
+            }
+            if b >= 128 {
+              if i < text.len() - 1 && text[i + 1] >= 128 {
+                bytes.push(0x1f);
+                bytes.push(b);
+                bytes.push(text[i + 1]);
+                i += 2;
+              } else {
+                return Err(SaveError {
+                  line,
+                  message: format!("非法字符：U+{:04X}", b),
+                  bas_specific: true,
+                });
+              }
+            } else {
+              bytes.push(b);
+              i += 1;
+            }
+          }
+          if i < text.len() && text[i] == b'"' {
+            bytes.push(b'"');
+            i += 1;
+          }
+          skip_space = true;
         }
-        if let Some(&b) = KEYWORD_TO_BYTE.get(
-          &unsafe { std::str::from_utf8_unchecked(&text[start..i]) }
-            .to_ascii_uppercase(),
-        ) {
-          bytes.push(b);
-        } else {
-          bytes.extend(&text[start..i]);
+        _ => {
+          if let Some(&b) = KEYWORD_TO_BYTE
+            .get(unsafe { std::str::from_utf8_unchecked(&text[i..i + 1]) })
+          {
+            bytes.push(b);
+            i += 1;
+            skip_space = true;
+          } else {
+            bytes.push(b);
+            i += 1;
+            skip_space = b":;,()".contains(&b);
+          }
         }
-      } else if b == b'\r' {
-        i += 1;
-        // do nothing
-      } else if b == b'\n' {
-        i += 1;
-        break;
-      } else if let Some(&b) = KEYWORD_TO_BYTE
-        .get(unsafe { std::str::from_utf8_unchecked(&text[i..i + 1]) })
-      {
-        bytes.push(b);
-        i += 1;
-      } else {
-        bytes.push(b);
-        i += 1;
       }
     }
 
     bytes.push(0);
     let line_len = bytes.len() - line_start;
+    /*
     if line_len > 256 {
       return Err(SaveError {
         line,
@@ -343,9 +401,13 @@ pub fn save_bas(
         bas_specific: true,
       });
     }
-    if let Some(next_line_start) = base_addr.checked_add(line_len as u16) {
-      bytes[line_start] = next_line_start as u8;
-      bytes[line_start + 1] = (next_line_start >> 8) as u8;
+    */
+    if let Some(next_line_start_addr) =
+      line_start_addr.checked_add(line_len as u16)
+    {
+      bytes[line_start] = next_line_start_addr as u8;
+      bytes[line_start + 1] = (next_line_start_addr >> 8) as u8;
+      line_start_addr = next_line_start_addr;
     } else {
       return Err(SaveError {
         line,
@@ -367,6 +429,8 @@ pub fn save_bas(
       bas_specific: true,
     });
   }
+
+  std::fs::write("shit.bas", &bytes).unwrap();
 
   Ok(bytes)
 }
