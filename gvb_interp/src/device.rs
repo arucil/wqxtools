@@ -2,6 +2,8 @@ use std::io;
 
 use super::{PrintMode, ScreenMode};
 
+pub mod default;
+
 pub trait Device {
   type File: FileHandle;
 

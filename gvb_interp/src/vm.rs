@@ -12,14 +12,13 @@ use crate::machine::EmojiStyle;
 use crate::parser::{parse_expr, read_number};
 use crate::util::mbf5::{Mbf5, ParseRealError, RealError};
 use crate::HashMap;
+use crate::device::{Device, DrawMode, FileHandle};
 
 pub(crate) use self::codegen::*;
-pub(crate) use self::device::*;
 pub(crate) use self::instruction::*;
 pub(crate) use self::r#type::*;
 
 pub(crate) mod codegen;
-pub(crate) mod device;
 pub(crate) mod instruction;
 pub(crate) mod r#type;
 

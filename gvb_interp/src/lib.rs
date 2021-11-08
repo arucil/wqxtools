@@ -14,6 +14,7 @@ mod machine;
 mod parser;
 pub mod util;
 pub mod vm;
+pub mod device;
 
 pub use self::diagnostic::*;
 pub use self::document::*;
