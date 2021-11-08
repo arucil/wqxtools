@@ -8,9 +8,9 @@ std::optional<std::function<ToolCtor>>
 ToolFactoryRegistry::get(const QString &ext) {
   auto it = toolFactories.find(ext.toLower());
   if (it == toolFactories.end()) {
-    return std::make_optional<decltype(it->second)>();
+    return {};
   } else {
-    return std::make_optional(it->second);
+    return it->second;
   }
 }
 
@@ -20,7 +20,9 @@ void ToolFactoryRegistry::registerFactory(
     toolFactories[ext] = factory.ctor;
   }
 
-  extensions[name] = factory.extensions;
+  for (const auto &ext : factory.extensions) {
+    extensions[name].insert(ext.toLower());
+  }
 }
 
 const std::map<QString, std::set<QString>> &

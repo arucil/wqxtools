@@ -180,25 +180,54 @@ QStatusBar *GvbEditor::initStatusBar() {
   return statusbar;
 }
 
-ActionResult GvbEditor::save(const QString &) {
-  m_edit->setSavePoint();
-  // TODO
-  return ActionResult::Succeed;
+SaveResult GvbEditor::save(const QString &path) {
+  auto saveToPath = path;
+  while (true) {
+    auto result = gvb::save_document(
+        m_doc, {saveToPath.utf16(), static_cast<size_t>(saveToPath.size())});
+    if (result.tag == gvb::Either<gvb::SaveError, gvb::Unit>::Tag::Left) {
+      auto msg = result.left._0.message;
+      auto err = QString::fromUtf8(msg.data, msg.len);
+      gvb::destroy_string(msg);
+      if (result.left._0.bas_specific) {
+        auto result = QMessageBox::question(
+            getMainWindow(), "文件保存失败",
+            tr("发生错误：%1。无法保存为 .BAS 文件，是否保存为 .TXT 文件？")
+                .arg(err),
+            QMessageBox::StandardButton::Yes | QMessageBox::StandardButton::No |
+                QMessageBox::StandardButton::Cancel);
+        if (result == QMessageBox::StandardButton::Yes) {
+          auto info = QFileInfo(saveToPath);
+          saveToPath = info.path() + "/" + info.completeBaseName() + ".TXT";
+          continue;
+        } else if (result == QMessageBox::StandardButton::No) {
+          return SaveResult{
+              std::in_place_index<1>, std::make_optional<QString>()};
+        } else {
+          return {};
+        }
+      } else {
+        return SaveResult{std::in_place_index<1>, err};
+      }
+    } else {
+      m_edit->setSavePoint();
+      return SaveResult{std::in_place_index<0>, path};
+    }
+  }
 }
 
 void GvbEditor::create() {
   // TODO
 }
 
-ActionResult GvbEditor::load(const QString &path) {
+LoadResult GvbEditor::load(const QString &path) {
   auto result =
       gvb::load_document({path.utf16(), static_cast<size_t>(path.size())});
   if (result.tag == gvb::Either<gvb::Utf8String, gvb::Document *>::Tag::Left) {
     auto msg = result.left._0;
-    QMessageBox::critical(
-        getMainWindow(), "文件打开失败", QString::fromUtf8(msg.data, msg.len));
+    auto err = QString::fromUtf8(msg.data, msg.len);
     gvb::destroy_string(msg);
-    return ActionResult::Fail;
+    return err;
   } else {
     if (m_doc) {
       gvb::destroy_document(m_doc);
@@ -223,7 +252,7 @@ ActionResult GvbEditor::load(const QString &path) {
 
     computeDiagnostics();
 
-    return ActionResult::Succeed;
+    return Unit{};
   }
 }
 

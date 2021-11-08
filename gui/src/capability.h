@@ -1,8 +1,9 @@
 #pragma once
 
-#include "value.h"
 #include "util.h"
+#include "value.h"
 #include <QAction>
+#include <optional>
 
 class QObject;
 class QString;
@@ -26,8 +27,13 @@ public:
   BoolValue m_dirty;
 };
 
+// succeeded: new path
+// failed: error message (optional)
+// cancelled
+using SaveResult = std::variant<QString, std::optional<QString>, Unit>;
+
 struct FileCapabilities {
-  virtual ActionResult save(const QString &) = 0;
+  virtual SaveResult save(const QString &) = 0;
   virtual void create() = 0;
 
 public:

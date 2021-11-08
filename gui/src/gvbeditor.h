@@ -177,7 +177,7 @@ signals:
   void updateDiagnostics(std::vector<Diagnostic>);
 
 public slots:
-  ActionResult save(const QString &);
+  SaveResult save(const QString &) override;
   void create();
   void find();
   void replace();
@@ -186,7 +186,7 @@ public slots:
   void paste();
   void undo();
   void redo();
-  ActionResult load(const QString &);
+  LoadResult load(const QString &);
   bool canLoad(const QString &) const;
 
 private slots:

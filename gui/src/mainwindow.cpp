@@ -18,6 +18,10 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
   initUi();
 
   resize(800, 540);
+
+  QTimer::singleShot(0, [this] {
+    m_loaded.setValue(false);
+  });
 }
 
 void MainWindow::initUi() {
@@ -43,9 +47,11 @@ void MainWindow::initMenu() {
   m_actSave = mnuFile->addAction("保存(&S)");
   m_actSave->setShortcut(Qt::CTRL | Qt::Key_S);
   connect(m_actSave, &QAction::triggered, this, &MainWindow::saveFile);
+  connect(&m_loaded, &BoolValue::changed, m_actSave, &QAction::setEnabled);
 
   m_actSaveAs = mnuFile->addAction("另存为...");
   connect(m_actSaveAs, &QAction::triggered, this, &MainWindow::saveFileAs);
+  connect(&m_loaded, &BoolValue::changed, m_actSaveAs, &QAction::setEnabled);
 
   mnuFile->addSeparator();
 
@@ -57,6 +63,7 @@ void MainWindow::initMenu() {
 
   m_actUndo = mnuEdit->addAction("撤销");
   m_actUndo->setShortcut(Qt::CTRL | Qt::Key_Z);
+  connect(&m_loaded, &BoolValue::changed, mnuEdit, &QMenu::setEnabled);
 
   m_actRedo = mnuEdit->addAction("重做");
   m_actRedo->setShortcut(Qt::CTRL | Qt::Key_Y);
@@ -140,10 +147,16 @@ void MainWindow::openFileByPath(const QString &path) {
     widget = ctor.value()(this);
     setCentralWidget(widget);
   }
+
   QTimer::singleShot(0, [widget, path, this] {
-    if (widget->load(path) == ActionResult::Fail) {
+    auto result = widget->load(path);
+    if (auto err = std::get_if<QString>(&result)) {
+      QMessageBox::critical(this, "文件打开失败", *err);
       setCentralWidget(nullptr);
       m_openFilePath.setValue(QString());
+      m_loaded.setValue(false);
+    } else {
+      m_loaded.setValue(true);
     }
   });
 
@@ -233,26 +246,29 @@ ActionResult MainWindow::saveFile() {
     return saveFileAs(true);
   }
   if (auto edit = dynamic_cast<FileCapabilities *>(centralWidget())) {
-    return edit->save(m_openFilePath.value());
+    return handleSaveFileError(edit->save(m_openFilePath.value()));
   }
   return ActionResult::Succeed;
 }
 
 ActionResult MainWindow::saveFileAs(bool save) {
   if (auto edit = dynamic_cast<FileCapabilities *>(centralWidget())) {
-    auto ext = QFileInfo(m_openFilePath.value()).suffix();
+    auto ext = QFileInfo(m_openFilePath.value()).suffix().toLower();
     QString filter;
     auto semi = false;
     for (const auto &i : ToolFactoryRegistry::getExtensions()) {
-      if (semi) {
-        filter += ";;";
-      }
-      semi = true;
       if (i.second.count(ext)) {
-        filter += i.first;
-        filter += " (*.";
-        filter += ext;
-        filter += ")";
+        for (const auto &ext : i.second) {
+          if (semi) {
+            filter += ";;";
+          }
+          semi = true;
+          filter += i.first;
+          filter += " (";
+          filter += " *.";
+          filter += ext;
+          filter += ")";
+        }
       }
     }
     auto path = QFileDialog::getSaveFileName(
@@ -261,6 +277,13 @@ ActionResult MainWindow::saveFileAs(bool save) {
             QFileDialog::Option::DontUseNativeDialog);
     if (path.isEmpty()) {
       return ActionResult::Fail;
+    }
+
+    if (QFileInfo(path).suffix().isEmpty() &&
+        !m_openFilePath.value().isEmpty()) {
+      auto ext = QFileInfo(m_openFilePath.value()).suffix();
+      path += '.';
+      path += ext;
     }
 
     auto f = QFileInfo(path);
@@ -278,9 +301,24 @@ ActionResult MainWindow::saveFileAs(bool save) {
     }
 
     m_openFilePath.setValue(path);
-    return edit->save(path);
+    return handleSaveFileError(edit->save(path));
   } else {
     return ActionResult::Succeed;
+  }
+}
+
+ActionResult MainWindow::handleSaveFileError(const SaveResult &result) {
+  if (auto newPath = std::get_if<QString>(&result)) {
+    m_openFilePath.setValue(*newPath);
+    return ActionResult::Succeed;
+  } else if (auto err = std::get_if<std::optional<QString>>(&result)) {
+    if (err->has_value()) {
+      QMessageBox::critical(this, "文件保存失败", err->value());
+    }
+    return ActionResult::Fail;
+  } else {
+    // cancelled
+    return ActionResult::Fail;
   }
 }
 

@@ -1,7 +1,8 @@
 #pragma once
 
+#include "gvbeditor.h"
 #include "util.h"
-#include "value.h"
+#include "capability.h"
 #include <QMainWindow>
 
 class QWidget;
@@ -31,6 +32,7 @@ private slots:
 
 private:
   void openFileByPath(const QString &);
+  ActionResult handleSaveFileError(const SaveResult &);
 
 protected:
   void closeEvent(QCloseEvent *) override;
@@ -48,4 +50,5 @@ private:
   QAction *m_actReplace;
 
   StrValue m_openFilePath;
+  BoolValue m_loaded;
 };
