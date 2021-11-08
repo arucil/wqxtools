@@ -135,11 +135,19 @@ fn build_machine_props_map() -> Result<(), Box<dyn Error>> {
 
   writeln!(&mut file, "use phf::phf_map;")?;
   writeln!(&mut file)?;
+
+  let defaults = map["default"].get::<HashMap<String, JsonValue>>().unwrap();
   writeln!(
     &mut file,
-    "pub const DEFAULT_MACHINE: &'static str = \"{}\";",
-    map["default"].get::<String>().unwrap().to_ascii_uppercase()
+    "pub const DEFAULT_MACHINE_FOR_NEW_EMOJI_STYLE: &'static str = \"{}\";",
+    defaults["new"].get::<String>().unwrap().to_ascii_uppercase()
   )?;
+  writeln!(
+    &mut file,
+    "pub const DEFAULT_MACHINE_FOR_OLD_EMOJI_STYLE: &'static str = \"{}\";",
+    defaults["old"].get::<String>().unwrap().to_ascii_uppercase()
+  )?;
+
   writeln!(
     &mut file,
     "pub static MACHINES: phf::Map<&'static str, MachineProps> = phf_map! {{"

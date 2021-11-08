@@ -72,6 +72,13 @@ impl EmojiStyle {
       Self::New => Some(0xf8a1 + ((c / 94) << 8) + c % 94),
     }
   }
+
+  pub const fn default_machine_name(&self) -> &'static str {
+    match self {
+      Self::New => super::DEFAULT_MACHINE_FOR_NEW_EMOJI_STYLE,
+      Self::Old => super::DEFAULT_MACHINE_FOR_OLD_EMOJI_STYLE,
+    }
+  }
 }
 
 #[cfg(test)]

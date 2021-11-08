@@ -1,5 +1,8 @@
 {
-  "default": "tc808",
+  "default": {
+    "new": "tc808",
+    "old": "pc1000a"
+  },
   "tc808": {
     "emoji_style": "new",
     "sleep_unit": "0.7ms",

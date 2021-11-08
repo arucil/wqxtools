@@ -104,8 +104,9 @@ impl Document {
     Self {
       base_addr: binary::DEFAULT_BASE_ADDR,
       emoji_style: EmojiStyle::New,
-      machine_props: crate::machine::MACHINES[crate::machine::DEFAULT_MACHINE]
-        .clone(),
+      machine_props: crate::machine::MACHINES
+        [EmojiStyle::New.default_machine_name()]
+      .clone(),
       lines: text_to_doc_lines("10 "),
       version: DocVer(0),
       compile_cache: None,
@@ -157,7 +158,7 @@ impl Document {
       machine_props = props;
     } else {
       machine_props =
-        crate::machine::MACHINES[crate::machine::DEFAULT_MACHINE].clone();
+        crate::machine::MACHINES[emoji_style.default_machine_name()].clone();
     }
 
     let lines = text_to_doc_lines(doc.text);
@@ -263,8 +264,9 @@ impl Document {
     if let Some(Ok(props)) = detect_machine_props(self.text()) {
       self.machine_props = props.clone();
     } else {
-      self.machine_props =
-        crate::machine::MACHINES[crate::machine::DEFAULT_MACHINE].clone();
+      self.machine_props = crate::machine::MACHINES
+        [self.emoji_style.default_machine_name()]
+      .clone();
     }
     todo!("set emoji_style, reload text")
   }
