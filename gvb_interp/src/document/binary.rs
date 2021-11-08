@@ -430,8 +430,6 @@ pub fn save_bas(
     });
   }
 
-  std::fs::write("shit.bas", &bytes).unwrap();
-
   Ok(bytes)
 }
 

@@ -1,4 +1,3 @@
-use itertools::Itertools;
 use std::fs;
 use std::io;
 use std::path::Path;
@@ -12,10 +11,13 @@ use crate::{CodeGen, Diagnostic};
 
 mod binary;
 
+const DEFAULT_TEXT: &str = "10 ";
+
 pub struct Document {
   base_addr: u16,
   emoji_style: EmojiStyle,
   machine_props: MachineProps,
+  text: String,
   lines: Vec<DocLine>,
   version: DocVer,
   compile_cache: Option<CompileCache>,
@@ -31,8 +33,7 @@ struct CompileCache {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct DocLine<T = ParseResult<ProgramLine>> {
-  /// includes EOL
-  text: String,
+  line_start: usize,
   parsed: Option<T>,
 }
 
@@ -107,7 +108,8 @@ impl Document {
       machine_props: crate::machine::MACHINES
         [EmojiStyle::New.default_machine_name()]
       .clone(),
-      lines: text_to_doc_lines("10 "),
+      text: DEFAULT_TEXT.to_owned(),
+      lines: text_to_doc_lines(DEFAULT_TEXT),
       version: DocVer(0),
       compile_cache: None,
     }
@@ -161,12 +163,13 @@ impl Document {
         crate::machine::MACHINES[emoji_style.default_machine_name()].clone();
     }
 
-    let lines = text_to_doc_lines(doc.text);
+    let lines = text_to_doc_lines(&doc.text);
 
     Ok(Document {
       base_addr: doc.base_addr,
       emoji_style,
       machine_props,
+      text: doc.text,
       lines,
       version: DocVer(0),
       compile_cache: None,
@@ -207,20 +210,22 @@ impl Document {
 
   pub fn diagnostics(&mut self) -> Vec<LineDiagnosis> {
     let mut prog = Program {
-      lines: self
-        .lines
-        .iter_mut()
-        .map(|line| {
-          if let Some(p) = line.parsed.as_ref().cloned() {
-            p
-          } else {
-            let p = parse_line(&line.text).0;
-            line.parsed = Some(p.clone());
-            p
-          }
-        })
-        .collect(),
+      lines: Vec::with_capacity(self.lines.len()),
     };
+    for i in 0..self.lines.len() {
+      if let Some(p) = self.lines[i].parsed.as_ref().cloned() {
+        prog.lines.push(p);
+      } else {
+        let start = self.lines[i].line_start;
+        let end = self
+          .lines
+          .get(i + 1)
+          .map_or(self.text.len(), |line| line.line_start);
+        let p = parse_line(&self.text[start..end]).0;
+        self.lines[i].parsed = Some(p.clone());
+        prog.lines.push(p);
+      }
+    }
     let text = self.text();
     let mut codegen = CodeGen::new(self.emoji_style);
     compile_prog(text, &mut prog, &mut codegen);
@@ -229,31 +234,25 @@ impl Document {
       codegen,
     });
 
-    let mut line_diags: Vec<_> = prog
+    prog
       .lines
       .into_iter()
-      .map(|line| LineDiagnosis {
-        line_start: 0,
+      .zip(&self.lines)
+      .map(|(line, doc_line)| LineDiagnosis {
+        line_start: doc_line.line_start,
         diagnostics: line.diagnostics,
       })
-      .collect();
-
-    let mut line_start = 0;
-    for (i, line) in self.lines.iter().enumerate() {
-      line_diags[i].line_start = line_start;
-      line_start += line.text.len();
-    }
-
-    line_diags
+      .collect()
   }
 
   pub fn apply_edit(&mut self, edit: Edit) {
-    apply_edit(&mut self.lines, edit);
+    apply_edit(&mut self.text, &mut self.lines, edit);
     self.version.0 += 1;
   }
 
   pub fn text(&self) -> String {
-    self.lines.iter().map(|line| &line.text).join("")
+    // TODO &str
+    self.text.clone()
   }
 
   pub fn machine_name(&self) -> &'static str {
@@ -301,78 +300,76 @@ fn text_to_doc_lines(text: impl AsRef<str>) -> Vec<DocLine> {
   let mut line_start = 0;
   while let Some(eol) = text[line_start..].find('\n') {
     lines.push(DocLine {
-      text: text[line_start..line_start + eol + 1].to_owned(),
+      line_start,
       parsed: None,
     });
     line_start += eol + 1;
   }
   lines.push(DocLine {
-    text: text[line_start..].to_owned(),
+    line_start,
     parsed: None,
   });
   lines
 }
 
-fn apply_edit(lines: &mut Vec<DocLine>, edit: Edit) {
-  let mut offset = 0;
+fn apply_edit(text: &mut String, lines: &mut Vec<DocLine>, edit: Edit) {
   let mut i = 0;
-  while i < lines.len() - 1 && offset + lines[i].text.len() <= edit.pos {
-    offset += lines[i].text.len();
+  while i < lines.len() - 1 && edit.pos >= lines[i + 1].line_start {
     i += 1;
   }
 
   match edit.kind {
     EditKind::Insert(str) => {
-      let start = edit.pos - offset;
-      lines[i].text.insert_str(start, &str);
+      text.insert_str(edit.pos, &str);
       lines[i].parsed = None;
+
       if str.contains('\n') {
-        let mut new_lines = text_to_doc_lines(&lines[i].text);
-        if lines[i].text.ends_with('\n') {
+        let line_start = lines[i].line_start;
+        let line_end = lines
+          .get(i + 1)
+          .map_or(text.len(), |line| line.line_start + str.len());
+        let line = &text[line_start..line_end];
+        let mut new_lines = text_to_doc_lines(line);
+        if line.ends_with('\n') {
           new_lines.pop();
         }
+        let num_new_lines = new_lines.len();
         lines.splice(i..i + 1, new_lines);
+        for i in i..i + num_new_lines {
+          lines[i].line_start += line_start;
+        }
+        i += num_new_lines - 1;
+      }
+
+      for line in &mut lines[i + 1..] {
+        line.line_start += str.len();
       }
     }
-    EditKind::Delete(mut del_len) => {
-      let len = lines[i].text.len() + offset - edit.pos;
+    EditKind::Delete(del_len) => {
       lines[i].parsed = None;
-      let start = edit.pos - offset;
-      let end = (start + del_len).min(lines[i].text.len());
-      lines[i].text.replace_range(start..end, "");
-      if del_len > len {
-        del_len -= len;
-        let mut j = i + 1;
-        while del_len > 0 {
-          lines[j].parsed = None;
-          let end = del_len.min(lines[j].text.len());
-          lines[j].text.replace_range(..end, "");
-          del_len -= end;
-          j += 1;
-        }
-        let i = if lines[i].text.is_empty() { i } else { i + 1 };
-        let j = if lines[j - 1].text.is_empty() {
-          j
+      let deleted_part = &text[edit.pos..edit.pos + del_len];
+      if deleted_part.contains('\n') {
+        let deleted_lines = deleted_part.matches('\n').count();
+        let line_start = lines[i].line_start;
+        if edit.pos == line_start && deleted_part.ends_with('\n') {
+          lines.drain(i..i + deleted_lines);
+          lines[i].line_start = line_start;
         } else {
-          j - 1
-        };
-        lines.drain(i..j);
-      } else if start == 0 && del_len == len {
-        lines.remove(i);
+          lines.drain(i + 1..i + deleted_lines + 1);
+        }
       }
-      if !lines.is_empty()
-        && i < lines.len() - 1
-        && !lines[i].text.ends_with('\n')
-      {
-        let next_line = lines.remove(i + 1).text;
-        lines[i].text.push_str(&next_line);
+      for line in &mut lines[i + 1..] {
+        line.line_start -= del_len;
       }
+      text.replace_range(edit.pos..edit.pos + del_len, "");
     }
   }
 
-  if lines.is_empty() || lines.last().unwrap().text.ends_with('\n') {
+  if lines.is_empty()
+    || text.ends_with('\n') && lines.last().unwrap().line_start < text.len()
+  {
     lines.push(DocLine {
-      text: String::new(),
+      line_start: text.len(),
       parsed: None,
     });
   }
@@ -386,35 +383,36 @@ mod tests {
   use pretty_assertions::assert_eq;
   use smallvec::SmallVec;
 
-  fn doc_line(text: impl ToString) -> DocLine<()> {
-    let text = text.to_string();
+  fn doc_line(line_start: usize) -> DocLine<()> {
     DocLine {
+      line_start,
       parsed: Some(()),
-      text,
     }
   }
 
-  fn dirty_doc_line(text: impl ToString) -> DocLine<()> {
-    let text = text.to_string();
-    DocLine { parsed: None, text }
+  fn dirty_doc_line(line_start: usize) -> DocLine<()> {
+    DocLine {
+      line_start,
+      parsed: None,
+    }
   }
 
   fn doc_lines(lines: Vec<DocLine>) -> Vec<DocLine<()>> {
     lines
       .into_iter()
       .map(|line| DocLine {
-        text: line.text,
+        line_start: line.line_start,
         parsed: line.parsed.map(|_| ()),
       })
       .collect()
   }
 
-  fn dummy_parsed(source_len: usize) -> ParseResult<ProgramLine> {
+  fn dummy_parsed() -> ParseResult<ProgramLine> {
     ParseResult {
       stmt_arena: Arena::new(),
       expr_arena: Arena::new(),
       content: ProgramLine {
-        source_len,
+        source_len: 0,
         label: None,
         stmts: SmallVec::new(),
         eol: Eol::CrLf,
@@ -423,13 +421,13 @@ mod tests {
     }
   }
 
-  fn make_lines(text: &str) -> Vec<DocLine> {
+  fn make_lines(text: &str) -> (String, Vec<DocLine>) {
     let text = text.replace('\n', "\r\n");
-    let mut lines = text_to_doc_lines(text);
+    let mut lines = text_to_doc_lines(&text);
     for line in &mut lines {
-      line.parsed = Some(dummy_parsed(line.text.len()));
+      line.parsed = Some(dummy_parsed());
     }
-    lines
+    (text, lines)
   }
 
   const INPUT: &str = "\
@@ -440,8 +438,9 @@ no";
 
   #[test]
   fn delete_middle() {
-    let mut lines = make_lines(INPUT);
+    let (mut text, mut lines) = make_lines(INPUT);
     apply_edit(
+      &mut text,
       &mut lines,
       Edit {
         pos: 13,
@@ -449,21 +448,19 @@ no";
       },
     );
 
+    assert_eq!(text.as_str(), "abcd\r\nefg\r\nhim\r\nno");
+
     assert_eq!(
       doc_lines(lines),
-      vec![
-        doc_line("abcd\r\n"),
-        doc_line("efg\r\n"),
-        dirty_doc_line("him\r\n"),
-        doc_line("no"),
-      ]
+      vec![doc_line(0), doc_line(6), dirty_doc_line(11), doc_line(16),]
     );
   }
 
   #[test]
   fn delete_to_end() {
-    let mut lines = make_lines(INPUT);
+    let (mut text, mut lines) = make_lines(INPUT);
     apply_edit(
+      &mut text,
       &mut lines,
       Edit {
         pos: 1,
@@ -471,21 +468,19 @@ no";
       },
     );
 
+    assert_eq!(text.as_str(), "a\r\nefg\r\nhijklm\r\nno");
+
     assert_eq!(
       doc_lines(lines),
-      vec![
-        dirty_doc_line("a\r\n"),
-        doc_line("efg\r\n"),
-        doc_line("hijklm\r\n"),
-        doc_line("no"),
-      ]
+      vec![dirty_doc_line(0), doc_line(3), doc_line(8), doc_line(16),]
     );
   }
 
   #[test]
   fn delete_to_newline() {
-    let mut lines = make_lines(INPUT);
+    let (mut text, mut lines) = make_lines(INPUT);
     apply_edit(
+      &mut text,
       &mut lines,
       Edit {
         pos: 1,
@@ -493,20 +488,19 @@ no";
       },
     );
 
+    assert_eq!(text.as_str(), "aefg\r\nhijklm\r\nno");
+
     assert_eq!(
       doc_lines(lines),
-      vec![
-        dirty_doc_line("aefg\r\n"),
-        doc_line("hijklm\r\n"),
-        doc_line("no"),
-      ]
+      vec![dirty_doc_line(0), doc_line(6), doc_line(14),]
     );
   }
 
   #[test]
   fn delete_newline() {
-    let mut lines = make_lines(INPUT);
+    let (mut text, mut lines) = make_lines(INPUT);
     apply_edit(
+      &mut text,
       &mut lines,
       Edit {
         pos: 4,
@@ -514,20 +508,19 @@ no";
       },
     );
 
+    assert_eq!(text.as_str(), "abcdefg\r\nhijklm\r\nno");
+
     assert_eq!(
       doc_lines(lines),
-      vec![
-        dirty_doc_line("abcdefg\r\n"),
-        doc_line("hijklm\r\n"),
-        doc_line("no"),
-      ]
+      vec![dirty_doc_line(0), doc_line(9), doc_line(17),]
     );
   }
 
   #[test]
   fn delete_join_lines() {
-    let mut lines = make_lines(INPUT);
+    let (mut text, mut lines) = make_lines(INPUT);
     apply_edit(
+      &mut text,
       &mut lines,
       Edit {
         pos: 3,
@@ -535,20 +528,19 @@ no";
       },
     );
 
+    assert_eq!(text.as_str(), "abcfg\r\nhijklm\r\nno");
+
     assert_eq!(
       doc_lines(lines),
-      vec![
-        dirty_doc_line("abcfg\r\n"),
-        doc_line("hijklm\r\n"),
-        doc_line("no"),
-      ]
+      vec![dirty_doc_line(0), doc_line(7), doc_line(15),]
     );
   }
 
   #[test]
   fn delete_first_line() {
-    let mut lines = make_lines(INPUT);
+    let (mut text, mut lines) = make_lines(INPUT);
     apply_edit(
+      &mut text,
       &mut lines,
       Edit {
         pos: 0,
@@ -556,16 +548,19 @@ no";
       },
     );
 
+    assert_eq!(text.as_str(), "efg\r\nhijklm\r\nno");
+
     assert_eq!(
       doc_lines(lines),
-      vec![doc_line("efg\r\n"), doc_line("hijklm\r\n"), doc_line("no"),]
+      vec![doc_line(0), doc_line(5), doc_line(13),]
     );
   }
 
   #[test]
   fn delete_last_line() {
-    let mut lines = make_lines(INPUT);
+    let (mut text, mut lines) = make_lines(INPUT);
     apply_edit(
+      &mut text,
       &mut lines,
       Edit {
         pos: 19,
@@ -573,21 +568,19 @@ no";
       },
     );
 
+    assert_eq!(text.as_str(), "abcd\r\nefg\r\nhijklm\r\n");
+
     assert_eq!(
       doc_lines(lines),
-      vec![
-        doc_line("abcd\r\n"),
-        doc_line("efg\r\n"),
-        doc_line("hijklm\r\n"),
-        dirty_doc_line(""),
-      ]
+      vec![doc_line(0), doc_line(6), doc_line(11), dirty_doc_line(19),]
     );
   }
 
   #[test]
   fn delete_middle_line() {
-    let mut lines = make_lines(INPUT);
+    let (mut text, mut lines) = make_lines(INPUT);
     apply_edit(
+      &mut text,
       &mut lines,
       Edit {
         pos: 11,
@@ -595,16 +588,19 @@ no";
       },
     );
 
+    assert_eq!(text.as_str(), "abcd\r\nefg\r\nno");
+
     assert_eq!(
       doc_lines(lines),
-      vec![doc_line("abcd\r\n"), doc_line("efg\r\n"), doc_line("no"),]
+      vec![doc_line(0), doc_line(6), doc_line(11),]
     );
   }
 
   #[test]
   fn delete_first_multiple_lines() {
-    let mut lines = make_lines(INPUT);
+    let (mut text, mut lines) = make_lines(INPUT);
     apply_edit(
+      &mut text,
       &mut lines,
       Edit {
         pos: 0,
@@ -612,13 +608,16 @@ no";
       },
     );
 
-    assert_eq!(doc_lines(lines), vec![doc_line("no")]);
+    assert_eq!(text.as_str(), "no");
+
+    assert_eq!(doc_lines(lines), vec![doc_line(0)]);
   }
 
   #[test]
   fn delete_last_multiple_lines() {
-    let mut lines = make_lines(INPUT);
+    let (mut text, mut lines) = make_lines(INPUT);
     apply_edit(
+      &mut text,
       &mut lines,
       Edit {
         pos: 6,
@@ -626,16 +625,16 @@ no";
       },
     );
 
-    assert_eq!(
-      doc_lines(lines),
-      vec![doc_line("abcd\r\n"), dirty_doc_line("")]
-    );
+    assert_eq!(text.as_str(), "abcd\r\n");
+
+    assert_eq!(doc_lines(lines), vec![doc_line(0), dirty_doc_line(6)]);
   }
 
   #[test]
   fn delete_middle_multiple_lines() {
-    let mut lines = make_lines(INPUT);
+    let (mut text, mut lines) = make_lines(INPUT);
     apply_edit(
+      &mut text,
       &mut lines,
       Edit {
         pos: 6,
@@ -643,13 +642,16 @@ no";
       },
     );
 
-    assert_eq!(doc_lines(lines), vec![doc_line("abcd\r\n"), doc_line("no")]);
+    assert_eq!(text.as_str(), "abcd\r\nno");
+
+    assert_eq!(doc_lines(lines), vec![doc_line(0), doc_line(6)]);
   }
 
   #[test]
   fn delete_across_multiple_lines() {
-    let mut lines = make_lines(INPUT);
+    let (mut text, mut lines) = make_lines(INPUT);
     apply_edit(
+      &mut text,
       &mut lines,
       Edit {
         pos: 2,
@@ -657,16 +659,16 @@ no";
       },
     );
 
-    assert_eq!(
-      doc_lines(lines),
-      vec![dirty_doc_line("abjklm\r\n"), doc_line("no")]
-    );
+    assert_eq!(text.as_str(), "abjklm\r\nno");
+
+    assert_eq!(doc_lines(lines), vec![dirty_doc_line(0), doc_line(8)]);
   }
 
   #[test]
   fn delete_across_multiple_lines_until_newline() {
-    let mut lines = make_lines(INPUT);
+    let (mut text, mut lines) = make_lines(INPUT);
     apply_edit(
+      &mut text,
       &mut lines,
       Edit {
         pos: 2,
@@ -674,16 +676,16 @@ no";
       },
     );
 
-    assert_eq!(
-      doc_lines(lines),
-      vec![dirty_doc_line("ab\r\n"), doc_line("no")]
-    );
+    assert_eq!(text.as_str(), "ab\r\nno");
+
+    assert_eq!(doc_lines(lines), vec![dirty_doc_line(0), doc_line(4)]);
   }
 
   #[test]
   fn delete_across_multiple_lines_newline() {
-    let mut lines = make_lines(INPUT);
+    let (mut text, mut lines) = make_lines(INPUT);
     apply_edit(
+      &mut text,
       &mut lines,
       Edit {
         pos: 2,
@@ -691,13 +693,16 @@ no";
       },
     );
 
-    assert_eq!(doc_lines(lines), vec![dirty_doc_line("abno")]);
+    assert_eq!(text.as_str(), "abno");
+
+    assert_eq!(doc_lines(lines), vec![dirty_doc_line(0)]);
   }
 
   #[test]
   fn delete_all() {
-    let mut lines = make_lines(INPUT);
+    let (mut text, mut lines) = make_lines(INPUT);
     apply_edit(
+      &mut text,
       &mut lines,
       Edit {
         pos: 0,
@@ -705,13 +710,16 @@ no";
       },
     );
 
-    assert_eq!(doc_lines(lines), vec![dirty_doc_line(""),]);
+    assert_eq!(text.as_str(), "");
+
+    assert_eq!(doc_lines(lines), vec![dirty_doc_line(0),]);
   }
 
   #[test]
   fn insert_middle() {
-    let mut lines = make_lines(INPUT);
+    let (mut text, mut lines) = make_lines(INPUT);
     apply_edit(
+      &mut text,
       &mut lines,
       Edit {
         pos: 13,
@@ -719,21 +727,19 @@ no";
       },
     );
 
+    assert_eq!(text.as_str(), "abcd\r\nefg\r\nhi123jklm\r\nno");
+
     assert_eq!(
       doc_lines(lines),
-      vec![
-        doc_line("abcd\r\n"),
-        doc_line("efg\r\n"),
-        dirty_doc_line("hi123jklm\r\n"),
-        doc_line("no")
-      ]
+      vec![doc_line(0), doc_line(6), dirty_doc_line(11), doc_line(22)]
     );
   }
 
   #[test]
   fn insert_into_empty() {
-    let mut lines = make_lines("");
+    let (mut text, mut lines) = make_lines("");
     apply_edit(
+      &mut text,
       &mut lines,
       Edit {
         pos: 0,
@@ -741,13 +747,16 @@ no";
       },
     );
 
-    assert_eq!(doc_lines(lines), vec![dirty_doc_line("123"),]);
+    assert_eq!(text.as_str(), "123");
+
+    assert_eq!(doc_lines(lines), vec![dirty_doc_line(0)]);
   }
 
   #[test]
   fn insert_after_newline() {
-    let mut lines = make_lines(INPUT);
+    let (mut text, mut lines) = make_lines(INPUT);
     apply_edit(
+      &mut text,
       &mut lines,
       Edit {
         pos: 11,
@@ -755,21 +764,19 @@ no";
       },
     );
 
+    assert_eq!(text.as_str(), "abcd\r\nefg\r\n123hijklm\r\nno");
+
     assert_eq!(
       doc_lines(lines),
-      vec![
-        doc_line("abcd\r\n"),
-        doc_line("efg\r\n"),
-        dirty_doc_line("123hijklm\r\n"),
-        doc_line("no")
-      ]
+      vec![doc_line(0), doc_line(6), dirty_doc_line(11), doc_line(22)]
     );
   }
 
   #[test]
   fn insert_at_start() {
-    let mut lines = make_lines(INPUT);
+    let (mut text, mut lines) = make_lines(INPUT);
     apply_edit(
+      &mut text,
       &mut lines,
       Edit {
         pos: 0,
@@ -777,21 +784,19 @@ no";
       },
     );
 
+    assert_eq!(text.as_str(), "123abcd\r\nefg\r\nhijklm\r\nno");
+
     assert_eq!(
       doc_lines(lines),
-      vec![
-        dirty_doc_line("123abcd\r\n"),
-        doc_line("efg\r\n"),
-        doc_line("hijklm\r\n"),
-        doc_line("no")
-      ]
+      vec![dirty_doc_line(0), doc_line(9), doc_line(14), doc_line(22),]
     );
   }
 
   #[test]
   fn insert_before_newline() {
-    let mut lines = make_lines(INPUT);
+    let (mut text, mut lines) = make_lines(INPUT);
     apply_edit(
+      &mut text,
       &mut lines,
       Edit {
         pos: 17,
@@ -799,21 +804,19 @@ no";
       },
     );
 
+    assert_eq!(text.as_str(), "abcd\r\nefg\r\nhijklm123\r\nno");
+
     assert_eq!(
       doc_lines(lines),
-      vec![
-        doc_line("abcd\r\n"),
-        doc_line("efg\r\n"),
-        dirty_doc_line("hijklm123\r\n"),
-        doc_line("no")
-      ]
+      vec![doc_line(0), doc_line(6), dirty_doc_line(11), doc_line(22)]
     );
   }
 
   #[test]
   fn insert_at_end() {
-    let mut lines = make_lines(&INPUT[..INPUT.len() - 2]);
+    let (mut text, mut lines) = make_lines(&INPUT[..INPUT.len() - 2]);
     apply_edit(
+      &mut text,
       &mut lines,
       Edit {
         pos: 19,
@@ -821,21 +824,19 @@ no";
       },
     );
 
+    assert_eq!(text.as_str(), "abcd\r\nefg\r\nhijklm\r\nno");
+
     assert_eq!(
       doc_lines(lines),
-      vec![
-        doc_line("abcd\r\n"),
-        doc_line("efg\r\n"),
-        doc_line("hijklm\r\n"),
-        dirty_doc_line("no")
-      ]
+      vec![doc_line(0), doc_line(6), doc_line(11), dirty_doc_line(19),]
     );
   }
 
   #[test]
   fn insert_multiple_lines_at_start() {
-    let mut lines = make_lines(INPUT);
+    let (mut text, mut lines) = make_lines(INPUT);
     apply_edit(
+      &mut text,
       &mut lines,
       Edit {
         pos: 0,
@@ -843,23 +844,77 @@ no";
       },
     );
 
+    assert_eq!(text.as_str(), "123\r\n45\r\nabcd\r\nefg\r\nhijklm\r\nno");
+
     assert_eq!(
       doc_lines(lines),
       vec![
-        dirty_doc_line("123\r\n"),
-        dirty_doc_line("45\r\n"),
-        dirty_doc_line("abcd\r\n"),
-        doc_line("efg\r\n"),
-        doc_line("hijklm\r\n"),
-        doc_line("no")
+        dirty_doc_line(0),
+        dirty_doc_line(5),
+        dirty_doc_line(9),
+        doc_line(15),
+        doc_line(20),
+        doc_line(28),
+      ]
+    );
+  }
+
+  #[test]
+  fn insert_multiple_lines_into_empty() {
+    let (mut text, mut lines) = make_lines("");
+    apply_edit(
+      &mut text,
+      &mut lines,
+      Edit {
+        pos: 0,
+        kind: EditKind::Insert("abcd\r\nefg\r\nhijklm\r\nno"),
+      },
+    );
+
+    assert_eq!(text.as_str(), "abcd\r\nefg\r\nhijklm\r\nno");
+
+    assert_eq!(
+      doc_lines(lines),
+      vec![
+        dirty_doc_line(0),
+        dirty_doc_line(6),
+        dirty_doc_line(11),
+        dirty_doc_line(19)
+      ]
+    );
+  }
+
+  #[test]
+  fn insert_multiple_lines_with_newline_into_empty() {
+    let (mut text, mut lines) = make_lines("");
+    apply_edit(
+      &mut text,
+      &mut lines,
+      Edit {
+        pos: 0,
+        kind: EditKind::Insert("abcd\r\nefg\r\nhijklm\r\nno\r\n"),
+      },
+    );
+
+    assert_eq!(text.as_str(), "abcd\r\nefg\r\nhijklm\r\nno\r\n");
+
+    assert_eq!(
+      doc_lines(lines),
+      vec![
+        dirty_doc_line(0),
+        dirty_doc_line(6),
+        dirty_doc_line(11),
+        dirty_doc_line(19),
+        dirty_doc_line(23),
       ]
     );
   }
 
   #[test]
   fn insert_multiple_lines() {
-    let mut lines = make_lines(INPUT);
+    let (mut text, mut lines) = make_lines(INPUT);
     apply_edit(
+      &mut text,
       &mut lines,
       Edit {
         pos: 13,
@@ -868,22 +923,151 @@ no";
     );
 
     assert_eq!(
+      text.as_str(),
+      "abcd\r\nefg\r\nhi123\r\n45\r\n6789jklm\r\nno"
+    );
+
+    assert_eq!(
       doc_lines(lines),
       vec![
-        doc_line("abcd\r\n"),
-        doc_line("efg\r\n"),
-        dirty_doc_line("hi123\r\n"),
-        dirty_doc_line("45\r\n"),
-        dirty_doc_line("6789jklm\r\n"),
-        doc_line("no")
+        doc_line(0),
+        doc_line(6),
+        dirty_doc_line(11),
+        dirty_doc_line(18),
+        dirty_doc_line(22),
+        doc_line(32)
+      ]
+    );
+  }
+
+  #[test]
+  fn insert_multiple_lines_after_newline() {
+    let (mut text, mut lines) = make_lines(INPUT);
+    apply_edit(
+      &mut text,
+      &mut lines,
+      Edit {
+        pos: 11,
+        kind: EditKind::Insert("123\r\n45\r\n6789"),
+      },
+    );
+
+    assert_eq!(
+      text.as_str(),
+      "abcd\r\nefg\r\n123\r\n45\r\n6789hijklm\r\nno"
+    );
+
+    assert_eq!(
+      doc_lines(lines),
+      vec![
+        doc_line(0),
+        doc_line(6),
+        dirty_doc_line(11),
+        dirty_doc_line(16),
+        dirty_doc_line(20),
+        doc_line(32)
+      ]
+    );
+  }
+
+  #[test]
+  fn insert_multiple_lines_and_newline_after_newline() {
+    let (mut text, mut lines) = make_lines(INPUT);
+    apply_edit(
+      &mut text,
+      &mut lines,
+      Edit {
+        pos: 11,
+        kind: EditKind::Insert("123\r\n45\r\n6789\r\n"),
+      },
+    );
+
+    assert_eq!(
+      text.as_str(),
+      "abcd\r\nefg\r\n123\r\n45\r\n6789\r\nhijklm\r\nno"
+    );
+
+    assert_eq!(
+      doc_lines(lines),
+      vec![
+        doc_line(0),
+        doc_line(6),
+        dirty_doc_line(11),
+        dirty_doc_line(16),
+        dirty_doc_line(20),
+        dirty_doc_line(26),
+        doc_line(34)
+      ]
+    );
+  }
+
+  #[test]
+  fn insert_multiple_lines_before_newline() {
+    let (mut text, mut lines) = make_lines("abcd\nefg\nhijklm\nno\n");
+    apply_edit(
+      &mut text,
+      &mut lines,
+      Edit {
+        pos: 17,
+        kind: EditKind::Insert("123\r\n45\r\n6789"),
+      },
+    );
+
+    assert_eq!(
+      text.as_str(),
+      "abcd\r\nefg\r\nhijklm123\r\n45\r\n6789\r\nno\r\n"
+    );
+
+    assert_eq!(
+      doc_lines(lines),
+      vec![
+        doc_line(0),
+        doc_line(6),
+        dirty_doc_line(11),
+        dirty_doc_line(22),
+        dirty_doc_line(26),
+        doc_line(32),
+        doc_line(36)
+      ]
+    );
+  }
+
+  #[test]
+  fn insert_multiple_lines_and_newline_before_newline() {
+    let (mut text, mut lines) = make_lines(INPUT);
+    apply_edit(
+      &mut text,
+      &mut lines,
+      Edit {
+        pos: 17,
+        kind: EditKind::Insert("123\r\n45\r\n6789\r\n"),
+      },
+    );
+
+    assert_eq!(
+      text.as_str(),
+      "abcd\r\nefg\r\nhijklm123\r\n45\r\n6789\r\n\r\nno"
+    );
+
+    assert_eq!(
+      doc_lines(lines),
+      vec![
+        doc_line(0),
+        doc_line(6),
+        dirty_doc_line(11),
+        dirty_doc_line(22),
+        dirty_doc_line(26),
+        dirty_doc_line(32),
+        doc_line(34)
       ]
     );
   }
 
   #[test]
   fn insert_multiple_lines_at_end() {
-    let mut lines = make_lines(INPUT);
+    let (mut text, mut lines) = make_lines(INPUT);
     apply_edit(
+      &mut text,
       &mut lines,
       Edit {
         pos: 21,
@@ -892,22 +1076,28 @@ no";
     );
 
     assert_eq!(
+      text.as_str(),
+      "abcd\r\nefg\r\nhijklm\r\nno123\r\n45\r\n6789"
+    );
+
+    assert_eq!(
       doc_lines(lines),
       vec![
-        doc_line("abcd\r\n"),
-        doc_line("efg\r\n"),
-        doc_line("hijklm\r\n"),
-        dirty_doc_line("no123\r\n"),
-        dirty_doc_line("45\r\n"),
-        dirty_doc_line("6789"),
+        doc_line(0),
+        doc_line(6),
+        doc_line(11),
+        dirty_doc_line(19),
+        dirty_doc_line(26),
+        dirty_doc_line(30),
       ]
     );
   }
 
   #[test]
   fn insert_multiple_lines_and_newline_at_end() {
-    let mut lines = make_lines(INPUT);
+    let (mut text, mut lines) = make_lines(INPUT);
     apply_edit(
+      &mut text,
       &mut lines,
       Edit {
         pos: 21,
@@ -916,15 +1106,81 @@ no";
     );
 
     assert_eq!(
+      text.as_str(),
+      "abcd\r\nefg\r\nhijklm\r\nno123\r\n45\r\n6789\r\n"
+    );
+
+    assert_eq!(
       doc_lines(lines),
       vec![
-        doc_line("abcd\r\n"),
-        doc_line("efg\r\n"),
-        doc_line("hijklm\r\n"),
-        dirty_doc_line("no123\r\n"),
-        dirty_doc_line("45\r\n"),
-        dirty_doc_line("6789\r\n"),
-        dirty_doc_line(""),
+        doc_line(0),
+        doc_line(6),
+        doc_line(11),
+        dirty_doc_line(19),
+        dirty_doc_line(26),
+        dirty_doc_line(30),
+        dirty_doc_line(36),
+      ]
+    );
+  }
+
+  #[test]
+  fn insert_multiple_lines_into_last_line() {
+    let (mut text, mut lines) = make_lines(INPUT);
+    apply_edit(
+      &mut text,
+      &mut lines,
+      Edit {
+        pos: 20,
+        kind: EditKind::Insert("123\r\n45\r\n6789"),
+      },
+    );
+
+    assert_eq!(
+      text.as_str(),
+      "abcd\r\nefg\r\nhijklm\r\nn123\r\n45\r\n6789o"
+    );
+
+    assert_eq!(
+      doc_lines(lines),
+      vec![
+        doc_line(0),
+        doc_line(6),
+        doc_line(11),
+        dirty_doc_line(19),
+        dirty_doc_line(25),
+        dirty_doc_line(29),
+      ]
+    );
+  }
+
+  #[test]
+  fn insert_multiple_lines_and_newline_into_last_line() {
+    let (mut text, mut lines) = make_lines(INPUT);
+    apply_edit(
+      &mut text,
+      &mut lines,
+      Edit {
+        pos: 20,
+        kind: EditKind::Insert("123\r\n45\r\n6789\r\n"),
+      },
+    );
+
+    assert_eq!(
+      text.as_str(),
+      "abcd\r\nefg\r\nhijklm\r\nn123\r\n45\r\n6789\r\no"
+    );
+
+    assert_eq!(
+      doc_lines(lines),
+      vec![
+        doc_line(0),
+        doc_line(6),
+        doc_line(11),
+        dirty_doc_line(19),
+        dirty_doc_line(25),
+        dirty_doc_line(29),
+        dirty_doc_line(35),
       ]
     );
   }
