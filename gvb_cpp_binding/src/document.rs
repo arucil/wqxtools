@@ -25,12 +25,7 @@ pub extern "C" fn load_document(
     Ok(doc) => Either::Right(Box::into_raw(box Document(doc))),
     Err(err) => {
       let msg = match err {
-        gvb::LoadDocumentError::Io(err) => match err.kind() {
-          io::ErrorKind::PermissionDenied => format!("无权限"),
-          io::ErrorKind::NotFound => format!("文件不存在"),
-          io::ErrorKind::IsADirectory => format!("是文件夹"),
-          _ => err.to_string(),
-        },
+        gvb::LoadDocumentError::Io(err) => io_error_to_string(err),
         gvb::LoadDocumentError::LoadBas(err) => {
           format!("文件偏移: {}, 错误信息: {}", err.location, err.message)
         }
@@ -46,6 +41,54 @@ pub extern "C" fn load_document(
       };
       Either::Left(unsafe { Utf8String::new(msg) })
     }
+  }
+}
+
+#[repr(C)]
+pub struct SaveError {
+  message: Utf8String,
+  bas_specific: bool,
+}
+
+#[repr(C)]
+pub struct Unit(pub i32);
+
+#[no_mangle]
+pub extern "C" fn save_document(
+  doc: *mut Document,
+  path: Utf16Str,
+) -> Either<SaveError, Unit> {
+  let path = unsafe { path.to_string() }.unwrap();
+  match unsafe { (*doc).0.save(path) } {
+    Ok(()) => Either::Right(Unit(0)),
+    Err(err) => {
+      let (msg, bas_specific) = match err {
+        gvb::SaveDocumentError::Io(err) => (io_error_to_string(err), false),
+        gvb::SaveDocumentError::InvalidExt(Some(_)) => {
+          (format!("无法识别的后缀名"), false)
+        }
+        gvb::SaveDocumentError::InvalidExt(None) => {
+          (format!("文件缺少后缀名"), false)
+        }
+        gvb::SaveDocumentError::Save(err) => (
+          format!("第 {} 行：{}", err.line, err.message),
+          err.bas_specific,
+        ),
+      };
+      Either::Left(SaveError {
+        message: unsafe { Utf8String::new(msg) },
+        bas_specific,
+      })
+    }
+  }
+}
+
+fn io_error_to_string(err: io::Error) -> String {
+  match err.kind() {
+    io::ErrorKind::PermissionDenied => format!("无权限"),
+    io::ErrorKind::NotFound => format!("文件不存在"),
+    io::ErrorKind::IsADirectory => format!("是文件夹"),
+    _ => err.to_string(),
   }
 }
 
