@@ -1075,19 +1075,29 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E, ProgramLine> {
         let (_, _) = self.compile_lvalue(var);
       }
     }
+
     match source {
-      InputSource::Keyboard(prompt) => {
+      InputSource::Keyboard(Some(prompt)) => {
+        let mut text = &self.text[prompt.start + 1..prompt.end];
+        if text.ends_with('"') {
+          text = &text[..text.len() - 1];
+        }
+        if self
+          .code_emitter
+          .emit_string(prompt.clone(), text.to_owned())
+        {
+          self.add_error(prompt.clone(), "字符串太长，长度超出 255");
+        }
         self.code_emitter.emit_keyboard_input(
           range,
-          prompt.as_ref().map(|p| {
-            let mut text = &self.text[p.start + 1..p.end];
-            if text.ends_with('"') {
-              text = &text[..text.len() - 1];
-            }
-            text.to_owned()
-          }),
+          Some(text.to_owned()),
           vars.len(),
         );
+      }
+      InputSource::Keyboard(None) => {
+        self
+          .code_emitter
+          .emit_keyboard_input(range, None, vars.len());
       }
       InputSource::File(filenum) => {
         let ty = self.compile_expr(*filenum);

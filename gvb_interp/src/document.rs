@@ -198,9 +198,9 @@ impl Document {
     };
 
     let data = if is_bas {
-      binary::save_bas(self.text(), self.emoji_style, self.base_addr)?
+      binary::save_bas(&self.text, self.emoji_style, self.base_addr)?
     } else {
-      binary::save_txt(self.text(), self.emoji_style)?
+      binary::save_txt(&self.text, self.emoji_style)?
     };
 
     fs::write(path, data)?;
@@ -226,9 +226,8 @@ impl Document {
         prog.lines.push(p);
       }
     }
-    let text = self.text();
     let mut codegen = CodeGen::new(self.emoji_style);
-    compile_prog(text, &mut prog, &mut codegen);
+    compile_prog(&self.text, &mut prog, &mut codegen);
     self.compile_cache = Some(CompileCache {
       version: self.version,
       codegen,
@@ -250,9 +249,8 @@ impl Document {
     self.version.0 += 1;
   }
 
-  pub fn text(&self) -> String {
-    // TODO &str
-    self.text.clone()
+  pub fn text(&self) -> &str {
+    &self.text
   }
 
   pub fn machine_name(&self) -> &'static str {
@@ -260,7 +258,7 @@ impl Document {
   }
 
   pub fn sync_machine(&mut self) {
-    if let Some(Ok(props)) = detect_machine_props(self.text()) {
+    if let Some(Ok(props)) = detect_machine_props(&self.text) {
       self.machine_props = props.clone();
     } else {
       self.machine_props = crate::machine::MACHINES

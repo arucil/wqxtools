@@ -79,6 +79,7 @@ pub enum InstrKind {
   PopStr,
   PushNum(Mbf5),
   PushVar(Symbol),
+  // TODO index of string table
   PushStr(ByteString),
   PushInKey,
   PushIndex {
@@ -118,7 +119,7 @@ pub enum InstrKind {
     end: bool,
   },
   KeyboardInput {
-    prompt: Option<String>,
+    has_prompt: bool,
     fields: NonZeroUsize,
   },
   FileInput {
@@ -376,13 +377,10 @@ impl InstrKind {
           if *to_file { "file" } else { "screen" }
         )
       }
-      Self::KeyboardInput { prompt, fields } => {
+      Self::KeyboardInput { has_prompt, fields } => {
         format!(
-          "keyboard input, prompt: {}, num fields: {}",
-          match prompt {
-            Some(p) => format!("Some({})", p),
-            None => format!("None"),
-          },
+          "keyboard input, has_prompt: {:?}, num fields: {}",
+          has_prompt,
           fields
         )
       }

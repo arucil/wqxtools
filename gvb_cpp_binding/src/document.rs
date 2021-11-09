@@ -165,10 +165,10 @@ pub extern "C" fn destroy_document(doc: *mut Document) {
 }
 
 #[no_mangle]
-pub extern "C" fn document_text(doc: *mut Document) -> Utf8String {
+pub extern "C" fn document_text(doc: *mut Document) -> Utf8Str {
   unsafe {
     let text = (*doc).0.text();
-    Utf8String::new(text)
+    Utf8Str::new(text)
   }
 }
 

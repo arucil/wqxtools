@@ -1528,7 +1528,7 @@
 
 6E40: .db $14, $28, $3c, $50, $64, $78, $8c, $a0, $b4, $c8
 
-; increment caret Y, scroll conditionally
+; if X != 0 then increment caret Y, scroll conditionally
 ; $6F, $70 = new pointer to text buffer
 6E4A: AD B4 03 LDA $03B4
 6E4D: F0 1C    BEQ $6E6B
@@ -1552,8 +1552,8 @@
                           ; when caret y reaches 4, the text buffer must be
                           ; scrolled
 6E71: 90 E9    BCC $6E5C
-6E73: 20 00 71 JSR $7100
-6E76: 20 BA 71 JSR $71BA
+6E73: 20 00 71 JSR $7100  ; scroll screen and text buffer
+6E76: 20 BA 71 JSR $71BA  ; scroll INVERSE / FLASH bit flags
 6E79: CE B5 03 DEC $03B5
 6E7C: 4C 5C 6E JMP $6E5C
 
@@ -1702,7 +1702,7 @@
 6FAA: A9 00    LDA #$00
 6FAC: 8D 01 B8 STA $B801
 6FAF: 8D 00 B8 STA $B800
-6FB2: 20 E3 70 JSR $70E3  ; get current pointer to text buffer
+6FB2: 20 E3 70 JSR $70E3  ; store current pointer to text buffer to $6F, $70
 6FB5: 4C C9 6F JMP $6FC9
 
 6FB8: AD C2 B8 LDA $B8C2
@@ -1721,12 +1721,12 @@
 6FD3: 90 07    BCC $6FDC  ; branch if not last column
 6FD5: CE 01 B8 DEC $B801
 6FD8: A9 20    LDA #$20
-6FDA: D0 18    BNE $6FF4  ; if current column is last column, fill this column
-                          ; with a space, to make the han character displayed
-                          ; at next line
+6FDA: D0 18    BNE $6FF4  ; if the current column is last column, fill this
+                          ; column with a space to make the chinese character
+                          ; displayed at next line
 6FDC: A0 00    LDY #$00
 6FDE: 91 6F    STA ($6F),Y
-6FE0: 20 7B 70 JSR $707B
+6FE0: 20 7B 70 JSR $707B  ; set INVERSE / FLASH flag for this character
 6FE3: 20 30 70 JSR $7030
 6FE6: EE 01 B8 INC $B801
 6FE9: E6 6F    INC $6F
@@ -1805,6 +1805,7 @@
 7070: 20 00 71 JSR $7100
 7073: 20 BA 71 JSR $71BA
 7076: 60       RTS
+
 7077: 8E B5 03 STX $03B5
 707A: 60       RTS
 
@@ -1846,13 +1847,14 @@
 70B6: E6 70    INC $70
 70B8: AD 47 04 LDA $0447
 70BB: C9 02    CMP #$02
-70BD: D0 0D    BNE $70CC
+70BD: D0 0D    BNE $70CC  ; not pinyin input mode
 70BF: A5 70    LDA $70
 70C1: C9 03    CMP #$03
 70C3: D0 04    BNE $70C9
 70C5: A5 6F    LDA $6F
 70C7: C9 10    CMP #$10
 70C9: 4C D6 70 JMP $70D6
+
 70CC: A5 70    LDA $70
 70CE: C9 03    CMP #$03
 70D0: D0 04    BNE $70D6
@@ -2920,7 +2922,7 @@
 7877: 2C 08 B8 BIT $B808
 787A: 30 06    BMI $7882  ; branch if string
 787C: 20 8E A4 JSR $A48E  ; convert FAC1 to string
-787F: 20 D0 7E JSR $7ED0
+787F: 20 D0 7E JSR $7ED0  ; read and allocate a string
 7882: 20 97 79 JSR $7997
 7885: 20 9C 6F JSR $6F9C  ; print to text buffer
 7888: 20 3A 66 JSR $663A
@@ -3072,6 +3074,7 @@
 79CF: 20 1A 73 JSR $731A
 79D2: EE 01 B8 INC $B801
 79D5: 4C A5 79 JMP $79A5
+
 79D8: A9 00    LDA #$00
 79DA: 20 1A 73 JSR $731A
 79DD: 60       RTS
@@ -9966,7 +9969,8 @@ ADC2: 8D B0 03 STA $03B0
 ADC5: 00 19 C7 INT $C719
 ADC8: 60       RTS
 ADC9: 4C 6C AE JMP $AE6C  ; render text buffer to screen,
-                          ; doesn't update the area where corresponding character code is $00
+                          ; doesn't update the area where corresponding
+                          ; character code is $00
 
 ADCC: .dw $19C0, $19d4, $19e8, $19fc, $1a10, $1a24, $1a38, $1a4c, $1a60, $1a74
 ADE0: .dw $1a88, $1a9c, $1ab0, $1ac4, $1ad8, $1aec, $1b00, $1b14, $1b28, $1b3c

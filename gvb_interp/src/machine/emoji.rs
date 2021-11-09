@@ -5,7 +5,7 @@ pub enum EmojiStyle {
 }
 
 impl EmojiStyle {
-  pub fn code_to_char(&self, code: u16) -> Option<char> {
+  pub fn code_to_index(&self, code: u16) -> Option<usize> {
     let hi = code >> 8;
     let lo = code & 255;
     match self {
@@ -32,7 +32,7 @@ impl EmojiStyle {
           },
           _ => return None,
         };
-        Some(unsafe { char::from_u32_unchecked(c as u32 + 0xe000) })
+        Some(c as usize)
       }
       Self::New => {
         let c = match hi {
@@ -46,9 +46,15 @@ impl EmojiStyle {
           },
           _ => return None,
         };
-        Some(unsafe { char::from_u32_unchecked(c as u32 + 0xe000) })
+        Some(c as usize)
       }
     }
+  }
+
+  pub fn code_to_char(&self, code: u16) -> Option<char> {
+    self
+      .code_to_index(code)
+      .map(|i| unsafe { char::from_u32_unchecked(i as u32 + 0xe000) })
   }
 
   pub fn char_to_code(&self, c: char) -> Option<u16> {

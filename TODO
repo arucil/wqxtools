@@ -6,15 +6,23 @@
 - FOR、FN的函数名和参数只能是实数？
 - WRITE 输出0x00后面的引号？剔除 0x1f？
 - OPEN 文件名以0x00结尾？
-- 一行文本最长多长？包含中文呢？
-- tokenize 关键字只识别前缀？（IFA 会当成 IF A）
+- editor 一行文本最长多长？包含中文呢？
+- [x] tokenize 关键字只识别前缀？（IFA 会当成 IF A）
+  NO
+- [x] 如果光标在中文的第二个字节，光标在什么位置闪烁？在中文的位置闪烁还是实际的光标位置闪烁？
+  实际的光标位置
+- [x] 当光标在第一列时，无论调用多少次空的 PRINT，都不会换行？
+  yes
+- 输入的内容不会导致后面的字符变成 NUL ？
+- [x] LOCATE 5,20:PRINT 0; 会不会换行？
+  yes
 
 
 - document:
     + create new: () => (document, string)
     + ~~get path: () => option<path>~~
     + [x] load bas/txt: path -> (document, string)
-    + save: option<path> -> ()
+    + [x] save: option<path> -> ()
     + [x] diagnostics: () -> vec
     + auto completion: () -> completion list
     + compile to vm: device -> vm
@@ -30,6 +38,7 @@
 - mbf5:
     - parse string: string -> result<mbf5>
 - device:
+    - get graphics data
     - get key
     - fire key down
     - fire key up

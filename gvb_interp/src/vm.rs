@@ -7,12 +7,12 @@ use std::time::Duration;
 
 use crate::ast::{self, SysFuncKind};
 use crate::compiler::compile_fn_body;
+use crate::device::{Device, DrawMode, FileHandle};
 use crate::diagnostic::{contains_errors, Diagnostic};
 use crate::machine::EmojiStyle;
 use crate::parser::{parse_expr, read_number};
 use crate::util::mbf5::{Mbf5, ParseRealError, RealError};
 use crate::HashMap;
-use crate::device::{Device, DrawMode, FileHandle};
 
 pub(crate) use self::codegen::*;
 pub(crate) use self::instruction::*;
@@ -819,9 +819,15 @@ where
         );
       }
       InstrKind::KeyboardInput {
-        prompt,
+        has_prompt,
         fields: num_fields,
       } => {
+        let prompt = if has_prompt {
+          Some(self.str_stack.pop().unwrap().1)
+        } else {
+          None
+        };
+
         let mut lvalues = vec![];
         let mut fields = vec![];
         for _ in 0..num_fields.get() {
@@ -843,13 +849,19 @@ where
         }
 
         if let Some(prompt) = &prompt {
-          self.device.print(prompt.as_bytes());
-          self.device.flush();
+          self.device.print(prompt);
+        } else {
+          self.device.print(b"?");
         }
+        self.device.flush();
 
         fields.reverse();
         lvalues.reverse();
-        self.state.input(lvalues, prompt, fields)?;
+        self.state.input(
+          lvalues,
+          prompt.map(|s| s.to_string_lossy(self.emoji_style)),
+          fields,
+        )?;
       }
       InstrKind::FileInput { fields: num_fields } => {
         let filenum = self.get_filenum(true)?;
@@ -1035,7 +1047,9 @@ where
       InstrKind::Poke => {
         let value = self.pop_u8(false)?;
         let addr = self.pop_range(-65535, 65535)? as u16;
-        self.device.set_byte(addr, value);
+        if self.device.set_byte(addr, value) {
+          self.state.end()?;
+        }
       }
       InstrKind::Swap => {
         let lvalue2 = self.lval_stack.pop().unwrap().1;
@@ -2581,10 +2595,6 @@ mod tests {
       );
     }
 
-    fn clear(&mut self) {
-      add_log(self.log.clone(), "clear");
-    }
-
     fn clear_cursor(&mut self) {}
 
     fn get_byte(&self, addr: u16) -> u8 {
@@ -2595,9 +2605,10 @@ mod tests {
       self.mem[addr as usize]
     }
 
-    fn set_byte(&mut self, addr: u16, value: u8) {
+    fn set_byte(&mut self, addr: u16, value: u8) -> bool {
       add_log(self.log.clone(), format!("poke {}, {}", addr, value));
       self.mem[addr as usize] = value;
+      false
     }
 
     fn open_file(

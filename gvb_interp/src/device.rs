@@ -51,11 +51,10 @@ pub trait Device {
     mode: DrawMode,
   );
 
-  fn clear(&mut self);
-
   fn get_byte(&self, addr: u16) -> u8;
 
-  fn set_byte(&mut self, addr: u16, value: u8);
+  /// Returns true if POKE 199, 155 is executed (ESC).
+  fn set_byte(&mut self, addr: u16, value: u8) -> bool;
 
   fn open_file(
     &mut self,
