@@ -1,4 +1,4 @@
-use crate::{destroy_string, Array, Either, Utf16Str, Utf8Str, Utf8String};
+use crate::{Array, Either, Utf16Str, Utf8Str, Utf8String};
 use gvb_interp as gvb;
 use std::io;
 
@@ -127,7 +127,7 @@ pub struct Diagnostic {
   pub line: usize,
   pub start: usize,
   pub end: usize,
-  pub message: Utf8String,
+  pub message: Utf8Str,
   pub severity: Severity,
 }
 
@@ -141,19 +141,16 @@ pub extern "C" fn document_diagnostics(
     .enumerate()
     .flat_map(|(line, line_diag)| {
       let line_start = line_diag.line_start;
-      line_diag
-        .diagnostics
-        .into_iter()
-        .map(move |diag| Diagnostic {
-          line,
-          start: line_start + diag.range.start,
-          end: line_start + diag.range.end,
-          message: unsafe { Utf8String::new(diag.message) },
-          severity: match diag.severity {
-            gvb::Severity::Warning => Severity::Warning,
-            gvb::Severity::Error => Severity::Error,
-          },
-        })
+      line_diag.diagnostics.iter().map(move |diag| Diagnostic {
+        line,
+        start: line_start + diag.range.start,
+        end: line_start + diag.range.end,
+        message: unsafe { Utf8Str::new(&diag.message) },
+        severity: match diag.severity {
+          gvb::Severity::Warning => Severity::Warning,
+          gvb::Severity::Error => Severity::Error,
+        },
+      })
     })
     .collect();
   unsafe { Array::new(diags) }
@@ -174,13 +171,10 @@ pub extern "C" fn document_text(doc: *mut Document) -> Utf8Str {
 
 #[no_mangle]
 pub extern "C" fn destroy_diagnostic_array(arr: Array<Diagnostic>) {
-  let diags = unsafe {
+  drop(unsafe {
     Box::from_raw(std::ptr::slice_from_raw_parts_mut(
       arr.data as *const _ as *mut Diagnostic,
       arr.len,
     ))
-  };
-  for diag in diags.iter() {
-    destroy_string(diag.message.clone());
-  }
+  });
 }

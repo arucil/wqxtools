@@ -10,6 +10,8 @@ print ","
 print "3.5"
 print newline
 flush
+print "?"
+flush
 print "37"
 print ","
 print "FN F(Y)"

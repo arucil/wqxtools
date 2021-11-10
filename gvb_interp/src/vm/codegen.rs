@@ -17,6 +17,7 @@ use string_interner::StringInterner;
 
 use super::Datum;
 
+#[derive(Clone)]
 pub struct CodeGen {
   pub(super) emoji_style: EmojiStyle,
   pub(super) interner: StringInterner,
@@ -314,10 +315,10 @@ impl CodeEmitter for CodeGen {
   fn emit_keyboard_input(
     &mut self,
     range: Range,
-    prompt: Option<String>,
+    has_prompt: bool,
     fields: NonZeroUsize,
   ) {
-    self.push_instr(range, InstrKind::KeyboardInput { prompt, fields });
+    self.push_instr(range, InstrKind::KeyboardInput { has_prompt, fields });
   }
 
   fn emit_file_input(&mut self, range: Range, fields: NonZeroUsize) {

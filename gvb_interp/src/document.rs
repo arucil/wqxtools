@@ -4,10 +4,12 @@ use std::path::Path;
 
 use crate::ast::{Program, ProgramLine};
 use crate::compiler::compile_prog;
+use crate::device::default::DefaultDevice;
+use crate::device::Device;
 use crate::machine::EmojiStyle;
 use crate::machine::MachineProps;
 use crate::parser::{parse_line, ParseResult};
-use crate::{CodeGen, Diagnostic};
+use crate::{CodeGen, Diagnostic, VirtualMachine};
 
 mod binary;
 
@@ -27,6 +29,7 @@ pub struct Document {
 struct DocVer(u64);
 
 struct CompileCache {
+  diagnostics: Vec<LineDiagnosis>,
   version: DocVer,
   codegen: CodeGen,
 }
@@ -208,7 +211,16 @@ impl Document {
     Ok(())
   }
 
-  pub fn diagnostics(&mut self) -> Vec<LineDiagnosis> {
+  pub fn diagnostics(&mut self) -> &[LineDiagnosis] {
+    if let Some(cache) = &self.compile_cache {
+      if cache.version == self.version {
+        let len = cache.diagnostics.len();
+        let ptr = cache.diagnostics.as_ptr();
+        // TODO remove unsafe when Polonius borrow checker is done
+        return unsafe { std::slice::from_raw_parts(ptr, len) };
+      }
+    }
+
     let mut prog = Program {
       lines: Vec::with_capacity(self.lines.len()),
     };
@@ -228,12 +240,8 @@ impl Document {
     }
     let mut codegen = CodeGen::new(self.emoji_style);
     compile_prog(&self.text, &mut prog, &mut codegen);
-    self.compile_cache = Some(CompileCache {
-      version: self.version,
-      codegen,
-    });
 
-    prog
+    let diagnostics = prog
       .lines
       .into_iter()
       .zip(&self.lines)
@@ -241,7 +249,15 @@ impl Document {
         line_start: doc_line.line_start,
         diagnostics: line.diagnostics,
       })
-      .collect()
+      .collect();
+
+    self.compile_cache = Some(CompileCache {
+      diagnostics,
+      version: self.version,
+      codegen,
+    });
+
+    &self.compile_cache.as_ref().unwrap().diagnostics
   }
 
   pub fn apply_edit(&mut self, edit: Edit) {
@@ -270,6 +286,33 @@ impl Document {
 
   pub fn set_machine_name(&self, name: &str) -> bool {
     todo!("set emoji_style, reload text, set machine_props")
+  }
+
+  pub fn create_device(&self) -> DefaultDevice {
+    DefaultDevice::new(self.machine_props.clone())
+  }
+
+  /// If the document contains errors, Err is returned.
+  pub fn create_vm<'d, D>(
+    &mut self,
+    device: &'d mut D,
+  ) -> Result<VirtualMachine<'d, D>, ()>
+  where
+    D: Device,
+  {
+    let diagnostics = self.diagnostics();
+    if diagnostics.iter().any(|d| d.contains_errors()) {
+      return Err(());
+    }
+
+    let codegen = self.compile_cache.as_ref().unwrap().codegen.clone();
+    Ok(VirtualMachine::new(codegen, device))
+  }
+}
+
+impl LineDiagnosis {
+  fn contains_errors(&self) -> bool {
+    crate::contains_errors(&self.diagnostics)
   }
 }
 

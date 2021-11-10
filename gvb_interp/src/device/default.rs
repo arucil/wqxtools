@@ -31,6 +31,14 @@ pub struct DefaultDevice {
   screen_mode: ScreenMode,
   print_mode: PrintMode,
   cursor: CursorState,
+  graphics_dirty: Option<Rect>,
+}
+
+pub struct Rect {
+  pub left: usize,
+  pub top: usize,
+  pub right: usize,
+  pub bottom: usize,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -53,6 +61,7 @@ impl DefaultDevice {
       screen_mode: ScreenMode::Text,
       print_mode: PrintMode::Normal,
       cursor: CursorState::None,
+      graphics_dirty: None,
     }
   }
 
@@ -65,7 +74,13 @@ impl DefaultDevice {
   }
 
   pub fn key(&mut self) -> Option<u8> {
-    todo!()
+    let key = self.memory[KEY_BUFFER_ADDR];
+    if key < 128 {
+      None
+    } else {
+      self.memory[KEY_BUFFER_ADDR] &= 0x7f;
+      Some(key & 0x7f)
+    }
   }
 
   pub fn blink_cursor(&mut self) {
@@ -85,6 +100,15 @@ impl DefaultDevice {
     }
 
     self.inverse_cursor();
+  }
+
+  pub fn graphics_addr(&self) -> &[u8] {
+    let base_addr = self.props.graphics_base_addr as usize;
+    &self.memory[base_addr..base_addr + screen::BYTES]
+  }
+
+  pub fn take_dirty_area(&mut self) -> Option<Rect> {
+    self.graphics_dirty.take()
   }
 
   fn inverse_cursor(&mut self) {
@@ -131,8 +155,61 @@ impl DefaultDevice {
   }
 
   fn paint_hex_code(&mut self, row: usize, column: usize) {
-    let c = self.memory[TEXT_BUFFER_ADDR + row * TEXT_COLUMNS + column];
-    todo!()
+    let mut c = self.memory[TEXT_BUFFER_ADDR + row * TEXT_COLUMNS + column];
+    unsafe {
+      let mut g = self.memory.as_mut_ptr().add(
+        self.props.graphics_base_addr as usize
+          + row * screen::WIDTH_IN_BYTE
+          + column,
+      );
+      for _ in 0..2 {
+        let mut ptr = Self::nibble_to_ascii8_ptr(c >> 4);
+        c <<= 4;
+        for _ in 0..8 {
+          *g = *ptr;
+          ptr = ptr.add(1);
+          g = g.add(screen::WIDTH_IN_BYTE);
+        }
+      }
+    }
+  }
+
+  unsafe fn nibble_to_ascii8_ptr(n: u8) -> *const u8 {
+    if n < 10 {
+      ASCII_8_DATA.as_ptr().add((48 + n as usize) << 3)
+    } else {
+      ASCII_8_DATA.as_ptr().add((65 + n as usize - 10) << 3)
+    }
+  }
+
+  fn update_dirty_area(
+    &mut self,
+    left: usize,
+    top: usize,
+    right: usize,
+    bottom: usize,
+  ) {
+    if let Some(dirty) = self.graphics_dirty.as_mut() {
+      if left < dirty.left {
+        dirty.left = left;
+      }
+      if top < dirty.top {
+        dirty.top = top;
+      }
+      if right > dirty.right {
+        dirty.right = right;
+      }
+      if bottom > dirty.bottom {
+        dirty.bottom = bottom;
+      }
+    } else {
+      self.graphics_dirty = Some(Rect {
+        left,
+        top,
+        right,
+        bottom,
+      });
+    }
   }
 }
 
@@ -203,11 +280,11 @@ impl Device for DefaultDevice {
       self.memory[graph_addr..graph_addr + screen::BYTES].fill(0);
     }
 
-    let char_ptr = unsafe { self.memory.as_ptr().add(TEXT_BUFFER_ADDR) };
-    let graph = unsafe {
+    let mut char_ptr = unsafe { self.memory.as_ptr().add(TEXT_BUFFER_ADDR) };
+    let mut graph = unsafe {
       self
         .memory
-        .as_ptr()
+        .as_mut_ptr()
         .add(self.props.graphics_base_addr as usize)
     };
     let mut row = 0;
@@ -246,7 +323,7 @@ impl Device for DefaultDevice {
 
         let c2 = unsafe { *char_ptr.add(1) };
 
-        let data_ptr;
+        let mut data_ptr;
         if let Some(emoji_index) = self
           .props
           .emoji_style
@@ -308,7 +385,8 @@ impl Device for DefaultDevice {
       graph = unsafe { graph.add(screen::WIDTH_IN_BYTE * CHAR_HEIGHT) };
     }
 
-    // TODO mark graphic dirty area
+    // TODO finer grained dirty area
+    self.update_dirty_area(0, 0, screen::WIDTH, screen::HEIGHT);
   }
 
   fn draw_point(&mut self, x: u8, y: u8, mode: DrawMode) {}
@@ -345,7 +423,14 @@ impl Device for DefaultDevice {
 
   fn set_byte(&mut self, addr: u16, value: u8) -> bool {
     self.memory[addr as usize] = value;
-    // TODO mark graphic area dirty
+    if addr >= self.props.graphics_base_addr
+      && addr < self.props.graphics_base_addr + screen::BYTES as u16
+    {
+      let index = (addr - self.props.graphics_base_addr) as usize;
+      let y = index / screen::WIDTH_IN_BYTE;
+      let x = (index % screen::WIDTH_IN_BYTE) << 3;
+      self.update_dirty_area(y, x, y + 1, x + 8);
+    }
     addr as usize == TEXT_BUFFER_ADDR && value == 128 + 27
   }
 
@@ -366,7 +451,7 @@ impl Device for DefaultDevice {
     self.inverse_text.fill(false);
     self.row = 0;
     self.column = 0;
-    // TODO mark graphic dirty area
+    self.update_dirty_area(0, 0, screen::WIDTH, screen::HEIGHT);
   }
 
   /// Returns true if execution is finished, otherwise false is returned.

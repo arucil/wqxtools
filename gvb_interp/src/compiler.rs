@@ -87,7 +87,7 @@ pub trait CodeEmitter {
   fn emit_keyboard_input(
     &mut self,
     range: Range,
-    prompt: Option<String>,
+    has_prompt: bool,
     fields: NonZeroUsize,
   );
 
@@ -1088,16 +1088,14 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E, ProgramLine> {
         {
           self.add_error(prompt.clone(), "字符串太长，长度超出 255");
         }
-        self.code_emitter.emit_keyboard_input(
-          range,
-          Some(text.to_owned()),
-          vars.len(),
-        );
+        self
+          .code_emitter
+          .emit_keyboard_input(range, true, vars.len());
       }
       InputSource::Keyboard(None) => {
         self
           .code_emitter
-          .emit_keyboard_input(range, None, vars.len());
+          .emit_keyboard_input(range, false, vars.len());
       }
       InputSource::File(filenum) => {
         let ty = self.compile_expr(*filenum);
