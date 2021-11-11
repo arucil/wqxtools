@@ -21,7 +21,7 @@ pub trait CodeEmitter {
     range: Range,
     datum: String,
     is_quoted: bool,
-  ) -> Self::DatumIndex;
+  ) -> Result<(Self::DatumIndex, usize), char>;
 
   fn begin_def_fn(
     &mut self,
@@ -114,9 +114,7 @@ pub trait CodeEmitter {
 
   fn emit_number(&mut self, range: Range, num: Mbf5);
   fn emit_var(&mut self, range: Range, sym: Self::Symbol);
-  /// Returns if string is too long.
-  #[must_use]
-  fn emit_string(&mut self, range: Range, str: String) -> bool;
+  fn emit_string(&mut self, range: Range, str: String) -> Result<usize, char>;
   fn emit_inkey(&mut self, range: Range);
   fn emit_index(
     &mut self,
@@ -212,6 +210,17 @@ impl<'a, 'b, E: CodeEmitter, T> CompileState<'a, 'b, E, T> {
     unsafe { &mut *self.parsed }
       .diagnostics
       .push(Diagnostic::new_error(range, message));
+  }
+
+  fn add_invalid_char_error(&mut self, range: Range, c: char) {
+    self.add_error(
+      range,
+      if (c as u32) < 0x10000 {
+        format!("字符串中包含非法字符：U+{:04X}", c as u32)
+      } else {
+        format!("字符串中包含非法字符：U+{:06X}", c as u32)
+      },
+    );
   }
 
   fn add_warning(&mut self, range: Range, message: impl ToString) {
@@ -564,13 +573,22 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E, ProgramLine> {
       } else {
         text.to_owned()
       };
-      let index = self.code_emitter.emit_datum(
+      match self.code_emitter.emit_datum(
         datum.range.clone(),
         text,
         datum.is_quoted,
-      );
-      if data_index.is_none() {
-        data_index = Some(index);
+      ) {
+        Ok((index, len)) => {
+          if len > 255 {
+            self.add_error(datum.range.clone(), "字符串太长，长度超出 255");
+          }
+          if data_index.is_none() {
+            data_index = Some(index);
+          }
+        }
+        Err(c) => {
+          self.add_invalid_char_error(datum.range.clone(), c);
+        }
       }
     }
 
@@ -1082,11 +1100,18 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E, ProgramLine> {
         if text.ends_with('"') {
           text = &text[..text.len() - 1];
         }
-        if self
+        match self
           .code_emitter
           .emit_string(prompt.clone(), text.to_owned())
         {
-          self.add_error(prompt.clone(), "字符串太长，长度超出 255");
+          Ok(len) => {
+            if len > 255 {
+              self.add_error(prompt.clone(), "字符串太长，长度超出 255");
+            }
+          }
+          Err(c) => {
+            self.add_invalid_char_error(prompt.clone(), c);
+          }
         }
         self
           .code_emitter
@@ -1420,11 +1445,18 @@ impl<'a, 'b, E: CodeEmitter, T> CompileState<'a, 'b, E, T> {
         if text.ends_with('"') {
           text = &text[..text.len() - 1];
         }
-        if self
+        match self
           .code_emitter
           .emit_string(range.clone(), text.to_owned())
         {
-          self.add_error(range, "字符串太长，长度超出 255");
+          Ok(len) => {
+            if len > 255 {
+              self.add_error(range.clone(), "字符串太长，长度超出 255");
+            }
+          }
+          Err(c) => {
+            self.add_invalid_char_error(range.clone(), c);
+          }
         }
         Type::String
       }

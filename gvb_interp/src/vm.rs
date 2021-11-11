@@ -382,7 +382,7 @@ where
         if record == 0 {
           self.state.error(record_loc, "记录序号不能为 0")?;
         }
-        let record = (record - 1) as u16;
+        let record = record - 1;
 
         let filenum = self.get_filenum(true)?;
         if let Some(file) = &mut self.files[filenum as usize] {
@@ -754,7 +754,7 @@ where
       }
       InstrKind::PrintSpc => {
         let value = self.pop_u8(false)?;
-        self.device.print(&vec![b' '; value as usize]);
+        self.device.print(&vec![b' '; value as _]);
       }
       InstrKind::PrintTab => {
         let col = self.pop_range(1, 20)? as u8 - 1;
@@ -764,7 +764,7 @@ where
         } else {
           col - current_col
         };
-        self.device.print(&vec![b' '; spc_num as usize]);
+        self.device.print(&vec![b' '; spc_num as _]);
       }
       InstrKind::PrintNum => {
         let value = self.num_stack.pop().unwrap().1;
@@ -917,7 +917,7 @@ where
         self.device.draw_box(x1, y1, x2, y2, fill, mode);
       }
       InstrKind::Call => {
-        let addr = self.pop_range(-65535, 65535)? as u16;
+        let addr = self.pop_range(-65535, 65535)? as _;
         if !self.device.exec_asm(steps, Some(addr)) {
           self.state.suspend_asm()?;
         }
@@ -975,7 +975,7 @@ where
       }
       InstrKind::ReadRecord => {
         do_get_put!("GET", record_len, fields, file => {
-          let mut buf = vec![0; record_len as usize];
+          let mut buf = vec![0; record_len as _];
           let read_len =
             self
               .state
@@ -1001,7 +1001,7 @@ where
       }
       InstrKind::WriteRecord => {
         do_get_put!("PUT", record_len, fields, file => {
-          let mut buf = vec![0u8; record_len as usize];
+          let mut buf = vec![0u8; record_len as _];
           let mut offset = 0;
           for field in fields {
             let str = self
@@ -1046,7 +1046,7 @@ where
       }
       InstrKind::Poke => {
         let value = self.pop_u8(false)?;
-        let addr = self.pop_range(-65535, 65535)? as u16;
+        let addr = self.pop_range(-65535, 65535)? as _;
         if self.device.set_byte(addr, value) {
           self.state.end()?;
         }
@@ -1316,7 +1316,7 @@ where
         Ok(())
       }
       SysFuncKind::Peek => {
-        let addr = self.pop_range(-65535, 65535)? as u16;
+        let addr = self.pop_range(-65535, 65535)? as _;
         let value = self.device.get_byte(addr);
         self.num_stack.push((loc, Mbf5::from(value)));
         Ok(())
@@ -1553,7 +1553,7 @@ where
                     ),
                   )?;
                 } else {
-                  self.store.store_value(lvalue, Value::Integer(int as i16));
+                  self.store.store_value(lvalue, Value::Integer(int as _));
                 }
               } else {
                 self.store.store_value(lvalue, Value::Real(num));
@@ -1615,7 +1615,7 @@ where
       let len = self.pop_u8(false)?;
       self.store.store_value(
         lvalue.clone(),
-        Value::String(vec![0u8; len as usize].into()),
+        Value::String(vec![0u8; len as _].into()),
       );
       fields.push(RecordField { len, lvalue });
       total_len += len as u32;
@@ -1867,7 +1867,7 @@ where
     if !self.store.arrays.contains_key(&name) {
       let data = ArrayData::new(
         symbol_type(&self.interner, name),
-        11usize.pow(dimensions as u32),
+        11usize.pow(dimensions as _),
       );
       self.store.arrays.insert(
         name,
@@ -1932,7 +1932,7 @@ where
   }
 
   fn pop_u8(&mut self, nonzero: bool) -> Result<u8> {
-    Ok(self.pop_range(nonzero as i32, 255)? as u8)
+    Ok(self.pop_range(nonzero as _, 255)? as _)
   }
 
   fn pop_range(&mut self, min: i32, max: i32) -> Result<i32> {
@@ -1945,7 +1945,7 @@ where
         format!("参数超出范围 {}~{}。运算结果为：{}", min, max, value),
       )?;
     }
-    Ok(value as i32)
+    Ok(value as _)
   }
 
   /// Returns [0, 2].
@@ -1981,7 +1981,7 @@ where
             ),
           )?;
         }
-        Value::Integer(int as i16)
+        Value::Integer(int as _)
       }
       Type::Real => Value::Real(num),
       _ => unreachable!(),
@@ -2093,7 +2093,7 @@ fn exec_file_input<F: FileHandle>(
                 ),
               )?;
             } else {
-              Value::Integer(int as i16)
+              Value::Integer(int as _)
             }
           } else {
             Value::Real(num)
@@ -2228,12 +2228,12 @@ fn u32_to_random_number(x: u32) -> Mbf5 {
     return Mbf5::zero();
   }
   let n = x.leading_zeros();
-  let exponent = (0x80 - n) as u8;
+  let exponent = (0x80 - n) as _;
   let x = x << n;
   let mant1 = (x >> 24) as u8 & 0x7f;
-  let mant2 = (x >> 16) as u8;
-  let mant3 = (x >> 8) as u8;
-  let mant4 = x as u8;
+  let mant2 = (x >> 16) as _;
+  let mant3 = (x >> 8) as _;
+  let mant4 = x as _;
   Mbf5::from([exponent, mant1, mant2, mant3, mant4])
 }
 
@@ -2683,7 +2683,7 @@ mod tests {
         self.log.clone(),
         format!("get file len: {}", self.data.borrow().len()),
       );
-      Ok(self.data.borrow().len() as u64)
+      Ok(self.data.borrow().len() as _)
     }
 
     fn seek(&mut self, pos: u64) -> io::Result<()> {
@@ -2691,14 +2691,14 @@ mod tests {
       if pos > self.data.borrow().len() as u64 {
         Err(io::Error::new(io::ErrorKind::Other, "out of range"))
       } else {
-        self.pos = pos as usize;
+        self.pos = pos as _;
         Ok(())
       }
     }
 
     fn pos(&self) -> io::Result<u64> {
       add_log(self.log.clone(), format!("get file pos: {}", self.pos));
-      Ok(self.pos as u64)
+      Ok(self.pos as _)
     }
 
     fn write(&mut self, data: &[u8]) -> io::Result<()> {

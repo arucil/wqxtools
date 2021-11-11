@@ -122,12 +122,12 @@ fn f64_to_array(value: &mut f64) -> Result<[u8; 5], RealError> {
     return Ok([0; 5]);
   }
 
-  let exp = exp as u8;
+  let exp = exp as _;
   let sign = sign << 7;
   let mant1 = (mant >> 24) as u8 & 0x7f | sign;
-  let mant2 = (mant >> 16) as u8;
-  let mant3 = (mant >> 8) as u8;
-  let mant4 = mant as u8;
+  let mant2 = (mant >> 16) as _;
+  let mant3 = (mant >> 8) as _;
+  let mant4 = mant as _;
 
   Ok([exp, mant1, mant2, mant3, mant4])
 }

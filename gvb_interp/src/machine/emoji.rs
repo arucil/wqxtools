@@ -32,7 +32,7 @@ impl EmojiStyle {
           },
           _ => return None,
         };
-        Some(c as usize)
+        Some(c as _)
       }
       Self::New => {
         let c = match hi {
@@ -46,7 +46,7 @@ impl EmojiStyle {
           },
           _ => return None,
         };
-        Some(c as usize)
+        Some(c as _)
       }
     }
   }

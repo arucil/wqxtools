@@ -134,10 +134,10 @@ pub fn load_bas(
       if b == 0x1f {
         let gbcode = ((line[i + 1] as u16) << 8) + line[i + 2] as u16;
         if let Some(&u) = crate::gb2312::GB2312_TO_UNICODE.get(&gbcode) {
-          text.push(char::from_u32(u as u32).unwrap());
+          text.push(char::from_u32(u as _).unwrap());
         } else {
           let u = guessed_emoji_style.code_to_char(gbcode).unwrap();
-          text.push(char::from_u32(u as u32).unwrap());
+          text.push(char::from_u32(u as _).unwrap());
         }
         last_is_keyword = false;
         i += 3;
@@ -215,7 +215,7 @@ pub fn load_txt(
 
       let gbcode = ((content[i] as u16) << 8) + content[i + 1] as u16;
       if let Some(&u) = crate::gb2312::GB2312_TO_UNICODE.get(&gbcode) {
-        text.push(char::from_u32(u as u32).unwrap());
+        text.push(char::from_u32(u as _).unwrap());
       } else {
         guessed_emoji_styles.retain(|s| s.code_to_char(gbcode).is_some());
         if guessed_emoji_styles.is_empty() {
@@ -225,7 +225,7 @@ pub fn load_txt(
           });
         } else {
           let u = guessed_emoji_styles[0].code_to_char(gbcode).unwrap();
-          text.push(char::from_u32(u as u32).unwrap());
+          text.push(char::from_u32(u as _).unwrap());
         }
       }
 
@@ -289,8 +289,8 @@ pub fn save_bas(
 
     bytes.push(0);
     bytes.push(0);
-    bytes.push(label as u8);
-    bytes.push((label >> 8) as u8);
+    bytes.push(label as _);
+    bytes.push((label >> 8) as _);
 
     'line_loop: while i < text.len() {
       let b = text[i];
@@ -403,10 +403,10 @@ pub fn save_bas(
     }
     */
     if let Some(next_line_start_addr) =
-      line_start_addr.checked_add(line_len as u16)
+      line_start_addr.checked_add(line_len as _)
     {
-      bytes[line_start] = next_line_start_addr as u8;
-      bytes[line_start + 1] = (next_line_start_addr >> 8) as u8;
+      bytes[line_start] = next_line_start_addr as _;
+      bytes[line_start + 1] = (next_line_start_addr >> 8) as _;
       line_start_addr = next_line_start_addr;
     } else {
       return Err(SaveError {
@@ -448,11 +448,11 @@ pub fn save_txt(
       bytes.push(c as u8);
     } else if (c as u32) < 65536 {
       if let Some(&gbcode) = crate::gb2312::UNICODE_TO_GB2312.get(&(c as u16)) {
-        bytes.push((gbcode >> 8) as u8);
-        bytes.push(gbcode as u8);
+        bytes.push((gbcode >> 8) as _);
+        bytes.push(gbcode as _);
       } else if let Some(gbcode) = emoji_style.char_to_code(c) {
-        bytes.push((gbcode >> 8) as u8);
-        bytes.push(gbcode as u8);
+        bytes.push((gbcode >> 8) as _);
+        bytes.push(gbcode as _);
       } else {
         return Err(SaveError {
           line,

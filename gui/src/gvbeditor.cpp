@@ -248,8 +248,6 @@ LoadResult GvbEditor::load(const QString &path) {
     auto digitWidth = m_edit->textWidth(STYLE_LINENUMBER, "9") * digits;
     m_edit->setMarginWidthN(2, digitWidth);
 
-    gvb::destroy_string(text);
-
     computeDiagnostics();
 
     return Unit{};

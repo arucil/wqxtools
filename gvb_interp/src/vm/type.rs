@@ -23,7 +23,6 @@ impl DerefMut for ByteString {
 #[derive(Debug, Clone)]
 pub enum StringError {
   InvalidChar(char),
-  TooLong,
 }
 
 impl ByteString {
@@ -44,18 +43,15 @@ impl ByteString {
       } else if let Some(&c) = crate::gb2312::UNICODE_TO_GB2312.get(&(b as u16))
       {
         bytes.push(0x1f);
-        bytes.push((c >> 8) as u8);
-        bytes.push(c as u8);
+        bytes.push((c >> 8) as _);
+        bytes.push(c as _);
       } else if let Some(c) = emoji_style.char_to_code(c) {
         bytes.push(0x1f);
-        bytes.push((c >> 8) as u8);
-        bytes.push(c as u8);
+        bytes.push((c >> 8) as _);
+        bytes.push(c as _);
       } else {
         return Err(StringError::InvalidChar(c));
       }
-    }
-    if bytes.len() > 255 {
-      return Err(StringError::TooLong);
     }
     Ok(Self(bytes))
   }
@@ -73,7 +69,7 @@ impl ByteString {
         i += 2;
         let code = ((b as u16) << 8) + b2 as u16;
         if let Some(&c) = crate::gb2312::GB2312_TO_UNICODE.get(&code) {
-          s.push(unsafe { char::from_u32_unchecked(c as u32) });
+          s.push(unsafe { char::from_u32_unchecked(c as _) });
         } else if let Some(c) = emoji_style.code_to_char(code) {
           s.push(c);
         } else {

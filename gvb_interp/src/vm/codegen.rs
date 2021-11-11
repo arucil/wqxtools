@@ -149,13 +149,18 @@ impl CodeEmitter for CodeGen {
     _range: Range,
     value: String,
     is_quoted: bool,
-  ) -> Self::DatumIndex {
+  ) -> Result<(Self::DatumIndex, usize), char> {
     let index = DatumIndex(self.data.len());
+    let value = match ByteString::from_str(value, self.emoji_style) {
+      Ok(value) => value,
+      Err(StringError::InvalidChar(c)) => return Err(c),
+    };
+    let len = value.len();
     self.data.push(Datum {
-      value: ByteString::from_str(value, self.emoji_style).unwrap(),
+      value,
       is_quoted,
     });
-    index
+    Ok((index, len))
   }
 
   fn begin_def_fn(
@@ -391,14 +396,14 @@ impl CodeEmitter for CodeGen {
     self.push_instr(range, InstrKind::PushVar(sym));
   }
 
-  fn emit_string(&mut self, range: Range, str: String) -> bool {
+  fn emit_string(&mut self, range: Range, str: String) -> Result<usize, char> {
     let str = match ByteString::from_str(str, self.emoji_style) {
       Ok(str) => str,
-      Err(StringError::TooLong) => return true,
-      Err(StringError::InvalidChar(_)) => unreachable!(),
+      Err(StringError::InvalidChar(c)) => return Err(c),
     };
+    let len = str.len();
     self.push_instr(range, InstrKind::PushStr(str));
-    false
+    Ok(len)
   }
 
   fn emit_inkey(&mut self, range: Range) {
