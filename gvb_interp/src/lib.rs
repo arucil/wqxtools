@@ -3,7 +3,8 @@
   extend_one,
   const_mut_refs,
   never_type,
-  io_error_more
+  io_error_more,
+  int_abs_diff,
 )]
 
 mod ast;

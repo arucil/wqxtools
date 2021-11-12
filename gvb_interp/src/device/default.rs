@@ -216,6 +216,110 @@ impl DefaultDevice {
       });
     }
   }
+
+  fn draw_hor_line_unchecked(&mut self, x1: u8, x2: u8, y: u8, mode: DrawMode) {
+    let mut g = unsafe {
+      self.memory.as_mut_ptr().add(
+        self.props.graphics_base_addr as usize
+          + y as usize * screen::WIDTH_IN_BYTE,
+      )
+    };
+    let x1_byte = x1 >> 3;
+    let x2_byte = x2 >> 3;
+    let start_mask = START_BIT_MASK[x1 as usize & 7];
+    let end_mask = END_BIT_MASK[x2 as usize & 7];
+    if x1_byte == x2_byte {
+      unsafe {
+        mode.mask(g.add(x1_byte as usize), start_mask & end_mask);
+      }
+      return;
+    }
+
+    unsafe {
+      mode.mask(g.add(x2_byte as usize), end_mask);
+      g = g.add(x1_byte as usize);
+      mode.mask(g, start_mask);
+      for _ in x1_byte + 1..x2_byte {
+        g = g.add(1);
+        mode.mask(g, 255);
+      }
+    }
+  }
+
+  fn draw_hor_line(&mut self, mut x1: u8, mut x2: u8, y: u8, mode: DrawMode) {
+    if y >= screen::HEIGHT as u8 {
+      return;
+    }
+    if x1 > x2 {
+      let t = x1;
+      x1 = x2;
+      x2 = t;
+    }
+    if x1 >= screen::WIDTH as u8 {
+      return;
+    }
+    if x2 >= screen::WIDTH as u8 {
+      x2 = screen::WIDTH as u8 - 1;
+    }
+
+    self.draw_hor_line_unchecked(x1, x2, y, mode);
+  }
+
+  fn draw_ver_line(&mut self, x: u8, mut y1: u8, mut y2: u8, mode: DrawMode) {
+    if x >= screen::WIDTH as u8 {
+      return;
+    }
+
+    if y1 > y2 {
+      let t = y1;
+      y1 = y2;
+      y2 = t;
+    }
+    if y1 >= screen::HEIGHT as u8 {
+      return;
+    }
+    if y2 >= screen::HEIGHT as u8 {
+      y2 = screen::HEIGHT as u8 - 1;
+    }
+
+    let mut g = unsafe {
+      self.memory.as_mut_ptr().add(
+        self.props.graphics_base_addr as usize
+          + y1 as usize * screen::WIDTH_IN_BYTE
+          + (x as usize >> 3),
+      )
+    };
+    let mask = POINT_BIT_MASK[x as usize & 7];
+    unsafe {
+      for _ in y1..=y2 {
+        mode.mask(g, mask);
+        g = g.add(screen::WIDTH_IN_BYTE);
+      }
+    }
+  }
+}
+
+const START_BIT_MASK: &[u8] = &[255, 127, 63, 31, 15, 7, 3, 1];
+const END_BIT_MASK: &[u8] = &[128, 192, 224, 240, 248, 252, 254, 255];
+const POINT_BIT_MASK: &[u8] = &[128, 64, 32, 16, 8, 4, 2, 1];
+
+impl DrawMode {
+  unsafe fn point(&self, ptr: *mut u8, x: usize, y: usize) {
+    let ptr = ptr.add(y * 20 + (x >> 3));
+    match self {
+      Self::Copy => *ptr |= POINT_BIT_MASK[x & 7],
+      Self::Erase => *ptr &= !POINT_BIT_MASK[x & 7],
+      Self::Not => *ptr ^= POINT_BIT_MASK[x & 7],
+    }
+  }
+
+  unsafe fn mask(&self, ptr: *mut u8, mask: u8) {
+    match self {
+      Self::Copy => *ptr |= mask,
+      Self::Erase => *ptr &= !mask,
+      Self::Not => *ptr ^= mask,
+    }
+  }
 }
 
 impl Device for DefaultDevice {
@@ -401,32 +505,129 @@ impl Device for DefaultDevice {
     self.update_dirty_area(0, 0, screen::WIDTH, screen::HEIGHT);
   }
 
-  fn draw_point(&mut self, x: u8, y: u8, mode: DrawMode) {}
+  fn draw_point(&mut self, (x, y): (u8, u8), mode: DrawMode) {
+    if x < screen::WIDTH as u8 && y < screen::HEIGHT as u8 {
+      unsafe {
+        let g = self
+          .memory
+          .as_mut_ptr()
+          .add(self.props.graphics_base_addr as usize);
+        mode.point(g, x as usize, y as usize);
+      }
+    }
+  }
 
-  fn draw_line(&mut self, x1: u8, y1: u8, x2: u8, y2: u8, mode: DrawMode) {}
+  fn draw_line(
+    &mut self,
+    (mut x1, mut y1): (u8, u8),
+    (mut x2, mut y2): (u8, u8),
+    mode: DrawMode,
+  ) {
+    if y1 == y2 {
+      self.draw_hor_line(x1, x2, y1, mode);
+      return;
+    }
+
+    if x1 == x2 {
+      self.draw_ver_line(x1, y1, y2, mode);
+      return;
+    }
+
+    if x1 > x2 {
+      let t = x1;
+      x1 = x2;
+      x2 = t;
+      let t = y1;
+      y1 = y2;
+      y2 = t;
+    }
+
+    let delta_x = x2 - x1;
+    let delta_y = y2.abs_diff(y1);
+    let inc_y = if y2 > y1 { 1 } else { u8::MAX };
+    let dist = delta_x.max(delta_y);
+    let mut error_x = 0;
+    let mut error_y = 0;
+    let mut x = x1;
+    let mut y = y1;
+    let g = unsafe {
+      self
+        .memory
+        .as_mut_ptr()
+        .add(self.props.graphics_base_addr as usize)
+    };
+    for _ in 0..=dist {
+      unsafe { mode.point(g, x as usize, y as usize) };
+      error_x += delta_x;
+      error_y += delta_y;
+      if error_x >= dist {
+        error_x -= dist;
+        x += 1;
+      }
+      if error_y >= dist {
+        error_y -= dist;
+        y = y.wrapping_add(inc_y);
+      }
+    }
+  }
 
   fn draw_box(
     &mut self,
-    x1: u8,
-    y1: u8,
-    x2: u8,
-    y2: u8,
+    (mut x1, mut y1): (u8, u8),
+    (mut x2, mut y2): (u8, u8),
     fill: bool,
     mode: DrawMode,
   ) {
+    if x1 > x2 {
+      let t = x1;
+      x1 = x2;
+      x2 = t;
+    }
+    if y1 > y2 {
+      let t = y1;
+      y1 = y2;
+      y2 = t;
+    }
+    if x1 >= screen::WIDTH as u8 || y1 >= screen::HEIGHT as u8 {
+      return;
+    }
+
+    if fill {
+      if x2 >= screen::WIDTH as u8 {
+        x2 = screen::WIDTH as u8 - 1;
+      }
+      if y2 >= screen::HEIGHT as u8 {
+        y2 = screen::HEIGHT as u8 - 1;
+      }
+      for y in y1..=y2 {
+        self.draw_hor_line_unchecked(x1, x2, y, mode);
+      }
+    } else {
+      self.draw_hor_line(x1, x2, y1, mode);
+      self.draw_hor_line(x1, x2, y2, mode);
+      self.draw_ver_line(x1, y1, y2, mode);
+      self.draw_ver_line(x2, y1, y2, mode);
+    }
   }
 
-  fn draw_circle(&mut self, x: u8, y: u8, r: u8, fill: bool, mode: DrawMode) {}
+  fn draw_circle(
+    &mut self,
+    (x, y): (u8, u8),
+    r: u8,
+    fill: bool,
+    mode: DrawMode,
+  ) {
+    self.draw_ellipse((x, y), (r, r), fill, mode);
+  }
 
   fn draw_ellipse(
     &mut self,
-    x: u8,
-    y: u8,
-    rx: u8,
-    ry: u8,
+    (x, y): (u8, u8),
+    (rx, ry): (u8, u8),
     fill: bool,
     mode: DrawMode,
   ) {
+    todo!()
   }
 
   fn get_byte(&self, addr: u16) -> u8 {
@@ -883,6 +1084,8 @@ mod tests {
     device.set_column(0);
     device.print(b"");
 
+    device.draw_line((0, 0), (159, 79), DrawMode::Copy);
+
     device.flush();
     device.set_row(4);
     device.set_column(18);
@@ -895,12 +1098,15 @@ mod tests {
     str.extend(b"678");
     let str = pad_text_buffer(str);
     assert_eq!(device.text_buffer(), str.as_slice());
-    assert_eq!(&inverse_buffer(&device), "###                 
+    assert_eq!(
+      &inverse_buffer(&device),
+      "###                 
                     
                     
                     
                     
-");
+"
+    );
 
     assert_snapshot!(device_screen_braille(&device));
   }
@@ -923,6 +1129,9 @@ mod tests {
     device.set_column(0);
     device.print(b"");
 
+    device.draw_line((0, 0), (159, 79), DrawMode::Copy);
+    device.draw_line((0, 40), (159, 40), DrawMode::Not);
+
     device.flush();
     device.set_row(4);
     device.set_column(18);
@@ -935,12 +1144,67 @@ mod tests {
     str.extend(b"678");
     let str = pad_text_buffer(str);
     assert_eq!(device.text_buffer(), str.as_slice());
-    assert_eq!(&inverse_buffer(&device), "###                 
+    assert_eq!(
+      &inverse_buffer(&device),
+      "###                 
                     
                     
                     
                     
-");
+"
+    );
+
+    assert_snapshot!(device_screen_braille(&device));
+  }
+
+  #[test]
+  fn draw_line() {
+    let mut device = new_device();
+
+    device.draw_line((0, 0), (159, 0), DrawMode::Copy);
+    device.draw_line((0, 79), (159, 79), DrawMode::Copy);
+    device.draw_line((0, 0), (0, 79), DrawMode::Copy);
+    device.draw_line((159, 0), (159, 79), DrawMode::Copy);
+
+    device.draw_line((3, 2), (5, 2), DrawMode::Copy);
+    device.draw_line((5, 4), (9, 4), DrawMode::Copy);
+    device.draw_line((5, 6), (17, 6), DrawMode::Copy);
+
+    device.draw_box((80, 40), (100, 60), true, DrawMode::Copy);
+
+    device.draw_line((75, 41), (84, 41), DrawMode::Erase);
+    device.draw_line((75, 43), (84, 43), DrawMode::Not);
+
+    device.draw_line((99, 35), (99, 45), DrawMode::Erase);
+    device.draw_line((97, 35), (97, 45), DrawMode::Not);
+
+    device.draw_line((2, 77), (12, 67), DrawMode::Copy);
+
+    device.draw_box((120, 40), (150, 60), true, DrawMode::Copy);
+
+    device.draw_line((115, 41), (125, 42), DrawMode::Not);
+    device.draw_line((121, 43), (131, 49), DrawMode::Erase);
+
+    device.draw_line((165, 77), (152, 77), DrawMode::Not);
+    device.draw_line((155, 75), (155, 85), DrawMode::Not);
+    device.draw_line((80, 85), (85, 71), DrawMode::Not);
+
+    assert_snapshot!(device_screen_braille(&device));
+  }
+
+  #[test]
+  fn draw_box() {
+    let mut device = new_device();
+
+    device.draw_box((0, 0), (159, 79), false, DrawMode::Copy);
+
+    device.draw_box((2, 2), (148, 77), true, DrawMode::Copy);
+
+    device.draw_box((150, 2), (170, 20), true, DrawMode::Not);
+    device.draw_box((147, 4), (157, 6), true, DrawMode::Erase);
+
+    device.draw_box((3, 3), (20, 10), false, DrawMode::Not);
+    device.draw_box((4, 12), (22, 18), false, DrawMode::Erase);
 
     assert_snapshot!(device_screen_braille(&device));
   }

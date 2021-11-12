@@ -25,28 +25,24 @@ pub trait Device {
 
   fn flush(&mut self);
 
-  fn draw_point(&mut self, x: u8, y: u8, mode: DrawMode);
+  fn draw_point(&mut self, coord: (u8, u8), mode: DrawMode);
 
-  fn draw_line(&mut self, x1: u8, y1: u8, x2: u8, y2: u8, mode: DrawMode);
+  fn draw_line(&mut self, coord1: (u8, u8), coord2: (u8, u8), mode: DrawMode);
 
   fn draw_box(
     &mut self,
-    x1: u8,
-    y1: u8,
-    x2: u8,
-    y2: u8,
+    coord1: (u8, u8),
+    coord2: (u8, u8),
     fill: bool,
     mode: DrawMode,
   );
 
-  fn draw_circle(&mut self, x: u8, y: u8, r: u8, fill: bool, mode: DrawMode);
+  fn draw_circle(&mut self, coord: (u8, u8), r: u8, fill: bool, mode: DrawMode);
 
   fn draw_ellipse(
     &mut self,
-    x: u8,
-    y: u8,
-    rx: u8,
-    ry: u8,
+    coord: (u8, u8),
+    radius: (u8, u8),
     fill: bool,
     mode: DrawMode,
   );

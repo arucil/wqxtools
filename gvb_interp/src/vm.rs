@@ -914,7 +914,7 @@ where
         let x2 = self.pop_u8(false)?;
         let y1 = self.pop_u8(false)?;
         let x1 = self.pop_u8(false)?;
-        self.device.draw_box(x1, y1, x2, y2, fill, mode);
+        self.device.draw_box((x1, y1), (x2, y2), fill, mode);
       }
       InstrKind::Call => {
         let addr = self.pop_range(-65535, 65535)? as _;
@@ -932,7 +932,7 @@ where
         let r = self.pop_u8(false)?;
         let y = self.pop_u8(false)?;
         let x = self.pop_u8(false)?;
-        self.device.draw_circle(x, y, r, fill, mode);
+        self.device.draw_circle((x, y), r, fill, mode);
       }
       InstrKind::Clear => {
         self.reset(loc, false)?;
@@ -955,7 +955,7 @@ where
         let mode = self.calc_draw_mode(has_mode)?;
         let y = self.pop_u8(false)?;
         let x = self.pop_u8(false)?;
-        self.device.draw_point(x, y, mode);
+        self.device.draw_point((x, y), mode);
       }
       InstrKind::DrawEllipse { has_fill, has_mode } => {
         let mode = self.calc_draw_mode(has_mode)?;
@@ -968,7 +968,7 @@ where
         let rx = self.pop_u8(false)?;
         let y = self.pop_u8(false)?;
         let x = self.pop_u8(false)?;
-        self.device.draw_ellipse(x, y, rx, ry, fill, mode);
+        self.device.draw_ellipse((x, y), (rx, ry), fill, mode);
       }
       InstrKind::End => {
         self.state.end()?;
@@ -1033,7 +1033,7 @@ where
         let x2 = self.pop_u8(false)?;
         let y1 = self.pop_u8(false)?;
         let x1 = self.pop_u8(false)?;
-        self.device.draw_line(x1, y1, x2, y2, mode);
+        self.device.draw_line((x1, y1), (x2, y2), mode);
       }
       InstrKind::AlignedAssign(align) => self.exec_set(loc, align)?,
       InstrKind::SetTrace(_) => todo!(),
@@ -1613,10 +1613,9 @@ where
     for _ in 0..num_fields {
       let lvalue = self.lval_stack.pop().unwrap().1;
       let len = self.pop_u8(false)?;
-      self.store.store_value(
-        lvalue.clone(),
-        Value::String(vec![0u8; len as _].into()),
-      );
+      self
+        .store
+        .store_value(lvalue.clone(), Value::String(vec![0u8; len as _].into()));
       fields.push(RecordField { len, lvalue });
       total_len += len as u32;
     }
@@ -2532,14 +2531,19 @@ mod tests {
       add_log(self.log.clone(), "flush");
     }
 
-    fn draw_point(&mut self, x: u8, y: u8, mode: DrawMode) {
+    fn draw_point(&mut self, (x, y): (u8, u8), mode: DrawMode) {
       add_log(
         self.log.clone(),
         format!("draw point at ({}, {}), {:?}", x, y, mode),
       );
     }
 
-    fn draw_line(&mut self, x1: u8, y1: u8, x2: u8, y2: u8, mode: DrawMode) {
+    fn draw_line(
+      &mut self,
+      (x1, y1): (u8, u8),
+      (x2, y2): (u8, u8),
+      mode: DrawMode,
+    ) {
       add_log(
         self.log.clone(),
         format!(
@@ -2551,10 +2555,8 @@ mod tests {
 
     fn draw_box(
       &mut self,
-      x1: u8,
-      y1: u8,
-      x2: u8,
-      y2: u8,
+      (x1, y1): (u8, u8),
+      (x2, y2): (u8, u8),
       fill: bool,
       mode: DrawMode,
     ) {
@@ -2567,7 +2569,13 @@ mod tests {
       );
     }
 
-    fn draw_circle(&mut self, x: u8, y: u8, r: u8, fill: bool, mode: DrawMode) {
+    fn draw_circle(
+      &mut self,
+      (x, y): (u8, u8),
+      r: u8,
+      fill: bool,
+      mode: DrawMode,
+    ) {
       add_log(
         self.log.clone(),
         format!(
@@ -2579,10 +2587,8 @@ mod tests {
 
     fn draw_ellipse(
       &mut self,
-      x: u8,
-      y: u8,
-      rx: u8,
-      ry: u8,
+      (x, y): (u8, u8),
+      (rx, ry): (u8, u8),
       fill: bool,
       mode: DrawMode,
     ) {
