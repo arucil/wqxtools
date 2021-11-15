@@ -1,16 +1,83 @@
 {
   "default": {
+    "comment": "如果无法自动检测机型，则使用下面的默认机型。new表示检测到BAS文件中用到的文曲星图形为新版图形时，使用的默认机型；old同理",
     "new": "tc808",
     "old": "pc1000a"
   },
   "tc808": {
     "emoji_style": "new",
     "sleep_unit": "0.7ms",
-    "graphics_base_addr": 6592
+    "graphics_base_addr": 6592,
+    "text_buffer_base_addr": 704,
+    "key_buffer_addr": 199,
+    "key_mappings": {
+      "24": { "addr": 198, "bit": 0 },
+
+      "0": { "addr": 198, "bit": 1 },
+      "2": { "addr": 197, "bit": 1 },
+      "4": { "addr": 196, "bit": 1 },
+      "6": { "addr": 195, "bit": 1 },
+      "8": { "addr": 194, "bit": 1 },
+      "10": { "addr": 193, "bit": 1 },
+      "12": { "addr": 192, "bit": 1 },
+
+      "28": { "addr": 198, "bit": 2 },
+      "29": { "addr": 197, "bit": 2 },
+      "30": { "addr": 196, "bit": 2 },
+      "31": { "addr": 195, "bit": 2 },
+      "16": { "addr": 194, "bit": 2 },
+      "15": { "addr": 193, "bit": 2 },
+
+      "111" : { "addr": 198, "bit": 3 },
+      "108" : { "addr": 197, "bit": 3 },
+      "20" : { "addr": 196, "bit": 3 },
+      "21" : { "addr": 195, "bit": 3 },
+      "112" : { "addr": 194, "bit": 3 },
+      "13" : { "addr": 193, "bit": 3 },
+      "14" : { "addr": 192, "bit": 3 },
+      "22" : { "addr": 191, "bit": 3 },
+
+      "113": { "addr": 198, "bit": 4 },
+      "119": { "addr": 197, "bit": 4 },
+      "101": { "addr": 196, "bit": 4 },
+      "114": { "addr": 195, "bit": 4 },
+      "116": { "addr": 194, "bit": 4 },
+      "121": { "addr": 193, "bit": 4 },
+      "117": { "addr": 192, "bit": 4 },
+      "105": { "addr": 191, "bit": 4 },
+
+      "97": { "addr": 198, "bit": 5 },
+      "115": { "addr": 197, "bit": 5 },
+      "100": { "addr": 196, "bit": 5 },
+      "102": { "addr": 195, "bit": 5 },
+      "103": { "addr": 194, "bit": 5 },
+      "104": { "addr": 193, "bit": 5 },
+      "106": { "addr": 192, "bit": 5 },
+      "107": { "addr": 191, "bit": 5 },
+
+      "122": { "addr": 198, "bit": 6 },
+      "120": { "addr": 197, "bit": 6 },
+      "99": { "addr": 196, "bit": 6 },
+      "118": { "addr": 195, "bit": 6 },
+      "98": { "addr": 194, "bit": 6 },
+      "110": { "addr": 193, "bit": 6 },
+      "109": { "addr": 192, "bit": 6 },
+      "19": { "addr": 191, "bit": 6 },
+
+      "25": { "addr": 198, "bit": 7 },
+      "26": { "addr": 197, "bit": 7 },
+      "18": { "addr": 196, "bit": 7 },
+      "27": { "addr": 195, "bit": 7 },
+      "48": { "addr": 194, "bit": 7 },
+      "46": { "addr": 193, "bit": 7 },
+      "32": { "addr": 192, "bit": 7 }
+    }
   },
   "pc1000a": {
     "emoji_style": "old",
     "sleep_unit": "1ms",
-    "graphics_base_addr": 2496
+    "graphics_base_addr": 2496,
+    "text_buffer_base_addr": 704,
+    "key_buffer_addr": 199
   }
 }

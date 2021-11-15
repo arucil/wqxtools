@@ -37,11 +37,13 @@ impl EmojiStyle {
       Self::New => {
         let c = match hi {
           248..=252 => match lo {
+            0..=93 => (hi - 0xf8) * 94 + lo,
             161..=254 => (hi - 0xf8) * 94 + (lo - 161),
             _ => return None,
           },
           253 => match lo {
-            161..=217 => 94 * 5 + lo - 161,
+            0..=56 => 94 * 5 + lo,
+            161..=217 => 94 * 5 + (lo - 161),
             _ => return None,
           },
           _ => return None,
@@ -100,7 +102,7 @@ mod tests {
     fn arbitrary(g: &mut Gen) -> Gb {
       Gb(
         (g.choose(&[247, 248, 249, 250, 251, 252, 253, 254]).unwrap() << 8)
-          + u8::arbitrary(g).checked_add(60).unwrap_or(255) as u16,
+          + u8::arbitrary(g).checked_add(94).unwrap_or(255) as u16,
       )
     }
   }

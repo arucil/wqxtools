@@ -217,32 +217,29 @@ impl DefaultDevice {
     }
   }
 
-  fn draw_hor_line_unchecked(&mut self, x1: u8, x2: u8, y: u8, mode: DrawMode) {
-    let mut g = unsafe {
-      self.memory.as_mut_ptr().add(
-        self.props.graphics_base_addr as usize
-          + y as usize * screen::WIDTH_IN_BYTE,
-      )
-    };
+  unsafe fn draw_hor_line_unchecked(
+    ptr: *mut u8,
+    x1: u8,
+    x2: u8,
+    y: u8,
+    mode: DrawMode,
+  ) {
+    let mut g = ptr.add(y as usize * screen::WIDTH_IN_BYTE);
     let x1_byte = x1 >> 3;
     let x2_byte = x2 >> 3;
     let start_mask = START_BIT_MASK[x1 as usize & 7];
     let end_mask = END_BIT_MASK[x2 as usize & 7];
     if x1_byte == x2_byte {
-      unsafe {
-        mode.mask(g.add(x1_byte as usize), start_mask & end_mask);
-      }
+      mode.mask(g.add(x1_byte as usize), start_mask & end_mask);
       return;
     }
 
-    unsafe {
-      mode.mask(g.add(x2_byte as usize), end_mask);
-      g = g.add(x1_byte as usize);
-      mode.mask(g, start_mask);
-      for _ in x1_byte + 1..x2_byte {
-        g = g.add(1);
-        mode.mask(g, 255);
-      }
+    mode.mask(g.add(x2_byte as usize), end_mask);
+    g = g.add(x1_byte as usize);
+    mode.mask(g, start_mask);
+    for _ in x1_byte + 1..x2_byte {
+      g = g.add(1);
+      mode.mask(g, 255);
     }
   }
 
@@ -262,7 +259,18 @@ impl DefaultDevice {
       x2 = screen::WIDTH as u8 - 1;
     }
 
-    self.draw_hor_line_unchecked(x1, x2, y, mode);
+    unsafe {
+      Self::draw_hor_line_unchecked(
+        self
+          .memory
+          .as_mut_ptr()
+          .add(self.props.graphics_base_addr as usize),
+        x1,
+        x2,
+        y,
+        mode,
+      );
+    }
   }
 
   fn draw_ver_line(&mut self, x: u8, mut y1: u8, mut y2: u8, mode: DrawMode) {
@@ -295,6 +303,58 @@ impl DefaultDevice {
         mode.mask(g, mask);
         g = g.add(screen::WIDTH_IN_BYTE);
       }
+    }
+  }
+
+  unsafe fn ellipse_hor_line(
+    ptr: *mut u8,
+    mut x1: i32,
+    mut x2: i32,
+    y: i32,
+    mode: DrawMode,
+  ) {
+    if y >= screen::HEIGHT as i32 {
+      return;
+    }
+    if x1 > x2 {
+      let t = x1;
+      x1 = x2;
+      x2 = t;
+    }
+    if x1 >= screen::WIDTH as i32 {
+      return;
+    }
+    if x2 >= screen::WIDTH as i32 {
+      x2 = screen::WIDTH as i32 - 1;
+    }
+
+    Self::draw_hor_line_unchecked(ptr, x1 as u8, x2 as u8, y as u8, mode);
+  }
+
+  unsafe fn ellipse_point(ptr: *mut u8, x: i32, y: i32, mode: DrawMode) {
+    if x >= 0 && x < screen::WIDTH as i32 && y >= 0 && y < screen::HEIGHT as i32
+    {
+      mode.point(ptr, x as usize, y as usize);
+    }
+  }
+
+  unsafe fn ellipse_part(
+    ptr: *mut u8,
+    x: i32,
+    y: i32,
+    rx: i32,
+    ry: i32,
+    fill: bool,
+    mode: DrawMode,
+  ) {
+    if fill {
+      Self::ellipse_hor_line(ptr, x - rx, x + rx, y - ry, mode);
+      Self::ellipse_hor_line(ptr, x - rx, x + rx, y + ry, mode);
+    } else {
+      Self::ellipse_point(ptr, x - rx, y - ry, mode);
+      Self::ellipse_point(ptr, x + rx, y - ry, mode);
+      Self::ellipse_point(ptr, x - rx, y + ry, mode);
+      Self::ellipse_point(ptr, x + rx, y + ry, mode);
     }
   }
 }
@@ -599,8 +659,16 @@ impl Device for DefaultDevice {
       if y2 >= screen::HEIGHT as u8 {
         y2 = screen::HEIGHT as u8 - 1;
       }
+      let ptr = unsafe {
+        self
+          .memory
+          .as_mut_ptr()
+          .add(self.props.graphics_base_addr as usize)
+      };
       for y in y1..=y2 {
-        self.draw_hor_line_unchecked(x1, x2, y, mode);
+        unsafe {
+          Self::draw_hor_line_unchecked(ptr, x1, x2, y, mode);
+        }
       }
     } else {
       self.draw_hor_line(x1, x2, y1, mode);
@@ -627,7 +695,79 @@ impl Device for DefaultDevice {
     fill: bool,
     mode: DrawMode,
   ) {
-    todo!()
+    if rx == 0 && ry == 0 {
+      self.draw_point((x, y), mode);
+      return;
+    }
+
+    let dist_x = rx as i32;
+    let dist_y = ry as i32;
+    let r = dist_x.max(dist_y);
+    let mut inc_x = -1;
+    let mut inc_y = 1;
+    let mut fy = 1i32;
+    let mut fx = 1 - 2 * r;
+    let mut fxy = 0;
+    let mut delta_x = 0;
+    let mut delta_y = 0;
+    let mut tmp_x = rx as i32;
+    let mut tmp_y = 0;
+    let mut part_start = false;
+    let g = unsafe {
+      self
+        .memory
+        .as_mut_ptr()
+        .add(self.props.graphics_base_addr as usize)
+    };
+    let x = x as i32;
+    let y = y as i32;
+    unsafe {
+      Self::ellipse_part(g, x, y, tmp_x, tmp_y, fill, mode);
+    }
+    while tmp_x != 0 {
+      if fxy >= 0 {
+        delta_x += dist_x;
+        if delta_x >= r {
+          tmp_x += inc_x;
+          delta_x -= r;
+          if tmp_x + 1 != dist_x {
+            unsafe {
+              Self::ellipse_part(g, x, y, tmp_x, tmp_y, fill, mode);
+            }
+          }
+        }
+        fxy -= fx.abs();
+        fx += 2;
+        if fx < 0 || fx >= 3 {
+          continue;
+        }
+        inc_y = -inc_y;
+        fy = -fy + 2;
+        fxy = -fxy;
+      } else {
+        delta_y += dist_y;
+        if delta_y >= r {
+          delta_y -= r;
+          tmp_y += inc_y;
+          unsafe {
+            if !part_start && (tmp_y == 1 || tmp_y == 2) {
+              Self::ellipse_part(g, x, y, dist_x, tmp_y, fill, mode);
+            } else {
+              part_start = true;
+              Self::ellipse_part(g, x, y, tmp_x, tmp_y, fill, mode);
+            }
+          }
+        }
+        fxy += fy.abs();
+        fy += 2;
+        if fy < 0 || fy > 2 {
+          continue;
+        }
+        inc_x = -inc_x;
+        fx = -fx + 2;
+        fxy = -fxy;
+      }
+    }
   }
 
   fn get_byte(&self, addr: u16) -> u8 {
@@ -1007,12 +1147,12 @@ mod tests {
   fn print_hex_code() {
     let mut device = new_device();
 
-    device.print(b"\xf8\0\xc7\xff \xae");
+    device.print(b"\xf8\x5e\xc7\xff \xae");
     device.set_byte((TEXT_BUFFER_ADDR + 99) as u16, 0xb0);
 
     device.flush();
 
-    let mut str = vec![0xf8u8, 0, 0xc7, 0xff, 0x20, 0xae];
+    let mut str = vec![0xf8u8, 0x5e, 0xc7, 0xff, 0x20, 0xae];
     str.extend(vec![0u8; 93]);
     str.push(0xb0);
     let str = pad_text_buffer(ByteString::from(str));
@@ -1205,6 +1345,125 @@ mod tests {
 
     device.draw_box((3, 3), (20, 10), false, DrawMode::Not);
     device.draw_box((4, 12), (22, 18), false, DrawMode::Erase);
+
+    assert_snapshot!(device_screen_braille(&device));
+  }
+
+  #[test]
+  fn draw_circle_unfilled_copy() {
+    let mut device = new_device();
+
+    device.draw_circle((10, 10), 1, false, DrawMode::Copy);
+
+    device.draw_circle((10, 20), 2, false, DrawMode::Copy);
+
+    device.draw_circle((10, 40), 3, false, DrawMode::Copy);
+
+    device.draw_circle((10, 50), 4, false, DrawMode::Copy);
+
+    device.draw_circle((10, 65), 5, false, DrawMode::Copy);
+
+    device.draw_circle((40, 10), 6, false, DrawMode::Copy);
+
+    device.draw_circle((40, 50), 14, false, DrawMode::Copy);
+
+    device.draw_circle((100, 50), 35, false, DrawMode::Copy);
+
+    assert_snapshot!(device_screen_braille(&device));
+  }
+
+  #[test]
+  fn draw_circle_unfilled_not() {
+    let mut device = new_device();
+
+    device.draw_box((0, 0), (159, 39), true, DrawMode::Copy);
+
+    device.draw_circle((10, 10), 1, false, DrawMode::Not);
+
+    device.draw_circle((10, 20), 2, false, DrawMode::Not);
+
+    device.draw_circle((10, 40), 3, false, DrawMode::Not);
+
+    device.draw_circle((10, 50), 4, false, DrawMode::Not);
+
+    device.draw_circle((10, 65), 5, false, DrawMode::Not);
+
+    device.draw_circle((40, 10), 6, false, DrawMode::Not);
+
+    device.draw_circle((40, 50), 14, false, DrawMode::Not);
+
+    device.draw_circle((100, 50), 35, false, DrawMode::Not);
+
+    assert_snapshot!(device_screen_braille(&device));
+  }
+
+  #[test]
+  fn draw_circle_filled_copy() {
+    let mut device = new_device();
+
+    device.draw_circle((10, 10), 1, true, DrawMode::Copy);
+
+    device.draw_circle((10, 20), 2, true, DrawMode::Copy);
+
+    device.draw_circle((10, 40), 3, true, DrawMode::Copy);
+
+    device.draw_circle((10, 50), 4, true, DrawMode::Copy);
+
+    device.draw_circle((10, 65), 5, true, DrawMode::Copy);
+
+    device.draw_circle((40, 10), 6, true, DrawMode::Copy);
+
+    device.draw_circle((40, 50), 14, true, DrawMode::Copy);
+
+    device.draw_circle((100, 50), 35, true, DrawMode::Copy);
+
+    assert_snapshot!(device_screen_braille(&device));
+  }
+
+  #[test]
+  fn draw_circle_filled_not() {
+    let mut device = new_device();
+
+    device.draw_box((0, 0), (159, 39), true, DrawMode::Copy);
+
+    device.draw_circle((10, 10), 1, true, DrawMode::Not);
+
+    device.draw_circle((10, 20), 2, true, DrawMode::Not);
+
+    device.draw_circle((10, 40), 3, true, DrawMode::Not);
+
+    device.draw_circle((10, 50), 4, true, DrawMode::Not);
+
+    device.draw_circle((10, 65), 5, true, DrawMode::Not);
+
+    device.draw_circle((40, 10), 6, true, DrawMode::Not);
+
+    device.draw_circle((40, 50), 14, true, DrawMode::Not);
+
+    device.draw_circle((100, 50), 35, true, DrawMode::Not);
+
+    assert_snapshot!(device_screen_braille(&device));
+  }
+
+  #[test]
+  fn draw_ellipse() {
+    let mut device = new_device();
+
+    device.draw_ellipse((10, 10), (1, 3), true, DrawMode::Copy);
+
+    device.draw_ellipse((10, 20), (3, 1), true, DrawMode::Not);
+
+    device.draw_ellipse((10, 40), (7, 3), true, DrawMode::Copy);
+
+    device.draw_ellipse((10, 50), (2, 6), true, DrawMode::Not);
+
+    device.draw_ellipse((10, 65), (5, 2), false, DrawMode::Copy);
+
+    device.draw_ellipse((40, 10), (6, 10), false, DrawMode::Not);
+
+    device.draw_ellipse((40, 50), (14, 4), true, DrawMode::Copy);
+
+    device.draw_ellipse((100, 50), (35, 34), true, DrawMode::Not);
 
     assert_snapshot!(device_screen_braille(&device));
   }
