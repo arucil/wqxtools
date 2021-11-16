@@ -5,17 +5,19 @@
   never_type,
   io_error_more,
   int_abs_diff,
+  const_maybe_uninit_assume_init,
+  path_try_exists
 )]
 
 mod ast;
 mod compiler;
+pub mod device;
 pub mod diagnostic;
 pub mod document;
 mod machine;
 mod parser;
 pub mod util;
 pub mod vm;
-pub mod device;
 
 pub use self::diagnostic::*;
 pub use self::document::*;

@@ -1,16 +1,13 @@
-use std::collections::HashMap;
 use std::env;
 use std::error::Error;
 use std::fs;
 use std::fs::OpenOptions;
 use std::io::prelude::*;
 use std::path::Path;
-use tinyjson::JsonValue;
 
 fn main() -> Result<(), Box<dyn Error>> {
   build_gb2312_mapping()?;
   build_gvb_keyword_mapping()?;
-  build_machine_props_map()?;
 
   Ok(())
 }
@@ -113,93 +110,6 @@ fn build_gvb_keyword_mapping() -> Result<(), Box<dyn Error>> {
   for byte in space {
     writeln!(&mut file, " {}u8,", byte)?;
   }
-  writeln!(&mut file, "}};")?;
-
-  Ok(())
-}
-
-fn build_machine_props_map() -> Result<(), Box<dyn Error>> {
-  println!("cargo:rerun-if-changed=data/machine_props.json");
-
-  let file = fs::read_to_string("data/machine_props.json")?;
-
-  let map = file.parse::<JsonValue>()?;
-  let map = map.get::<HashMap<String, JsonValue>>().unwrap();
-
-  let out_dir = env::var("OUT_DIR")?;
-
-  let mut file = OpenOptions::new()
-    .create(true)
-    .write(true)
-    .open(Path::new(&out_dir).join("machines.rs"))?;
-
-  writeln!(&mut file, "use phf::phf_map;")?;
-  writeln!(&mut file)?;
-
-  let defaults = map["default"].get::<HashMap<String, JsonValue>>().unwrap();
-  writeln!(
-    &mut file,
-    "pub const DEFAULT_MACHINE_FOR_NEW_EMOJI_STYLE: &'static str = \"{}\";",
-    defaults["new"].get::<String>().unwrap().to_ascii_uppercase()
-  )?;
-  writeln!(
-    &mut file,
-    "pub const DEFAULT_MACHINE_FOR_OLD_EMOJI_STYLE: &'static str = \"{}\";",
-    defaults["old"].get::<String>().unwrap().to_ascii_uppercase()
-  )?;
-
-  writeln!(
-    &mut file,
-    "pub static MACHINES: phf::Map<&'static str, MachineProps> = phf_map! {{"
-  )?;
-
-  for (name, props) in map {
-    if name == "default" {
-      continue;
-    }
-
-    let props = props.get::<HashMap<String, JsonValue>>().unwrap();
-    writeln!(
-      &mut file,
-      "  \"{}\" => MachineProps {{",
-      name.to_ascii_uppercase(),
-    )?;
-    writeln!(&mut file, "    name: {:?},", name.to_ascii_uppercase())?;
-
-    let emoji_style = props["emoji_style"].get::<String>().unwrap();
-    let emoji_style = if emoji_style == "new" { "New" } else { "Old" };
-    writeln!(&mut file, "    emoji_style: EmojiStyle::{},", emoji_style)?;
-
-    let graphics_base_addr =
-      *props["graphics_base_addr"].get::<f64>().unwrap() as u32;
-    writeln!(&mut file, "    graphics_base_addr: {},", graphics_base_addr)?;
-
-    let sleep_unit = props["sleep_unit"].get::<String>().unwrap();
-    if let Some((num, unit)) =
-      sleep_unit.split_once(|c: char| c.is_ascii_alphabetic())
-    {
-      let num = num
-        .parse::<f64>()
-        .expect(&format!("invalid sleep_unit: {}", sleep_unit));
-      let ns = match unit {
-        "s" => num * 1e9,
-        "ms" => num * 1e6,
-        "ns" => num,
-        _ => panic!("invalid sleep_unit: {}", sleep_unit),
-      };
-      let ns = ns as u64;
-      writeln!(
-        &mut file,
-        "    sleep_unit: std::time::Duration::from_nanos({}),",
-        ns
-      )?;
-    } else {
-      panic!("invalid sleep_unit: {}", sleep_unit);
-    };
-
-    writeln!(&mut file, "  }},")?;
-  }
-
   writeln!(&mut file, "}};")?;
 
   Ok(())

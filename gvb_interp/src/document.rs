@@ -108,7 +108,7 @@ impl Document {
     Self {
       base_addr: binary::DEFAULT_BASE_ADDR,
       emoji_style: EmojiStyle::New,
-      machine_props: crate::machine::MACHINES
+      machine_props: crate::machine::machines()
         [EmojiStyle::New.default_machine_name()]
       .clone(),
       text: DEFAULT_TEXT.to_owned(),
@@ -150,10 +150,7 @@ impl Document {
     let mut emoji_style = doc.guessed_emoji_style;
 
     let machine_props;
-    if let Some(props) = detect_machine_props(&doc.text)
-      .and_then(|p| p.ok())
-      .cloned()
-    {
+    if let Some(props) = detect_machine_props(&doc.text).and_then(|p| p.ok()) {
       emoji_style = props.emoji_style;
       doc = if is_bas {
         binary::load_bas(&data, Some(emoji_style))?
@@ -163,7 +160,7 @@ impl Document {
       machine_props = props;
     } else {
       machine_props =
-        crate::machine::MACHINES[emoji_style.default_machine_name()].clone();
+        crate::machine::machines()[emoji_style.default_machine_name()].clone();
     }
 
     let lines = text_to_doc_lines(&doc.text);
@@ -269,15 +266,15 @@ impl Document {
     &self.text
   }
 
-  pub fn machine_name(&self) -> &'static str {
-    self.machine_props.name
+  pub fn machine_name(&self) -> &str {
+    &self.machine_props.name
   }
 
   pub fn sync_machine(&mut self) {
     if let Some(Ok(props)) = detect_machine_props(&self.text) {
-      self.machine_props = props.clone();
+      self.machine_props = props;
     } else {
-      self.machine_props = crate::machine::MACHINES
+      self.machine_props = crate::machine::machines()
         [self.emoji_style.default_machine_name()]
       .clone();
     }
@@ -318,15 +315,15 @@ impl LineDiagnosis {
 
 fn detect_machine_props(
   text: impl AsRef<str>,
-) -> Option<Result<&'static MachineProps, ()>> {
+) -> Option<Result<MachineProps, ()>> {
   let last_line = text.as_ref().lines().last().unwrap();
   if let Some(start) = last_line.rfind('{') {
     let first_line = &last_line[start + 1..];
     if let Some(end) = first_line.find('}') {
       let name = first_line[..end].trim().to_ascii_uppercase();
       if !name.is_empty() {
-        match crate::machine::MACHINES.get(&name) {
-          Some(props) => return Some(Ok(props)),
+        match crate::machine::machines().get(&name) {
+          Some(props) => return Some(Ok(props.clone())),
           None => return Some(Err(())),
         }
       }

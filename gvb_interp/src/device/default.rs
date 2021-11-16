@@ -2,8 +2,6 @@ use super::*;
 use crate::machine::MachineProps;
 use std::io;
 
-const TEXT_BUFFER_ADDR: usize = 0x2c0;
-const KEY_BUFFER_ADDR: usize = 199;
 const CHAR_HEIGHT: usize = 16;
 
 const TEXT_COLUMNS: usize = 20;
@@ -887,8 +885,7 @@ mod tests {
 
   fn new_device() -> DefaultDevice {
     DefaultDevice::new(
-      crate::machine::MACHINES
-        [crate::machine::DEFAULT_MACHINE_FOR_NEW_EMOJI_STYLE]
+      crate::machine::machines()[EmojiStyle::New.default_machine_name()]
         .clone(),
     )
   }

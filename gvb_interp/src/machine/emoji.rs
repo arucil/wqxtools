@@ -4,6 +4,12 @@ pub enum EmojiStyle {
   New,
 }
 
+impl Default for EmojiStyle {
+  fn default() -> Self {
+    Self::New
+  }
+}
+
 impl EmojiStyle {
   pub fn code_to_index(&self, code: u16) -> Option<usize> {
     let hi = code >> 8;
@@ -81,10 +87,12 @@ impl EmojiStyle {
     }
   }
 
-  pub const fn default_machine_name(&self) -> &'static str {
-    match self {
-      Self::New => super::DEFAULT_MACHINE_FOR_NEW_EMOJI_STYLE,
-      Self::Old => super::DEFAULT_MACHINE_FOR_OLD_EMOJI_STYLE,
+  pub fn default_machine_name(&self) -> &'static str {
+    unsafe {
+      match self {
+        Self::New => super::DEFAULT_MACHINE_FOR_NEW_EMOJI_STYLE.as_ref(),
+        Self::Old => super::DEFAULT_MACHINE_FOR_OLD_EMOJI_STYLE.as_ref(),
+      }
     }
   }
 }

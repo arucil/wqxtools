@@ -1,19 +1,287 @@
+use std::collections::HashMap;
+use std::env;
+use std::fs;
+use std::io;
+use std::mem::MaybeUninit;
+use std::path::PathBuf;
 use std::time::Duration;
+use yaml_rust::{Yaml, YamlLoader};
 
 pub mod emoji;
 
 pub use emoji::*;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct MachineProps {
-  pub name: &'static str,
+  pub name: String,
   pub emoji_style: EmojiStyle,
   pub graphics_base_addr: u16,
   pub sleep_unit: Duration,
+  pub text_buffer_base_addr: u16,
+  pub key_buffer_addr: u16,
 }
 
 pub fn names() -> Vec<&'static str> {
-  MACHINES.keys().map(|&s| s).collect()
+  unsafe {
+    MACHINES
+      .assume_init_ref()
+      .keys()
+      .map(|s| s.as_str())
+      .collect()
+  }
 }
 
-include!(concat!(env!("OUT_DIR"), "/machines.rs"));
+pub fn machines() -> &'static HashMap<String, MachineProps> {
+  unsafe { MACHINES.assume_init_ref() }
+}
+
+static mut MACHINES: MaybeUninit<HashMap<String, MachineProps>> =
+  MaybeUninit::uninit();
+
+pub static mut DEFAULT_MACHINE_FOR_NEW_EMOJI_STYLE: String = String::new();
+
+pub static mut DEFAULT_MACHINE_FOR_OLD_EMOJI_STYLE: String = String::new();
+
+pub enum InitError {
+  Io(io::Error),
+  Yaml(yaml_rust::ScanError),
+  TypeMismatch(String),
+  Other(String),
+}
+
+impl From<io::Error> for InitError {
+  fn from(err: io::Error) -> Self {
+    Self::Io(err)
+  }
+}
+
+impl From<yaml_rust::ScanError> for InitError {
+  fn from(err: yaml_rust::ScanError) -> Self {
+    Self::Yaml(err)
+  }
+}
+
+const MACHINE_METADATA_NAME: &str = "machines.yaml";
+
+pub fn init_machines() -> Result<(), InitError> {
+  let metadata_path = if fs::try_exists(MACHINE_METADATA_NAME)? {
+    PathBuf::from(MACHINE_METADATA_NAME)
+  } else {
+    let mut path = env::current_exe()?;
+    path.push(MACHINE_METADATA_NAME);
+    path
+  };
+  let content = std::fs::read_to_string(metadata_path)?;
+  let mut docs = YamlLoader::load_from_str(&content)?;
+  unsafe {
+    MACHINES.write(HashMap::new());
+  }
+  if docs.is_empty() {
+    return Ok(());
+  }
+
+  let doc = docs.pop().unwrap();
+
+  let mut obj = doc.into_hash().ok_or_else(|| {
+    InitError::TypeMismatch(format!("toplevel is not object"))
+  })?;
+
+  // default
+  if let Some(default) = obj.remove(&Yaml::String("default".to_owned())) {
+    let mut default = default.into_hash().ok_or_else(|| {
+      InitError::TypeMismatch(format!("default is not object"))
+    })?;
+    // default.new
+    if let Some(new) = default.remove(&Yaml::String("new".into())) {
+      let new = new.into_string().ok_or_else(|| {
+        InitError::TypeMismatch(format!("default.new is not string"))
+      })?;
+      unsafe {
+        DEFAULT_MACHINE_FOR_NEW_EMOJI_STYLE = new;
+      }
+    } else {
+      return Err(InitError::Other("missing field 'new' in 'default'".into()));
+    }
+    // default.old
+    if let Some(old) = default.remove(&Yaml::String("old".into())) {
+      let old = old.into_string().ok_or_else(|| {
+        InitError::TypeMismatch(format!("default.old is not string"))
+      })?;
+      unsafe {
+        DEFAULT_MACHINE_FOR_NEW_EMOJI_STYLE = old;
+      }
+    } else {
+      return Err(InitError::Other("missing field 'old' in 'default'".into()));
+    }
+
+    if let Some((key, _)) = default.pop_front() {
+      return Err(InitError::Other(format!(
+        "superfluous field '{}' in 'default'",
+        yaml_to_string(&key)
+      )));
+    }
+  } else {
+    return Err(InitError::Other("missing field 'default'".into()));
+  }
+
+  for (name, obj) in obj {
+    let name = name.as_str().ok_or_else(|| {
+      InitError::TypeMismatch(format!(
+        "key {} is not string",
+        yaml_to_string(&name)
+      ))
+    })?;
+
+    let mut obj = obj.into_hash().ok_or_else(|| {
+      InitError::TypeMismatch(format!("'{}' is not object", name,))
+    })?;
+
+    let mut props = MachineProps::default();
+
+    // emoji_style
+    if let Some(emoji_style) = obj.remove(&Yaml::String("emoji_style".into())) {
+      let emoji_style = emoji_style.as_str().ok_or_else(|| {
+        InitError::TypeMismatch(format!("{}.emoji_style is not string", name))
+      })?;
+      if emoji_style == "new" {
+        props.emoji_style = EmojiStyle::New;
+      } else if emoji_style == "old" {
+        props.emoji_style = EmojiStyle::Old;
+      } else {
+        return Err(InitError::Other(format!(
+          "unrecognized emoji style '{}'",
+          emoji_style
+        )));
+      }
+    } else {
+      return Err(InitError::Other(format!(
+        "missing field 'emoji_style' in '{}'",
+        name
+      )));
+    }
+
+    // sleep_unit
+    if let Some(sleep_unit) = obj.remove(&Yaml::String("sleep_unit".into())) {
+      let sleep_unit = sleep_unit.as_str().ok_or_else(|| {
+        InitError::TypeMismatch(format!("{}.sleep_unit is not string", name))
+      })?;
+      if let Some(i) = sleep_unit.rfind(|c: char| !c.is_ascii_alphabetic()) {
+        if i == sleep_unit.len() - 1 {
+          return Err(InitError::Other(format!(
+            "missing unit (s/ms/us/ns) in sleep unit '{}'",
+            sleep_unit
+          )));
+        }
+
+        let value = sleep_unit[..i + 1].parse::<f64>().map_err(|_| {
+          InitError::Other(format!("invalid sleep unit '{}'", sleep_unit))
+        })?;
+        if !value.is_normal() || value < 0.0 {
+          return Err(InitError::Other(format!(
+            "invalid sleep unit '{}'",
+            sleep_unit
+          )));
+        }
+
+        let sleep_unit = match &sleep_unit[i + 1..] {
+          "s" => Duration::from_millis((value * 1000.0) as u64),
+          "ms" => Duration::from_micros((value * 1000.0) as u64),
+          "us" => Duration::from_nanos((value * 1000.0) as u64),
+          "ns" => Duration::from_nanos(value as u64),
+          _ => {
+            return Err(InitError::Other(format!(
+              "invalid sleep unit '{}'",
+              sleep_unit
+            )))
+          }
+        };
+        props.sleep_unit = sleep_unit;
+      } else {
+        return Err(InitError::Other(format!(
+          "invalid sleep unit '{}'",
+          sleep_unit
+        )));
+      }
+    } else {
+      return Err(InitError::Other(format!(
+        "missing field 'sleep_unit' in '{}'",
+        name
+      )));
+    }
+
+    if let Some(addr) =
+      obj.remove(&Yaml::String("graphics_base_addr".to_owned()))
+    {
+      props.graphics_base_addr = get_addr(name, "graphics_base_addr", addr)?;
+    } else {
+      return Err(InitError::Other(format!(
+        "missing field 'graphics_base_addr' in '{}'",
+        name
+      )));
+    }
+
+    if let Some(addr) =
+      obj.remove(&Yaml::String("text_buffer_base_addr".to_owned()))
+    {
+      props.text_buffer_base_addr =
+        get_addr(name, "text_buffer_base_addr", addr)?;
+    } else {
+      return Err(InitError::Other(format!(
+        "missing field 'text_buffer_base_addr' in '{}'",
+        name
+      )));
+    }
+
+    if let Some(addr) =
+      obj.remove(&Yaml::String("key_buffer_addr".to_owned()))
+    {
+      props.key_buffer_addr =
+        get_addr(name, "key_buffer_addr", addr)?;
+    } else {
+      return Err(InitError::Other(format!(
+        "missing field 'key_buffer_addr' in '{}'",
+        name
+      )));
+    }
+
+    unsafe {
+      MACHINES.assume_init_mut().insert(name.to_owned(), props);
+    }
+  }
+
+  Ok(())
+}
+
+pub fn get_addr(
+  context: impl AsRef<str>,
+  name: &str,
+  addr: Yaml,
+) -> Result<u16, InitError> {
+  let context = context.as_ref();
+  let addr = addr.as_i64().ok_or_else(|| {
+    InitError::Other(format!("{}.{} is not integer", context, name))
+  })?;
+
+  if addr > 65535 || addr < 0 {
+    return Err(InitError::Other(format!(
+      "{}.{} is not in the range 0~65535",
+      context, name
+    )));
+  }
+
+  Ok(addr as u16)
+}
+
+fn yaml_to_string(yaml: &Yaml) -> String {
+  match yaml {
+    Yaml::Null => "~".to_owned(),
+    Yaml::Boolean(true) => "true".to_owned(),
+    Yaml::Boolean(false) => "false".to_owned(),
+    Yaml::Hash(_) => "<object>".to_owned(),
+    Yaml::Array(_) => "<array>".to_owned(),
+    Yaml::String(s) => format!("'{}'", s.replace("'", "\\'")),
+    Yaml::Integer(n) => n.to_string(),
+    Yaml::Real(n) => n.to_string(),
+    _ => panic!(),
+  }
+}

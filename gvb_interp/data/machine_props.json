@@ -78,6 +78,31 @@
     "sleep_unit": "1ms",
     "graphics_base_addr": 2496,
     "text_buffer_base_addr": 704,
-    "key_buffer_addr": 199
+    "key_buffer_addr": 199,
+    "key_mappings": {
+      "28": { "addr": 200, "bit": 2, "comment": "F1" },
+      "29": { "addr": 200, "bit": 3, "comment": "F2" },
+      "30": { "addr": 200, "bit": 4, "comment": "F3" },
+      "31": { "addr": 200, "bit": 5, "comment": "F4" },
+
+      "111": { "addr": 201, "bit": 0 },
+      "108": { "addr": 201, "bit": 1 },
+      "20": { "addr": 201, "bit": 2 },
+      "21": { "addr": 201, "bit": 3 },
+      "112": { "addr": 201, "bit": 4 },
+      "13": { "addr": 201, "bit": 5 },
+      "14": { "addr": 201, "bit": 6 },
+      "22": { "addr": 201, "bit": 7 },
+
+      "113": { "addr": 202, "bit": 0 },
+      "119": { "addr": 202, "bit": 1 },
+      "101": { "addr": 202, "bit": 2 },
+      "114": { "addr": 202, "bit": 3 },
+      "116": { "addr": 202, "bit": 4 },
+      "121": { "addr": 202, "bit": 5 },
+      "117": { "addr": 202, "bit": 6 },
+      "105": { "addr": 202, "bit": 7 },
+
+    }
   }
 }

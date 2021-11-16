@@ -1,0 +1,138 @@
+# 修改机型配置之后选择 [菜单] -> [设置] -> [重新加载配置]
+
+default:
+  # 如果无法自动检测机型，则使用下面的默认机型。
+  # new表示检测到BAS文件中用到的文曲星图形为新版图形时，使用的默认机型；old同理
+  new: tc808
+  old: pc1000a
+
+tc808:
+  # 文曲星图形版本：新版 new, 旧版 old
+  emoji_style: new
+  # SLEEP 语句的单位，支持的单位：秒 s, 毫秒 ms, 微秒 us, 纳秒 ns
+  sleep_unit: 0.7ms
+  # 屏幕映射的地址，也可以用十进制表示
+  graphics_base_addr: 0x19c0
+  # 屏幕文字缓冲区的地址，也可以用十六进制表示
+  text_buffer_base_addr: 704
+  # 按键缓冲区的地址，也可以用十六进制表示
+  key_buffer_addr: 199
+  key_mappings:
+    24: { addr: 198, bit: 0 }
+
+    0: { addr: 198, bit: 1 }
+    2: { addr: 197, bit: 1 }
+    4: { addr: 196, bit: 1 }
+    6: { addr: 195, bit: 1 }
+    8: { addr: 194, bit: 1 }
+    10: { addr: 193, bit: 1 }
+    12: { addr: 192, bit: 1 }
+
+    28 : { addr: 198, bit: 2 } # F1
+    29 : { addr: 197, bit: 2 } # F2
+    30 : { addr: 196, bit: 2 } # F3
+    31 : { addr: 195, bit: 2 } # F4
+    16 : { addr: 194, bit: 2 }
+    15 : { addr: 193, bit: 2 }
+
+    111: { addr: 198, bit: 3 } # O
+    108: { addr: 197, bit: 3 } # L
+    20 : { addr: 196, bit: 3 } # 上
+    21 : { addr: 195, bit: 3 } # 下
+    112: { addr: 194, bit: 3 } # P
+    13 : { addr: 193, bit: 3 } # 输入
+    14 : { addr: 192, bit: 3 } # 下翻页
+    22 : { addr: 191, bit: 3 } # 右
+
+    113: { addr: 198, bit: 4 } # Q
+    119: { addr: 197, bit: 4 } # W
+    101: { addr: 196, bit: 4 } # E
+    114: { addr: 195, bit: 4 } # R
+    116: { addr: 194, bit: 4 } # T
+    121: { addr: 193, bit: 4 } # Y
+    117: { addr: 192, bit: 4 } # U
+    105: { addr: 191, bit: 4 } # I
+
+    97 : { addr: 198, bit: 5 } # A
+    115: { addr: 197, bit: 5 } # S
+    100: { addr: 196, bit: 5 } # D
+    102: { addr: 195, bit: 5 } # F
+    103: { addr: 194, bit: 5 } # G
+    104: { addr: 193, bit: 5 } # H
+    106: { addr: 192, bit: 5 } # J
+    107: { addr: 191, bit: 5 } # K
+
+    122: { addr: 198, bit: 6 } # Z
+    120: { addr: 197, bit: 6 } # Z
+    99 : { addr: 196, bit: 6 } # C
+    118: { addr: 195, bit: 6 } # V
+    98 : { addr: 194, bit: 6 } # B
+    110: { addr: 193, bit: 6 } # N
+    109: { addr: 192, bit: 6 } # M
+    19 : { addr: 191, bit: 6 } # 上翻页
+
+    25 : { addr: 198, bit: 7 } # 求助
+    26 : { addr: 197, bit: 7 } # 中英数/SHIFT
+    18 : { addr: 196, bit: 7 } # 输入法/CAPS
+    27 : { addr: 195, bit: 7 } # 跳出
+    48 : { addr: 194, bit: 7 } # 符号/0
+    46 : { addr: 193, bit: 7 } # .
+    32 : { addr: 192, bit: 7 } # 空格
+    23 : { addr: 191, bit: 7 } # 左
+
+pc1000a:
+  emoji_style: old
+  sleep_unit: 1ms
+  graphics_base_addr: 2496
+  text_buffer_base_addr: 704
+  key_buffer_addr: 199
+  key_mappings:
+    28 : { addr: 200, bit: 2 } # F1
+    29 : { addr: 200, bit: 3 } # F2
+    30 : { addr: 200, bit: 4 } # F3
+    31 : { addr: 200, bit: 5 } # F4
+
+    111: { addr: 201, bit: 0 } # O
+    108: { addr: 201, bit: 1 } # L
+    20 : { addr: 201, bit: 2 } # 上
+    21 : { addr: 201, bit: 3 } # 下
+    112: { addr: 201, bit: 4 } # P
+    13 : { addr: 201, bit: 5 } # 输入
+    14 : { addr: 201, bit: 6 } # 下翻页
+    22 : { addr: 201, bit: 7 } # 右
+
+    113: { addr: 202, bit: 0 } # Q
+    119: { addr: 202, bit: 1 } # W
+    101: { addr: 202, bit: 2 } # E
+    114: { addr: 202, bit: 3 } # R
+    116: { addr: 202, bit: 4 } # T
+    121: { addr: 202, bit: 5 } # Y
+    117: { addr: 202, bit: 6 } # U
+    105: { addr: 202, bit: 7 } # I
+
+    97 : { addr: 203, bit: 0 } # A
+    115: { addr: 203, bit: 1 } # S
+    100: { addr: 203, bit: 2 } # D
+    102: { addr: 203, bit: 3 } # F
+    103: { addr: 203, bit: 4 } # G
+    104: { addr: 203, bit: 5 } # H
+    106: { addr: 203, bit: 6 } # J
+    107: { addr: 203, bit: 7 } # K
+
+    122: { addr: 204, bit: 0 } # Z
+    120: { addr: 204, bit: 1 } # X
+    99 : { addr: 204, bit: 2 } # C
+    118: { addr: 204, bit: 3 } # V
+    98 : { addr: 204, bit: 4 } # B
+    110: { addr: 204, bit: 5 } # N
+    109: { addr: 204, bit: 6 } # M
+    19 : { addr: 204, bit: 7 } # 上翻页
+
+    25 : { addr: 205, bit: 0 } # 求助
+    26 : { addr: 205, bit: 1 } # 中英数/SHIFT
+    18 : { addr: 205, bit: 2 } # 输入法/CAPS
+    27 : { addr: 205, bit: 3 } # 跳出
+    48 : { addr: 205, bit: 4 } # 符号/0
+    46 : { addr: 205, bit: 5 } # .
+    32 : { addr: 205, bit: 5 } # 空格
+    23 : { addr: 205, bit: 6 } # 左
