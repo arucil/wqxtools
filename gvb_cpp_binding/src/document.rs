@@ -1,4 +1,4 @@
-use crate::{Array, Either, Utf16Str, Utf8Str, Utf8String};
+use crate::{Array, Device, Either, Unit, Utf16Str, Utf8Str, Utf8String};
 use gvb_interp as gvb;
 use std::io;
 
@@ -50,9 +50,6 @@ pub struct SaveError {
   bas_specific: bool,
 }
 
-#[repr(C)]
-pub struct Unit(pub i32);
-
 #[no_mangle]
 pub extern "C" fn save_document(
   doc: *mut Document,
@@ -60,7 +57,7 @@ pub extern "C" fn save_document(
 ) -> Either<SaveError, Unit> {
   let path = unsafe { path.to_string() }.unwrap();
   match unsafe { (*doc).0.save(path) } {
-    Ok(()) => Either::Right(Unit(0)),
+    Ok(()) => Either::Right(Unit::new()),
     Err(err) => {
       let (msg, bas_specific) = match err {
         gvb::SaveDocumentError::Io(err) => (io_error_to_string(err), false),
@@ -81,6 +78,11 @@ pub extern "C" fn save_document(
       })
     }
   }
+}
+
+#[no_mangle]
+pub extern "C" fn document_device(doc: *mut Document) -> *mut Device {
+  Box::into_raw(box Device(unsafe { (*doc).0.create_device() }))
 }
 
 fn io_error_to_string(err: io::Error) -> String {

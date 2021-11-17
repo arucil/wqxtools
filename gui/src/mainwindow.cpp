@@ -1,4 +1,6 @@
 #include "mainwindow.h"
+#include "action.h"
+#include "gvb.h"
 #include "gvbeditor.h"
 #include "tool_factory.h"
 #include "value.h"
@@ -21,6 +23,18 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
 
   QTimer::singleShot(0, [this] {
     m_loaded.setValue(false);
+
+    m_actSave->setEnabled(false);
+    m_actSaveAs->setEnabled(false);
+    m_actUndo->setEnabled(false);
+    m_actRedo->setEnabled(false);
+    m_actCopy->setEnabled(false);
+    m_actCut->setEnabled(false);
+    m_actPaste->setEnabled(false);
+    m_actFind->setEnabled(false);
+    m_actReplace->setEnabled(false);
+    m_actStart->setEnabled(false);
+    m_actStop->setEnabled(false);
   });
 }
 
@@ -55,15 +69,14 @@ void MainWindow::initMenu() {
 
   mnuFile->addSeparator();
 
-  m_actExit = mnuFile->addAction("退出");
-  m_actExit->setShortcut(Qt::ALT | Qt::Key_F4);
-  connect(m_actExit, &QAction::triggered, qApp, &QApplication::quit);
+  auto actExit = mnuFile->addAction("退出");
+  actExit->setShortcut(Qt::ALT | Qt::Key_F4);
+  connect(actExit, &QAction::triggered, qApp, &QApplication::quit);
 
   auto mnuEdit = menuBar()->addMenu("编辑(&E)");
 
   m_actUndo = mnuEdit->addAction("撤销");
   m_actUndo->setShortcut(Qt::CTRL | Qt::Key_Z);
-  connect(&m_loaded, &BoolValue::changed, mnuEdit, &QMenu::setEnabled);
 
   m_actRedo = mnuEdit->addAction("重做");
   m_actRedo->setShortcut(Qt::CTRL | Qt::Key_Y);
@@ -86,6 +99,21 @@ void MainWindow::initMenu() {
 
   m_actReplace = mnuEdit->addAction("替换");
   m_actReplace->setShortcut(Qt::CTRL | Qt::Key_H);
+
+  auto mnuProg = menuBar()->addMenu("程序(&P)");
+
+  m_actStart = mnuProg->addAction("运行");
+  m_actStart->setShortcut(Qt::Key_F5);
+
+  m_actStop = mnuProg->addAction("停止");
+  m_actStop->setShortcut(Qt::Key_F7);
+
+  mnuProg->addSeparator();
+
+  auto actConfig = mnuProg->addAction("重新加载配置文件");
+  connect(actConfig, &QAction::triggered, [this] {
+    loadConfig(this);
+  });
 }
 
 void MainWindow::closeEvent(QCloseEvent *event) {
@@ -162,56 +190,87 @@ void MainWindow::openFileByPath(const QString &path) {
 
   m_openFilePath.setValue(fileinfo.fileName());
 
-  auto canSave = dynamic_cast<FileCapabilities *>(widget) != nullptr;
-  m_actSave->setEnabled(canSave);
-  m_actSaveAs->setEnabled(canSave);
+  auto fileCap = dynamic_cast<FileCapabilities *>(widget);
+  m_actSave->setEnabled(fileCap != nullptr);
+  m_actSaveAs->setEnabled(fileCap != nullptr);
 
   if (auto editor = dynamic_cast<EditCapabilities *>(widget)) {
     connect(
-        &editor->m_copyCutEnabled, &BoolValue::changed, m_actCopy,
+        editor->m_actCopy, &Action::enabledChanged, m_actCopy,
         &QAction::setEnabled);
     connect(
-        &editor->m_copyCutEnabled, &BoolValue::changed, m_actCut,
+        editor->m_actCut, &Action::enabledChanged, m_actCut,
         &QAction::setEnabled);
     connect(
-        &editor->m_pasteEnabled, &BoolValue::changed, m_actPaste,
+        editor->m_actPaste, &Action::enabledChanged, m_actPaste,
         &QAction::setEnabled);
     connect(
-        &editor->m_undoEnabled, &BoolValue::changed, m_actUndo,
+        editor->m_actUndo, &Action::enabledChanged, m_actUndo,
         &QAction::setEnabled);
     connect(
-        &editor->m_redoEnabled, &BoolValue::changed, m_actRedo,
+        editor->m_actRedo, &Action::enabledChanged, m_actRedo,
         &QAction::setEnabled);
-    connect(m_actCopy, &QAction::triggered, [editor] {
-      editor->copy();
-    });
-    connect(m_actCut, &QAction::triggered, [editor] {
-      editor->cut();
-    });
-    connect(m_actPaste, &QAction::triggered, [editor] {
-      editor->paste();
-    });
-    connect(m_actUndo, &QAction::triggered, [editor] {
-      editor->undo();
-    });
-    connect(m_actRedo, &QAction::triggered, [editor] {
-      editor->redo();
-    });
-    connect(m_actFind, &QAction::triggered, [editor] {
-      editor->find();
-    });
-    connect(m_actReplace, &QAction::triggered, [editor] {
-      editor->replace();
-    });
+    m_actFind->setEnabled(true);
+    m_actReplace->setEnabled(true);
+    connect(
+        m_actCopy, &QAction::triggered, editor->m_actCopy, &QAction::trigger);
+    connect(m_actCut, &QAction::triggered, editor->m_actCut, &QAction::trigger);
+    connect(
+        m_actPaste, &QAction::triggered, editor->m_actPaste, &QAction::trigger);
+    connect(
+        m_actUndo, &QAction::triggered, editor->m_actUndo, &QAction::trigger);
+    connect(
+        m_actRedo, &QAction::triggered, editor->m_actRedo, &QAction::trigger);
+    connect(
+        m_actFind, &QAction::triggered, editor->m_actFind, &QAction::trigger);
+    connect(
+        m_actReplace, &QAction::triggered, editor->m_actReplace,
+        &QAction::trigger);
 
     connect(&editor->m_dirty, &BoolValue::changed, this, &MainWindow::setTitle);
+  } else {
+    m_actCopy->setEnabled(false);
+    m_actCut->setEnabled(false);
+    m_actPaste->setEnabled(false);
+    m_actUndo->setEnabled(false);
+    m_actRedo->setEnabled(false);
+    m_actFind->setEnabled(false);
+    m_actReplace->setEnabled(false);
   }
 
-  if (auto editor = dynamic_cast<FileCapabilities *>(widget)) {
-    if (editor->m_actSave != nullptr) {
-      connect(
-          editor->m_actSave, &QAction::triggered, this, &MainWindow::saveFile);
-    }
+  if (auto progCap = dynamic_cast<ProgramCapabilities *>(widget)) {
+    connect(
+        progCap->m_actStart, &Action::enabledChanged, m_actStart,
+        &QAction::setEnabled);
+    connect(
+        progCap->m_actStop, &Action::enabledChanged, m_actStop,
+        &QAction::setEnabled);
+    connect(
+        progCap->m_actStop, &Action::enabledChanged, this,
+        &MainWindow::setStartButtonText);
+    connect(
+        &progCap->m_isPaused, &BoolValue::changed, this,
+        &MainWindow::setStartButtonText);
+  } else {
+    m_actStart->setEnabled(false);
+    m_actStop->setEnabled(false);
+    setStartButtonText();
+  }
+
+  if (fileCap && fileCap->m_actSave != nullptr) {
+    connect(
+        fileCap->m_actSave, &QAction::triggered, this, &MainWindow::saveFile);
+  }
+}
+
+void MainWindow::setStartButtonText() {
+  if (auto progCap = dynamic_cast<ProgramCapabilities *>(centralWidget())) {
+    m_actStart->setText(
+        progCap->m_isPaused.value()
+            ? "继续"
+            : progCap->m_actStop->isEnabled() ? "暂停" : "运行");
+  } else {
+    m_actStart->setText("运行");
   }
 }
 
@@ -319,6 +378,20 @@ ActionResult MainWindow::handleSaveFileError(const SaveResult &result) {
   } else {
     // cancelled
     return ActionResult::Fail;
+  }
+}
+
+ActionResult MainWindow::loadConfig(QWidget *parent) {
+  auto result = gvb::init_machines();
+  if (result.tag == gvb::InitMachineResult::Tag::Left) {
+    QMessageBox::critical(
+        parent, "错误",
+        tr("配置文件加载失败：%1")
+            .arg(QString::fromUtf8(result.left._0.data, result.left._0.len)));
+    gvb::destroy_string(result.left._0);
+    return ActionResult::Fail;
+  } else {
+    return ActionResult::Succeed;
   }
 }
 

@@ -4,12 +4,6 @@ pub enum EmojiStyle {
   New,
 }
 
-impl Default for EmojiStyle {
-  fn default() -> Self {
-    Self::New
-  }
-}
-
 impl EmojiStyle {
   pub fn code_to_index(&self, code: u16) -> Option<usize> {
     let hi = code >> 8;

@@ -20,6 +20,10 @@
 - 检查一下：emoji 的第二个字节小于161也合法，怎么对应字符？pc1000a是否一样支持？校对一下tc808和pc1000a的emoji的编码
 
 
+
+- 在运行模拟器时不能加载其他文件
+
+
 - document:
     + create new: () => (document, string)
     + ~~get path: () => option<path>~~
@@ -40,12 +44,12 @@
 - mbf5:
     - parse string: string -> result<mbf5>
 - device:
-    - get graphics data
-    - get key
-    - fire key down
-    - fire key up
-    - blink cursor: () -> ()
-    - get screen update rect
+    - [x] get graphics data
+    - [x] get key
+    - [x] fire key down
+    - [x] fire key up
+    - [x] blink cursor: () -> ()
+    - [x] get screen update rect
 
 - 设置：
     - 字体大小

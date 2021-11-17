@@ -6,3 +6,4 @@ Makefile
 /lib/
 /include/
 /*.tgz
+machines.yaml

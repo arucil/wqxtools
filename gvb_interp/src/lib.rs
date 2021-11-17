@@ -14,7 +14,7 @@ mod compiler;
 pub mod device;
 pub mod diagnostic;
 pub mod document;
-mod machine;
+pub mod machine;
 mod parser;
 pub mod util;
 pub mod vm;

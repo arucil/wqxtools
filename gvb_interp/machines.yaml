@@ -1,4 +1,4 @@
-# 修改机型配置之后选择 [菜单] -> [设置] -> [重新加载配置]
+# 修改机型配置之后选择 [菜单] -> [设置] -> [重新加载配置文件]
 
 default:
   # 如果无法自动检测机型，则使用下面的默认机型。
@@ -17,14 +17,15 @@ tc808:
   text_buffer_base_addr: 704
   # 按键缓冲区的地址，也可以用十六进制表示
   key_buffer_addr: 199
+  # 按键的内存映射
   key_mappings:
-    24: { addr: 198, bit: 0 }
+    24 : { addr: 198, bit: 0 }
 
-    0: { addr: 198, bit: 1 }
-    2: { addr: 197, bit: 1 }
-    4: { addr: 196, bit: 1 }
-    6: { addr: 195, bit: 1 }
-    8: { addr: 194, bit: 1 }
+    0 : { addr: 198, bit: 1 }
+    2 : { addr: 197, bit: 1 }
+    4 : { addr: 196, bit: 1 }
+    6 : { addr: 195, bit: 1 }
+    8 : { addr: 194, bit: 1 }
     10: { addr: 193, bit: 1 }
     12: { addr: 192, bit: 1 }
 

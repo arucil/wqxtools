@@ -18,6 +18,8 @@ class MainWindow : public QMainWindow {
 public:
   MainWindow(QWidget *parent = nullptr);
 
+  static ActionResult loadConfig(QWidget *parent);
+
 private:
   void initUi();
   void initMenu();
@@ -29,6 +31,7 @@ private slots:
   ActionResult saveFile();
   ActionResult saveFileAs(bool save = false);
   void setTitle();
+  void setStartButtonText();
 
 private:
   void openFileByPath(const QString &);
@@ -40,7 +43,7 @@ protected:
 private:
   QAction *m_actSave;
   QAction *m_actSaveAs;
-  QAction *m_actExit;
+
   QAction *m_actUndo;
   QAction *m_actRedo;
   QAction *m_actCopy;
@@ -48,6 +51,9 @@ private:
   QAction *m_actPaste;
   QAction *m_actFind;
   QAction *m_actReplace;
+
+  QAction *m_actStart;
+  QAction *m_actStop;
 
   StrValue m_openFilePath;
   BoolValue m_loaded;

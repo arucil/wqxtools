@@ -2,6 +2,7 @@
 
 #include "util.h"
 #include "value.h"
+#include "action.h"
 #include <QAction>
 #include <optional>
 
@@ -9,21 +10,13 @@ class QObject;
 class QString;
 
 struct EditCapabilities {
-  virtual void copy() = 0;
-  virtual void cut() = 0;
-  virtual void paste() = 0;
-
-  virtual void undo() = 0;
-  virtual void redo() = 0;
-
-  virtual void find() = 0;
-  virtual void replace() = 0;
-
-public:
-  BoolValue m_copyCutEnabled;
-  BoolValue m_pasteEnabled;
-  BoolValue m_undoEnabled;
-  BoolValue m_redoEnabled;
+  Action *m_actCopy;
+  Action *m_actCut;
+  Action *m_actPaste;
+  Action *m_actUndo;
+  Action *m_actRedo;
+  Action *m_actFind;
+  Action *m_actReplace;
   BoolValue m_dirty;
 };
 
@@ -38,4 +31,12 @@ struct FileCapabilities {
 
 public:
   QAction *m_actSave;
+};
+
+struct ProgramCapabilities {
+public:
+  BoolValue m_isPaused;
+  BoolValue m_started;
+  Action *m_actStart;
+  Action *m_actStop;
 };

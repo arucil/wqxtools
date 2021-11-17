@@ -49,10 +49,14 @@ enum CursorState {
 pub struct DefaultFileHandle {}
 
 impl DefaultDevice {
-  pub fn new(props: MachineProps) -> Self {
+  pub(crate) fn new(props: MachineProps) -> Self {
+    let mut memory = [0u8; 65536];
+    for &addr in &props.key_mapping_addrs {
+      memory[addr as usize] = 0xff;
+    }
     Self {
       props,
-      memory: [0; 65536],
+      memory,
       inverse_text: [false; TEXT_BYTES],
       row: 0,
       column: 0,
@@ -64,19 +68,25 @@ impl DefaultDevice {
   }
 
   pub fn fire_key_down(&mut self, key: u8) {
-    todo!()
+    self.memory[self.props.key_buffer_addr as usize] = key | 0x80;
+    if let Some((addr, mask)) = self.props.key_masks[key as usize] {
+      self.memory[addr as usize] &= !mask;
+    }
   }
 
   pub fn fire_key_up(&mut self, key: u8) {
-    todo!()
+    if let Some((addr, mask)) = self.props.key_masks[key as usize] {
+      self.memory[addr as usize] |= mask;
+    }
   }
 
   pub fn key(&mut self) -> Option<u8> {
-    let key = self.memory[KEY_BUFFER_ADDR];
+    let addr = self.props.key_buffer_addr as usize;
+    let key = self.memory[addr];
     if key < 128 {
       None
     } else {
-      self.memory[KEY_BUFFER_ADDR] &= 0x7f;
+      self.memory[addr] &= 0x7f;
       Some(key & 0x7f)
     }
   }
@@ -87,7 +97,7 @@ impl DefaultDevice {
     }
 
     if self.cursor == CursorState::None {
-      let char_addr = TEXT_BUFFER_ADDR
+      let char_addr = self.props.text_buffer_base_addr as usize
         + self.row as usize * TEXT_COLUMNS
         + self.column as usize;
       self.cursor = if self.memory[char_addr] >= 128 {
@@ -102,7 +112,8 @@ impl DefaultDevice {
 
   #[cfg(test)]
   fn text_buffer(&self) -> &[u8] {
-    &self.memory[TEXT_BUFFER_ADDR..TEXT_BUFFER_ADDR + TEXT_ROWS * TEXT_COLUMNS]
+    &self.memory[self.props.text_buffer_base_addr as usize
+      ..self.props.text_buffer_base_addr as usize + TEXT_ROWS * TEXT_COLUMNS]
   }
 
   pub fn graphic_memory(&self) -> &[u8] {
@@ -144,13 +155,14 @@ impl DefaultDevice {
         .fill(0);
     }
 
+    let text_buffer_addr = self.props.text_buffer_base_addr as usize;
     self.memory.copy_within(
-      TEXT_BUFFER_ADDR + TEXT_COLUMNS
-        ..TEXT_BUFFER_ADDR + TEXT_COLUMNS * TEXT_ROWS,
-      TEXT_BUFFER_ADDR,
+      text_buffer_addr + TEXT_COLUMNS
+        ..text_buffer_addr + TEXT_COLUMNS * TEXT_ROWS,
+      text_buffer_addr,
     );
-    self.memory[TEXT_BUFFER_ADDR + TEXT_COLUMNS * (TEXT_ROWS - 1)
-      ..TEXT_BUFFER_ADDR + TEXT_COLUMNS * TEXT_ROWS]
+    self.memory[text_buffer_addr + TEXT_COLUMNS * (TEXT_ROWS - 1)
+      ..text_buffer_addr + TEXT_COLUMNS * TEXT_ROWS]
       .fill(0);
 
     self.inverse_text.copy_within(TEXT_COLUMNS.., 0);
@@ -158,7 +170,8 @@ impl DefaultDevice {
   }
 
   fn paint_hex_code(&mut self, row: usize, column: usize) {
-    let mut c = self.memory[TEXT_BUFFER_ADDR + row * TEXT_COLUMNS + column];
+    let mut c = self.memory
+      [self.props.text_buffer_base_addr as usize + row * TEXT_COLUMNS + column];
     unsafe {
       let mut g = self.memory.as_mut_ptr().add(
         self.props.graphics_base_addr as usize
@@ -401,7 +414,12 @@ impl Device for DefaultDevice {
 
   fn print(&mut self, str: &[u8]) {
     let inversed = self.print_mode != PrintMode::Normal;
-    let text_buffer = unsafe { self.memory.as_mut_ptr().add(TEXT_BUFFER_ADDR) };
+    let text_buffer = unsafe {
+      self
+        .memory
+        .as_mut_ptr()
+        .add(self.props.text_buffer_base_addr as usize)
+    };
     let inv_buffer = self.inverse_text.as_mut_ptr();
     for &c in str {
       if c >= 128 && self.column as usize == TEXT_COLUMNS - 1 {
@@ -450,7 +468,12 @@ impl Device for DefaultDevice {
       self.memory[graph_addr..graph_addr + screen::BYTES].fill(0);
     }
 
-    let mut char_ptr = unsafe { self.memory.as_ptr().add(TEXT_BUFFER_ADDR) };
+    let mut char_ptr = unsafe {
+      self
+        .memory
+        .as_ptr()
+        .add(self.props.text_buffer_base_addr as usize)
+    };
     let mut inv_ptr = self.inverse_text.as_ptr();
     let mut graph = unsafe {
       self
@@ -782,7 +805,7 @@ impl Device for DefaultDevice {
       let x = (index % screen::WIDTH_IN_BYTE) << 3;
       self.update_dirty_area(y, x, y + 1, x + 8);
     }
-    addr as usize == TEXT_BUFFER_ADDR && value == 128 + 27
+    addr == self.props.key_buffer_addr && value == 128 + 27
   }
 
   fn open_file(
@@ -796,7 +819,8 @@ impl Device for DefaultDevice {
   }
 
   fn cls(&mut self) {
-    self.memory[TEXT_BUFFER_ADDR..TEXT_BUFFER_ADDR + TEXT_BYTES].fill(0);
+    let text_buffer_addr = self.props.text_buffer_base_addr as usize;
+    self.memory[text_buffer_addr..text_buffer_addr + TEXT_BYTES].fill(0);
     let graph_addr = self.props.graphics_base_addr as usize;
     self.memory[graph_addr..graph_addr + screen::BYTES].fill(0);
     self.inverse_text.fill(false);
@@ -882,8 +906,18 @@ mod tests {
   use crate::vm::ByteString;
   use insta::assert_snapshot;
   use pretty_assertions::assert_eq;
+  use std::sync::Once;
+
+  static INIT: Once = Once::new();
+
+  pub fn initialize() {
+    INIT.call_once(|| {
+      crate::machine::init_machines().unwrap();
+    });
+  }
 
   fn new_device() -> DefaultDevice {
+    initialize();
     DefaultDevice::new(
       crate::machine::machines()[EmojiStyle::New.default_machine_name()]
         .clone(),
@@ -1113,8 +1147,8 @@ mod tests {
     str.drop_0x1f();
     device.print(&str);
 
-    device.set_byte((TEXT_BUFFER_ADDR + 39) as u16, 176);
-    device.set_byte((TEXT_BUFFER_ADDR + 40) as u16, 161);
+    device.set_byte((704 + 39) as u16, 176);
+    device.set_byte((704 + 40) as u16, 161);
 
     device.flush();
 
@@ -1145,7 +1179,7 @@ mod tests {
     let mut device = new_device();
 
     device.print(b"\xf8\x5e\xc7\xff \xae");
-    device.set_byte((TEXT_BUFFER_ADDR + 99) as u16, 0xb0);
+    device.set_byte((704 + 99) as u16, 0xb0);
 
     device.flush();
 
@@ -1463,5 +1497,36 @@ mod tests {
     device.draw_ellipse((100, 50), (35, 34), true, DrawMode::Not);
 
     assert_snapshot!(device_screen_braille(&device));
+  }
+
+  #[test]
+  fn key() {
+    let mut device = new_device();
+
+    assert_eq!(device.key(), None);
+
+    assert_eq!(device.get_byte(196), 0b1111_1111);
+
+    device.fire_key_down(20);
+
+    assert_eq!(device.get_byte(196), 0b1111_0111);
+
+    assert_eq!(device.key(), Some(20));
+
+    assert_eq!(device.key(), None);
+
+    device.fire_key_down(99);
+
+    assert_eq!(device.get_byte(196), 0b1011_0111);
+
+    assert_eq!(device.key(), Some(99));
+
+    device.fire_key_up(20);
+
+    assert_eq!(device.get_byte(196), 0b1011_1111);
+
+    device.fire_key_up(99);
+
+    assert_eq!(device.get_byte(196), 0b1111_1111);
   }
 }

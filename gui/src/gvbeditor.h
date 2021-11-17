@@ -158,7 +158,10 @@ public:
   size_t index;
 };
 
-struct GvbEditor : Tool, EditCapabilities, FileCapabilities {
+struct GvbEditor : Tool,
+                   EditCapabilities,
+                   FileCapabilities,
+                   ProgramCapabilities {
 private:
   Q_OBJECT
 
@@ -196,8 +199,6 @@ private slots:
   void updatePosLabel(size_t);
 
 private:
-  QAction *m_actStart;
-  QAction *m_actStop;
   QLabel *m_posLabel;
   ScintillaEdit *m_edit;
   gvb::Document *m_doc;

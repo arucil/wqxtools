@@ -29,11 +29,17 @@ GvbEditor::GvbEditor(QWidget *parent)
       Qt::QueuedConnection);
 
   QTimer::singleShot(0, [this] {
-    m_pasteEnabled.setValue(true);
-    m_undoEnabled.setValue(false);
-    m_redoEnabled.setValue(false);
-    m_copyCutEnabled.setValue(true);
+    emit m_actPaste->enabledChanged(true);
+    m_actUndo->setEnabled(false);
+    m_actRedo->setEnabled(false);
+    emit m_actCopy->enabledChanged(true);
+    emit m_actCut->enabledChanged(true);
+    emit m_actFind->enabledChanged(true);
+    emit m_actReplace->enabledChanged(true);
     m_curPos.setValue(m_edit->currentPos());
+
+    m_started.setValue(false);
+    m_isPaused.setValue(false);
   });
 }
 
@@ -121,50 +127,49 @@ QToolBar *GvbEditor::initToolBar() {
 
   toolbar->addSeparator();
 
-  m_actStart = new QAction(QPixmap(":/assets/images/Run.svg"), "运行");
+  m_actStart = new Action(QPixmap(":/assets/images/Run.svg"), "运行");
   toolbar->addAction(m_actStart);
+  connect(&m_started, &BoolValue::changed, m_actStart, [this](bool started) {
+    emit m_actStart->enabledChanged(!started);
+  });
 
-  m_actStop = new QAction(QPixmap(":/assets/images/Stop.svg"), "停止");
+  m_actStop = new Action(QPixmap(":/assets/images/Stop.svg"), "停止");
   toolbar->addAction(m_actStop);
+  connect(&m_started, &BoolValue::changed, m_actStop, &Action::setEnabled);
 
   toolbar->addSeparator();
 
-  auto actFind =
-      toolbar->addAction(QPixmap(":/assets/images/Find.svg"), "查找");
-  connect(actFind, &QAction::triggered, this, &GvbEditor::find);
+  m_actFind = new Action(QPixmap(":/assets/images/Find.svg"), "查找");
+  toolbar->addAction(m_actFind);
+  connect(m_actFind, &QAction::triggered, this, &GvbEditor::find);
 
-  auto actReplace =
-      toolbar->addAction(QPixmap(":/assets/images/Replace.svg"), "替换");
-  connect(actReplace, &QAction::triggered, this, &GvbEditor::replace);
-
-  toolbar->addSeparator();
-
-  auto actUndo =
-      toolbar->addAction(QPixmap(":/assets/images/Undo.svg"), "撤销");
-  connect(actUndo, &QAction::triggered, this, &GvbEditor::undo);
-  connect(&m_undoEnabled, &BoolValue::changed, actUndo, &QAction::setEnabled);
-
-  auto actRedo =
-      toolbar->addAction(QPixmap(":/assets/images/Redo.svg"), "重做");
-  connect(actRedo, &QAction::triggered, this, &GvbEditor::redo);
-  connect(&m_redoEnabled, &BoolValue::changed, actRedo, &QAction::setEnabled);
+  m_actReplace = new Action(QPixmap(":/assets/images/Replace.svg"), "替换");
+  toolbar->addAction(m_actReplace);
+  connect(m_actReplace, &QAction::triggered, this, &GvbEditor::replace);
 
   toolbar->addSeparator();
 
-  auto actCopy =
-      toolbar->addAction(QPixmap(":/assets/images/Copy.png"), "复制");
-  connect(actCopy, &QAction::triggered, this, &GvbEditor::copy);
-  connect(
-      &m_copyCutEnabled, &BoolValue::changed, actCopy, &QAction::setEnabled);
+  m_actUndo = new Action(QPixmap(":/assets/images/Undo.svg"), "撤销");
+  toolbar->addAction(m_actUndo);
+  connect(m_actUndo, &QAction::triggered, this, &GvbEditor::undo);
 
-  auto actCut = toolbar->addAction(QPixmap(":/assets/images/Cut.svg"), "剪切");
-  connect(actCut, &QAction::triggered, this, &GvbEditor::cut);
-  connect(&m_copyCutEnabled, &BoolValue::changed, actCut, &QAction::setEnabled);
+  m_actRedo = new Action(QPixmap(":/assets/images/Redo.svg"), "重做");
+  toolbar->addAction(m_actRedo);
+  connect(m_actRedo, &QAction::triggered, this, &GvbEditor::redo);
 
-  auto actPaste =
-      toolbar->addAction(QPixmap(":/assets/images/Paste.png"), "粘贴");
-  connect(actPaste, &QAction::triggered, this, &GvbEditor::paste);
-  connect(&m_pasteEnabled, &BoolValue::changed, actPaste, &QAction::setEnabled);
+  toolbar->addSeparator();
+
+  m_actCopy = new Action(QPixmap(":/assets/images/Copy.png"), "复制");
+  toolbar->addAction(m_actCopy);
+  connect(m_actCopy, &QAction::triggered, this, &GvbEditor::copy);
+
+  m_actCut = new Action(QPixmap(":/assets/images/Cut.svg"), "剪切");
+  toolbar->addAction(m_actCut);
+  connect(m_actCut, &QAction::triggered, this, &GvbEditor::cut);
+
+  m_actPaste = new Action(QPixmap(":/assets/images/Paste.png"), "粘贴");
+  toolbar->addAction(m_actPaste);
+  connect(m_actPaste, &QAction::triggered, this, &GvbEditor::paste);
 
   return toolbar;
 }
@@ -307,8 +312,8 @@ void GvbEditor::notified(Scintilla::NotificationData *data) {
       m_timerModify = true;
     }
 
-    m_undoEnabled.setValue(m_edit->canUndo());
-    m_redoEnabled.setValue(m_edit->canRedo());
+    m_actUndo->setEnabled(m_edit->canUndo());
+    m_actRedo->setEnabled(m_edit->canRedo());
     if (bits & SC_MOD_INSERTTEXT) {
       InsertText *insert;
       if (!m_edits.empty() &&

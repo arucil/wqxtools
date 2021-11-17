@@ -16,7 +16,9 @@ INCLUDEPATH += \
 HEADERS += src/mainwindow.h \
     src/gvbeditor.h \
     src/capability.h \
-    src/value.h
+    src/value.h \
+    src/action.h \
+    src/gvbsim.h
 SOURCES += src/*.cpp
 
 QT += widgets
