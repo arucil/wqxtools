@@ -18,7 +18,8 @@ HEADERS += src/mainwindow.h \
     src/capability.h \
     src/value.h \
     src/action.h \
-    src/gvbsim.h
+    src/gvbsim_window.h \
+    src/gvbsim_screen.h
 SOURCES += src/*.cpp
 
 QT += widgets

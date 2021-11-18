@@ -1,4 +1,7 @@
-use crate::{Array, Device, Either, Unit, Utf16Str, Utf8Str, Utf8String};
+use crate::{
+  Array, Device, Diagnostic, Either, Maybe, Severity, Unit, Utf16Str, Utf8Str,
+  Utf8String, VirtualMachine,
+};
 use gvb_interp as gvb;
 use std::io;
 
@@ -16,10 +19,10 @@ pub struct DeleteText {
   pub len: usize,
 }
 
+pub type LoadDocumentResult = Either<Utf8String, *mut Document>;
+
 #[no_mangle]
-pub extern "C" fn load_document(
-  path: Utf16Str,
-) -> Either<Utf8String, *mut Document> {
+pub extern "C" fn load_document(path: Utf16Str) -> LoadDocumentResult {
   let path = unsafe { path.to_string() }.unwrap();
   match gvb::Document::load(path) {
     Ok(doc) => Either::Right(Box::into_raw(box Document(doc))),
@@ -50,11 +53,13 @@ pub struct SaveError {
   bas_specific: bool,
 }
 
+pub type SaveDocumentResult = Either<SaveError, Unit>;
+
 #[no_mangle]
 pub extern "C" fn save_document(
   doc: *mut Document,
   path: Utf16Str,
-) -> Either<SaveError, Unit> {
+) -> SaveDocumentResult {
   let path = unsafe { path.to_string() }.unwrap();
   match unsafe { (*doc).0.save(path) } {
     Ok(()) => Either::Right(Unit::new()),
@@ -83,6 +88,17 @@ pub extern "C" fn save_document(
 #[no_mangle]
 pub extern "C" fn document_device(doc: *mut Document) -> *mut Device {
   Box::into_raw(box Device(unsafe { (*doc).0.create_device() }))
+}
+
+#[no_mangle]
+pub extern "C" fn document_vm(
+  doc: *mut Document,
+  device: *mut Device,
+) -> Maybe<*mut VirtualMachine> {
+  match unsafe { (*doc).0.create_vm(&mut (*device).0) } {
+    Ok(vm) => Maybe::Just(Box::into_raw(box VirtualMachine(vm))),
+    Err(()) => Maybe::Nothing,
+  }
 }
 
 fn io_error_to_string(err: io::Error) -> String {
@@ -118,25 +134,10 @@ pub extern "C" fn document_apply_edit(doc: *mut Document, edit: Modification) {
   }
 }
 
-#[repr(C)]
-pub enum Severity {
-  Warning,
-  Error,
-}
-
-#[repr(C)]
-pub struct Diagnostic {
-  pub line: usize,
-  pub start: usize,
-  pub end: usize,
-  pub message: Utf8Str,
-  pub severity: Severity,
-}
-
 #[no_mangle]
 pub extern "C" fn document_diagnostics(
   doc: *mut Document,
-) -> Array<Diagnostic> {
+) -> Array<Diagnostic<Utf8Str>> {
   let line_diags = unsafe { (*doc).0.diagnostics() };
   let diags = line_diags
     .into_iter()
@@ -169,14 +170,4 @@ pub extern "C" fn document_text(doc: *mut Document) -> Utf8Str {
     let text = (*doc).0.text();
     Utf8Str::new(text)
   }
-}
-
-#[no_mangle]
-pub extern "C" fn destroy_diagnostic_array(arr: Array<Diagnostic>) {
-  drop(unsafe {
-    Box::from_raw(std::ptr::slice_from_raw_parts_mut(
-      arr.data as *const _ as *mut Diagnostic,
-      arr.len,
-    ))
-  });
 }

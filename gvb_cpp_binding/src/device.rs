@@ -1,4 +1,4 @@
-use crate::{Array, Either, Unit, Utf8Str, Utf8String};
+use crate::{Array, Either, Unit, Utf8Str, Utf8String, Maybe};
 use gvb_interp as gvb;
 use gvb_interp::machine::{self, InitError};
 
@@ -55,10 +55,10 @@ pub extern "C" fn device_graphics_memory(dev: *mut Device) -> *const u8 {
 }
 
 #[no_mangle]
-pub extern "C" fn device_key(dev: *mut Device) -> Either<Unit, u8> {
+pub extern "C" fn device_key(dev: *mut Device) -> Maybe<u8> {
   match unsafe { (*dev).0.key() } {
-    Some(key) => Either::Right(key),
-    None => Either::Left(Unit::new()),
+    Some(key) => Maybe::Just(key),
+    None => Maybe::Nothing,
   }
 }
 
@@ -86,16 +86,16 @@ pub extern "C" fn device_blink_cursor(dev: *mut Device) {
 #[no_mangle]
 pub extern "C" fn device_screen_dirty_area(
   dev: *mut Device,
-) -> Either<Unit, Rect> {
+) -> Maybe<Rect> {
   unsafe {
     match (*dev).0.take_dirty_area() {
-      Some(rect) => Either::Right(Rect {
+      Some(rect) => Maybe::Just(Rect {
         left: rect.left,
         top: rect.top,
         right: rect.right,
         bottom: rect.bottom,
       }),
-      None => Either::Left(Unit::new()),
+      None => Maybe::Nothing,
     }
   }
 }

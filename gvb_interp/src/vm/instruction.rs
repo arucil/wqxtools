@@ -380,8 +380,7 @@ impl InstrKind {
       Self::KeyboardInput { has_prompt, fields } => {
         format!(
           "keyboard input, has_prompt: {:?}, num fields: {}",
-          has_prompt,
-          fields
+          has_prompt, fields
         )
       }
       Self::FileInput { fields } => {

@@ -1,5 +1,0 @@
-[tasks.machines]
-script_runner = "@duckscript"
-script = '''
-cp machines.yaml ../gui
-'''

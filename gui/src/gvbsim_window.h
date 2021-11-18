@@ -6,6 +6,6 @@ class GvbSimWindow : public QMainWindow {
   Q_OBJECT
 
 public:
-  GvbSimWindow();
+  GvbSimWindow(QWidget *parent = nullptr);
   ~GvbSimWindow();
 };

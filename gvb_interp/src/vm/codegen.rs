@@ -156,10 +156,7 @@ impl CodeEmitter for CodeGen {
       Err(StringError::InvalidChar(c)) => return Err(c),
     };
     let len = value.len();
-    self.data.push(Datum {
-      value,
-      is_quoted,
-    });
+    self.data.push(Datum { value, is_quoted });
     Ok((index, len))
   }
 

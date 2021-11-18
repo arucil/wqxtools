@@ -111,7 +111,7 @@ void MainWindow::initMenu() {
   mnuProg->addSeparator();
 
   auto actConfig = mnuProg->addAction("重新加载配置文件");
-  connect(actConfig, &QAction::triggered, [this] {
+  connect(actConfig, &QAction::triggered, this, [this] {
     loadConfig(this);
   });
 }
@@ -195,18 +195,23 @@ void MainWindow::openFileByPath(const QString &path) {
   m_actSaveAs->setEnabled(fileCap != nullptr);
 
   if (auto editor = dynamic_cast<EditCapabilities *>(widget)) {
+    m_actCopy->setEnabled(editor->m_actCopy);
     connect(
         editor->m_actCopy, &Action::enabledChanged, m_actCopy,
         &QAction::setEnabled);
+    m_actCut->setEnabled(editor->m_actCut);
     connect(
         editor->m_actCut, &Action::enabledChanged, m_actCut,
         &QAction::setEnabled);
+    m_actPaste->setEnabled(editor->m_actPaste);
     connect(
         editor->m_actPaste, &Action::enabledChanged, m_actPaste,
         &QAction::setEnabled);
+    m_actUndo->setEnabled(editor->m_actUndo);
     connect(
         editor->m_actUndo, &Action::enabledChanged, m_actUndo,
         &QAction::setEnabled);
+    m_actRedo->setEnabled(editor->m_actRedo);
     connect(
         editor->m_actRedo, &Action::enabledChanged, m_actRedo,
         &QAction::setEnabled);
@@ -239,9 +244,11 @@ void MainWindow::openFileByPath(const QString &path) {
   }
 
   if (auto progCap = dynamic_cast<ProgramCapabilities *>(widget)) {
+    m_actStart->setEnabled(progCap->m_actStart->isEnabled());
     connect(
         progCap->m_actStart, &Action::enabledChanged, m_actStart,
         &QAction::setEnabled);
+    m_actStop->setEnabled(progCap->m_actStop->isEnabled());
     connect(
         progCap->m_actStop, &Action::enabledChanged, m_actStop,
         &QAction::setEnabled);

@@ -29,13 +29,13 @@ GvbEditor::GvbEditor(QWidget *parent)
       Qt::QueuedConnection);
 
   QTimer::singleShot(0, [this] {
-    emit m_actPaste->enabledChanged(true);
+    m_actPaste->setEnabled(true);
     m_actUndo->setEnabled(false);
     m_actRedo->setEnabled(false);
-    emit m_actCopy->enabledChanged(true);
-    emit m_actCut->enabledChanged(true);
-    emit m_actFind->enabledChanged(true);
-    emit m_actReplace->enabledChanged(true);
+    m_actCopy->setEnabled(true);
+    m_actCut->setEnabled(true);
+    m_actFind->setEnabled(true);
+    m_actReplace->setEnabled(true);
     m_curPos.setValue(m_edit->currentPos());
 
     m_started.setValue(false);
@@ -129,9 +129,7 @@ QToolBar *GvbEditor::initToolBar() {
 
   m_actStart = new Action(QPixmap(":/assets/images/Run.svg"), "运行");
   toolbar->addAction(m_actStart);
-  connect(&m_started, &BoolValue::changed, m_actStart, [this](bool started) {
-    emit m_actStart->enabledChanged(!started);
-  });
+  connect(&m_started, &BoolValue::changed, m_actStart, &QAction::setDisabled);
 
   m_actStop = new Action(QPixmap(":/assets/images/Stop.svg"), "停止");
   toolbar->addAction(m_actStop);
@@ -449,6 +447,7 @@ void GvbEditor::computeDiagnostics() {
       };
       diagVec.push_back(d);
     }
+    gvb::destroy_str_diagnostic_array(diags);
     emit(updateDiagnostics(diagVec));
   });
   thread->start();

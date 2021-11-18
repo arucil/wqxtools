@@ -1,0 +1,27 @@
+[tasks.all]
+workspace = false
+clear = true
+dependencies = ["prepare-gui", "build-gui"]
+
+[tasks.prepare-gui]
+workspace = false
+script_runner = "@shell"
+script = """
+cp gvb_interp/machines.yaml gui/machines.yaml
+"""
+dependencies = [
+  { name = "header", path = "gvb_cpp_binding" }
+]
+
+[tasks.build-core]
+workspace = false
+dependencies = [
+  { name = "build", path = "gvb_cpp_binding" }
+]
+
+[tasks.build-gui]
+workspace = false
+dependencies = [
+  { name = "build-core" },
+  { name = "build", path = "gui" }
+]

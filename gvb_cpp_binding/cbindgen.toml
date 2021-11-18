@@ -6,6 +6,7 @@ no_includes = true
 sys_includes = ["cstdint"]
 after_includes = """
 using std::size_t;
+class InputFuncBody;
 """
 
 line_length = 80

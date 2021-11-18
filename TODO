@@ -31,16 +31,16 @@
     + [x] save: option<path> -> ()
     + [x] diagnostics: () -> vec
     + auto completion: () -> completion list
-    + compile to vm: device -> vm
+    + [x] compile to vm: device -> vm
     + set machine name: string -> ()
     + get machine name: () -> string
     + [x] edit: edit list -> ()
     + get semantic token: () -> vec
     + symbol highlight: () -> vec
-    + create device: () -> device
+    + [x] create device: () -> device
 - vm:
-    - compile expr to InputFuncBody: string -> body
-    - exec: input -> exec result
+    - [x] compile expr to InputFuncBody: string -> body
+    - [x] exec: input -> exec result
 - mbf5:
     - parse string: string -> result<mbf5>
 - device:

@@ -153,6 +153,7 @@ pub fn init_machines() -> Result<(), InitError> {
       .ok_or_else(|| InitError::Other(format!("'{}' is not object", name,)))?;
 
     let mut props = MachineProps::default();
+    props.name = name.to_owned();
 
     // emoji_style
     let emoji_style = obj

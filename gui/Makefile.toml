@@ -1,0 +1,10 @@
+[env]
+CARGO_MAKE_EXTEND_WORKSPACE_MAKEFILE = false
+
+[tasks.build]
+clear = true
+script_runner = "@shell"
+script = """
+qmake
+make -j2
+"""

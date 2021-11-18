@@ -1,3 +1,8 @@
 [tasks.header]
 command = "cbindgen"
 args = ["--output", "../gui/include/gvb.h"]
+
+[tasks.build]
+clear = true
+command = "cargo"
+args = ["build", "--release"]

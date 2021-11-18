@@ -140,6 +140,16 @@ impl DefaultDevice {
         self.memory[graph_addr + i] ^= 0xff;
       }
     }
+
+    let left = (self.column as usize) << 3;
+    let top = self.row as usize * CHAR_HEIGHT;
+    let right = if self.cursor == CursorState::FullWidth {
+      x + 16
+    } else {
+      x + 8
+    };
+    let bottom = top + CHAR_HEIGHT;
+    self.update_dirty_area(left, top, right, bottom);
   }
 
   fn scroll_text(&mut self) {

@@ -1988,19 +1988,26 @@ where
     self.store.store_value(lvalue, value);
     Ok(())
   }
+
+  pub fn compile_fn(
+    &self,
+    input: &str,
+  ) -> (Option<InputFuncBody>, Vec<Diagnostic>) {
+    compile_fn(input, self.emoji_style)
+  }
 }
 
-pub fn compile_fn(
+fn compile_fn(
   input: &str,
   emoji_style: EmojiStyle,
-) -> std::result::Result<InputFuncBody, Vec<Diagnostic>> {
+) -> (Option<InputFuncBody>, Vec<Diagnostic>) {
   let (mut expr, _) = parse_expr(input);
   let mut codegen = CodeGen::new(emoji_style);
   compile_fn_body(input, &mut expr, &mut codegen);
   if contains_errors(&expr.diagnostics) {
-    Err(expr.diagnostics)
+    (None, expr.diagnostics)
   } else {
-    Ok(InputFuncBody::new(codegen))
+    (Some(InputFuncBody::new(codegen)), expr.diagnostics)
   }
 }
 
@@ -2999,7 +3006,7 @@ mod tests {
             ],
           },
           {
-            let body = compile_fn("fn g(y)+2", EmojiStyle::New).unwrap();
+            let body = compile_fn("fn g(y)+2", EmojiStyle::New).0.unwrap();
             ExecInput::KeyboardInput(vec![
               KeyboardInput::Integer(37),
               KeyboardInput::Func { body },
