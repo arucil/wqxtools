@@ -17,6 +17,7 @@ class ScintillaEdit;
 class QShowEvent;
 class QTimerEvent;
 class QLabel;
+class QStateMachine;
 
 namespace Scintilla {
 class NotificationData;
@@ -208,6 +209,7 @@ private:
   std::vector<Diagnostic> m_diagnostics;
   lib_interval_tree::interval_tree<Range> m_diagRanges;
   SizeValue m_curPos;
+  QStateMachine *m_stateMachine;
 };
 
 Q_DECLARE_METATYPE(std::vector<Diagnostic>);

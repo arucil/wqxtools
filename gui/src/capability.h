@@ -2,12 +2,13 @@
 
 #include "util.h"
 #include "value.h"
-#include "action.h"
-#include <QAction>
 #include <optional>
 
+class Action;
+class QAction;
 class QObject;
 class QString;
+class QState;
 
 struct EditCapabilities {
   Action *m_actCopy;
@@ -35,8 +36,9 @@ public:
 
 struct ProgramCapabilities {
 public:
-  BoolValue m_isPaused;
-  BoolValue m_started;
-  Action *m_actStart;
-  Action *m_actStop;
+  QState *m_stStarted;
+  QState *m_stPaused;
+  QState *m_stStopped;
+  QAction *m_actStart;
+  QAction *m_actStop;
 };
