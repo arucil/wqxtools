@@ -4,6 +4,7 @@
 #include <QWidget>
 #include <QRect>
 #include <cstdint>
+#include <optional>
 
 class QPaintEvent;
 
@@ -11,8 +12,10 @@ class GvbSimScreen : public QWidget {
   Q_OBJECT
 
 public:
-  GvbSimScreen(QWidget *parent, std::uint8_t *);
+  GvbSimScreen(QWidget *parent);
   ~GvbSimScreen();
+
+  void setImageData(const std::uint8_t *);
 
 public slots:
   void markDirty(const QRect &);
@@ -22,5 +25,5 @@ protected:
 
 private:
   QImage m_img;
-  QRect m_dirtyArea;
+  std::optional<QRect> m_dirtyArea;
 };

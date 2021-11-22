@@ -31,7 +31,6 @@ private slots:
   ActionResult saveFile();
   ActionResult saveFileAs(bool save = false);
   void setTitle();
-  void setStartButtonText();
 
 private:
   void openFileByPath(const QString &);
@@ -41,6 +40,7 @@ protected:
   void closeEvent(QCloseEvent *) override;
 
 private:
+  QAction *m_actOpen;
   QAction *m_actSave;
   QAction *m_actSaveAs;
 

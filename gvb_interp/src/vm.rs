@@ -5,7 +5,7 @@ use std::io;
 use std::num::NonZeroUsize;
 use std::time::Duration;
 
-use crate::ast::{self, SysFuncKind};
+use crate::ast::{self, Range, SysFuncKind};
 use crate::compiler::compile_fn_body;
 use crate::device::{Device, DrawMode, FileHandle};
 use crate::diagnostic::{contains_errors, Diagnostic};
@@ -69,7 +69,7 @@ enum Type {
   String,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 enum ExecState {
   Done,
   Normal,
@@ -100,7 +100,7 @@ struct FnCallRecord {
   next_addr: Addr,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 enum LValue {
   Index { name: Symbol, offset: usize },
   Var { name: Symbol },
@@ -246,7 +246,29 @@ where
     vm
   }
 
-  pub fn reset(&mut self, loc: Location, reset_pc: bool) -> Result<()> {
+  pub fn start(&mut self) {
+    assert_eq!(self.state, ExecState::Done);
+    self
+      .reset(
+        Location {
+          line: 0,
+          range: Range { start: 0, end: 0 },
+        },
+        true,
+      )
+      .unwrap();
+  }
+
+  pub fn stop(&mut self) -> Result<()> {
+    self.close_files(Location {
+      line: 0,
+      range: Range { start: 0, end: 0 },
+    })?;
+    self.state = ExecState::Done;
+    Ok(())
+  }
+
+  fn reset(&mut self, loc: Location, reset_pc: bool) -> Result<()> {
     self.data_ptr = 0;
     if reset_pc {
       self.pc = 0;

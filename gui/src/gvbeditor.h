@@ -10,6 +10,7 @@
 #include <string>
 #include <variant>
 #include <vector>
+#include <QStateMachine>
 
 class QAction;
 class QToolBar;
@@ -17,7 +18,7 @@ class ScintillaEdit;
 class QShowEvent;
 class QTimerEvent;
 class QLabel;
-class QStateMachine;
+class GvbSimWindow;
 
 namespace Scintilla {
 class NotificationData;
@@ -173,12 +174,17 @@ public:
 private:
   void initUi();
   void initEdit();
+  void initStateMachine();
   QToolBar *initToolBar();
   QStatusBar *initStatusBar();
   void computeDiagnostics();
 
 signals:
   void updateDiagnostics(std::vector<Diagnostic>);
+  void start();
+  void pause();
+  void cont();
+  void stop();
 
 public slots:
   SaveResult save(const QString &) override;
@@ -197,10 +203,9 @@ private slots:
   void notified(Scintilla::NotificationData *);
   void diagnosticsUpdated(std::vector<Diagnostic>);
   void modified();
-  void updatePosLabel(size_t);
+  void tryStartPause(QWidget *sender);
 
 private:
-  QLabel *m_posLabel;
   ScintillaEdit *m_edit;
   gvb::Document *m_doc;
   bool m_textLoaded;
@@ -209,7 +214,8 @@ private:
   std::vector<Diagnostic> m_diagnostics;
   lib_interval_tree::interval_tree<Range> m_diagRanges;
   SizeValue m_curPos;
-  QStateMachine *m_stateMachine;
+  QStateMachine m_stateMachine;
+  GvbSimWindow *m_gvbsim;
 };
 
 Q_DECLARE_METATYPE(std::vector<Diagnostic>);

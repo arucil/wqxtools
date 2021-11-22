@@ -1,4 +1,6 @@
-use crate::{Array, Diagnostic, Maybe, Severity, Utf8Str, Utf8String};
+use crate::{
+  Array, Diagnostic, Either, Maybe, Severity, Unit, Utf8Str, Utf8String,
+};
 use gvb_interp as gvb;
 use std::convert::TryInto;
 
@@ -181,5 +183,26 @@ pub extern "C" fn vm_exec(
       },
       message: unsafe { Utf8String::new(message) },
     },
+  }
+}
+
+#[no_mangle]
+pub extern "C" fn vm_stop(
+  dev: *mut VirtualMachine,
+) -> Either<Utf8String, Unit> {
+  match unsafe { (*dev).0.stop() } {
+    Ok(()) => Either::Right(Unit::new()),
+    Err(gvb::ExecResult::Error {
+      location: _,
+      message,
+    }) => Either::Left(unsafe { Utf8String::new(message) }),
+    Err(_) => unreachable!(),
+  }
+}
+
+#[no_mangle]
+pub extern "C" fn vm_reset(dev: *mut VirtualMachine) {
+  unsafe {
+    (*dev).0.start();
   }
 }

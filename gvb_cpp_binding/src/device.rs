@@ -1,4 +1,4 @@
-use crate::{Array, Either, Unit, Utf8Str, Utf8String, Maybe};
+use crate::{Array, Either, Maybe, Unit, Utf8Str, Utf8String};
 use gvb_interp as gvb;
 use gvb_interp::machine::{self, InitError};
 
@@ -63,6 +63,13 @@ pub extern "C" fn device_key(dev: *mut Device) -> Maybe<u8> {
 }
 
 #[no_mangle]
+pub extern "C" fn device_reset(dev: *mut Device) {
+  unsafe {
+    (*dev).0.reset();
+  }
+}
+
+#[no_mangle]
 pub extern "C" fn device_fire_key_down(dev: *mut Device, key: u8) {
   unsafe {
     (*dev).0.fire_key_down(key);
@@ -84,9 +91,7 @@ pub extern "C" fn device_blink_cursor(dev: *mut Device) {
 }
 
 #[no_mangle]
-pub extern "C" fn device_screen_dirty_area(
-  dev: *mut Device,
-) -> Maybe<Rect> {
+pub extern "C" fn device_screen_dirty_area(dev: *mut Device) -> Maybe<Rect> {
   unsafe {
     match (*dev).0.take_dirty_area() {
       Some(rect) => Maybe::Just(Rect {

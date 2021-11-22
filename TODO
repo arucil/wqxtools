@@ -21,7 +21,7 @@
 
 
 
-- 在运行模拟器时不能加载其他文件
+- [x] 在运行模拟器时不能加载其他文件
 - 检查内存泄漏
 - 改成GBK（有些汉字会和emoji重叠，优先使用emoji）
 
@@ -43,6 +43,8 @@
 - vm:
     - [x] compile expr to InputFuncBody: string -> body
     - [x] exec: input -> exec result
+    - [x] start
+    - [x] stop
 - mbf5:
     - parse string: string -> result<mbf5>
 - device:
@@ -52,6 +54,7 @@
     - [x] fire key up
     - [x] blink cursor: () -> ()
     - [x] get screen update rect
+    - [x] reset
 
 - 设置：
     - 字体大小

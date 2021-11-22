@@ -50,13 +50,9 @@ pub struct DefaultFileHandle {}
 
 impl DefaultDevice {
   pub(crate) fn new(props: MachineProps) -> Self {
-    let mut memory = [0u8; 65536];
-    for &addr in &props.key_mapping_addrs {
-      memory[addr as usize] = 0xff;
-    }
-    Self {
+    let mut d = Self {
       props,
-      memory,
+      memory: [0; 65536],
       inverse_text: [false; TEXT_BYTES],
       row: 0,
       column: 0,
@@ -64,7 +60,23 @@ impl DefaultDevice {
       print_mode: PrintMode::Normal,
       cursor: CursorState::None,
       graphics_dirty: None,
+    };
+    d.reset();
+    d
+  }
+
+  pub fn reset(&mut self) {
+    self.memory.fill(0);
+    for &addr in &self.props.key_mapping_addrs {
+      self.memory[addr as usize] = 0xff;
     }
+    self.inverse_text.fill(false);
+    self.row = 0;
+    self.column = 0;
+    self.screen_mode = ScreenMode::Text;
+    self.print_mode = PrintMode::Normal;
+    self.cursor = CursorState::None;
+    self.graphics_dirty = None;
   }
 
   pub fn fire_key_down(&mut self, key: u8) {
@@ -144,9 +156,9 @@ impl DefaultDevice {
     let left = (self.column as usize) << 3;
     let top = self.row as usize * CHAR_HEIGHT;
     let right = if self.cursor == CursorState::FullWidth {
-      x + 16
+      left + 16
     } else {
-      x + 8
+      left + 8
     };
     let bottom = top + CHAR_HEIGHT;
     self.update_dirty_area(left, top, right, bottom);

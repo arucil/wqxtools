@@ -1,10 +1,13 @@
 #include "gvbeditor.h"
+#include "action.h"
+#include "gvbsim_window.h"
 #include "util.h"
 #include <QApplication>
 #include <QByteArray>
 #include <QFileInfo>
 #include <QLabel>
 #include <QMessageBox>
+#include <QState>
 #include <QThread>
 #include <QTimer>
 #include <QToolBar>
@@ -21,8 +24,10 @@
 #define ERROR_COLOR 0x30'2e'd3
 
 GvbEditor::GvbEditor(QWidget *parent)
-    : Tool(parent), m_doc(nullptr), m_textLoaded(false), m_timerModify(false) {
+    : Tool(parent), m_doc(nullptr), m_textLoaded(false), m_timerModify(false),
+      m_gvbsim(nullptr) {
   initUi();
+  initStateMachine();
 
   connect(
       this, &GvbEditor::updateDiagnostics, this, &GvbEditor::diagnosticsUpdated,
@@ -38,8 +43,7 @@ GvbEditor::GvbEditor(QWidget *parent)
     m_actReplace->setEnabled(true);
     m_curPos.setValue(m_edit->currentPos());
 
-    m_started.setValue(false);
-    m_isPaused.setValue(false);
+    m_stateMachine.start();
   });
 }
 
@@ -61,6 +65,33 @@ void GvbEditor::initUi() {
   layout->addWidget(statusbar);
   layout->setContentsMargins(0, 0, 0, 0);
   layout->setSpacing(0);
+}
+
+void GvbEditor::initStateMachine() {
+  m_stStarted = new QState;
+  m_stPaused = new QState;
+  m_stStopped = new QState;
+  m_stStopped->addTransition(this, &GvbEditor::start, m_stStarted);
+  m_stStarted->addTransition(this, &GvbEditor::pause, m_stPaused);
+  m_stPaused->addTransition(this, &GvbEditor::cont, m_stStarted);
+  m_stStarted->addTransition(this, &GvbEditor::stop, m_stStopped);
+  m_stPaused->addTransition(this, &GvbEditor::stop, m_stStopped);
+  m_stateMachine.addState(m_stStarted);
+  m_stateMachine.addState(m_stPaused);
+  m_stateMachine.addState(m_stStopped);
+  m_stateMachine.setInitialState(m_stStopped);
+
+  m_stStarted->assignProperty(m_actStart, "text", "暂停");
+  m_stStopped->assignProperty(m_actStart, "text", "运行");
+  m_stPaused->assignProperty(m_actStart, "text", "继续");
+  m_stStarted->assignProperty(m_actStop, "enabled", true);
+  m_stPaused->assignProperty(m_actStop, "enabled", true);
+  m_stStopped->assignProperty(m_actStop, "enabled", false);
+  auto startIcon = QIcon(QPixmap(":/assets/images/Run.svg"));
+  m_stStarted->assignProperty(m_actStart, "icon", startIcon);
+  m_stPaused->assignProperty(
+      m_actStart, "icon", QIcon(QPixmap(":/assets/images/Pause.svg")));
+  m_stStopped->assignProperty(m_actStart, "icon", startIcon);
 }
 
 void GvbEditor::initEdit() {
@@ -127,16 +158,6 @@ QToolBar *GvbEditor::initToolBar() {
 
   toolbar->addSeparator();
 
-  m_actStart = new Action(QPixmap(":/assets/images/Run.svg"), "运行");
-  toolbar->addAction(m_actStart);
-  connect(&m_started, &BoolValue::changed, m_actStart, &QAction::setDisabled);
-
-  m_actStop = new Action(QPixmap(":/assets/images/Stop.svg"), "停止");
-  toolbar->addAction(m_actStop);
-  connect(&m_started, &BoolValue::changed, m_actStop, &Action::setEnabled);
-
-  toolbar->addSeparator();
-
   m_actFind = new Action(QPixmap(":/assets/images/Find.svg"), "查找");
   toolbar->addAction(m_actFind);
   connect(m_actFind, &QAction::triggered, this, &GvbEditor::find);
@@ -169,16 +190,36 @@ QToolBar *GvbEditor::initToolBar() {
   toolbar->addAction(m_actPaste);
   connect(m_actPaste, &QAction::triggered, this, &GvbEditor::paste);
 
+  toolbar->addSeparator();
+
+  m_actStart = new Action;
+  toolbar->addAction(m_actStart);
+  connect(m_actStart, &QAction::triggered, this, [this] {
+    tryStartPause(this);
+  });
+
+  auto empty = new QWidget();
+  empty->setMinimumWidth(20);
+  toolbar->addWidget(empty);
+
+  m_actStop = new Action(QPixmap(":/assets/images/Stop.svg"), "停止");
+  toolbar->addAction(m_actStop);
+  connect(m_actStop, &QAction::triggered, this, &GvbEditor::stop);
+
   return toolbar;
 }
 
 QStatusBar *GvbEditor::initStatusBar() {
   auto statusbar = new QStatusBar;
-  m_posLabel = new QLabel;
-  m_posLabel->setMinimumWidth(120);
-  statusbar->addPermanentWidget(m_posLabel);
+  auto posLabel = new QLabel;
+  posLabel->setMinimumWidth(120);
+  statusbar->addPermanentWidget(posLabel);
 
-  connect(&m_curPos, &SizeValue::changed, this, &GvbEditor::updatePosLabel);
+  connect(&m_curPos, &SizeValue::changed, this, [posLabel, this](size_t pos) {
+    auto line = m_edit->lineFromPosition(pos) + 1;
+    auto col = m_edit->column(pos) + 1;
+    posLabel->setText(tr("第 %1 行, 第 %2 列").arg(line).arg(col));
+  });
 
   return statusbar;
 }
@@ -245,6 +286,9 @@ LoadResult GvbEditor::load(const QString &path) {
     m_textLoaded = true;
     m_edit->setSavePoint();
     m_edit->emptyUndoBuffer();
+    m_edit->setCurrentPos(0);
+    m_actUndo->setEnabled(false);
+    m_actRedo->setEnabled(false);
 
     auto digits = static_cast<size_t>(
         std::log10(std::count(text.data, text.data + text.len, '\n') + 1));
@@ -454,8 +498,32 @@ void GvbEditor::computeDiagnostics() {
   connect(thread, &QThread::finished, thread, &QObject::deleteLater);
 }
 
-void GvbEditor::updatePosLabel(size_t pos) {
-  auto line = m_edit->lineFromPosition(pos) + 1;
-  auto col = m_edit->column(pos) + 1;
-  m_posLabel->setText(tr("第 %1 行, 第 %2 列").arg(line).arg(col));
+void GvbEditor::tryStartPause(QWidget *sender) {
+  auto curState = *m_stateMachine.configuration().begin();
+  if (curState == m_stStopped) {
+    if (sender == this) {
+      auto device = gvb::document_device(m_doc);
+      auto result = gvb::document_vm(m_doc, device);
+      if (result.tag == gvb::Maybe<gvb::VirtualMachine *>::Tag::Nothing) {
+        // TODO toast
+        QMessageBox::critical(getMainWindow(), "错误", "文件有错误，无法运行");
+        return;
+      }
+      auto vm = result.just._0;
+      m_gvbsim = new GvbSimWindow(this);
+      m_gvbsim->setAttribute(Qt::WA_DeleteOnClose);
+      connect(m_gvbsim, &QMainWindow::destroyed, this, [this] {
+        m_gvbsim = nullptr;
+      });
+      m_gvbsim->reset(vm, device);
+      m_gvbsim->show();
+    } else if (m_gvbsim) {
+      m_gvbsim->reset();
+    }
+    emit start();
+  } else if (curState == m_stPaused) {
+    emit cont();
+  } else if (curState == m_stStarted) {
+    emit pause();
+  }
 }

@@ -48,9 +48,9 @@ void MainWindow::initUi() {
 void MainWindow::initMenu() {
   auto mnuFile = menuBar()->addMenu("文件(&F)");
 
-  auto actOpen = mnuFile->addAction("打开(&O)");
-  actOpen->setShortcut(Qt::CTRL | Qt::Key_O);
-  connect(actOpen, &QAction::triggered, this, &MainWindow::openFile);
+  m_actOpen = mnuFile->addAction("打开(&O)");
+  m_actOpen->setShortcut(Qt::CTRL | Qt::Key_O);
+  connect(m_actOpen, &QAction::triggered, this, &MainWindow::openFile);
 
   auto actNew = mnuFile->addAction("新建(&N)");
   actNew->setShortcut(Qt::CTRL | Qt::Key_N);
@@ -165,6 +165,7 @@ void MainWindow::openFileByPath(const QString &path) {
     return;
   }
 
+  auto isNew = false;
   if (!widget || !widget->canLoad(path)) {
     auto ctor = ToolFactoryRegistry::get(ext.toLower());
     if (!ctor.has_value()) {
@@ -172,6 +173,7 @@ void MainWindow::openFileByPath(const QString &path) {
       return;
     }
 
+    isNew = true;
     widget = ctor.value()(this);
     setCentralWidget(widget);
   }
@@ -189,6 +191,10 @@ void MainWindow::openFileByPath(const QString &path) {
   });
 
   m_openFilePath.setValue(fileinfo.fileName());
+
+  if (!isNew) {
+    return;
+  }
 
   auto fileCap = dynamic_cast<FileCapabilities *>(widget);
   m_actSave->setEnabled(fileCap != nullptr);
@@ -244,40 +250,30 @@ void MainWindow::openFileByPath(const QString &path) {
   }
 
   if (auto progCap = dynamic_cast<ProgramCapabilities *>(widget)) {
-    m_actStart->setEnabled(progCap->m_actStart->isEnabled());
+    progCap->m_stStarted->assignProperty(m_actStart, "text", "暂停");
+    progCap->m_stStopped->assignProperty(m_actStart, "text", "运行");
+    progCap->m_stPaused->assignProperty(m_actStart, "text", "继续");
+    progCap->m_stStarted->assignProperty(m_actStop, "enabled", true);
+    progCap->m_stPaused->assignProperty(m_actStop, "enabled", true);
+    progCap->m_stStopped->assignProperty(m_actStop, "enabled", false);
+    progCap->m_stStopped->assignProperty(m_actOpen, "enabled", true);
+    progCap->m_stStarted->assignProperty(m_actOpen, "enabled", false);
+    progCap->m_stPaused->assignProperty(m_actOpen, "enabled", false);
+    m_actStart->setEnabled(true);
     connect(
-        progCap->m_actStart, &Action::enabledChanged, m_actStart,
-        &QAction::setEnabled);
-    m_actStop->setEnabled(progCap->m_actStop->isEnabled());
+        m_actStart, &QAction::triggered, progCap->m_actStart,
+        &QAction::trigger);
     connect(
-        progCap->m_actStop, &Action::enabledChanged, m_actStop,
-        &QAction::setEnabled);
-    connect(
-        progCap->m_actStop, &Action::enabledChanged, this,
-        &MainWindow::setStartButtonText);
-    connect(
-        &progCap->m_isPaused, &BoolValue::changed, this,
-        &MainWindow::setStartButtonText);
+        m_actStop, &QAction::triggered, progCap->m_actStop, &QAction::trigger);
   } else {
     m_actStart->setEnabled(false);
     m_actStop->setEnabled(false);
-    setStartButtonText();
+    m_actStart->setText("运行");
   }
 
   if (fileCap && fileCap->m_actSave != nullptr) {
     connect(
         fileCap->m_actSave, &QAction::triggered, this, &MainWindow::saveFile);
-  }
-}
-
-void MainWindow::setStartButtonText() {
-  if (auto progCap = dynamic_cast<ProgramCapabilities *>(centralWidget())) {
-    m_actStart->setText(
-        progCap->m_isPaused.value()
-            ? "继续"
-            : progCap->m_actStop->isEnabled() ? "暂停" : "运行");
-  } else {
-    m_actStart->setText("运行");
   }
 }
 
