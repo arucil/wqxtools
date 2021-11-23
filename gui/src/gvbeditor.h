@@ -19,6 +19,7 @@ class QShowEvent;
 class QTimerEvent;
 class QLabel;
 class GvbSimWindow;
+class QCloseEvent;
 
 namespace Scintilla {
 class NotificationData;

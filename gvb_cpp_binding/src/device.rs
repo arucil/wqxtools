@@ -55,14 +55,6 @@ pub extern "C" fn device_graphics_memory(dev: *mut Device) -> *const u8 {
 }
 
 #[no_mangle]
-pub extern "C" fn device_key(dev: *mut Device) -> Maybe<u8> {
-  match unsafe { (*dev).0.key() } {
-    Some(key) => Maybe::Just(key),
-    None => Maybe::Nothing,
-  }
-}
-
-#[no_mangle]
 pub extern "C" fn device_reset(dev: *mut Device) {
   unsafe {
     (*dev).0.reset();

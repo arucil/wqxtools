@@ -240,7 +240,7 @@ where
       files: [None, None, None],
       rng: WyRand::new(),
       current_rand: 0,
-      state: ExecState::Normal,
+      state: ExecState::Done,
     };
     vm.current_rand = vm.rng.generate();
     vm
@@ -2398,6 +2398,7 @@ mod tests {
     seq: Vec<(ExecResult, ExecInput)>,
   ) {
     let mut input = ExecInput::None;
+    vm.start();
     for (result, next_input) in seq {
       let r = vm.exec(input, usize::MAX);
       assert_eq!(r, result);

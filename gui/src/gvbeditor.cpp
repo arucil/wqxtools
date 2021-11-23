@@ -33,7 +33,7 @@ GvbEditor::GvbEditor(QWidget *parent)
       this, &GvbEditor::updateDiagnostics, this, &GvbEditor::diagnosticsUpdated,
       Qt::QueuedConnection);
 
-  QTimer::singleShot(0, [this] {
+  QTimer::singleShot(0, this, [this] {
     m_actPaste->setEnabled(true);
     m_actUndo->setEnabled(false);
     m_actRedo->setEnabled(false);
@@ -510,15 +510,13 @@ void GvbEditor::tryStartPause(QWidget *sender) {
         return;
       }
       auto vm = result.just._0;
-      m_gvbsim = new GvbSimWindow(this);
+      m_gvbsim = new GvbSimWindow(getMainWindow(), this);
       m_gvbsim->setAttribute(Qt::WA_DeleteOnClose);
       connect(m_gvbsim, &QMainWindow::destroyed, this, [this] {
         m_gvbsim = nullptr;
       });
       m_gvbsim->reset(vm, device);
       m_gvbsim->show();
-    } else if (m_gvbsim) {
-      m_gvbsim->reset();
     }
     emit start();
   } else if (curState == m_stPaused) {

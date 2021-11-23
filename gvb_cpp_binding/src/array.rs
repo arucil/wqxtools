@@ -1,4 +1,4 @@
-use crate::{destroy_string, Diagnostic, Utf8String, Utf8Str};
+use crate::{destroy_string, Diagnostic, Utf8Str, Utf8String};
 
 #[repr(C)]
 pub struct Array<T> {
@@ -14,6 +14,13 @@ impl<T> Array<T> {
     Self { data, len }
   }
 
+  pub(crate) unsafe fn into_boxed_slice(self) -> Box<[T]> {
+    Box::from_raw(std::ptr::slice_from_raw_parts_mut(
+      self.data as *const _ as *mut _,
+      self.len,
+    ))
+  }
+
   pub(crate) unsafe fn as_slice<'a>(&self) -> &'a [T] {
     std::slice::from_raw_parts(self.data, self.len)
   }
@@ -23,14 +30,7 @@ impl<T> Array<T> {
 pub extern "C" fn destroy_string_diagnostic_array(
   arr: Array<Diagnostic<Utf8String>>,
 ) {
-  for diag in unsafe {
-    Box::from_raw(std::ptr::slice_from_raw_parts_mut(
-      arr.data as *const _ as *mut Diagnostic<Utf8String>,
-      arr.len,
-    ))
-  }
-  .iter()
-  {
+  for diag in unsafe { arr.into_boxed_slice() }.iter() {
     destroy_string(diag.message.clone());
   }
 }
@@ -39,10 +39,5 @@ pub extern "C" fn destroy_string_diagnostic_array(
 pub extern "C" fn destroy_str_diagnostic_array(
   arr: Array<Diagnostic<Utf8Str>>,
 ) {
-  drop(unsafe {
-    Box::from_raw(std::ptr::slice_from_raw_parts_mut(
-      arr.data as *const _ as *mut Diagnostic<Utf8Str>,
-      arr.len,
-    ))
-  });
+  drop(unsafe { arr.into_boxed_slice() });
 }

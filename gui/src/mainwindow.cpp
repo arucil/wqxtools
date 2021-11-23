@@ -21,7 +21,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
 
   resize(800, 540);
 
-  QTimer::singleShot(0, [this] {
+  QTimer::singleShot(0, this, [this] {
     m_loaded.setValue(false);
 
     m_actSave->setEnabled(false);
@@ -178,7 +178,7 @@ void MainWindow::openFileByPath(const QString &path) {
     setCentralWidget(widget);
   }
 
-  QTimer::singleShot(0, [widget, path, this] {
+  QTimer::singleShot(0, widget, [widget, path, this] {
     auto result = widget->load(path);
     if (auto err = std::get_if<QString>(&result)) {
       QMessageBox::critical(this, "文件打开失败", *err);

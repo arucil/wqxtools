@@ -1,5 +1,6 @@
 use crate::{
-  Array, Diagnostic, Either, Maybe, Severity, Unit, Utf8Str, Utf8String,
+  destroy_string, Array, Device, Diagnostic, Either, Maybe, Severity, Unit,
+  Utf8Str, Utf8String,
 };
 use gvb_interp as gvb;
 use std::convert::TryInto;
@@ -11,7 +12,6 @@ pub struct VirtualMachine(
 #[repr(C)]
 pub enum ExecInput {
   None,
-  /// The memory is managed by C++ code.
   KeyboardInput(Array<KeyboardInput>),
   Key(u8),
 }
@@ -186,11 +186,11 @@ pub extern "C" fn vm_exec(
   }
 }
 
+pub type StopVmResult = Either<Utf8String, Unit>;
+
 #[no_mangle]
-pub extern "C" fn vm_stop(
-  dev: *mut VirtualMachine,
-) -> Either<Utf8String, Unit> {
-  match unsafe { (*dev).0.stop() } {
+pub extern "C" fn vm_stop(vm: *mut VirtualMachine) -> StopVmResult {
+  match unsafe { (*vm).0.stop() } {
     Ok(()) => Either::Right(Unit::new()),
     Err(gvb::ExecResult::Error {
       location: _,
@@ -201,8 +201,67 @@ pub extern "C" fn vm_stop(
 }
 
 #[no_mangle]
-pub extern "C" fn vm_reset(dev: *mut VirtualMachine) {
+pub extern "C" fn vm_reset(vm: *mut VirtualMachine) {
   unsafe {
-    (*dev).0.start();
+    (*vm).0.start();
+  }
+}
+
+#[no_mangle]
+pub extern "C" fn reset_exec_result(result: *mut ExecResult) {
+  match std::mem::replace(unsafe { &mut *result }, ExecResult::Continue) {
+    ExecResult::End => {}
+    ExecResult::Continue => {}
+    ExecResult::Sleep(_) => {}
+    ExecResult::KeyboardInput { prompt, fields } => {
+      if let Maybe::Just(s) = prompt {
+        destroy_string(s);
+      }
+      for field in unsafe { fields.as_slice() } {
+        match field {
+          KeyboardInputType::Integer => {}
+          KeyboardInputType::Real => {}
+          KeyboardInputType::String => {}
+          KeyboardInputType::Func { name, param } => {
+            destroy_string(name.clone());
+            destroy_string(param.clone());
+          }
+        }
+      }
+      drop(unsafe { fields.into_boxed_slice() });
+    }
+    ExecResult::InKey => {}
+    ExecResult::Error {
+      location: _,
+      message,
+    } => {
+      destroy_string(message);
+    }
+  }
+}
+
+#[no_mangle]
+pub extern "C" fn reset_exec_input(input: *mut ExecInput) {
+  match std::mem::replace(unsafe { &mut *input }, ExecInput::None) {
+    ExecInput::None => {}
+    ExecInput::Key(_) => {}
+    ExecInput::KeyboardInput(input) => {
+      // NOTE no need to free memory in `input`
+      drop(unsafe { input.into_boxed_slice() });
+    }
+  }
+}
+
+/// Returns if a key was pressed.
+#[no_mangle]
+pub extern "C" fn assign_device_key(
+  device: *mut Device,
+  input: *mut ExecInput,
+) -> bool {
+  if let Some(key) = unsafe { (*device).0.key() } {
+    *unsafe { &mut *input } = ExecInput::Key(key);
+    true
+  } else {
+    false
   }
 }

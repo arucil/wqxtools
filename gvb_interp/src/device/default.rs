@@ -276,20 +276,15 @@ impl DefaultDevice {
     }
   }
 
-  fn draw_hor_line(&mut self, mut x1: u8, mut x2: u8, y: u8, mode: DrawMode) {
+  fn draw_hor_line(&mut self, left: u8, mut right: u8, y: u8, mode: DrawMode) {
     if y >= screen::HEIGHT as u8 {
       return;
     }
-    if x1 > x2 {
-      let t = x1;
-      x1 = x2;
-      x2 = t;
-    }
-    if x1 >= screen::WIDTH as u8 {
+    if left >= screen::WIDTH as u8 {
       return;
     }
-    if x2 >= screen::WIDTH as u8 {
-      x2 = screen::WIDTH as u8 - 1;
+    if right >= screen::WIDTH as u8 {
+      right = screen::WIDTH as u8 - 1;
     }
 
     unsafe {
@@ -298,41 +293,36 @@ impl DefaultDevice {
           .memory
           .as_mut_ptr()
           .add(self.props.graphics_base_addr as usize),
-        x1,
-        x2,
+        left,
+        right,
         y,
         mode,
       );
     }
   }
 
-  fn draw_ver_line(&mut self, x: u8, mut y1: u8, mut y2: u8, mode: DrawMode) {
+  fn draw_ver_line(&mut self, x: u8, top: u8, mut bottom: u8, mode: DrawMode) {
     if x >= screen::WIDTH as u8 {
       return;
     }
 
-    if y1 > y2 {
-      let t = y1;
-      y1 = y2;
-      y2 = t;
-    }
-    if y1 >= screen::HEIGHT as u8 {
+    if top >= screen::HEIGHT as u8 {
       return;
     }
-    if y2 >= screen::HEIGHT as u8 {
-      y2 = screen::HEIGHT as u8 - 1;
+    if bottom >= screen::HEIGHT as u8 {
+      bottom = screen::HEIGHT as u8 - 1;
     }
 
     let mut g = unsafe {
       self.memory.as_mut_ptr().add(
         self.props.graphics_base_addr as usize
-          + y1 as usize * screen::WIDTH_IN_BYTE
+          + top as usize * screen::WIDTH_IN_BYTE
           + (x as usize >> 3),
       )
     };
     let mask = POINT_BIT_MASK[x as usize & 7];
     unsafe {
-      for _ in y1..=y2 {
+      for _ in top..=bottom {
         mode.mask(g, mask);
         g = g.add(screen::WIDTH_IN_BYTE);
       }
@@ -443,7 +433,9 @@ impl Device for DefaultDevice {
         .add(self.props.text_buffer_base_addr as usize)
     };
     let inv_buffer = self.inverse_text.as_mut_ptr();
-    for &c in str {
+    let mut i = 0;
+    while i < str.len() {
+      let c = str[i];
       if c >= 128 && self.column as usize == TEXT_COLUMNS - 1 {
         let i = self.row as usize * TEXT_COLUMNS + self.column as usize;
         unsafe {
@@ -452,12 +444,21 @@ impl Device for DefaultDevice {
         }
         self.newline();
       }
-      let i = self.row as usize * TEXT_COLUMNS + self.column as usize;
       unsafe {
-        *text_buffer.add(i) = c;
-        *inv_buffer.add(i) = inversed;
+        let offset = self.row as usize * TEXT_COLUMNS + self.column as usize;
+        *text_buffer.add(offset) = c;
+        *inv_buffer.add(offset) = inversed;
+        if c >= 128 && i < str.len() - 1 {
+          let offset = offset + 1;
+          *text_buffer.add(offset) = str[i + 1];
+          *inv_buffer.add(offset) = inversed;
+          self.column += 2;
+          i += 2;
+        } else {
+          self.column += 1;
+          i += 1;
+        }
       }
-      self.column += 1;
       if self.column as usize == TEXT_COLUMNS {
         self.newline();
       }
@@ -617,6 +618,12 @@ impl Device for DefaultDevice {
           .add(self.props.graphics_base_addr as usize);
         mode.point(g, x as usize, y as usize);
       }
+      self.update_dirty_area(
+        x as usize,
+        y as usize,
+        x as usize + 1,
+        y as usize + 1,
+      );
     }
   }
 
@@ -627,12 +634,34 @@ impl Device for DefaultDevice {
     mode: DrawMode,
   ) {
     if y1 == y2 {
+      if x1 > x2 {
+        let t = x1;
+        x1 = x2;
+        x2 = t;
+      }
       self.draw_hor_line(x1, x2, y1, mode);
+      self.update_dirty_area(
+        x1 as usize,
+        y1 as usize,
+        x2 as usize + 1,
+        y1 as usize + 1,
+      );
       return;
     }
 
     if x1 == x2 {
+      if y1 > y2 {
+        let t = y1;
+        y1 = y2;
+        y2 = t;
+      }
       self.draw_ver_line(x1, y1, y2, mode);
+      self.update_dirty_area(
+        x1 as usize,
+        y1 as usize,
+        x1 as usize + 1,
+        y2 as usize + 1,
+      );
       return;
     }
 
@@ -672,6 +701,18 @@ impl Device for DefaultDevice {
         y = y.wrapping_add(inc_y);
       }
     }
+
+    if y1 > y2 {
+      let t = y1;
+      y1 = y2;
+      y2 = t;
+    }
+    self.update_dirty_area(
+      x1 as usize,
+      y1 as usize,
+      x2 as usize + 1,
+      y2 as usize + 1,
+    );
   }
 
   fn draw_box(
@@ -719,6 +760,13 @@ impl Device for DefaultDevice {
       self.draw_ver_line(x1, y1, y2, mode);
       self.draw_ver_line(x2, y1, y2, mode);
     }
+
+    self.update_dirty_area(
+      x1 as usize,
+      y1 as usize,
+      x2 as usize + 1,
+      y2 as usize + 1,
+    );
   }
 
   fn draw_circle(
@@ -733,13 +781,13 @@ impl Device for DefaultDevice {
 
   fn draw_ellipse(
     &mut self,
-    (x, y): (u8, u8),
+    (x0, y0): (u8, u8),
     (rx, ry): (u8, u8),
     fill: bool,
     mode: DrawMode,
   ) {
     if rx == 0 && ry == 0 {
-      self.draw_point((x, y), mode);
+      self.draw_point((x0, y0), mode);
       return;
     }
 
@@ -762,8 +810,8 @@ impl Device for DefaultDevice {
         .as_mut_ptr()
         .add(self.props.graphics_base_addr as usize)
     };
-    let x = x as i32;
-    let y = y as i32;
+    let x = x0 as i32;
+    let y = y0 as i32;
     unsafe {
       Self::ellipse_part(g, x, y, tmp_x, tmp_y, fill, mode);
     }
@@ -811,6 +859,13 @@ impl Device for DefaultDevice {
         fxy = -fxy;
       }
     }
+
+    self.update_dirty_area(
+      x0.checked_sub(rx).unwrap_or(0) as usize,
+      y0.checked_sub(ry).unwrap_or(0) as usize,
+      (x0 as usize + rx as usize + 1).max(screen::WIDTH),
+      (y0 as usize + ry as usize + 1).max(screen::HEIGHT),
+    );
   }
 
   fn get_byte(&self, addr: u16) -> u8 {
@@ -1042,6 +1097,28 @@ mod tests {
     assert_eq!(&inverse_buffer(&device), EMPTY_INVERSE_BUFFER);
 
     assert_snapshot!(device_screen_braille(&device));
+  }
+
+  #[test]
+  fn print_at_last_column() {
+    let mut device = new_device();
+
+    let mut str = string("哈");
+    str.drop_0x1f();
+    device.set_column(18);
+    device.print(&str);
+
+    device.set_column(19);
+    device.print(b"%");
+
+    let mut str = String::from_utf8(vec![0; 18]).unwrap();
+    str.push('哈');
+    str.extend(vec!['\0'; 19]);
+    str.push('%');
+    let mut str = string(&str);
+    str.drop_0x1f();
+    let str = pad_text_buffer(str);
+    assert_eq!(device.text_buffer(), str.as_slice());
   }
 
   #[test]
