@@ -46,7 +46,7 @@
     - [x] start
     - [x] stop
 - mbf5:
-    - parse string: string -> result<mbf5>
+    - [x] parse string: string -> result<mbf5>
 - device:
     - [x] get graphics data
     - [x] get key

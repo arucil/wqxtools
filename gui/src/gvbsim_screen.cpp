@@ -31,7 +31,6 @@ void GvbSimScreen::paintEvent(QPaintEvent *) {
   if (m_dirtyArea.has_value()) {
     auto rect = m_dirtyArea.value();
     m_dirtyArea.reset();
-    m_img.setPixel(0, 0, 1);
     painter.drawImage(QPoint{rect.x(), rect.y()}, m_img, rect);
   } else {
     // not triggered manually

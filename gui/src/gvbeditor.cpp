@@ -87,10 +87,10 @@ void GvbEditor::initStateMachine() {
   m_stStarted->assignProperty(m_actStop, "enabled", true);
   m_stPaused->assignProperty(m_actStop, "enabled", true);
   m_stStopped->assignProperty(m_actStop, "enabled", false);
-  auto startIcon = QIcon(QPixmap(":/assets/images/Run.svg"));
-  m_stStarted->assignProperty(m_actStart, "icon", startIcon);
-  m_stPaused->assignProperty(
+  m_stStarted->assignProperty(
       m_actStart, "icon", QIcon(QPixmap(":/assets/images/Pause.svg")));
+  auto startIcon = QIcon(QPixmap(":/assets/images/Run.svg"));
+  m_stPaused->assignProperty(m_actStart, "icon", startIcon);
   m_stStopped->assignProperty(m_actStart, "icon", startIcon);
 }
 
@@ -153,6 +153,7 @@ void GvbEditor::initEdit() {
 
 QToolBar *GvbEditor::initToolBar() {
   auto toolbar = new QToolBar;
+  toolbar->setContextMenuPolicy(Qt::PreventContextMenu);
 
   m_actSave = toolbar->addAction(QPixmap(":/assets/images/Save.svg"), "保存");
 
@@ -268,11 +269,14 @@ LoadResult GvbEditor::load(const QString &path) {
   auto result =
       gvb::load_document({path.utf16(), static_cast<size_t>(path.size())});
   if (result.tag == gvb::Either<gvb::Utf8String, gvb::Document *>::Tag::Left) {
+    m_filePath.clear();
     auto msg = result.left._0;
     auto err = QString::fromUtf8(msg.data, msg.len);
     gvb::destroy_string(msg);
     return err;
   } else {
+    m_filePath = path;
+
     if (m_doc) {
       gvb::destroy_document(m_doc);
     }
@@ -515,7 +519,7 @@ void GvbEditor::tryStartPause(QWidget *sender) {
       connect(m_gvbsim, &QMainWindow::destroyed, this, [this] {
         m_gvbsim = nullptr;
       });
-      m_gvbsim->reset(vm, device);
+      m_gvbsim->reset(vm, device, QFileInfo(m_filePath).completeBaseName());
       m_gvbsim->show();
     }
     emit start();

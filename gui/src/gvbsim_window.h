@@ -3,6 +3,7 @@
 #include <QMainWindow>
 #include <cstdint>
 #include "gvb.h"
+#include <QString>
 
 class GvbEditor;
 class GvbSimScreen;
@@ -17,7 +18,7 @@ public:
   GvbSimWindow(QWidget *, GvbEditor *);
   ~GvbSimWindow();
 
-  void reset(gvb::VirtualMachine *, gvb::Device *);
+  void reset(gvb::VirtualMachine *, gvb::Device *, const QString &);
 
 protected:
   void closeEvent(QCloseEvent *) Q_DECL_OVERRIDE;
@@ -27,15 +28,23 @@ protected:
 
 private:
   void initUi();
+  void initToolBar();
   void reset();
   void execLater();
   void sleep(std::uint64_t ns);
+  void startCursorTimer();
+  void startRepaintTimer();
+  void stopCursorTimer();
+  void stopRepaintTimer();
 
 private slots:
   void start();
   void stop();
   void cont();
   void pause();
+  void keyDown(std::uint8_t);
+  void keyUp(std::uint8_t);
+  void updateTitle();
 
 private:
   GvbEditor *m_editor;
@@ -45,6 +54,8 @@ private:
   gvb::ExecResult m_execResult;
   gvb::ExecInput m_execInput;
   bool m_paused;
-  std::int64_t m_lastPaintTime;
   int m_timerCursor;
+  int m_timerRepaint;
+  QString m_name;
+  QString m_state;
 };

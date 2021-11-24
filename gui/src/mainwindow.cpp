@@ -124,24 +124,8 @@ void MainWindow::closeEvent(QCloseEvent *event) {
 }
 
 void MainWindow::openFile() {
-  QString filter;
-  auto semi = false;
-  for (const auto &i : ToolFactoryRegistry::getExtensions()) {
-    if (semi) {
-      filter += ";;";
-    }
-    semi = true;
-    filter += i.first;
-    filter += " (";
-    for (auto &ext : i.second) {
-      filter += "*.";
-      filter += ext;
-      filter += " ";
-    }
-    filter += ")";
-  }
   auto path = QFileDialog::getOpenFileName(
-      this, "", "", filter, nullptr,
+      this, "", "", ToolFactoryRegistry::openFileFilter(), nullptr,
       QFileDialog::Option::DontResolveSymlinks |
           QFileDialog::Option::DontUseNativeDialog);
   openFileByPath(path);
@@ -316,25 +300,9 @@ ActionResult MainWindow::saveFile() {
 ActionResult MainWindow::saveFileAs(bool save) {
   if (auto edit = dynamic_cast<FileCapabilities *>(centralWidget())) {
     auto ext = QFileInfo(m_openFilePath.value()).suffix().toLower();
-    QString filter;
-    auto semi = false;
-    for (const auto &i : ToolFactoryRegistry::getExtensions()) {
-      if (i.second.count(ext)) {
-        for (const auto &ext : i.second) {
-          if (semi) {
-            filter += ";;";
-          }
-          semi = true;
-          filter += i.first;
-          filter += " (";
-          filter += " *.";
-          filter += ext;
-          filter += ")";
-        }
-      }
-    }
     auto path = QFileDialog::getSaveFileName(
-        this, save ? "保存文件" : "另存为", "", filter, nullptr,
+        this, save ? "保存文件" : "另存为", "",
+        ToolFactoryRegistry::saveFileFilter(ext), nullptr,
         QFileDialog::Option::DontResolveSymlinks |
             QFileDialog::Option::DontUseNativeDialog);
     if (path.isEmpty()) {

@@ -199,12 +199,12 @@ public slots:
   void redo();
   LoadResult load(const QString &);
   bool canLoad(const QString &) const;
+  void tryStartPause(QWidget *sender);
 
 private slots:
   void notified(Scintilla::NotificationData *);
   void diagnosticsUpdated(std::vector<Diagnostic>);
   void modified();
-  void tryStartPause(QWidget *sender);
 
 private:
   ScintillaEdit *m_edit;
@@ -217,6 +217,7 @@ private:
   SizeValue m_curPos;
   QStateMachine m_stateMachine;
   GvbSimWindow *m_gvbsim;
+  QString m_filePath;
 };
 
 Q_DECLARE_METATYPE(std::vector<Diagnostic>);

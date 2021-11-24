@@ -1058,7 +1058,9 @@ where
         self.device.draw_line((x1, y1), (x2, y2), mode);
       }
       InstrKind::AlignedAssign(align) => self.exec_set(loc, align)?,
-      InstrKind::SetTrace(_) => todo!(),
+      InstrKind::SetTrace(_) => {
+        // do nothing
+      }
       InstrKind::SetScreenMode(mode) => {
         self.device.set_screen_mode(mode);
       }

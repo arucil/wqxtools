@@ -1,13 +1,12 @@
 #pragma once
 
-#include <QString>
 #include <functional>
-#include <map>
 #include <optional>
 #include <set>
 
 class Tool;
 class QWidget;
+class QString;
 
 typedef Tool *ToolCtor(QWidget *);
 
@@ -21,5 +20,7 @@ struct ToolFactoryRegistry {
 
   static void registerFactory(const QString &name, const ToolFactory &);
 
-  static const std::map<QString, std::set<QString>> &getExtensions();
+  static const QString &openFileFilter();
+
+  static QString saveFileFilter(const QString &ext);
 };
