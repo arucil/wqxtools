@@ -10,13 +10,13 @@ script = """
 cp gvb_interp/machines.yaml gui/machines.yaml
 """
 dependencies = [
-  { name = "header", path = "gvb_cpp_binding" }
+  { name = "header", path = "api_cpp_binding" }
 ]
 
 [tasks.build-core]
 workspace = false
 dependencies = [
-  { name = "build", path = "gvb_cpp_binding" }
+  { name = "build", path = "api_cpp_binding" }
 ]
 
 [tasks.build-gui]

@@ -9,3 +9,11 @@ pub enum Maybe<T> {
   Just(T),
   Nothing,
 }
+
+#[repr(C)]
+pub struct Rect {
+  pub left: usize,
+  pub top: usize,
+  pub right: usize,
+  pub bottom: usize,
+}

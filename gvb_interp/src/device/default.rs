@@ -1,6 +1,9 @@
 use super::*;
 use crate::machine::MachineProps;
-use std::io;
+use crate::ByteString;
+use std::fs::{File, OpenOptions};
+use std::io::{self, prelude::*, SeekFrom};
+use std::path::PathBuf;
 
 const CHAR_HEIGHT: usize = 16;
 
@@ -30,6 +33,7 @@ pub struct DefaultDevice {
   print_mode: PrintMode,
   cursor: CursorState,
   graphics_dirty: Option<Rect>,
+  data_dir: PathBuf,
 }
 
 pub struct Rect {
@@ -46,10 +50,18 @@ enum CursorState {
   FullWidth,
 }
 
-pub struct DefaultFileHandle {}
+pub struct DefaultFileHandle {
+  file: File,
+  pos: usize,
+  data: Vec<u8>,
+  dirty: bool,
+}
 
 impl DefaultDevice {
-  pub(crate) fn new(props: MachineProps) -> Self {
+  pub(crate) fn new<P>(props: MachineProps, data_dir: P) -> Self
+  where
+    P: Into<PathBuf>,
+  {
     let mut d = Self {
       props,
       memory: [0; 65536],
@@ -60,6 +72,7 @@ impl DefaultDevice {
       print_mode: PrintMode::Normal,
       cursor: CursorState::None,
       graphics_dirty: None,
+      data_dir: data_dir.into(),
     };
     d.reset();
     d
@@ -888,11 +901,20 @@ impl Device for DefaultDevice {
   fn open_file(
     &mut self,
     name: &[u8],
-    read: bool,
+    _read: bool,
     write: bool,
     truncate: bool,
   ) -> io::Result<Self::File> {
-    todo!()
+    let mut options = OpenOptions::new();
+    options
+      .read(true)
+      .write(write)
+      .truncate(truncate)
+      .create(write);
+    let name = ByteString::from(name).to_string_lossy(self.props.emoji_style);
+    options
+      .open(self.data_dir.join(name))
+      .and_then(DefaultFileHandle::new)
   }
 
   fn cls(&mut self) {
@@ -950,29 +972,63 @@ impl Device for DefaultDevice {
   }
 }
 
+impl DefaultFileHandle {
+  fn new(mut file: File) -> io::Result<Self> {
+    let mut data = vec![];
+    file.read_to_end(&mut data)?;
+    Ok(Self {
+      file,
+      pos: 0,
+      data,
+      dirty: false,
+    })
+  }
+}
+
 impl FileHandle for DefaultFileHandle {
   fn len(&self) -> io::Result<u64> {
-    todo!()
+    Ok(self.data.len() as _)
   }
 
   fn seek(&mut self, pos: u64) -> io::Result<()> {
-    todo!()
+    if pos > self.pos as u64 {
+      Err(io::Error::new(io::ErrorKind::Other, "out of range"))
+    } else {
+      self.pos = pos as _;
+      Ok(())
+    }
   }
 
   fn pos(&self) -> io::Result<u64> {
-    todo!()
+    Ok(self.pos as _)
   }
 
   fn write(&mut self, data: &[u8]) -> io::Result<()> {
-    todo!()
+    if self.pos + data.len() > self.data.len() {
+      self.data.resize(self.pos + data.len(), 0);
+    }
+    self.data[self.pos..self.pos + data.len()].copy_from_slice(data);
+    self.pos += data.len();
+    self.dirty = true;
+    Ok(())
   }
 
   fn read(&mut self, data: &mut [u8]) -> io::Result<usize> {
-    todo!()
+    let mut len = data.len();
+    if self.pos + len > self.data.len() {
+      len = self.data.len() - self.pos;
+    }
+    data[..len].copy_from_slice(&self.data[self.pos..self.pos + len]);
+    self.pos += len;
+    Ok(len)
   }
 
-  fn close(self) -> io::Result<()> {
-    todo!()
+  fn close(mut self) -> io::Result<()> {
+    if self.dirty {
+      self.file.seek(SeekFrom::Start(0))?;
+      self.file.write_all(&self.data)?;
+    }
+    Ok(())
   }
 }
 
@@ -998,6 +1054,7 @@ mod tests {
     DefaultDevice::new(
       crate::machine::machines()[EmojiStyle::New.default_machine_name()]
         .clone(),
+      "",
     )
   }
 

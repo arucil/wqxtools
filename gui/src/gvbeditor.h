@@ -1,7 +1,7 @@
 #pragma once
 
 #include "capability.h"
-#include "gvb.h"
+#include "api.h"
 #include "interval-tree/interval_tree.hpp"
 #include "tool.h"
 #include <QStatusBar>
@@ -39,7 +39,7 @@ struct Diagnostic {
   size_t line;
   size_t start;
   size_t end;
-  gvb::Severity severity;
+  api::GvbSeverity severity;
   std::string message;
 };
 
@@ -208,7 +208,7 @@ private slots:
 
 private:
   ScintillaEdit *m_edit;
-  gvb::Document *m_doc;
+  api::GvbDocument *m_doc;
   bool m_textLoaded;
   bool m_timerModify;
   std::vector<std::variant<InsertText, DeleteText>> m_edits;

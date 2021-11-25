@@ -28,7 +28,7 @@ QT += widgets
 RESOURCES += wqxtools.qrc
 
 LIBS += $$PWD/scintilla/bin/libScintillaEdit.a \
-    $$PWD/../target/release/libgvb_cpp_binding.a \
+    $$PWD/../target/release/libapi_cpp_binding.a \
     -lpthread \
     -ldl
 

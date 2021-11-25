@@ -1,6 +1,6 @@
 use std::fs;
 use std::io;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use crate::ast::{Program, ProgramLine};
 use crate::compiler::compile_prog;
@@ -285,8 +285,11 @@ impl Document {
     todo!("set emoji_style, reload text, set machine_props")
   }
 
-  pub fn create_device(&self) -> DefaultDevice {
-    DefaultDevice::new(self.machine_props.clone())
+  pub fn create_device<P>(&self, data_dir: P) -> DefaultDevice
+  where
+    P: Into<PathBuf>,
+  {
+    DefaultDevice::new(self.machine_props.clone(), data_dir)
   }
 
   /// If the document contains errors, Err is returned.

@@ -4,6 +4,7 @@
 #include "util.h"
 #include <QApplication>
 #include <QByteArray>
+#include <QDir>
 #include <QFileInfo>
 #include <QLabel>
 #include <QMessageBox>
@@ -22,6 +23,7 @@
 #define INDICATOR_ERROR 1
 #define WARNING_COLOR 0x0e'c1'ff
 #define ERROR_COLOR 0x30'2e'd3
+#define DATA_DIR "data_files"
 
 GvbEditor::GvbEditor(QWidget *parent)
     : Tool(parent), m_doc(nullptr), m_textLoaded(false), m_timerModify(false),
@@ -49,7 +51,7 @@ GvbEditor::GvbEditor(QWidget *parent)
 
 GvbEditor::~GvbEditor() {
   if (m_doc) {
-    gvb::destroy_document(m_doc);
+    gvb_destroy_document(m_doc);
     m_doc = nullptr;
   }
 }
@@ -228,12 +230,12 @@ QStatusBar *GvbEditor::initStatusBar() {
 SaveResult GvbEditor::save(const QString &path) {
   auto saveToPath = path;
   while (true) {
-    auto result = gvb::save_document(
+    auto result = gvb_save_document(
         m_doc, {saveToPath.utf16(), static_cast<size_t>(saveToPath.size())});
-    if (result.tag == gvb::Either<gvb::SaveError, gvb::Unit>::Tag::Left) {
+    if (result.tag == api::Either<api::GvbSaveError, api::Unit>::Tag::Left) {
       auto msg = result.left._0.message;
       auto err = QString::fromUtf8(msg.data, msg.len);
-      gvb::destroy_string(msg);
+      destroy_string(msg);
       if (result.left._0.bas_specific) {
         auto result = QMessageBox::question(
             getMainWindow(), "文件保存失败",
@@ -267,23 +269,24 @@ void GvbEditor::create() {
 
 LoadResult GvbEditor::load(const QString &path) {
   auto result =
-      gvb::load_document({path.utf16(), static_cast<size_t>(path.size())});
-  if (result.tag == gvb::Either<gvb::Utf8String, gvb::Document *>::Tag::Left) {
+      api::gvb_load_document({path.utf16(), static_cast<size_t>(path.size())});
+  if (result.tag ==
+      api::Either<api::Utf8String, api::GvbDocument *>::Tag::Left) {
     m_filePath.clear();
     auto msg = result.left._0;
     auto err = QString::fromUtf8(msg.data, msg.len);
-    gvb::destroy_string(msg);
+    api::destroy_string(msg);
     return err;
   } else {
     m_filePath = path;
 
     if (m_doc) {
-      gvb::destroy_document(m_doc);
+      api::gvb_destroy_document(m_doc);
     }
 
     m_doc = result.right._0;
 
-    auto text = gvb::document_text(m_doc);
+    auto text = api::gvb_document_text(m_doc);
 
     m_textLoaded = false;
     m_edit->setText(std::string(text.data, text.len).c_str());
@@ -424,18 +427,18 @@ void GvbEditor::notified(Scintilla::NotificationData *data) {
 void GvbEditor::modified() {
   for (auto edit : m_edits) {
     if (auto insert = std::get_if<InsertText>(&edit)) {
-      gvb::Modification ins = {
-          gvb::Modification::Tag::Left,
+      api::GvbModification ins = {
+          api::GvbModification::Tag::Left,
           {insert->pos, {insert->str.c_str(), insert->str.size()}}};
-      gvb::document_apply_edit(m_doc, ins);
+      api::gvb_document_apply_edit(m_doc, ins);
     } else {
       auto del = std::get<DeleteText>(edit);
-      gvb::Modification d = {
-          gvb::Modification::Tag::Right,
+      api::GvbModification d = {
+          api::GvbModification::Tag::Right,
       };
       d.right._0.pos = del.pos;
       d.right._0.len = del.len;
-      gvb::document_apply_edit(m_doc, d);
+      gvb_document_apply_edit(m_doc, d);
     }
   }
   m_edits.clear();
@@ -466,10 +469,10 @@ void GvbEditor::diagnosticsUpdated(std::vector<Diagnostic> diags) {
   m_edit->indicatorClearRange(0, len);
   for (auto &diag : m_diagnostics) {
     switch (diag.severity) {
-    case gvb::Severity::Warning:
+    case api::GvbSeverity::Warning:
       m_edit->setIndicatorCurrent(INDICATOR_WARNING);
       break;
-    case gvb::Severity::Error:
+    case api::GvbSeverity::Error:
       m_edit->setIndicatorCurrent(INDICATOR_ERROR);
       break;
     }
@@ -483,7 +486,7 @@ void GvbEditor::diagnosticsUpdated(std::vector<Diagnostic> diags) {
 
 void GvbEditor::computeDiagnostics() {
   auto thread = QThread::create([this] {
-    auto diags = gvb::document_diagnostics(m_doc);
+    auto diags = gvb_document_diagnostics(m_doc);
     std::vector<Diagnostic> diagVec;
     for (auto it = diags.data; it < diags.data + diags.len; it++) {
       Diagnostic d = {
@@ -495,7 +498,7 @@ void GvbEditor::computeDiagnostics() {
       };
       diagVec.push_back(d);
     }
-    gvb::destroy_str_diagnostic_array(diags);
+    gvb_destroy_str_diagnostic_array(diags);
     emit(updateDiagnostics(diagVec));
   });
   thread->start();
@@ -506,9 +509,13 @@ void GvbEditor::tryStartPause(QWidget *sender) {
   auto curState = *m_stateMachine.configuration().begin();
   if (curState == m_stStopped) {
     if (sender == this) {
-      auto device = gvb::document_device(m_doc);
-      auto result = gvb::document_vm(m_doc, device);
-      if (result.tag == gvb::Maybe<gvb::VirtualMachine *>::Tag::Nothing) {
+      auto dataDir = QDir::cleanPath(
+          QCoreApplication::applicationDirPath() + QDir::separator() +
+          DATA_DIR);
+      auto device = gvb_document_device(
+          m_doc, {dataDir.utf16(), static_cast<size_t>(dataDir.size())});
+      auto result = gvb_document_vm(m_doc, device);
+      if (result.tag == api::Maybe<api::GvbVirtualMachine *>::Tag::Nothing) {
         // TODO toast
         QMessageBox::critical(getMainWindow(), "错误", "文件有错误，无法运行");
         return;

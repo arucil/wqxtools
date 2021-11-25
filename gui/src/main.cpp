@@ -1,4 +1,3 @@
-#include "gvb.h"
 #include "gvbeditor.h"
 #include "mainwindow.h"
 #include "tool_factory.h"

@@ -1,37 +1,37 @@
 use crate::{
-  destroy_string, Array, Device, Diagnostic, Either, Maybe, Severity, Unit,
-  Utf8Str, Utf8String,
+  destroy_string, Array, Either, GvbDevice, GvbDiagnostic, GvbSeverity, Maybe,
+  Unit, Utf8Str, Utf8String,
 };
 use gvb_interp as gvb;
 use std::convert::TryInto;
 
-pub struct VirtualMachine(
+pub struct GvbVirtualMachine(
   pub(crate) gvb::VirtualMachine<'static, gvb::device::default::DefaultDevice>,
 );
 
 #[repr(C)]
-pub enum ExecInput {
+pub enum GvbExecInput {
   None,
-  KeyboardInput(Array<KeyboardInput>),
+  KeyboardInput(Array<GvbKeyboardInput>),
   Key(u8),
 }
 
-pub type InputFuncBody = gvb::InputFuncBody;
+pub type GvbInputFuncBody = gvb::InputFuncBody;
 
 #[repr(C)]
-pub enum KeyboardInput {
+pub enum GvbKeyboardInput {
   /// The memory is managed by C++ code.
   String(Array<u8>),
   Integer(i16),
-  Real(Real),
-  Func(*mut InputFuncBody),
+  Real(GvbReal),
+  Func(*mut GvbInputFuncBody),
 }
 
 #[repr(C)]
-pub struct Real(pub f64);
+pub struct GvbReal(pub f64);
 
 #[repr(C)]
-pub enum KeyboardInputType {
+pub enum GvbKeyboardInputType {
   String,
   Integer,
   Real,
@@ -39,55 +39,55 @@ pub enum KeyboardInputType {
 }
 
 #[repr(C)]
-pub enum ExecResult {
+pub enum GvbExecResult {
   End,
   Continue,
   /// nanoseconds
   Sleep(u64),
   KeyboardInput {
     prompt: Maybe<Utf8String>,
-    fields: Array<KeyboardInputType>,
+    fields: Array<GvbKeyboardInputType>,
   },
   InKey,
   Error {
-    location: Location,
+    location: GvbLocation,
     message: Utf8String,
   },
 }
 
 #[repr(C)]
-pub struct Location {
+pub struct GvbLocation {
   pub line: usize,
   pub start_column: usize,
   pub end_column: usize,
 }
 
 #[no_mangle]
-pub extern "C" fn destroy_vm(vm: *mut VirtualMachine) {
+pub extern "C" fn gvb_destroy_vm(vm: *mut GvbVirtualMachine) {
   drop(unsafe { Box::from_raw(vm) });
 }
 
 #[no_mangle]
-pub extern "C" fn parse_real(input: Utf8Str) -> Maybe<Real> {
+pub extern "C" fn gvb_parse_real(input: Utf8Str) -> Maybe<GvbReal> {
   use gvb::util::mbf5;
   match unsafe { input.as_str() }.parse::<mbf5::Mbf5>() {
-    Ok(n) => Maybe::Just(Real(n.into())),
+    Ok(n) => Maybe::Just(GvbReal(n.into())),
     Err(_) => Maybe::Nothing,
   }
 }
 
 #[repr(C)]
-pub struct CompileFnBodyResult {
+pub struct GvbCompileFnBodyResult {
   /// may be null
-  pub body: *mut InputFuncBody,
-  pub diagnostics: Array<Diagnostic<Utf8String>>,
+  pub body: *mut GvbInputFuncBody,
+  pub diagnostics: Array<GvbDiagnostic<Utf8String>>,
 }
 
 #[no_mangle]
-pub extern "C" fn compile_fn_body(
-  vm: *mut VirtualMachine,
+pub extern "C" fn gvb_compile_fn_body(
+  vm: *mut GvbVirtualMachine,
   input: Utf8Str,
-) -> CompileFnBodyResult {
+) -> GvbCompileFnBodyResult {
   let (body, diags) = unsafe { (*vm).0.compile_fn(input.as_str()) };
   let body = if let Some(body) = body {
     Box::into_raw(box body)
@@ -96,47 +96,47 @@ pub extern "C" fn compile_fn_body(
   };
   let diags = diags
     .into_iter()
-    .map(|diag| Diagnostic {
+    .map(|diag| GvbDiagnostic {
       line: 0,
       start: diag.range.start,
       end: diag.range.end,
       message: unsafe { Utf8String::new(diag.message) },
       severity: match diag.severity {
-        gvb::Severity::Warning => Severity::Warning,
-        gvb::Severity::Error => Severity::Error,
+        gvb::Severity::Warning => GvbSeverity::Warning,
+        gvb::Severity::Error => GvbSeverity::Error,
       },
     })
     .collect();
   let diagnostics = unsafe { Array::new(diags) };
-  CompileFnBodyResult { body, diagnostics }
+  GvbCompileFnBodyResult { body, diagnostics }
 }
 
 #[no_mangle]
-pub extern "C" fn destroy_fn_body(body: *mut InputFuncBody) {
+pub extern "C" fn gvb_destroy_fn_body(body: *mut GvbInputFuncBody) {
   drop(unsafe { Box::from_raw(body) })
 }
 
 #[no_mangle]
-pub extern "C" fn vm_exec(
-  vm: *mut VirtualMachine,
-  input: ExecInput,
+pub extern "C" fn gvb_vm_exec(
+  vm: *mut GvbVirtualMachine,
+  input: GvbExecInput,
   steps: usize,
-) -> ExecResult {
+) -> GvbExecResult {
   let input = match input {
-    ExecInput::None => gvb::ExecInput::None,
-    ExecInput::Key(key) => gvb::ExecInput::Key(key),
-    ExecInput::KeyboardInput(input) => {
+    GvbExecInput::None => gvb::ExecInput::None,
+    GvbExecInput::Key(key) => gvb::ExecInput::Key(key),
+    GvbExecInput::KeyboardInput(input) => {
       let input = unsafe { input.as_slice() }
         .iter()
         .map(|input| match input {
-          KeyboardInput::String(s) => gvb::KeyboardInput::String(
+          GvbKeyboardInput::String(s) => gvb::KeyboardInput::String(
             unsafe { s.as_slice() }.to_owned().into(),
           ),
-          KeyboardInput::Integer(n) => gvb::KeyboardInput::Integer(*n),
-          KeyboardInput::Real(Real(n)) => {
+          GvbKeyboardInput::Integer(n) => gvb::KeyboardInput::Integer(*n),
+          GvbKeyboardInput::Real(GvbReal(n)) => {
             gvb::KeyboardInput::Real((*n).try_into().unwrap())
           }
-          KeyboardInput::Func(body) => gvb::KeyboardInput::Func {
+          GvbKeyboardInput::Func(body) => gvb::KeyboardInput::Func {
             body: *unsafe { Box::from_raw(*body) },
           },
         })
@@ -145,11 +145,11 @@ pub extern "C" fn vm_exec(
     }
   };
   match unsafe { (*vm).0.exec(input, steps) } {
-    gvb::ExecResult::End => ExecResult::End,
-    gvb::ExecResult::Continue => ExecResult::Continue,
-    gvb::ExecResult::Sleep(d) => ExecResult::Sleep(d.as_nanos() as u64),
+    gvb::ExecResult::End => GvbExecResult::End,
+    gvb::ExecResult::Continue => GvbExecResult::Continue,
+    gvb::ExecResult::Sleep(d) => GvbExecResult::Sleep(d.as_nanos() as u64),
     gvb::ExecResult::KeyboardInput { prompt, fields } => {
-      ExecResult::KeyboardInput {
+      GvbExecResult::KeyboardInput {
         prompt: match prompt {
           Some(prompt) => Maybe::Just(unsafe { Utf8String::new(prompt) }),
           None => Maybe::Nothing,
@@ -159,11 +159,13 @@ pub extern "C" fn vm_exec(
             fields
               .into_iter()
               .map(|field| match field {
-                gvb::KeyboardInputType::String => KeyboardInputType::String,
-                gvb::KeyboardInputType::Integer => KeyboardInputType::Integer,
-                gvb::KeyboardInputType::Real => KeyboardInputType::Real,
+                gvb::KeyboardInputType::String => GvbKeyboardInputType::String,
+                gvb::KeyboardInputType::Integer => {
+                  GvbKeyboardInputType::Integer
+                }
+                gvb::KeyboardInputType::Real => GvbKeyboardInputType::Real,
                 gvb::KeyboardInputType::Func { name, param } => {
-                  KeyboardInputType::Func {
+                  GvbKeyboardInputType::Func {
                     name: Utf8String::new(name),
                     param: Utf8String::new(param),
                   }
@@ -174,9 +176,9 @@ pub extern "C" fn vm_exec(
         },
       }
     }
-    gvb::ExecResult::InKey => ExecResult::InKey,
-    gvb::ExecResult::Error { location, message } => ExecResult::Error {
-      location: Location {
+    gvb::ExecResult::InKey => GvbExecResult::InKey,
+    gvb::ExecResult::Error { location, message } => GvbExecResult::Error {
+      location: GvbLocation {
         line: location.line,
         start_column: location.range.start,
         end_column: location.range.end,
@@ -186,10 +188,10 @@ pub extern "C" fn vm_exec(
   }
 }
 
-pub type StopVmResult = Either<Utf8String, Unit>;
+pub type GvbStopVmResult = Either<Utf8String, Unit>;
 
 #[no_mangle]
-pub extern "C" fn vm_stop(vm: *mut VirtualMachine) -> StopVmResult {
+pub extern "C" fn gvb_vm_stop(vm: *mut GvbVirtualMachine) -> GvbStopVmResult {
   match unsafe { (*vm).0.stop() } {
     Ok(()) => Either::Right(Unit::new()),
     Err(gvb::ExecResult::Error {
@@ -201,28 +203,28 @@ pub extern "C" fn vm_stop(vm: *mut VirtualMachine) -> StopVmResult {
 }
 
 #[no_mangle]
-pub extern "C" fn vm_reset(vm: *mut VirtualMachine) {
+pub extern "C" fn gvb_vm_reset(vm: *mut GvbVirtualMachine) {
   unsafe {
     (*vm).0.start();
   }
 }
 
 #[no_mangle]
-pub extern "C" fn reset_exec_result(result: *mut ExecResult) {
-  match std::mem::replace(unsafe { &mut *result }, ExecResult::Continue) {
-    ExecResult::End => {}
-    ExecResult::Continue => {}
-    ExecResult::Sleep(_) => {}
-    ExecResult::KeyboardInput { prompt, fields } => {
+pub extern "C" fn gvb_reset_exec_result(result: *mut GvbExecResult) {
+  match std::mem::replace(unsafe { &mut *result }, GvbExecResult::Continue) {
+    GvbExecResult::End => {}
+    GvbExecResult::Continue => {}
+    GvbExecResult::Sleep(_) => {}
+    GvbExecResult::KeyboardInput { prompt, fields } => {
       if let Maybe::Just(s) = prompt {
         destroy_string(s);
       }
       for field in unsafe { fields.as_slice() } {
         match field {
-          KeyboardInputType::Integer => {}
-          KeyboardInputType::Real => {}
-          KeyboardInputType::String => {}
-          KeyboardInputType::Func { name, param } => {
+          GvbKeyboardInputType::Integer => {}
+          GvbKeyboardInputType::Real => {}
+          GvbKeyboardInputType::String => {}
+          GvbKeyboardInputType::Func { name, param } => {
             destroy_string(name.clone());
             destroy_string(param.clone());
           }
@@ -230,8 +232,8 @@ pub extern "C" fn reset_exec_result(result: *mut ExecResult) {
       }
       drop(unsafe { fields.into_boxed_slice() });
     }
-    ExecResult::InKey => {}
-    ExecResult::Error {
+    GvbExecResult::InKey => {}
+    GvbExecResult::Error {
       location: _,
       message,
     } => {
@@ -241,11 +243,11 @@ pub extern "C" fn reset_exec_result(result: *mut ExecResult) {
 }
 
 #[no_mangle]
-pub extern "C" fn reset_exec_input(input: *mut ExecInput) {
-  match std::mem::replace(unsafe { &mut *input }, ExecInput::None) {
-    ExecInput::None => {}
-    ExecInput::Key(_) => {}
-    ExecInput::KeyboardInput(input) => {
+pub extern "C" fn gvb_reset_exec_input(input: *mut GvbExecInput) {
+  match std::mem::replace(unsafe { &mut *input }, GvbExecInput::None) {
+    GvbExecInput::None => {}
+    GvbExecInput::Key(_) => {}
+    GvbExecInput::KeyboardInput(input) => {
       // NOTE no need to free memory in `input`
       drop(unsafe { input.into_boxed_slice() });
     }
@@ -254,12 +256,12 @@ pub extern "C" fn reset_exec_input(input: *mut ExecInput) {
 
 /// Returns if a key was pressed.
 #[no_mangle]
-pub extern "C" fn assign_device_key(
-  device: *mut Device,
-  input: *mut ExecInput,
+pub extern "C" fn gvb_assign_device_key(
+  device: *mut GvbDevice,
+  input: *mut GvbExecInput,
 ) -> bool {
   if let Some(key) = unsafe { (*device).0.key() } {
-    *unsafe { &mut *input } = ExecInput::Key(key);
+    *unsafe { &mut *input } = GvbExecInput::Key(key);
     true
   } else {
     false

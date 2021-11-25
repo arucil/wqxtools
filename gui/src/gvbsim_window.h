@@ -2,7 +2,7 @@
 
 #include <QMainWindow>
 #include <cstdint>
-#include "gvb.h"
+#include "api.h"
 #include <QString>
 
 class GvbEditor;
@@ -18,7 +18,7 @@ public:
   GvbSimWindow(QWidget *, GvbEditor *);
   ~GvbSimWindow();
 
-  void reset(gvb::VirtualMachine *, gvb::Device *, const QString &);
+  void reset(api::GvbVirtualMachine *, api::GvbDevice *, const QString &);
 
 protected:
   void closeEvent(QCloseEvent *) Q_DECL_OVERRIDE;
@@ -48,11 +48,11 @@ private slots:
 
 private:
   GvbEditor *m_editor;
-  gvb::VirtualMachine *m_vm;
-  gvb::Device *m_device;
+  api::GvbVirtualMachine *m_vm;
+  api::GvbDevice *m_device;
   GvbSimScreen *m_screen;
-  gvb::ExecResult m_execResult;
-  gvb::ExecInput m_execInput;
+  api::GvbExecResult m_execResult;
+  api::GvbExecInput m_execInput;
   bool m_paused;
   int m_timerCursor;
   int m_timerRepaint;

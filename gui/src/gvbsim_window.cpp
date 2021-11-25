@@ -22,49 +22,49 @@ GvbSimWindow::GvbSimWindow(QWidget *parent, GvbEditor *editor)
   connect(editor, &GvbEditor::cont, this, &GvbSimWindow::cont);
   connect(editor, &GvbEditor::pause, this, &GvbSimWindow::pause);
 
-  m_execResult.tag = gvb::ExecResult::Tag::Continue;
-  m_execInput.tag = gvb::ExecInput::Tag::None;
+  m_execResult.tag = api::GvbExecResult::Tag::Continue;
+  m_execInput.tag = api::GvbExecInput::Tag::None;
 
   adjustSize();
 }
 
 void GvbSimWindow::reset() {
   m_paused = false;
-  gvb::reset_exec_result(&m_execResult);
-  gvb::reset_exec_input(&m_execInput);
+  api::gvb_reset_exec_result(&m_execResult);
+  api::gvb_reset_exec_input(&m_execInput);
 
   if (m_vm) {
-    gvb::vm_reset(m_vm);
+    api::gvb_vm_reset(m_vm);
   }
   if (m_device) {
-    gvb::device_reset(m_device);
+    api::gvb_device_reset(m_device);
   }
 }
 
 void GvbSimWindow::reset(
-    gvb::VirtualMachine *vm, gvb::Device *device, const QString &name) {
+    api::GvbVirtualMachine *vm, api::GvbDevice *device, const QString &name) {
   m_screen->setImageData(nullptr);
   if (m_vm) {
-    gvb::destroy_vm(m_vm);
+    api::gvb_destroy_vm(m_vm);
   }
   m_vm = vm;
   if (m_device) {
-    gvb::destroy_device(m_device);
+    api::gvb_destroy_device(m_device);
   }
   m_device = device;
-  m_screen->setImageData(gvb::device_graphics_memory(device));
+  m_screen->setImageData(gvb_device_graphics_memory(device));
   m_name = name;
 }
 
 GvbSimWindow::~GvbSimWindow() {
-  gvb::reset_exec_result(&m_execResult);
-  gvb::reset_exec_input(&m_execInput);
+  api::gvb_reset_exec_result(&m_execResult);
+  api::gvb_reset_exec_input(&m_execInput);
   m_screen->setImageData(nullptr);
   if (m_vm) {
-    gvb::destroy_vm(m_vm);
+    api::gvb_destroy_vm(m_vm);
   }
   if (m_device) {
-    gvb::destroy_device(m_device);
+    api::gvb_destroy_device(m_device);
   }
 }
 
@@ -162,19 +162,19 @@ void GvbSimWindow::stop() {
   stopCursorTimer();
   stopRepaintTimer();
 
-  if (m_execResult.tag == gvb::ExecResult::Tag::End) {
+  if (m_execResult.tag == api::GvbExecResult::Tag::End) {
     return;
   }
 
-  auto result = gvb::vm_stop(m_vm);
-  if (result.tag == gvb::StopVmResult::Tag::Left) {
+  auto result = api::gvb_vm_stop(m_vm);
+  if (result.tag == api::GvbStopVmResult::Tag::Left) {
     QMessageBox::critical(
         this, "错误",
         tr("运行时错误：%1")
             .arg(QString::fromUtf8(result.left._0.data, result.left._0.len)));
-    gvb::destroy_string(result.left._0);
+    destroy_string(result.left._0);
   }
-  m_execResult.tag = gvb::ExecResult::Tag::End;
+  m_execResult.tag = api::GvbExecResult::Tag::End;
 }
 
 void GvbSimWindow::execLater() {
@@ -184,16 +184,16 @@ void GvbSimWindow::execLater() {
     }
 
     switch (m_execResult.tag) {
-    case gvb::ExecResult::Tag::End:
+    case api::GvbExecResult::Tag::End:
       emit m_editor->stop();
       return;
-    case gvb::ExecResult::Tag::Continue:
+    case api::GvbExecResult::Tag::Continue:
       break;
-    case gvb::ExecResult::Tag::Sleep:
+    case api::GvbExecResult::Tag::Sleep:
       sleep(m_execResult.sleep._0);
       return;
-    case gvb::ExecResult::Tag::InKey: {
-      if (!gvb::assign_device_key(m_device, &m_execInput)) {
+    case api::GvbExecResult::Tag::InKey: {
+      if (!api::gvb_assign_device_key(m_device, &m_execInput)) {
         startCursorTimer();
         return;
       } else {
@@ -201,25 +201,25 @@ void GvbSimWindow::execLater() {
       }
       break;
     }
-    case gvb::ExecResult::Tag::KeyboardInput:
+    case api::GvbExecResult::Tag::KeyboardInput:
       startCursorTimer();
       // TODO
       break;
-    case gvb::ExecResult::Tag::Error:
+    case api::GvbExecResult::Tag::Error:
       printf(
           "%lu %s\n", m_execResult.error.location.line,
           QString::fromUtf8(
               m_execResult.error.message.data, m_execResult.error.message.len)
               .toStdString()
               .c_str());
-      m_execResult.tag = gvb::ExecResult::Tag::End;
+      m_execResult.tag = api::GvbExecResult::Tag::End;
       emit m_editor->stop();
       // TODO show error message in editor
       return;
     }
 
-    m_execResult = gvb::vm_exec(m_vm, m_execInput, EXEC_STEPS);
-    gvb::reset_exec_input(&m_execInput);
+    m_execResult = api::gvb_vm_exec(m_vm, m_execInput, EXEC_STEPS);
+    api::gvb_reset_exec_input(&m_execInput);
 
     execLater();
   });
@@ -227,7 +227,7 @@ void GvbSimWindow::execLater() {
 
 void GvbSimWindow::sleep(std::uint64_t ns) {
   QTimer::singleShot((ns + 500'000) / 1'000'000, this, [this] {
-    m_execResult.tag = gvb::ExecResult::Tag::Continue;
+    m_execResult.tag = api::GvbExecResult::Tag::Continue;
     if (!m_paused) {
       execLater();
     }
@@ -249,24 +249,24 @@ void GvbSimWindow::keyReleaseEvent(QKeyEvent *ev) {
 }
 
 void GvbSimWindow::keyDown(std::uint8_t key) {
-  gvb::device_fire_key_down(m_device, key);
-  if (m_execResult.tag == gvb::ExecResult::Tag::InKey) {
+  api::gvb_device_fire_key_down(m_device, key);
+  if (m_execResult.tag == api::GvbExecResult::Tag::InKey) {
     execLater();
   }
 }
 
 void GvbSimWindow::keyUp(std::uint8_t key) {
-  gvb::device_fire_key_up(m_device, key);
+  api::gvb_device_fire_key_up(m_device, key);
 }
 
 void GvbSimWindow::timerEvent(QTimerEvent *ev) {
   if (ev->timerId() == m_timerCursor) {
     if (!m_paused) {
-      gvb::device_blink_cursor(m_device);
+      api::gvb_device_blink_cursor(m_device);
     }
   } else if (ev->timerId() == m_timerRepaint) {
-    auto dirty = gvb::device_screen_dirty_area(m_device);
-    if (dirty.tag == gvb::Maybe<gvb::Rect>::Tag::Just) {
+    auto dirty = api::gvb_device_screen_dirty_area(m_device);
+    if (dirty.tag == api::Maybe<api::Rect>::Tag::Just) {
       auto left = static_cast<int>(dirty.just._0.left);
       auto top = static_cast<int>(dirty.just._0.top);
       auto right = static_cast<int>(dirty.just._0.right);

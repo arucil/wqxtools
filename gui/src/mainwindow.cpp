@@ -1,6 +1,6 @@
 #include "mainwindow.h"
 #include "action.h"
-#include "gvb.h"
+#include "api.h"
 #include "gvbeditor.h"
 #include "tool_factory.h"
 #include "value.h"
@@ -353,13 +353,13 @@ ActionResult MainWindow::handleSaveFileError(const SaveResult &result) {
 }
 
 ActionResult MainWindow::loadConfig(QWidget *parent) {
-  auto result = gvb::init_machines();
-  if (result.tag == gvb::InitMachineResult::Tag::Left) {
+  auto result = api::gvb_init_machines();
+  if (result.tag == api::GvbInitMachineResult::Tag::Left) {
     QMessageBox::critical(
         parent, "错误",
         tr("配置文件加载失败：%1")
             .arg(QString::fromUtf8(result.left._0.data, result.left._0.len)));
-    gvb::destroy_string(result.left._0);
+    api::destroy_string(result.left._0);
     return ActionResult::Fail;
   } else {
     return ActionResult::Succeed;
