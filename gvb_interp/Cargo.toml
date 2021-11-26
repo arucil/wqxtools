@@ -8,6 +8,7 @@ edition = "2021"
 
 [dependencies]
 bstr = "0.2.17"
+emulator_6502 = { version = "1.1.0", features = ["implementation_transparency"] }
 fasthash = "0.4.0"
 id-arena = "2.2.1"
 itertools = "0.10.1"

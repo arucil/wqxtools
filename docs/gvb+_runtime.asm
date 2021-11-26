@@ -241,7 +241,7 @@
 61C2: 60       RTS
 
 ; address table for commands
-; (address minus 1 used)
+; (address minus 1)
 61C3: .dw $7504 ; $7505 end
 61C5: .dw $7422 ; $7423 for
 61C6: .dw $7c96 ; $7c97 next

@@ -7,7 +7,7 @@ use std::time::Duration;
 
 use crate::ast::{self, Range, SysFuncKind};
 use crate::compiler::compile_fn_body;
-use crate::device::{Device, DrawMode, FileHandle};
+use crate::device::{AsmExecState, Device, DrawMode, FileHandle};
 use crate::diagnostic::{contains_errors, Diagnostic};
 use crate::machine::EmojiStyle;
 use crate::parser::{parse_expr, read_number};
@@ -52,7 +52,7 @@ pub struct VirtualMachine<'d, D: Device> {
   files: [Option<OpenFile<D::File>>; NUM_FILES],
   rng: WyRand,
   current_rand: u32,
-  state: ExecState,
+  state: ExecState<D::AsmState>,
 }
 
 #[derive(Default)]
@@ -70,12 +70,12 @@ enum Type {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-enum ExecState {
+enum ExecState<S> {
   Done,
   Normal,
   WaitForKeyboardInput { lvalues: Vec<(Location, LValue)> },
   WaitForKey,
-  AsmSuspend,
+  AsmSuspend(S),
 }
 
 #[derive(Debug, Clone)]
@@ -247,7 +247,6 @@ where
   }
 
   pub fn start(&mut self) {
-    assert_eq!(self.state, ExecState::Done);
     self
       .reset(
         Location {
@@ -304,13 +303,18 @@ where
       ExecState::WaitForKeyboardInput { lvalues } => {
         self.assign_input(input, lvalues)
       }
-      ExecState::AsmSuspend => {
-        if !self.device.exec_asm(&mut steps, None) {
-          return self.state.suspend_asm().unwrap_err();
+      ExecState::AsmSuspend(s) => {
+        if let Some(s) = self.device.exec_asm(&mut steps, AsmExecState::Cont(s))
+        {
+          return self.state.suspend_asm(s).unwrap_err();
+        } else {
+          self.pc += 1;
         }
       }
       ExecState::Normal => {
-        // do nothing
+        if self.device.user_quit() {
+          return self.state.end().unwrap_err();
+        }
       }
     }
 
@@ -940,8 +944,9 @@ where
       }
       InstrKind::Call => {
         let addr = self.pop_range(-65535, 65535)? as _;
-        if !self.device.exec_asm(steps, Some(addr)) {
-          self.state.suspend_asm()?;
+        if let Some(s) = self.device.exec_asm(steps, AsmExecState::Start(addr))
+        {
+          self.state.suspend_asm(s)?;
         }
       }
       InstrKind::DrawCircle { has_fill, has_mode } => {
@@ -1071,9 +1076,7 @@ where
       InstrKind::Poke => {
         let value = self.pop_u8(false)?;
         let addr = self.pop_range(-65535, 65535)? as _;
-        if self.device.set_byte(addr, value) {
-          self.state.end()?;
-        }
+        self.device.set_byte(addr, value);
       }
       InstrKind::Swap => {
         let lvalue2 = self.lval_stack.pop().unwrap().1;
@@ -2035,8 +2038,8 @@ fn compile_fn(
   }
 }
 
-fn exec_file_input<F: FileHandle>(
-  state: &mut ExecState,
+fn exec_file_input<F: FileHandle, S>(
+  state: &mut ExecState<S>,
   store: &mut Store,
   interner: &StringInterner,
   emoji_style: EmojiStyle,
@@ -2157,12 +2160,12 @@ fn exec_file_input<F: FileHandle>(
   Ok(())
 }
 
-impl ExecState {
+impl<S> ExecState<S> {
   #[must_use]
-  fn error<S: ToString>(
+  fn error<M: ToString>(
     &mut self,
     location: Location,
-    message: S,
+    message: M,
   ) -> Result<!> {
     *self = Self::Done;
     Err(ExecResult::Error {
@@ -2189,8 +2192,8 @@ impl ExecState {
   }
 
   #[must_use]
-  fn suspend_asm(&mut self) -> Result<!> {
-    *self = Self::AsmSuspend;
+  fn suspend_asm(&mut self, s: S) -> Result<!> {
+    *self = Self::AsmSuspend(s);
     Err(ExecResult::Continue)
   }
 
@@ -2521,6 +2524,7 @@ mod tests {
 
   impl Device for TestDevice {
     type File = File;
+    type AsmState = ();
 
     fn get_row(&self) -> u8 {
       add_log(self.log.clone(), format!("get row: {}", self.cursor.0));
@@ -2643,9 +2647,12 @@ mod tests {
       self.mem[addr as usize]
     }
 
-    fn set_byte(&mut self, addr: u16, value: u8) -> bool {
+    fn set_byte(&mut self, addr: u16, value: u8) {
       add_log(self.log.clone(), format!("poke {}, {}", addr, value));
       self.mem[addr as usize] = value;
+    }
+
+    fn user_quit(&self) -> bool {
       false
     }
 
@@ -2681,12 +2688,20 @@ mod tests {
       add_log(self.log.clone(), "cls");
     }
 
-    fn exec_asm(&mut self, steps: &mut usize, start_addr: Option<u16>) -> bool {
-      add_log(
-        self.log.clone(),
-        format!("call {:?}, steps: {}", start_addr, steps),
-      );
-      true
+    fn exec_asm(
+      &mut self,
+      steps: &mut usize,
+      state: AsmExecState<()>,
+    ) -> Option<()> {
+      if let AsmExecState::Start(addr) = state {
+        add_log(
+          self.log.clone(),
+          format!("call Some({}), steps: {}", addr, steps),
+        );
+      } else {
+        add_log(self.log.clone(), format!("call None, steps: {}", steps));
+      }
+      None
     }
 
     fn set_screen_mode(&mut self, mode: ScreenMode) {

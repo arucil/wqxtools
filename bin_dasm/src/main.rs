@@ -9,7 +9,13 @@ use std::path::{Path, PathBuf};
 fn main() -> Result<(), Box<dyn Error>> {
   let matches = App::new("dasm")
     .version(crate_version!())
-    .about("Disassemble .BIN file")
+    .about("Disassemble 6502")
+    .arg(
+      Arg::with_name("bin")
+        .short("b")
+        .long("bin")
+        .help("Disassemble .BIN file"),
+    )
     .arg(
       Arg::with_name("origin")
         .short("g")
@@ -36,7 +42,9 @@ fn main() -> Result<(), Box<dyn Error>> {
     .get_matches();
 
   let file = matches.value_of("FILE").unwrap();
-  let origin = matches.value_of("origin").map(|o| o.parse().unwrap());
+  let origin = matches
+    .value_of("origin")
+    .map(|o| u16::from_str_radix(o, 16).unwrap());
   let output = matches.value_of("output").map_or_else(
     || {
       let mut path = Path::new(file).file_stem().unwrap().to_owned();
@@ -55,6 +63,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     output,
     DasmOptions {
       starting_address: origin,
+      bin: matches.is_present("bin"),
     },
   )?;
 

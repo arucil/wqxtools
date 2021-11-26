@@ -21,6 +21,7 @@ pub(crate) struct MachineProps {
   pub key_buffer_addr: u16,
   pub key_mapping_addrs: Vec<u16>,
   pub key_masks: [Option<(u16, u8)>; 256],
+  pub key_buffer_quit: bool,
 }
 
 impl Default for MachineProps {
@@ -34,6 +35,7 @@ impl Default for MachineProps {
       key_buffer_addr: 0,
       key_mapping_addrs: vec![],
       key_masks: [None; 256],
+      key_buffer_quit: false,
     }
   }
 }
@@ -332,6 +334,16 @@ pub fn init_machines() -> Result<(), InitError> {
     }
 
     props.key_mapping_addrs.extend(key_bits.keys());
+
+    // key_buffer_quit
+    let key_buffer_quit = obj
+      .remove(&Yaml::String("key_buffer_quit".into()))
+      .ok_or_else(|| {
+        InitError::Other(format!("missing field 'key_buffer_quit' in '{}'", name))
+      })?;
+    props.key_buffer_quit = key_buffer_quit.as_bool().ok_or_else(|| {
+      InitError::Other(format!("{}.key_buffer_quit is not boolean", name))
+    })?;
 
     if let Some((key, _)) = obj.pop_front() {
       return Err(InitError::Other(format!(

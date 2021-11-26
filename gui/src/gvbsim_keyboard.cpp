@@ -134,6 +134,7 @@ QPushButton *GvbSimKeyboard::makeButton(
     const QString &text, const QString &tooltip, std::uint8_t key) {
   auto btn = new QPushButton(text, this);
   btn->setToolTip(tooltip);
+  btn->setFocusPolicy(Qt::NoFocus);
   connect(btn, &QPushButton::pressed, this, [this, key] {
     emit keyDown(key);
   });

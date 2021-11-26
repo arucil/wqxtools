@@ -5,6 +5,7 @@ use std::num::Wrapping;
 const DEFAULT_ORIGIN: u16 = 0x4000;
 
 pub struct DasmOptions {
+  pub bin: bool,
   pub starting_address: Option<u16>,
 }
 
@@ -18,17 +19,22 @@ where
 {
   let mut header = [0u8; 16];
 
-  if bytes.read(&mut header)? < 16 {
+  if options.bin && bytes.read(&mut header)? < 16 {
     return Err(io::Error::new(
       io::ErrorKind::InvalidData,
       "missing 16-byte header",
     ));
   }
 
-  let entry = header[8] as u16 + ((header[9] as u16) << 8);
-  writeln!(&mut output, "; entry = ${:04X}", entry)?;
+  if options.bin {
+    let entry = header[8] as u16 + ((header[9] as u16) << 8);
+    writeln!(&mut output, "; entry = ${:04X}", entry)?;
+  }
 
-  let mut pc = options.starting_address.unwrap_or(DEFAULT_ORIGIN) + 16;
+  let mut pc = options.starting_address.unwrap_or(DEFAULT_ORIGIN);
+  if options.bin {
+    pc += 16;
+  }
 
   while !bytes.is_empty() {
     write!(&mut output, "{:04X}: ", pc)?;

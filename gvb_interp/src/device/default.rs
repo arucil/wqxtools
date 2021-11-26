@@ -1,6 +1,7 @@
 use super::*;
 use crate::machine::MachineProps;
 use crate::ByteString;
+use emulator_6502::{Interface6502, MOS6502};
 use std::fs::{File, OpenOptions};
 use std::io::{self, prelude::*, SeekFrom};
 use std::path::PathBuf;
@@ -34,6 +35,8 @@ pub struct DefaultDevice {
   cursor: CursorState,
   graphics_dirty: Option<Rect>,
   data_dir: PathBuf,
+  /// NOTE key mapping must be zero page address.
+  key_mapping_addr_set: [u32; 8],
 }
 
 pub struct Rect {
@@ -73,7 +76,12 @@ impl DefaultDevice {
       cursor: CursorState::None,
       graphics_dirty: None,
       data_dir: data_dir.into(),
+      key_mapping_addr_set: [0; 8],
     };
+    for &addr in &d.props.key_mapping_addrs {
+      d.key_mapping_addr_set[addr as usize >> 5] |= 1 << (addr & 31);
+    }
+    d.memory[0xffff] = 0x40; // RTI
     d.reset();
     d
   }
@@ -420,6 +428,7 @@ impl DrawMode {
 
 impl Device for DefaultDevice {
   type File = DefaultFileHandle;
+  type AsmState = MOS6502;
 
   fn get_row(&self) -> u8 {
     self.row
@@ -885,8 +894,18 @@ impl Device for DefaultDevice {
     self.memory[addr as usize]
   }
 
-  fn set_byte(&mut self, addr: u16, value: u8) -> bool {
+  fn set_byte(&mut self, addr: u16, value: u8) {
     self.memory[addr as usize] = value;
+    if addr >= 0xe000 {
+      return;
+    }
+
+    if addr < 256
+      && self.key_mapping_addr_set[addr as usize >> 5] & (1 << (addr & 31)) != 0
+    {
+      return;
+    }
+
     if addr >= self.props.graphics_base_addr
       && addr < self.props.graphics_base_addr + screen::BYTES as u16
     {
@@ -895,7 +914,15 @@ impl Device for DefaultDevice {
       let x = (index % screen::WIDTH_IN_BYTE) << 3;
       self.update_dirty_area(y, x, y + 1, x + 8);
     }
-    addr == self.props.key_buffer_addr && value == 128 + 27
+  }
+
+  fn user_quit(&self) -> bool {
+    if self.props.key_buffer_quit {
+      self.memory[self.props.key_buffer_addr as usize] == 128 + 27
+    } else {
+      let (addr, mask) = self.props.key_masks[27].unwrap();
+      self.memory[addr as usize] & mask == 0
+    }
   }
 
   fn open_file(
@@ -928,13 +955,45 @@ impl Device for DefaultDevice {
     self.update_dirty_area(0, 0, screen::WIDTH, screen::HEIGHT);
   }
 
-  /// Returns true if execution is finished, otherwise false is returned.
-  ///
-  /// `steps` will be the steps left the when exec_asm() is returned.
-  ///
-  /// If `start_addr` is None, continue previous unfinished execution.
-  fn exec_asm(&mut self, steps: &mut usize, start_addr: Option<u16>) -> bool {
-    todo!()
+  fn exec_asm(
+    &mut self,
+    steps: &mut usize,
+    state: AsmExecState<MOS6502>,
+  ) -> Option<MOS6502> {
+    let mut sim = match state {
+      AsmExecState::Start(addr) => {
+        let mut sim = MOS6502::new();
+        sim.set_program_counter(addr);
+        sim
+      }
+      AsmExecState::Cont(sim) => sim,
+    };
+    while *steps > 0 {
+      for _ in 0..100 {
+        sim.execute_instruction(self);
+        if sim.get_stack_pointer() > 0xfd {
+          return None;
+        }
+        // brk
+        if sim.get_status_register() & 0b00110000 == 0b00110000 {
+          let sp = sim.get_stack_pointer() as usize;
+          let code_addr_lo = self.memory[0x102 + sp];
+          let code_addr_hi = self.memory[0x103 + sp];
+          let code_addr =
+            code_addr_lo as usize + ((code_addr_hi as usize) << 8);
+          self.memory[0x102 + sp] = code_addr_lo.wrapping_add(2);
+          if code_addr_lo >= 0xfe {
+            self.memory[0x103 + sp] += 1;
+          }
+          let code = ((self.memory[code_addr] as u16) << 8)
+            + self.memory[code_addr + 1] as u16;
+          sim.set_program_counter(0xffff); // run RTI
+          todo!("BRK ${:04X}", code)
+        }
+      }
+      *steps -= 1;
+    }
+    Some(sim)
   }
 
   fn set_screen_mode(&mut self, mode: ScreenMode) {
@@ -969,6 +1028,16 @@ impl Device for DefaultDevice {
     self.inverse_cursor();
 
     self.cursor = CursorState::None;
+  }
+}
+
+impl Interface6502 for DefaultDevice {
+  fn read(&mut self, address: u16) -> u8 {
+    self.get_byte(address)
+  }
+
+  fn write(&mut self, address: u16, data: u8) {
+    self.set_byte(address, data);
   }
 }
 

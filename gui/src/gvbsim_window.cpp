@@ -161,6 +161,7 @@ void GvbSimWindow::pause() {
 void GvbSimWindow::stop() {
   stopCursorTimer();
   stopRepaintTimer();
+  m_screen->update();
 
   if (m_execResult.tag == api::GvbExecResult::Tag::End) {
     return;

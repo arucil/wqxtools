@@ -68,6 +68,9 @@ fn build_gvb_keyword_mapping() -> Result<(), Box<dyn Error>> {
   let mut space = vec![];
 
   for line in file.lines() {
+    if line.is_empty() {
+      continue;
+    }
     let segments = line.split_whitespace().collect::<Vec<_>>();
     let byte = u8::from_str_radix(segments[0], 16)?;
     mapping.push((byte, segments[1]));

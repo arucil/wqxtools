@@ -23,7 +23,7 @@
 #define INDICATOR_ERROR 1
 #define WARNING_COLOR 0x0e'c1'ff
 #define ERROR_COLOR 0x30'2e'd3
-#define DATA_DIR "data_files"
+#define DATA_DIR "dat_files"
 
 GvbEditor::GvbEditor(QWidget *parent)
     : Tool(parent), m_doc(nullptr), m_textLoaded(false), m_timerModify(false),
@@ -509,9 +509,12 @@ void GvbEditor::tryStartPause(QWidget *sender) {
   auto curState = *m_stateMachine.configuration().begin();
   if (curState == m_stStopped) {
     if (sender == this) {
-      auto dataDir = QDir::cleanPath(
-          QCoreApplication::applicationDirPath() + QDir::separator() +
-          DATA_DIR);
+      auto exeDir = QDir(QCoreApplication::applicationDirPath());
+      if (!exeDir.exists(DATA_DIR)) {
+        exeDir.mkdir(DATA_DIR);
+      }
+      auto dataDir =
+          QDir::cleanPath(exeDir.path() + QDir::separator() + DATA_DIR);
       auto device = gvb_document_device(
           m_doc, {dataDir.utf16(), static_cast<size_t>(dataDir.size())});
       auto result = gvb_document_vm(m_doc, device);
@@ -521,13 +524,19 @@ void GvbEditor::tryStartPause(QWidget *sender) {
         return;
       }
       auto vm = result.just._0;
-      m_gvbsim = new GvbSimWindow(getMainWindow(), this);
-      m_gvbsim->setAttribute(Qt::WA_DeleteOnClose);
-      connect(m_gvbsim, &QMainWindow::destroyed, this, [this] {
-        m_gvbsim = nullptr;
-      });
+      if (!m_gvbsim) {
+        m_gvbsim = new GvbSimWindow(getMainWindow(), this);
+        m_gvbsim->setAttribute(Qt::WA_DeleteOnClose);
+        connect(m_gvbsim, &QMainWindow::destroyed, this, [this] {
+          m_gvbsim = nullptr;
+        });
+      }
       m_gvbsim->reset(vm, device, QFileInfo(m_filePath).completeBaseName());
       m_gvbsim->show();
+      // bring simulator window to front
+      m_gvbsim->setWindowState(Qt::WindowState::WindowActive);
+      m_gvbsim->raise();
+      m_gvbsim->activateWindow();
     }
     emit start();
   } else if (curState == m_stPaused) {

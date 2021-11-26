@@ -6,6 +6,7 @@ pub mod default;
 
 pub trait Device {
   type File: FileHandle;
+  type AsmState;
 
   /// Range: [0, 4]
   fn get_row(&self) -> u8;
@@ -49,8 +50,10 @@ pub trait Device {
 
   fn get_byte(&self, addr: u16) -> u8;
 
-  /// Returns true if POKE 199, 155 is executed (ESC).
-  fn set_byte(&mut self, addr: u16, value: u8) -> bool;
+  fn set_byte(&mut self, addr: u16, value: u8);
+
+  /// Returns true if user is pressing ESC.
+  fn user_quit(&self) -> bool;
 
   fn open_file(
     &mut self,
@@ -62,12 +65,14 @@ pub trait Device {
 
   fn cls(&mut self);
 
-  /// Returns true if execution is finished, otherwise false is returned.
+  /// Returns Some() if execution is not finished.
   ///
   /// `steps` will be the steps left the when exec_asm() is returned.
-  ///
-  /// If `start_addr` is None, continue previous unfinished execution.
-  fn exec_asm(&mut self, steps: &mut usize, start_addr: Option<u16>) -> bool;
+  fn exec_asm(
+    &mut self,
+    steps: &mut usize,
+    state: AsmExecState<Self::AsmState>,
+  ) -> Option<Self::AsmState>;
 
   fn set_screen_mode(&mut self, mode: ScreenMode);
 
@@ -101,4 +106,9 @@ pub trait FileHandle {
   fn read(&mut self, data: &mut [u8]) -> io::Result<usize>;
 
   fn close(self) -> io::Result<()>;
+}
+
+pub enum AsmExecState<S> {
+  Start(u16),
+  Cont(S),
 }

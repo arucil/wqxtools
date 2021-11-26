@@ -158,6 +158,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e78d4f1cc4ae33bbfc157ed5d5a5ef3bc29227303d595861deb238fcec4e9457"
 
 [[package]]
+name = "emulator_6502"
+version = "1.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8e8b83946072bc6677b2940bb59619480a035a10f63dd3f07f9e45c23a588c50"
+dependencies = [
+ "log",
+]
+
+[[package]]
 name = "encode_unicode"
 version = "0.3.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -287,6 +296,7 @@ name = "gvb_interp"
 version = "0.1.0"
 dependencies = [
  "bstr",
+ "emulator_6502",
  "fasthash",
  "id-arena",
  "insta",
