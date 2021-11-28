@@ -1,16 +1,17 @@
 #pragma once
 
-#include "capability.h"
-#include "api.h"
-#include "interval-tree/interval_tree.hpp"
-#include "tool.h"
+#include <QStateMachine>
 #include <QStatusBar>
 #include <QWidget>
 #include <algorithm>
 #include <string>
 #include <variant>
 #include <vector>
-#include <QStateMachine>
+
+#include "api.h"
+#include "capability.h"
+#include "interval-tree/interval_tree.hpp"
+#include "tool.h"
 
 class QAction;
 class QToolBar;
@@ -48,8 +49,10 @@ public:
   using value_type = size_t;
   using interval_kind = lib_interval_tree::closed;
 
-  constexpr Range(value_type low, value_type high)
-      : low_{low}, high_{high}, index(0) {
+  constexpr Range(value_type low, value_type high) :
+    low_ {low},
+    high_ {high},
+    index(0) {
     assert(low <= high);
   }
 
@@ -161,10 +164,11 @@ public:
   size_t index;
 };
 
-struct GvbEditor : Tool,
-                   EditCapabilities,
-                   FileCapabilities,
-                   ProgramCapabilities {
+struct GvbEditor:
+  Tool,
+  EditCapabilities,
+  FileCapabilities,
+  ProgramCapabilities {
 private:
   Q_OBJECT
 

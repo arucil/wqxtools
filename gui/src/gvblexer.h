@@ -28,7 +28,7 @@
 #define SCE_C_TASKMARKER 26
 #define SCE_C_ESCAPESEQUENCE 27
 
-class GvbLexer : public Scintilla::ILexer5 {
+class GvbLexer: public Scintilla::ILexer5 {
 public:
   GvbLexer();
   ~GvbLexer();
@@ -42,12 +42,16 @@ public:
   PropertySet(const char *key, const char *val) override;
   const char *SCI_METHOD DescribeWordListSets() override;
   Sci_Position SCI_METHOD WordListSet(int n, const char *wl) override;
-  void SCI_METHOD
-  Lex(Sci_PositionU startPos, Sci_Position lengthDoc, int initStyle,
-      Scintilla::IDocument *pAccess) override;
+  void SCI_METHOD Lex(
+    Sci_PositionU startPos,
+    Sci_Position lengthDoc,
+    int initStyle,
+    Scintilla::IDocument *pAccess) override;
   void SCI_METHOD Fold(
-      Sci_PositionU startPos, Sci_Position lengthDoc, int initStyle,
-      Scintilla::IDocument *pAccess) override;
+    Sci_PositionU startPos,
+    Sci_Position lengthDoc,
+    int initStyle,
+    Scintilla::IDocument *pAccess) override;
   void *SCI_METHOD PrivateCall(int operation, void *pointer) override;
   int SCI_METHOD LineEndTypesSupported() override;
   int SCI_METHOD AllocateSubStyles(int styleBase, int numberStyles) override;

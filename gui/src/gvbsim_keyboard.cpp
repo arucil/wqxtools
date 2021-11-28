@@ -1,4 +1,5 @@
 #include "gvbsim_keyboard.h"
+
 #include <QFont>
 #include <QGridLayout>
 #include <QHash>
@@ -6,38 +7,38 @@
 #include <QString>
 #include <QTimer>
 
-static const QHash<int, std::uint8_t> KEY_MAPPINGS{
-    {Qt::Key_F1, 28},        {Qt::Key_F2, 29},       {Qt::Key_F3, 30},
-    {Qt::Key_F4, 31},
+static const QHash<int, std::uint8_t> KEY_MAPPINGS {
+  {Qt::Key_F1, 28},        {Qt::Key_F2, 29},       {Qt::Key_F3, 30},
+  {Qt::Key_F4, 31},
 
-    {Qt::Key_O, 111},        {Qt::Key_L, 108},       {Qt::Key_Up, 20},
-    {Qt::Key_Down, 21},      {Qt::Key_P, 112},       {Qt::Key_Return, 13},
-    {Qt::Key_PageDown, 14},  {Qt::Key_Right, 22},
+  {Qt::Key_O, 111},        {Qt::Key_L, 108},       {Qt::Key_Up, 20},
+  {Qt::Key_Down, 21},      {Qt::Key_P, 112},       {Qt::Key_Return, 13},
+  {Qt::Key_PageDown, 14},  {Qt::Key_Right, 22},
 
-    {Qt::Key_Q, 113},        {Qt::Key_W, 119},       {Qt::Key_E, 101},
-    {Qt::Key_R, 114},        {Qt::Key_T, 116},       {Qt::Key_Y, 121},
-    {Qt::Key_U, 117},        {Qt::Key_I, 105},
+  {Qt::Key_Q, 113},        {Qt::Key_W, 119},       {Qt::Key_E, 101},
+  {Qt::Key_R, 114},        {Qt::Key_T, 116},       {Qt::Key_Y, 121},
+  {Qt::Key_U, 117},        {Qt::Key_I, 105},
 
-    {Qt::Key_A, 97},         {Qt::Key_S, 115},       {Qt::Key_D, 100},
-    {Qt::Key_F, 102},        {Qt::Key_G, 103},       {Qt::Key_H, 104},
-    {Qt::Key_J, 106},        {Qt::Key_K, 107},
+  {Qt::Key_A, 97},         {Qt::Key_S, 115},       {Qt::Key_D, 100},
+  {Qt::Key_F, 102},        {Qt::Key_G, 103},       {Qt::Key_H, 104},
+  {Qt::Key_J, 106},        {Qt::Key_K, 107},
 
-    {Qt::Key_Z, 122},        {Qt::Key_X, 120},       {Qt::Key_C, 99},
-    {Qt::Key_V, 118},        {Qt::Key_B, 98},        {Qt::Key_N, 110},
-    {Qt::Key_M, 109},        {Qt::Key_PageUp, 19},
+  {Qt::Key_Z, 122},        {Qt::Key_X, 120},       {Qt::Key_C, 99},
+  {Qt::Key_V, 118},        {Qt::Key_B, 98},        {Qt::Key_N, 110},
+  {Qt::Key_M, 109},        {Qt::Key_PageUp, 19},
 
-    {Qt::Key_Control, 25}, // [Ctrl] -> [求助]
-    {Qt::Key_Shift, 26},     {Qt::Key_CapsLock, 18}, {Qt::Key_Escape, 27},
-    {Qt::Key_0, 48},         {Qt::Key_Period, 46},   {Qt::Key_Space, 32},
-    {Qt::Key_Left, 23},
+  {Qt::Key_Control, 25},  // [Ctrl] -> [求助]
+  {Qt::Key_Shift, 26},     {Qt::Key_CapsLock, 18}, {Qt::Key_Escape, 27},
+  {Qt::Key_0, 48},         {Qt::Key_Period, 46},   {Qt::Key_Space, 32},
+  {Qt::Key_Left, 23},
 
-    {Qt::Key_1, 98},         {Qt::Key_2, 110},       {Qt::Key_3, 109},
-    {Qt::Key_4, 103},        {Qt::Key_5, 104},       {Qt::Key_6, 106},
-    {Qt::Key_7, 116},        {Qt::Key_8, 121},       {Qt::Key_9, 117},
+  {Qt::Key_1, 98},         {Qt::Key_2, 110},       {Qt::Key_3, 109},
+  {Qt::Key_4, 103},        {Qt::Key_5, 104},       {Qt::Key_6, 106},
+  {Qt::Key_7, 116},        {Qt::Key_8, 121},       {Qt::Key_9, 117},
 
-    {Qt::Key_Enter, 13}, // Numpad Enter
+  {Qt::Key_Enter, 13},  // Numpad Enter
 
-    {Qt::Key_AsciiTilde, 18} // [~] -> [输入法]
+  {Qt::Key_AsciiTilde, 18}  // [~] -> [输入法]
 };
 
 std::uint8_t qtKeyToWqxKey(int key) {
@@ -131,14 +132,12 @@ void GvbSimKeyboard::initUi() {
 }
 
 QPushButton *GvbSimKeyboard::makeButton(
-    const QString &text, const QString &tooltip, std::uint8_t key) {
+  const QString &text,
+  const QString &tooltip,
+  std::uint8_t key) {
   auto btn = new QPushButton(text, this);
   btn->setToolTip(tooltip);
-  connect(btn, &QPushButton::pressed, this, [this, key] {
-    emit keyDown(key);
-  });
-  connect(btn, &QPushButton::released, this, [this, key] {
-    emit keyUp(key);
-  });
+  connect(btn, &QPushButton::pressed, this, [this, key] { emit keyDown(key); });
+  connect(btn, &QPushButton::released, this, [this, key] { emit keyUp(key); });
   return btn;
 }

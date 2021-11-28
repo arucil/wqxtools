@@ -1,9 +1,10 @@
 #pragma once
 
 #include <QMainWindow>
-#include <cstdint>
-#include "api.h"
 #include <QString>
+#include <cstdint>
+
+#include "api.h"
 
 class GvbEditor;
 class GvbSimScreen;
@@ -11,7 +12,7 @@ class QCloseEvent;
 class QKeyEvent;
 class QTimerEvent;
 
-class GvbSimWindow : public QMainWindow {
+class GvbSimWindow: public QMainWindow {
   Q_OBJECT
 
 public:

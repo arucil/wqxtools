@@ -1,9 +1,10 @@
 #pragma once
 
+#include <QMainWindow>
+
+#include "capability.h"
 #include "gvbeditor.h"
 #include "util.h"
-#include "capability.h"
-#include <QMainWindow>
 
 class QWidget;
 class QCloseEvent;
@@ -12,7 +13,7 @@ class QAction;
 class QString;
 class Tool;
 
-class MainWindow : public QMainWindow {
+class MainWindow: public QMainWindow {
   Q_OBJECT
 
 public:

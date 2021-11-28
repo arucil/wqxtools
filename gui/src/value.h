@@ -3,7 +3,7 @@
 #include <QObject>
 #include <QString>
 
-class BoolValue : public QObject {
+class BoolValue: public QObject {
   Q_OBJECT
 
 public:
@@ -19,7 +19,7 @@ private:
   bool m_value;
 };
 
-class StrValue : public QObject {
+class StrValue: public QObject {
   Q_OBJECT
 
 public:
@@ -36,11 +36,11 @@ private:
   QString m_value;
 };
 
-class SizeValue : public QObject {
+class SizeValue: public QObject {
   Q_OBJECT
 
 public:
-  size_t value() const ;
+  size_t value() const;
 
 signals:
   void changed(size_t);

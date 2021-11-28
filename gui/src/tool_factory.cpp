@@ -1,4 +1,5 @@
 #include "tool_factory.h"
+
 #include <QString>
 #include <map>
 
@@ -21,7 +22,8 @@ ToolFactoryRegistry::get(const QString &ext) {
 }
 
 void ToolFactoryRegistry::registerFactory(
-    const QString &name, const ToolFactory &factory) {
+  const QString &name,
+  const ToolFactory &factory) {
   for (const auto &ext : factory.extensions) {
     toolFactories[ext] = factory.ctor;
   }
