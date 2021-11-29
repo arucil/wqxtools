@@ -12,7 +12,7 @@ Action::Action(const QIcon &icon, const QString &text, QObject *parent) :
 bool Action::event(QEvent *ev) {
   auto result = QAction::event(ev);
   if (ev->type() == QEvent::ActionChanged) {
-    emit(enabledChanged(isEnabled()));
+    emit enabledChanged(isEnabled());
     return true;
   }
   return result;

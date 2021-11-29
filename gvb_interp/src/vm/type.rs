@@ -122,6 +122,12 @@ impl From<Vec<u8>> for ByteString {
   }
 }
 
+impl From<ByteString> for Vec<u8> {
+  fn from(x: ByteString) -> Self {
+    x.0
+  }
+}
+
 impl From<&[u8]> for ByteString {
   fn from(x: &[u8]) -> Self {
     Self(x.to_owned())

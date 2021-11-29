@@ -7,7 +7,7 @@ bool BoolValue::value() const {
 void BoolValue::setValue(bool newValue) {
   if (newValue != m_value) {
     m_value = newValue;
-    emit(changed(newValue));
+    emit changed(newValue);
   }
 }
 
@@ -22,7 +22,7 @@ QString &StrValue::value() {
 void StrValue::setValue(const QString &newValue) {
   if (newValue != m_value) {
     m_value = newValue;
-    emit(changed(newValue));
+    emit changed(newValue);
   }
 }
 
@@ -33,6 +33,6 @@ size_t SizeValue::value() const {
 void SizeValue::setValue(size_t newValue) {
   if (newValue != m_value) {
     m_value = newValue;
-    emit(changed(newValue));
+    emit changed(newValue);
   }
 }

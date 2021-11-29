@@ -1,4 +1,5 @@
 #[repr(C)]
+#[derive(Clone)]
 pub struct Array<T> {
   pub data: *const T,
   pub len: usize,

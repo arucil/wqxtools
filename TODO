@@ -27,6 +27,9 @@
 - [x] 在运行模拟器时不能加载其他文件
 - 检查内存泄漏
 - 改成GBK（有些汉字会和emoji重叠，优先使用emoji）
+- drag and drop (初始界面支持所有文件，gvbeditor界面支持bas/txt文件)
+- 初始界面显示功能列表
+- 如果打开gvbsim后打开其他类型文件，gvbsim窗口是否能正常关闭？
 
 
 - document:

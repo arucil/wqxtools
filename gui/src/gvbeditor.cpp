@@ -518,7 +518,7 @@ void GvbEditor::computeDiagnostics() {
       diagVec.push_back(d);
     }
     gvb_destroy_str_diagnostic_array(diags);
-    emit(updateDiagnostics(diagVec));
+    emit updateDiagnostics(diagVec);
   });
   thread->start();
   connect(thread, &QThread::finished, thread, &QObject::deleteLater);
@@ -544,7 +544,9 @@ void GvbEditor::tryStartPause(QWidget *sender) {
         return;
       }
       auto vm = result.just._0;
+      auto newWin = false;
       if (!m_gvbsim) {
+        newWin = true;
         m_gvbsim = new GvbSimWindow(getMainWindow(), this);
         m_gvbsim->setAttribute(Qt::WA_DeleteOnClose);
         connect(m_gvbsim, &QMainWindow::destroyed, this, [this] {
@@ -557,8 +559,12 @@ void GvbEditor::tryStartPause(QWidget *sender) {
       m_gvbsim->setWindowState(Qt::WindowState::WindowActive);
       m_gvbsim->raise();
       m_gvbsim->activateWindow();
+      if (!newWin) {
+        emit start();
+      }
+    } else {
+      emit start();
     }
-    emit start();
   } else if (curState == m_stPaused) {
     emit cont();
   } else if (curState == m_stStarted) {

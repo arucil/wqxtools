@@ -20,7 +20,7 @@ pub(crate) use self::r#type::*;
 
 pub(crate) mod codegen;
 pub(crate) mod instruction;
-pub(crate) mod r#type;
+pub mod r#type;
 
 use string_interner::DefaultSymbol as Symbol;
 use string_interner::StringInterner;

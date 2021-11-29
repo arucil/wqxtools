@@ -5,12 +5,14 @@
 #include <cstdint>
 
 #include "api.h"
+#include "value.h"
 
 class GvbEditor;
 class GvbSimScreen;
 class QCloseEvent;
 class QKeyEvent;
 class QTimerEvent;
+class QShowEvent;
 
 class GvbSimWindow: public QMainWindow {
   Q_OBJECT
@@ -59,4 +61,5 @@ private:
   int m_timerRepaint;
   QString m_name;
   QString m_state;
+  StrValue m_message;
 };

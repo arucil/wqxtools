@@ -1,6 +1,6 @@
 use crate::{
-  destroy_string, Array, Either, GvbDevice, GvbDiagnostic, GvbSeverity, Maybe,
-  Unit, Utf8Str, Utf8String,
+  destroy_byte_string, destroy_string, Array, Either, GvbDevice, GvbDiagnostic,
+  GvbSeverity, Maybe, Unit, Utf16Str, Utf8String,
 };
 use gvb_interp as gvb;
 use std::convert::TryInto;
@@ -19,15 +19,16 @@ pub enum GvbExecInput {
 pub type GvbInputFuncBody = gvb::InputFuncBody;
 
 #[repr(C)]
+#[derive(Clone)]
 pub enum GvbKeyboardInput {
-  /// The memory is managed by C++ code.
-  String(Array<u8>),
   Integer(i16),
   Real(GvbReal),
+  String(Array<u8>),
   Func(*mut GvbInputFuncBody),
 }
 
 #[repr(C)]
+#[derive(Clone, Copy)]
 pub struct GvbReal(pub f64);
 
 #[repr(C)]
@@ -67,15 +68,6 @@ pub extern "C" fn gvb_destroy_vm(vm: *mut GvbVirtualMachine) {
   drop(unsafe { Box::from_raw(vm) });
 }
 
-#[no_mangle]
-pub extern "C" fn gvb_parse_real(input: Utf8Str) -> Maybe<GvbReal> {
-  use gvb::util::mbf5;
-  match unsafe { input.as_str() }.parse::<mbf5::Mbf5>() {
-    Ok(n) => Maybe::Just(GvbReal(n.into())),
-    Err(_) => Maybe::Nothing,
-  }
-}
-
 #[repr(C)]
 pub struct GvbCompileFnBodyResult {
   /// may be null
@@ -85,10 +77,17 @@ pub struct GvbCompileFnBodyResult {
 
 #[no_mangle]
 pub extern "C" fn gvb_compile_fn_body(
-  vm: *mut GvbVirtualMachine,
-  input: Utf8Str,
+  vm: *const GvbVirtualMachine,
+  input: Utf16Str,
 ) -> GvbCompileFnBodyResult {
-  let (body, diags) = unsafe { (*vm).0.compile_fn(input.as_str()) };
+  let (body, diags) = unsafe {
+    (*vm).0.compile_fn(
+      String::from_utf16_lossy(std::slice::from_raw_parts(
+        input.data, input.len,
+      ))
+      .as_str(),
+    )
+  };
   let body = if let Some(body) = body {
     Box::into_raw(box body)
   } else {
@@ -113,6 +112,9 @@ pub extern "C" fn gvb_compile_fn_body(
 
 #[no_mangle]
 pub extern "C" fn gvb_destroy_fn_body(body: *mut GvbInputFuncBody) {
+  if body.is_null() {
+    return;
+  }
   drop(unsafe { Box::from_raw(body) })
 }
 
@@ -248,10 +250,34 @@ pub extern "C" fn gvb_reset_exec_input(input: *mut GvbExecInput) {
     GvbExecInput::None => {}
     GvbExecInput::Key(_) => {}
     GvbExecInput::KeyboardInput(input) => {
-      // NOTE no need to free memory in `input`
-      drop(unsafe { input.into_boxed_slice() });
+      for input in unsafe { input.into_boxed_slice() }.iter() {
+        match input {
+          GvbKeyboardInput::Integer(_) => {}
+          GvbKeyboardInput::Real(_) => {}
+          GvbKeyboardInput::String(s) => {
+            destroy_byte_string((*s).clone());
+          }
+          GvbKeyboardInput::Func(_func) => {
+            // NOTE no need to free `_func`, since it was consumed by VM.
+          }
+        }
+      }
     }
   }
+}
+
+#[no_mangle]
+pub extern "C" fn gvb_new_input_array(
+  data: *const GvbKeyboardInput,
+  len: usize,
+) -> Array<GvbKeyboardInput> {
+  let mut v = vec![GvbKeyboardInput::Integer(0); len];
+  for i in 0..len {
+    unsafe {
+      v[i] = (*data.add(i)).clone();
+    }
+  }
+  unsafe { Array::new(v) }
 }
 
 /// Returns if a key was pressed.

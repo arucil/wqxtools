@@ -5,9 +5,11 @@
 #include <QMessageBox>
 #include <QTimer>
 #include <QToolBar>
+#include <QToolTip>
 #include <QVBoxLayout>
 
 #include "gvbeditor.h"
+#include "gvbsim_input_dialog.h"
 #include "gvbsim_keyboard.h"
 #include "gvbsim_screen.h"
 
@@ -24,7 +26,12 @@ GvbSimWindow::GvbSimWindow(QWidget *parent, GvbEditor *editor) :
   m_state("准备就绪") {
   initUi();
 
-  connect(editor, &GvbEditor::start, this, &GvbSimWindow::start);
+  connect(
+    editor,
+    &GvbEditor::start,
+    this,
+    &GvbSimWindow::start,
+    Qt::QueuedConnection);
   connect(editor, &GvbEditor::stop, this, &GvbSimWindow::stop);
   connect(editor, &GvbEditor::cont, this, &GvbSimWindow::cont);
   connect(editor, &GvbEditor::pause, this, &GvbSimWindow::pause);
@@ -33,6 +40,10 @@ GvbSimWindow::GvbSimWindow(QWidget *parent, GvbEditor *editor) :
   m_execInput.tag = api::GvbExecInput::Tag::None;
 
   adjustSize();
+
+  QTimer::singleShot(0, this, [this] {
+    m_message.setValue("点击工具栏的 [开始] 图标或按 [F5] 开始运行程序");
+  });
 }
 
 void GvbSimWindow::reset() {
@@ -93,6 +104,11 @@ void GvbSimWindow::initUi() {
 
   setCentralWidget(central);
 
+  auto sb = statusBar();
+  connect(&m_message, &StrValue::changed, sb, [sb](const auto &msg) {
+    sb->showMessage(msg);
+  });
+
   initToolBar();
 }
 
@@ -119,6 +135,14 @@ void GvbSimWindow::initToolBar() {
   auto startIcon = QPixmap(":/assets/images/Run.svg");
   auto pauseIcon = QPixmap(":/assets/images/Pause.svg");
 
+  auto stoppedCallback = [actStart, actStop, startIcon, this] {
+    actStart->setText("运行");
+    actStart->setIcon(startIcon);
+    actStop->setEnabled(false);
+    m_state = "运行结束";
+    updateTitle();
+  };
+
   connect(
     m_editor->m_stStarted,
     &QState::entered,
@@ -130,17 +154,7 @@ void GvbSimWindow::initToolBar() {
       m_state = "运行中";
       updateTitle();
     });
-  connect(
-    m_editor->m_stStopped,
-    &QState::entered,
-    this,
-    [actStart, actStop, startIcon, this] {
-      actStart->setText("运行");
-      actStart->setIcon(startIcon);
-      actStop->setEnabled(false);
-      m_state = "运行结束";
-      updateTitle();
-    });
+  connect(m_editor->m_stStopped, &QState::entered, this, stoppedCallback);
   connect(
     m_editor->m_stPaused,
     &QState::entered,
@@ -152,6 +166,8 @@ void GvbSimWindow::initToolBar() {
       m_state = "已暂停";
       updateTitle();
     });
+
+  stoppedCallback();
 }
 
 void GvbSimWindow::closeEvent(QCloseEvent *) {
@@ -161,7 +177,9 @@ void GvbSimWindow::closeEvent(QCloseEvent *) {
 void GvbSimWindow::start() {
   reset();
   execLater();
+  m_screen->update();
   startRepaintTimer();
+  m_message.setValue("");
 }
 
 void GvbSimWindow::cont() {
@@ -218,10 +236,21 @@ void GvbSimWindow::execLater() {
         }
         break;
       }
-      case api::GvbExecResult::Tag::KeyboardInput:
+      case api::GvbExecResult::Tag::KeyboardInput: {
         startCursorTimer();
-        // TODO
+        GvbSimInputDialog inputDlg(this, m_vm, m_execResult.keyboard_input);
+        inputDlg.setModal(true);
+        if (inputDlg.exec() == QDialog::Rejected) {
+          emit m_editor->stop();
+          return;
+        }
+        auto inputData = inputDlg.inputData();
+        m_execInput.tag = api::GvbExecInput::Tag::KeyboardInput;
+        m_execInput.keyboard_input._0 =
+          api::gvb_new_input_array(inputData.constData(), inputData.size());
+        stopCursorTimer();
         break;
+      }
       case api::GvbExecResult::Tag::Error:
         printf(
           "%lu %s\n",
