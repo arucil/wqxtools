@@ -13,7 +13,7 @@ dependencies = [
   { name = "header", path = "api_cpp_binding" }
 ]
 
-[tasks.build-core]
+[tasks.build-api]
 workspace = false
 dependencies = [
   { name = "build", path = "api_cpp_binding" }
@@ -22,6 +22,6 @@ dependencies = [
 [tasks.build-gui]
 workspace = false
 dependencies = [
-  { name = "build-core" },
+  { name = "build-api" },
   { name = "build", path = "gui" }
 ]

@@ -1,14 +1,14 @@
 #pragma once
 
 #include <QImage>
-#include <QWidget>
 #include <QRect>
+#include <QWidget>
 #include <cstdint>
 #include <optional>
 
 class QPaintEvent;
 
-class GvbSimScreen : public QWidget {
+class GvbSimScreen: public QWidget {
   Q_OBJECT
 
 public:

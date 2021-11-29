@@ -6,7 +6,7 @@
 class QPushButton;
 class QString;
 
-class GvbSimKeyboard : public QWidget {
+class GvbSimKeyboard: public QWidget {
   Q_OBJECT
 
 public:

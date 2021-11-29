@@ -1,7 +1,5 @@
 #include "gvbsim_window.h"
-#include "gvbeditor.h"
-#include "gvbsim_keyboard.h"
-#include "gvbsim_screen.h"
+
 #include <QDateTime>
 #include <QKeyEvent>
 #include <QMessageBox>
@@ -9,12 +7,21 @@
 #include <QToolBar>
 #include <QVBoxLayout>
 
+#include "gvbeditor.h"
+#include "gvbsim_keyboard.h"
+#include "gvbsim_screen.h"
+
 const size_t EXEC_STEPS = 50;
 
-GvbSimWindow::GvbSimWindow(QWidget *parent, GvbEditor *editor)
-    : QMainWindow(parent), m_editor(editor), m_vm(nullptr), m_device(nullptr),
-      m_paused(false), m_timerCursor(0), m_timerRepaint(0),
-      m_state("准备就绪") {
+GvbSimWindow::GvbSimWindow(QWidget *parent, GvbEditor *editor) :
+  QMainWindow(parent),
+  m_editor(editor),
+  m_vm(nullptr),
+  m_device(nullptr),
+  m_paused(false),
+  m_timerCursor(0),
+  m_timerRepaint(0),
+  m_state("准备就绪") {
   initUi();
 
   connect(editor, &GvbEditor::start, this, &GvbSimWindow::start);
@@ -42,7 +49,9 @@ void GvbSimWindow::reset() {
 }
 
 void GvbSimWindow::reset(
-    api::GvbVirtualMachine *vm, api::GvbDevice *device, const QString &name) {
+  api::GvbVirtualMachine *vm,
+  api::GvbDevice *device,
+  const QString &name) {
   m_screen->setImageData(nullptr);
   if (m_vm) {
     api::gvb_destroy_vm(m_vm);
@@ -103,7 +112,7 @@ void GvbSimWindow::initToolBar() {
   toolbar->addWidget(empty);
 
   auto actStop =
-      toolbar->addAction(QPixmap(":/assets/images/Stop.svg"), "停止");
+    toolbar->addAction(QPixmap(":/assets/images/Stop.svg"), "停止");
   actStop->setShortcut(Qt::Key_F7);
   connect(actStop, &QAction::triggered, m_editor, &GvbEditor::stop);
 
@@ -111,32 +120,38 @@ void GvbSimWindow::initToolBar() {
   auto pauseIcon = QPixmap(":/assets/images/Pause.svg");
 
   connect(
-      m_editor->m_stStarted, &QState::entered, this,
-      [actStart, actStop, pauseIcon, this] {
-        actStart->setText("暂停");
-        actStart->setIcon(pauseIcon);
-        actStop->setEnabled(true);
-        m_state = "运行中";
-        updateTitle();
-      });
+    m_editor->m_stStarted,
+    &QState::entered,
+    this,
+    [actStart, actStop, pauseIcon, this] {
+      actStart->setText("暂停");
+      actStart->setIcon(pauseIcon);
+      actStop->setEnabled(true);
+      m_state = "运行中";
+      updateTitle();
+    });
   connect(
-      m_editor->m_stStopped, &QState::entered, this,
-      [actStart, actStop, startIcon, this] {
-        actStart->setText("运行");
-        actStart->setIcon(startIcon);
-        actStop->setEnabled(false);
-        m_state = "运行结束";
-        updateTitle();
-      });
+    m_editor->m_stStopped,
+    &QState::entered,
+    this,
+    [actStart, actStop, startIcon, this] {
+      actStart->setText("运行");
+      actStart->setIcon(startIcon);
+      actStop->setEnabled(false);
+      m_state = "运行结束";
+      updateTitle();
+    });
   connect(
-      m_editor->m_stPaused, &QState::entered, this,
-      [actStart, actStop, startIcon, this] {
-        actStart->setText("继续");
-        actStart->setIcon(startIcon);
-        actStop->setEnabled(true);
-        m_state = "已暂停";
-        updateTitle();
-      });
+    m_editor->m_stPaused,
+    &QState::entered,
+    this,
+    [actStart, actStop, startIcon, this] {
+      actStart->setText("继续");
+      actStart->setIcon(startIcon);
+      actStop->setEnabled(true);
+      m_state = "已暂停";
+      updateTitle();
+    });
 }
 
 void GvbSimWindow::closeEvent(QCloseEvent *) {
@@ -170,9 +185,10 @@ void GvbSimWindow::stop() {
   auto result = api::gvb_vm_stop(m_vm);
   if (result.tag == api::GvbStopVmResult::Tag::Left) {
     QMessageBox::critical(
-        this, "错误",
-        tr("运行时错误：%1")
-            .arg(QString::fromUtf8(result.left._0.data, result.left._0.len)));
+      this,
+      "错误",
+      tr("运行时错误：%1")
+        .arg(QString::fromUtf8(result.left._0.data, result.left._0.len)));
     destroy_string(result.left._0);
   }
   m_execResult.tag = api::GvbExecResult::Tag::End;
@@ -185,38 +201,40 @@ void GvbSimWindow::execLater() {
     }
 
     switch (m_execResult.tag) {
-    case api::GvbExecResult::Tag::End:
-      emit m_editor->stop();
-      return;
-    case api::GvbExecResult::Tag::Continue:
-      break;
-    case api::GvbExecResult::Tag::Sleep:
-      sleep(m_execResult.sleep._0);
-      return;
-    case api::GvbExecResult::Tag::InKey: {
-      if (!api::gvb_assign_device_key(m_device, &m_execInput)) {
-        startCursorTimer();
+      case api::GvbExecResult::Tag::End:
+        emit m_editor->stop();
         return;
-      } else {
-        stopCursorTimer();
+      case api::GvbExecResult::Tag::Continue:
+        break;
+      case api::GvbExecResult::Tag::Sleep:
+        sleep(m_execResult.sleep._0);
+        return;
+      case api::GvbExecResult::Tag::InKey: {
+        if (!api::gvb_assign_device_key(m_device, &m_execInput)) {
+          startCursorTimer();
+          return;
+        } else {
+          stopCursorTimer();
+        }
+        break;
       }
-      break;
-    }
-    case api::GvbExecResult::Tag::KeyboardInput:
-      startCursorTimer();
-      // TODO
-      break;
-    case api::GvbExecResult::Tag::Error:
-      printf(
-          "%lu %s\n", m_execResult.error.location.line,
+      case api::GvbExecResult::Tag::KeyboardInput:
+        startCursorTimer();
+        // TODO
+        break;
+      case api::GvbExecResult::Tag::Error:
+        printf(
+          "%lu %s\n",
+          m_execResult.error.location.line,
           QString::fromUtf8(
-              m_execResult.error.message.data, m_execResult.error.message.len)
-              .toStdString()
-              .c_str());
-      m_execResult.tag = api::GvbExecResult::Tag::End;
-      emit m_editor->stop();
-      // TODO show error message in editor
-      return;
+            m_execResult.error.message.data,
+            m_execResult.error.message.len)
+            .toStdString()
+            .c_str());
+        m_execResult.tag = api::GvbExecResult::Tag::End;
+        emit m_editor->stop();
+        // TODO show error message in editor
+        return;
     }
 
     m_execResult = api::gvb_vm_exec(m_vm, m_execInput, EXEC_STEPS);
@@ -275,7 +293,7 @@ void GvbSimWindow::timerEvent(QTimerEvent *ev) {
       m_screen->markDirty(QRect(QPoint(left, top), QPoint(right, bottom)));
       // TODO dirty area
       m_screen->update(
-          QRect(QPoint(left * 2, top * 2), QPoint(right * 2, bottom * 2)));
+        QRect(QPoint(left * 2, top * 2), QPoint(right * 2, bottom * 2)));
     }
   }
 }

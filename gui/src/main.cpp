@@ -1,10 +1,11 @@
-#include "gvbeditor.h"
-#include "mainwindow.h"
-#include "tool_factory.h"
 #include <QApplication>
 #include <QFontDatabase>
 #include <QWidget>
 #include <vector>
+
+#include "gvbeditor.h"
+#include "mainwindow.h"
+#include "tool_factory.h"
 
 void loadResources();
 void initTools();

@@ -1,7 +1,7 @@
 #include "gvbeditor.h"
-#include "action.h"
-#include "gvbsim_window.h"
-#include "util.h"
+
+#include <ScintillaEdit.h>
+
 #include <QApplication>
 #include <QByteArray>
 #include <QDir>
@@ -13,11 +13,14 @@
 #include <QTimer>
 #include <QToolBar>
 #include <QVBoxLayout>
-#include <ScintillaEdit.h>
 #include <algorithm>
 #include <cmath>
 #include <string>
 #include <utility>
+
+#include "action.h"
+#include "gvbsim_window.h"
+#include "util.h"
 
 #define INDICATOR_WARNING 0
 #define INDICATOR_ERROR 1
@@ -25,15 +28,21 @@
 #define ERROR_COLOR 0x30'2e'd3
 #define DATA_DIR "dat_files"
 
-GvbEditor::GvbEditor(QWidget *parent)
-    : Tool(parent), m_doc(nullptr), m_textLoaded(false), m_timerModify(false),
-      m_gvbsim(nullptr) {
+GvbEditor::GvbEditor(QWidget *parent) :
+  Tool(parent),
+  m_doc(nullptr),
+  m_textLoaded(false),
+  m_timerModify(false),
+  m_gvbsim(nullptr) {
   initUi();
   initStateMachine();
 
   connect(
-      this, &GvbEditor::updateDiagnostics, this, &GvbEditor::diagnosticsUpdated,
-      Qt::QueuedConnection);
+    this,
+    &GvbEditor::updateDiagnostics,
+    this,
+    &GvbEditor::diagnosticsUpdated,
+    Qt::QueuedConnection);
 
   QTimer::singleShot(0, this, [this] {
     m_actPaste->setEnabled(true);
@@ -90,7 +99,9 @@ void GvbEditor::initStateMachine() {
   m_stPaused->assignProperty(m_actStop, "enabled", true);
   m_stStopped->assignProperty(m_actStop, "enabled", false);
   m_stStarted->assignProperty(
-      m_actStart, "icon", QIcon(QPixmap(":/assets/images/Pause.svg")));
+    m_actStart,
+    "icon",
+    QIcon(QPixmap(":/assets/images/Pause.svg")));
   auto startIcon = QIcon(QPixmap(":/assets/images/Run.svg"));
   m_stPaused->assignProperty(m_actStart, "icon", startIcon);
   m_stStopped->assignProperty(m_actStart, "icon", startIcon);
@@ -150,7 +161,10 @@ void GvbEditor::initEdit() {
   connect(m_edit, &ScintillaEdit::notify, this, &GvbEditor::notified);
 
   connect(
-      m_edit, &ScintillaEdit::savePointChanged, &m_dirty, &BoolValue::setValue);
+    m_edit,
+    &ScintillaEdit::savePointChanged,
+    &m_dirty,
+    &BoolValue::setValue);
 }
 
 QToolBar *GvbEditor::initToolBar() {
@@ -231,34 +245,37 @@ SaveResult GvbEditor::save(const QString &path) {
   auto saveToPath = path;
   while (true) {
     auto result = gvb_save_document(
-        m_doc, {saveToPath.utf16(), static_cast<size_t>(saveToPath.size())});
+      m_doc,
+      {saveToPath.utf16(), static_cast<size_t>(saveToPath.size())});
     if (result.tag == api::Either<api::GvbSaveError, api::Unit>::Tag::Left) {
       auto msg = result.left._0.message;
       auto err = QString::fromUtf8(msg.data, msg.len);
       destroy_string(msg);
       if (result.left._0.bas_specific) {
         auto result = QMessageBox::question(
-            getMainWindow(), "文件保存失败",
-            tr("发生错误：%1。无法保存为 .BAS 文件，是否保存为 .TXT 文件？")
-                .arg(err),
-            QMessageBox::StandardButton::Yes | QMessageBox::StandardButton::No |
-                QMessageBox::StandardButton::Cancel);
+          getMainWindow(),
+          "文件保存失败",
+          tr("发生错误：%1。无法保存为 .BAS 文件，是否保存为 .TXT 文件？")
+            .arg(err),
+          QMessageBox::StandardButton::Yes | QMessageBox::StandardButton::No
+            | QMessageBox::StandardButton::Cancel);
         if (result == QMessageBox::StandardButton::Yes) {
           auto info = QFileInfo(saveToPath);
           saveToPath = info.path() + "/" + info.completeBaseName() + ".TXT";
           continue;
         } else if (result == QMessageBox::StandardButton::No) {
-          return SaveResult{
-              std::in_place_index<1>, std::make_optional<QString>()};
+          return SaveResult {
+            std::in_place_index<1>,
+            std::make_optional<QString>()};
         } else {
           return {};
         }
       } else {
-        return SaveResult{std::in_place_index<1>, err};
+        return SaveResult {std::in_place_index<1>, err};
       }
     } else {
       m_edit->setSavePoint();
-      return SaveResult{std::in_place_index<0>, path};
+      return SaveResult {std::in_place_index<0>, path};
     }
   }
 }
@@ -269,9 +286,9 @@ void GvbEditor::create() {
 
 LoadResult GvbEditor::load(const QString &path) {
   auto result =
-      api::gvb_load_document({path.utf16(), static_cast<size_t>(path.size())});
-  if (result.tag ==
-      api::Either<api::Utf8String, api::GvbDocument *>::Tag::Left) {
+    api::gvb_load_document({path.utf16(), static_cast<size_t>(path.size())});
+  if (
+    result.tag == api::Either<api::Utf8String, api::GvbDocument *>::Tag::Left) {
     m_filePath.clear();
     auto msg = result.left._0;
     auto err = QString::fromUtf8(msg.data, msg.len);
@@ -298,13 +315,13 @@ LoadResult GvbEditor::load(const QString &path) {
     m_actRedo->setEnabled(false);
 
     auto digits = static_cast<size_t>(
-        std::log10(std::count(text.data, text.data + text.len, '\n') + 1));
+      std::log10(std::count(text.data, text.data + text.len, '\n') + 1));
     auto digitWidth = m_edit->textWidth(STYLE_LINENUMBER, "9") * digits;
     m_edit->setMarginWidthN(2, digitWidth);
 
     computeDiagnostics();
 
-    return Unit{};
+    return Unit {};
   }
 }
 
@@ -343,84 +360,86 @@ void GvbEditor::redo() {
 
 void GvbEditor::notified(Scintilla::NotificationData *data) {
   switch (data->nmhdr.code) {
-  case Scintilla::Notification::SavePointReached:
-    m_dirty.setValue(false);
-    break;
-  case Scintilla::Notification::SavePointLeft:
-    m_dirty.setValue(true);
-    break;
-  case Scintilla::Notification::Modified: {
-    if (!m_textLoaded) {
-      return;
-    }
+    case Scintilla::Notification::SavePointReached:
+      m_dirty.setValue(false);
+      break;
+    case Scintilla::Notification::SavePointLeft:
+      m_dirty.setValue(true);
+      break;
+    case Scintilla::Notification::Modified: {
+      if (!m_textLoaded) {
+        return;
+      }
 
-    auto bits = static_cast<int>(data->modificationType);
+      auto bits = static_cast<int>(data->modificationType);
 
-    if (!m_timerModify) {
-      QTimer::singleShot(500, this, &GvbEditor::modified);
-      m_timerModify = true;
-    }
+      if (!m_timerModify) {
+        QTimer::singleShot(500, this, &GvbEditor::modified);
+        m_timerModify = true;
+      }
 
-    m_actUndo->setEnabled(m_edit->canUndo());
-    m_actRedo->setEnabled(m_edit->canRedo());
-    if (bits & SC_MOD_INSERTTEXT) {
-      InsertText *insert;
-      if (!m_edits.empty() &&
-          (insert = std::get_if<InsertText>(&m_edits.back())) &&
-          insert->pos + insert->str.size() ==
-              static_cast<size_t>(data->position)) {
-        insert->str.append(data->text, data->length);
-      } else {
-        InsertText insert = {
+      m_actUndo->setEnabled(m_edit->canUndo());
+      m_actRedo->setEnabled(m_edit->canRedo());
+      if (bits & SC_MOD_INSERTTEXT) {
+        InsertText *insert;
+        if (
+          !m_edits.empty()
+          && (insert = std::get_if<InsertText>(&m_edits.back()))
+          && insert->pos + insert->str.size()
+            == static_cast<size_t>(data->position)) {
+          insert->str.append(data->text, data->length);
+        } else {
+          InsertText insert = {
             static_cast<size_t>(data->position),
             std::string(data->text, data->length)};
-        m_edits.push_back(insert);
-      }
-    } else if (bits & SC_MOD_DELETETEXT) {
-      DeleteText *del;
-      if (!m_edits.empty() &&
-          (del = std::get_if<DeleteText>(&m_edits.back())) &&
-          del->pos == static_cast<size_t>(data->position + data->length)) {
-        del->len += static_cast<size_t>(data->length);
-        del->pos -= static_cast<size_t>(data->length);
-      } else {
-        DeleteText del = {
+          m_edits.push_back(insert);
+        }
+      } else if (bits & SC_MOD_DELETETEXT) {
+        DeleteText *del;
+        if (
+          !m_edits.empty() && (del = std::get_if<DeleteText>(&m_edits.back()))
+          && del->pos == static_cast<size_t>(data->position + data->length)) {
+          del->len += static_cast<size_t>(data->length);
+          del->pos -= static_cast<size_t>(data->length);
+        } else {
+          DeleteText del = {
             static_cast<size_t>(data->position),
             static_cast<size_t>(data->length)};
-        m_edits.push_back(del);
+          m_edits.push_back(del);
+        }
       }
-    }
-    break;
-  }
-  case Scintilla::Notification::DwellStart: {
-    if (data->position < 0 || data->position > m_edit->length()) {
       break;
     }
-    auto pos = static_cast<size_t>(data->position);
-    std::string messages;
-    m_diagRanges.overlap_find_all({pos, pos}, [&messages, this](auto it) {
-      if (!messages.empty()) {
-        messages += '\n';
+    case Scintilla::Notification::DwellStart: {
+      if (data->position < 0 || data->position > m_edit->length()) {
+        break;
       }
-      messages += m_diagnostics[it->interval().index].message.c_str();
-      return true;
-    });
-    if (!messages.empty()) {
-      m_edit->callTipShow(data->position, messages.c_str());
+      auto pos = static_cast<size_t>(data->position);
+      std::string messages;
+      m_diagRanges.overlap_find_all({pos, pos}, [&messages, this](auto it) {
+        if (!messages.empty()) {
+          messages += '\n';
+        }
+        messages += m_diagnostics[it->interval().index].message.c_str();
+        return true;
+      });
+      if (!messages.empty()) {
+        m_edit->callTipShow(data->position, messages.c_str());
+      }
+      break;
     }
-    break;
-  }
-  case Scintilla::Notification::DwellEnd:
-    m_edit->callTipCancel();
-    break;
-  case Scintilla::Notification::UpdateUI:
-    if (static_cast<int>(data->updated) &
-        (SC_UPDATE_SELECTION | SC_UPDATE_CONTENT)) {
-      m_curPos.setValue(m_edit->currentPos());
-    }
-    break;
-  default:
-    break;
+    case Scintilla::Notification::DwellEnd:
+      m_edit->callTipCancel();
+      break;
+    case Scintilla::Notification::UpdateUI:
+      if (
+        static_cast<int>(data->updated)
+        & (SC_UPDATE_SELECTION | SC_UPDATE_CONTENT)) {
+        m_curPos.setValue(m_edit->currentPos());
+      }
+      break;
+    default:
+      break;
   }
 }
 
@@ -428,13 +447,13 @@ void GvbEditor::modified() {
   for (auto edit : m_edits) {
     if (auto insert = std::get_if<InsertText>(&edit)) {
       api::GvbModification ins = {
-          api::GvbModification::Tag::Left,
-          {insert->pos, {insert->str.c_str(), insert->str.size()}}};
+        api::GvbModification::Tag::Left,
+        {insert->pos, {insert->str.c_str(), insert->str.size()}}};
       api::gvb_document_apply_edit(m_doc, ins);
     } else {
       auto del = std::get<DeleteText>(edit);
       api::GvbModification d = {
-          api::GvbModification::Tag::Right,
+        api::GvbModification::Tag::Right,
       };
       d.right._0.pos = del.pos;
       d.right._0.len = del.len;
@@ -469,12 +488,12 @@ void GvbEditor::diagnosticsUpdated(std::vector<Diagnostic> diags) {
   m_edit->indicatorClearRange(0, len);
   for (auto &diag : m_diagnostics) {
     switch (diag.severity) {
-    case api::GvbSeverity::Warning:
-      m_edit->setIndicatorCurrent(INDICATOR_WARNING);
-      break;
-    case api::GvbSeverity::Error:
-      m_edit->setIndicatorCurrent(INDICATOR_ERROR);
-      break;
+      case api::GvbSeverity::Warning:
+        m_edit->setIndicatorCurrent(INDICATOR_WARNING);
+        break;
+      case api::GvbSeverity::Error:
+        m_edit->setIndicatorCurrent(INDICATOR_ERROR);
+        break;
     }
     if (diag.start == diag.end) {
       m_edit->indicatorFillRange(diag.start, 1);
@@ -490,11 +509,11 @@ void GvbEditor::computeDiagnostics() {
     std::vector<Diagnostic> diagVec;
     for (auto it = diags.data; it < diags.data + diags.len; it++) {
       Diagnostic d = {
-          it->line,
-          it->start,
-          it->end,
-          it->severity,
-          std::string(it->message.data, it->message.len),
+        it->line,
+        it->start,
+        it->end,
+        it->severity,
+        std::string(it->message.data, it->message.len),
       };
       diagVec.push_back(d);
     }
@@ -514,9 +533,10 @@ void GvbEditor::tryStartPause(QWidget *sender) {
         exeDir.mkdir(DATA_DIR);
       }
       auto dataDir =
-          QDir::cleanPath(exeDir.path() + QDir::separator() + DATA_DIR);
+        QDir::cleanPath(exeDir.path() + QDir::separator() + DATA_DIR);
       auto device = gvb_document_device(
-          m_doc, {dataDir.utf16(), static_cast<size_t>(dataDir.size())});
+        m_doc,
+        {dataDir.utf16(), static_cast<size_t>(dataDir.size())});
       auto result = gvb_document_vm(m_doc, device);
       if (result.tag == api::Maybe<api::GvbVirtualMachine *>::Tag::Nothing) {
         // TODO toast

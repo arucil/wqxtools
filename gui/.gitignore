@@ -6,4 +6,5 @@ Makefile
 /lib/
 /include/
 /*.tgz
+/*.zip
 machines.yaml

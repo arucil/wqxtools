@@ -1,9 +1,5 @@
 #include "mainwindow.h"
-#include "action.h"
-#include "api.h"
-#include "gvbeditor.h"
-#include "tool_factory.h"
-#include "value.h"
+
 #include <QApplication>
 #include <QCloseEvent>
 #include <QFileDialog>
@@ -13,6 +9,12 @@
 #include <QMessageBox>
 #include <QSplitter>
 #include <QTimer>
+
+#include "action.h"
+#include "api.h"
+#include "gvbeditor.h"
+#include "tool_factory.h"
+#include "value.h"
 
 #define WINDOW_TITLE "WQX 工具箱"
 
@@ -111,9 +113,7 @@ void MainWindow::initMenu() {
   mnuProg->addSeparator();
 
   auto actConfig = mnuProg->addAction("重新加载配置文件");
-  connect(actConfig, &QAction::triggered, this, [this] {
-    loadConfig(this);
-  });
+  connect(actConfig, &QAction::triggered, this, [this] { loadConfig(this); });
 }
 
 void MainWindow::closeEvent(QCloseEvent *event) {
@@ -125,9 +125,13 @@ void MainWindow::closeEvent(QCloseEvent *event) {
 
 void MainWindow::openFile() {
   auto path = QFileDialog::getOpenFileName(
-      this, "", "", ToolFactoryRegistry::openFileFilter(), nullptr,
-      QFileDialog::Option::DontResolveSymlinks |
-          QFileDialog::Option::DontUseNativeDialog);
+    this,
+    "",
+    "",
+    ToolFactoryRegistry::openFileFilter(),
+    nullptr,
+    QFileDialog::Option::DontResolveSymlinks
+      | QFileDialog::Option::DontUseNativeDialog);
   openFileByPath(path);
 }
 
@@ -145,7 +149,9 @@ void MainWindow::openFileByPath(const QString &path) {
   auto ext = fileinfo.suffix();
   if (ext.isEmpty()) {
     QMessageBox::critical(
-        this, "文件打开失败", "文件缺少后缀名，无法识别文件类型");
+      this,
+      "文件打开失败",
+      "文件缺少后缀名，无法识别文件类型");
     return;
   }
 
@@ -187,40 +193,67 @@ void MainWindow::openFileByPath(const QString &path) {
   if (auto editor = dynamic_cast<EditCapabilities *>(widget)) {
     m_actCopy->setEnabled(editor->m_actCopy);
     connect(
-        editor->m_actCopy, &Action::enabledChanged, m_actCopy,
-        &QAction::setEnabled);
+      editor->m_actCopy,
+      &Action::enabledChanged,
+      m_actCopy,
+      &QAction::setEnabled);
     m_actCut->setEnabled(editor->m_actCut);
     connect(
-        editor->m_actCut, &Action::enabledChanged, m_actCut,
-        &QAction::setEnabled);
+      editor->m_actCut,
+      &Action::enabledChanged,
+      m_actCut,
+      &QAction::setEnabled);
     m_actPaste->setEnabled(editor->m_actPaste);
     connect(
-        editor->m_actPaste, &Action::enabledChanged, m_actPaste,
-        &QAction::setEnabled);
+      editor->m_actPaste,
+      &Action::enabledChanged,
+      m_actPaste,
+      &QAction::setEnabled);
     m_actUndo->setEnabled(editor->m_actUndo);
     connect(
-        editor->m_actUndo, &Action::enabledChanged, m_actUndo,
-        &QAction::setEnabled);
+      editor->m_actUndo,
+      &Action::enabledChanged,
+      m_actUndo,
+      &QAction::setEnabled);
     m_actRedo->setEnabled(editor->m_actRedo);
     connect(
-        editor->m_actRedo, &Action::enabledChanged, m_actRedo,
-        &QAction::setEnabled);
+      editor->m_actRedo,
+      &Action::enabledChanged,
+      m_actRedo,
+      &QAction::setEnabled);
     m_actFind->setEnabled(true);
     m_actReplace->setEnabled(true);
     connect(
-        m_actCopy, &QAction::triggered, editor->m_actCopy, &QAction::trigger);
+      m_actCopy,
+      &QAction::triggered,
+      editor->m_actCopy,
+      &QAction::trigger);
     connect(m_actCut, &QAction::triggered, editor->m_actCut, &QAction::trigger);
     connect(
-        m_actPaste, &QAction::triggered, editor->m_actPaste, &QAction::trigger);
+      m_actPaste,
+      &QAction::triggered,
+      editor->m_actPaste,
+      &QAction::trigger);
     connect(
-        m_actUndo, &QAction::triggered, editor->m_actUndo, &QAction::trigger);
+      m_actUndo,
+      &QAction::triggered,
+      editor->m_actUndo,
+      &QAction::trigger);
     connect(
-        m_actRedo, &QAction::triggered, editor->m_actRedo, &QAction::trigger);
+      m_actRedo,
+      &QAction::triggered,
+      editor->m_actRedo,
+      &QAction::trigger);
     connect(
-        m_actFind, &QAction::triggered, editor->m_actFind, &QAction::trigger);
+      m_actFind,
+      &QAction::triggered,
+      editor->m_actFind,
+      &QAction::trigger);
     connect(
-        m_actReplace, &QAction::triggered, editor->m_actReplace,
-        &QAction::trigger);
+      m_actReplace,
+      &QAction::triggered,
+      editor->m_actReplace,
+      &QAction::trigger);
 
     connect(&editor->m_dirty, &BoolValue::changed, this, &MainWindow::setTitle);
   } else {
@@ -245,10 +278,15 @@ void MainWindow::openFileByPath(const QString &path) {
     progCap->m_stPaused->assignProperty(m_actOpen, "enabled", false);
     m_actStart->setEnabled(true);
     connect(
-        m_actStart, &QAction::triggered, progCap->m_actStart,
-        &QAction::trigger);
+      m_actStart,
+      &QAction::triggered,
+      progCap->m_actStart,
+      &QAction::trigger);
     connect(
-        m_actStop, &QAction::triggered, progCap->m_actStop, &QAction::trigger);
+      m_actStop,
+      &QAction::triggered,
+      progCap->m_actStop,
+      &QAction::trigger);
   } else {
     m_actStart->setEnabled(false);
     m_actStop->setEnabled(false);
@@ -257,7 +295,10 @@ void MainWindow::openFileByPath(const QString &path) {
 
   if (fileCap && fileCap->m_actSave != nullptr) {
     connect(
-        fileCap->m_actSave, &QAction::triggered, this, &MainWindow::saveFile);
+      fileCap->m_actSave,
+      &QAction::triggered,
+      this,
+      &MainWindow::saveFile);
   }
 }
 
@@ -265,18 +306,19 @@ ActionResult MainWindow::confirmSaveIfDirty(Tool *widget) {
   if (auto oldWidget = dynamic_cast<EditCapabilities *>(widget)) {
     if (oldWidget->m_dirty.value()) {
       auto btn = QMessageBox::question(
-          this, "文件改动",
-          tr("文件 %1 有改动，是否保存？")
-              .arg(QFileInfo(m_openFilePath.value()).fileName()),
-          QMessageBox::StandardButton::Yes | QMessageBox::StandardButton::No |
-              QMessageBox::StandardButton::Cancel);
+        this,
+        "文件改动",
+        tr("文件 %1 有改动，是否保存？")
+          .arg(QFileInfo(m_openFilePath.value()).fileName()),
+        QMessageBox::StandardButton::Yes | QMessageBox::StandardButton::No
+          | QMessageBox::StandardButton::Cancel);
       switch (btn) {
-      case QMessageBox::StandardButton::Yes:
-        return saveFile();
-      case QMessageBox::StandardButton::No:
-        return ActionResult::Succeed;
-      default:
-        return ActionResult::Fail;
+        case QMessageBox::StandardButton::Yes:
+          return saveFile();
+        case QMessageBox::StandardButton::No:
+          return ActionResult::Succeed;
+        default:
+          return ActionResult::Fail;
       }
     }
   }
@@ -301,16 +343,19 @@ ActionResult MainWindow::saveFileAs(bool save) {
   if (auto edit = dynamic_cast<FileCapabilities *>(centralWidget())) {
     auto ext = QFileInfo(m_openFilePath.value()).suffix().toLower();
     auto path = QFileDialog::getSaveFileName(
-        this, save ? "保存文件" : "另存为", "",
-        ToolFactoryRegistry::saveFileFilter(ext), nullptr,
-        QFileDialog::Option::DontResolveSymlinks |
-            QFileDialog::Option::DontUseNativeDialog);
+      this,
+      save ? "保存文件" : "另存为",
+      "",
+      ToolFactoryRegistry::saveFileFilter(ext),
+      nullptr,
+      QFileDialog::Option::DontResolveSymlinks
+        | QFileDialog::Option::DontUseNativeDialog);
     if (path.isEmpty()) {
       return ActionResult::Fail;
     }
 
-    if (QFileInfo(path).suffix().isEmpty() &&
-        !m_openFilePath.value().isEmpty()) {
+    if (
+      QFileInfo(path).suffix().isEmpty() && !m_openFilePath.value().isEmpty()) {
       auto ext = QFileInfo(m_openFilePath.value()).suffix();
       path += '.';
       path += ext;
@@ -319,10 +364,11 @@ ActionResult MainWindow::saveFileAs(bool save) {
     auto f = QFileInfo(path);
     if (f.exists()) {
       auto res = QMessageBox::question(
-          this, save ? "保存文件" : "另存为",
-          tr("文件 %1 已存在，是否覆盖？").arg(f.fileName()),
-          QMessageBox::StandardButton::Yes | QMessageBox::StandardButton::No |
-              QMessageBox::StandardButton::Cancel);
+        this,
+        save ? "保存文件" : "另存为",
+        tr("文件 %1 已存在，是否覆盖？").arg(f.fileName()),
+        QMessageBox::StandardButton::Yes | QMessageBox::StandardButton::No
+          | QMessageBox::StandardButton::Cancel);
       if (res == QMessageBox::StandardButton::Cancel) {
         return ActionResult::Fail;
       } else if (res == QMessageBox::StandardButton::No) {
@@ -356,9 +402,10 @@ ActionResult MainWindow::loadConfig(QWidget *parent) {
   auto result = api::gvb_init_machines();
   if (result.tag == api::GvbInitMachineResult::Tag::Left) {
     QMessageBox::critical(
-        parent, "错误",
-        tr("配置文件加载失败：%1")
-            .arg(QString::fromUtf8(result.left._0.data, result.left._0.len)));
+      parent,
+      "错误",
+      tr("配置文件加载失败：%1")
+        .arg(QString::fromUtf8(result.left._0.data, result.left._0.len)));
     api::destroy_string(result.left._0);
     return ActionResult::Fail;
   } else {
@@ -374,7 +421,7 @@ void MainWindow::setTitle() {
     } else {
       auto name = QFileInfo(m_openFilePath.value()).fileName();
       setWindowTitle(
-          tr(WINDOW_TITLE " - %1%2").arg(name).arg(dirty ? "*" : ""));
+        tr(WINDOW_TITLE " - %1%2").arg(name).arg(dirty ? "*" : ""));
     }
   } else {
     if (m_openFilePath.value().isEmpty()) {

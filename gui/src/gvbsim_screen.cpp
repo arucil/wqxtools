@@ -1,4 +1,5 @@
 #include "gvbsim_screen.h"
+
 #include <QPaintEvent>
 #include <QPainter>
 
@@ -31,7 +32,7 @@ void GvbSimScreen::paintEvent(QPaintEvent *) {
   if (m_dirtyArea.has_value()) {
     auto rect = m_dirtyArea.value();
     m_dirtyArea.reset();
-    painter.drawImage(QPoint{rect.x(), rect.y()}, m_img, rect);
+    painter.drawImage(QPoint {rect.x(), rect.y()}, m_img, rect);
   } else {
     // not triggered manually
     painter.drawImage(m_img.rect(), m_img);
