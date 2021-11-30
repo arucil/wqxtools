@@ -9,6 +9,7 @@
 #include "api.h"
 
 class QShowEvent;
+class QKeyEvent;
 
 typedef api::Array<std::uint8_t> ByteString;
 typedef api::GvbInputFuncBody *FuncBody;
@@ -23,8 +24,12 @@ public:
     QWidget *,
     const api::GvbVirtualMachine *,
     const api::GvbExecResult::KeyboardInput_Body &);
+  ~GvbSimInputDialog();
 
   QVector<api::GvbKeyboardInput> inputData();
+
+protected:
+  void keyPressEvent(QKeyEvent *) Q_DECL_OVERRIDE;
 
 signals:
   void validateAll();

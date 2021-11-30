@@ -293,3 +293,29 @@ pub extern "C" fn gvb_assign_device_key(
     false
   }
 }
+
+#[repr(C)]
+pub enum GvbStringError {
+  InvalidUtf16,
+  InvalidChar(u32),
+}
+
+type GvbStringResult = Either<GvbStringError, Array<u8>>;
+
+#[no_mangle]
+pub extern "C" fn gvb_utf16_to_byte_string(
+  vm: *const GvbVirtualMachine,
+  s: Utf16Str,
+) -> GvbStringResult {
+  let s = unsafe { std::slice::from_raw_parts(s.data as *const _, s.len) };
+  let s = match String::from_utf16(s) {
+    Ok(s) => s,
+    Err(_) => return Either::Left(GvbStringError::InvalidUtf16),
+  };
+  match unsafe { (*vm).0.byte_string_from_str(&s).into() } {
+    Ok(s) => Either::Right(unsafe { Array::new(s.into()) }),
+    Err(gvb::vm::r#type::StringError::InvalidChar(c)) => {
+      Either::Left(GvbStringError::InvalidChar(c as _))
+    }
+  }
+}

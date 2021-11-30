@@ -267,6 +267,14 @@ where
     Ok(())
   }
 
+  pub fn byte_string_from_str(
+    &self,
+    s: &str,
+  ) -> std::result::Result<crate::ByteString, crate::StringError> {
+    ByteString::from_str(s, self.emoji_style)
+  }
+
+
   fn reset(&mut self, loc: Location, reset_pc: bool) -> Result<()> {
     self.data_ptr = 0;
     if reset_pc {
@@ -849,7 +857,10 @@ where
         fields: num_fields,
       } => {
         let prompt = if has_prompt {
-          Some(self.str_stack.pop().unwrap().1)
+          let mut prompt = self.str_stack.pop().unwrap().1;
+          prompt.drop_null();
+          prompt.drop_0x1f();
+          Some(prompt)
         } else {
           None
         };
@@ -2028,6 +2039,13 @@ fn compile_fn(
   input: &str,
   emoji_style: EmojiStyle,
 ) -> (Option<InputFuncBody>, Vec<Diagnostic>) {
+  if input.trim_matches(|c: char| c == ' ').is_empty() {
+    return (
+      None,
+      vec![Diagnostic::new_error(Range::new(0, 0), "表达式不能为空")],
+    );
+  }
+
   let (mut expr, _) = parse_expr(input);
   let mut codegen = CodeGen::new(emoji_style);
   compile_fn_body(input, &mut expr, &mut codegen);

@@ -1,5 +1,4 @@
 use crate::Array;
-use gvb_interp as gvb;
 use std::{
   os::raw::{c_char, c_ushort},
   string::FromUtf16Error,
@@ -69,15 +68,6 @@ impl Utf16Str {
 }
 
 #[no_mangle]
-pub extern "C" fn utf16_to_byte_string_lossy(s: Utf16Str) -> Array<u8> {
-  let s = String::from_utf16_lossy(unsafe {
-    std::slice::from_raw_parts(s.data as *const _, s.len)
-  });
-  let s = gvb::vm::r#type::ByteString::from(s.as_bytes()).into();
-  unsafe { Array::new(s) }
-}
-
-#[no_mangle]
 pub extern "C" fn destroy_string(str: Utf8String) {
   if str.data.is_null() {
     return;
@@ -92,7 +82,7 @@ pub extern "C" fn destroy_string(str: Utf8String) {
 
 #[no_mangle]
 pub extern "C" fn destroy_byte_string(arr: Array<u8>) {
-  if str.data.is_null() {
+  if arr.data.is_null() {
     return;
   }
   drop(unsafe { arr.into_boxed_slice() });

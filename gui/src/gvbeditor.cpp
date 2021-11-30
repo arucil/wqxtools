@@ -92,19 +92,36 @@ void GvbEditor::initStateMachine() {
   m_stateMachine.addState(m_stStopped);
   m_stateMachine.setInitialState(m_stStopped);
 
-  m_stStarted->assignProperty(m_actStart, "text", "暂停");
-  m_stStopped->assignProperty(m_actStart, "text", "运行");
-  m_stPaused->assignProperty(m_actStart, "text", "继续");
-  m_stStarted->assignProperty(m_actStop, "enabled", true);
-  m_stPaused->assignProperty(m_actStop, "enabled", true);
-  m_stStopped->assignProperty(m_actStop, "enabled", false);
-  m_stStarted->assignProperty(
-    m_actStart,
-    "icon",
-    QIcon(QPixmap(":/assets/images/Pause.svg")));
-  auto startIcon = QIcon(QPixmap(":/assets/images/Run.svg"));
-  m_stPaused->assignProperty(m_actStart, "icon", startIcon);
-  m_stStopped->assignProperty(m_actStart, "icon", startIcon);
+  connect(m_stStarted, &QState::entered, this, [this] {
+    updateStartAction(m_stStarted);
+    m_actStop->setEnabled(true);
+  });
+  connect(m_stStopped, &QState::entered, this, [this] {
+    updateStartAction(m_stStopped);
+    m_actStop->setEnabled(false);
+  });
+  connect(m_stPaused, &QState::entered, this, [this] {
+    updateStartAction(m_stPaused);
+    m_actStop->setEnabled(true);
+  });
+}
+
+void GvbEditor::updateStartAction(QState *state) {
+  if (state == m_stStopped) {
+    if (m_gvbsim) {
+      m_actStart->setText("运行");
+      m_actStart->setIcon(QPixmap(":/assets/images/Run.svg"));
+    } else {
+      m_actStart->setText("启动模拟器");
+      m_actStart->setIcon(QPixmap(":/assets/images/Simulator.svg"));
+    }
+  } else if (state == m_stPaused) {
+    m_actStart->setText("继续");
+    m_actStart->setIcon(QPixmap(":/assets/images/Run.svg"));
+  } else if (state == m_stStarted) {
+    m_actStart->setText("暂停");
+    m_actStart->setIcon(QPixmap(":/assets/images/Pause.svg"));
+  }
 }
 
 void GvbEditor::initEdit() {
@@ -551,6 +568,7 @@ void GvbEditor::tryStartPause(QWidget *sender) {
         m_gvbsim->setAttribute(Qt::WA_DeleteOnClose);
         connect(m_gvbsim, &QMainWindow::destroyed, this, [this] {
           m_gvbsim = nullptr;
+          updateStartAction(m_stStopped);
         });
       }
       m_gvbsim->reset(vm, device, QFileInfo(m_filePath).completeBaseName());
@@ -559,7 +577,9 @@ void GvbEditor::tryStartPause(QWidget *sender) {
       m_gvbsim->setWindowState(Qt::WindowState::WindowActive);
       m_gvbsim->raise();
       m_gvbsim->activateWindow();
-      if (!newWin) {
+      if (newWin) {
+        updateStartAction(m_stStopped);
+      } else {
         emit start();
       }
     } else {

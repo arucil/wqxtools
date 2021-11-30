@@ -31,14 +31,24 @@ GvbSimInputDialog::GvbSimInputDialog(
   setWindowTitle("输入");
 }
 
+GvbSimInputDialog::~GvbSimInputDialog() {
+  if (result() == QDialog::Rejected) {
+    for (const auto &field : m_input) {
+      if (auto s = std::get_if<2>(&field)) {
+        api::destroy_byte_string(*s);
+      } else if (auto f = std::get_if<3>(&field)) {
+        api::gvb_destroy_fn_body(*f);
+      }
+    }
+  }
+}
+
 void GvbSimInputDialog::initUi(
   const api::GvbExecResult::KeyboardInput_Body &input) {
   setStyleSheet(R"(
-    QVBoxLayout QLabel {
+    QLabel#error {
       color: hsl(0, 100%, 50%);
     }
-    QLabel { background: green; }
-    QLineEdit { font: "WenQuXing"; font-size: 12px; }
   )");
 
   auto layout = new QVBoxLayout(this);
@@ -51,6 +61,8 @@ void GvbSimInputDialog::initUi(
   form->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
   form->setLabelAlignment(Qt::AlignTop);
   layout->addLayout(form);
+
+  QFont font("WenQuXing", 12);
 
   QWidget *lastField = nullptr;
   for (size_t i = 0; i < input.fields.len; i++) {
@@ -106,9 +118,11 @@ void GvbSimInputDialog::initUi(
           InputField {std::in_place_index<2>, ByteString {nullptr, 0}};
         auto layout = new QVBoxLayout();
         auto input = new QLineEdit();
+        input->setFont(font);
         layout->addWidget(input);
         fieldInput = input;
         auto msg = new QLabel(" ");
+        msg->setObjectName("error");
         layout->addWidget(msg);
         connect(
           this,
@@ -121,18 +135,40 @@ void GvbSimInputDialog::initUi(
           this,
           [i, input, msg, this] {
             auto s = input->text();
-            auto bstr = api::utf16_to_byte_string_lossy(
+            auto result = api::gvb_utf16_to_byte_string(
+              m_vm,
               {s.utf16(), static_cast<size_t>(s.size())});
-            if (bstr.len > 255) {
-              msg->setText(tr("字符串长度为 %1，超出上限 255").arg(bstr.len));
+            if (result.tag == api::GvbStringResult::Tag::Left) {
+              switch (result.left._0.tag) {
+                case api::GvbStringError::Tag::InvalidUtf16:
+                  msg->setText("非法的 UTF-16 字符串");
+                  break;
+                case api::GvbStringError::Tag::InvalidChar: {
+                  auto c = result.left._0.invalid_char._0;
+                  msg->setText(tr("非法字符：U+%1")
+                                 .arg(
+                                   static_cast<uint>(c),
+                                   c <= 0xffff ? 4 : 6,
+                                   16,
+                                   '0')
+                                 .toUpper());
+                  break;
+                }
+              }
+              return;
+            }
+            if (result.right._0.len > 255) {
+              msg->setText(
+                tr("字符串长度为 %1，超出上限 255").arg(result.right._0.len));
               emit fieldValidated(false);
             } else {
+              msg->setText("");
               auto old = std::get<2>(m_input[i]);
-              m_input[i] = InputField {std::in_place_index<2>, bstr};
-              bstr = old;
+              m_input[i] = InputField {std::in_place_index<2>, result.right._0};
+              result.right._0 = old;
               emit fieldValidated(true);
             }
-            api::destroy_byte_string(bstr);
+            api::destroy_byte_string(result.right._0);
           });
         form->addRow("字符串", layout);
         break;
@@ -141,9 +177,11 @@ void GvbSimInputDialog::initUi(
         m_input[i] = InputField {std::in_place_index<3>, nullptr};
         auto layout = new QVBoxLayout();
         auto input = new QLineEdit();
+        input->setFont(font);
         layout->addWidget(input);
         fieldInput = input;
         auto msg = new QLabel(" ");
+        msg->setObjectName("error");
         layout->addWidget(msg);
         connect(
           this,
@@ -160,7 +198,7 @@ void GvbSimInputDialog::initUi(
               m_vm,
               {s.utf16(), static_cast<size_t>(s.size())});
             auto error = false;
-            api::Utf8String firstErrorMsg;
+            api::GvbDiagnostic<api::Utf8String> firstError;
             size_t firstErrorStart = std::numeric_limits<size_t>::max();
             for (auto p = result.diagnostics.data;
                  p < result.diagnostics.data + result.diagnostics.len;
@@ -168,17 +206,20 @@ void GvbSimInputDialog::initUi(
               if (
                 p->severity == api::GvbSeverity::Error
                 && (!error || p->start < firstErrorStart)) {
-                firstErrorMsg = p->message;
+                error = true;
+                firstError = *p;
                 firstErrorStart = p->start;
               }
             }
             if (error) {
-              msg->setText(
-                tr("错误：%1")
-                  .arg(
-                    QString::fromUtf8(firstErrorMsg.data, firstErrorMsg.len)));
+              msg->setText(tr("错误(第 %1 列)：%2")
+                             .arg(firstError.start + 1)
+                             .arg(QString::fromUtf8(
+                               firstError.message.data,
+                               firstError.message.len)));
               emit fieldValidated(false);
             } else {
+              msg->setText("");
               auto old = std::get<3>(m_input[i]);
               m_input[i] = InputField {std::in_place_index<3>, result.body};
               result.body = old;
@@ -209,8 +250,8 @@ void GvbSimInputDialog::initUi(
 
   auto confirm =
     new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, this);
+  layout->addWidget(confirm);
   confirm->button(QDialogButtonBox::Ok)->setShortcut(Qt::CTRL | Qt::Key_Return);
-  confirm->button(QDialogButtonBox::Cancel)->setShortcut(Qt::Key_Escape);
   connect(confirm, &QDialogButtonBox::rejected, this, &QDialog::reject);
   connect(
     confirm,
@@ -218,7 +259,7 @@ void GvbSimInputDialog::initUi(
     this,
     &GvbSimInputDialog::startValidateAll);
 
-  layout->addWidget(confirm);
+  layout->addWidget(new QLabel("Esc 取消输入;  Ctrl+Enter 输入完毕"));
 }
 
 QVector<api::GvbKeyboardInput> GvbSimInputDialog::inputData() {
@@ -254,6 +295,11 @@ void GvbSimInputDialog::startValidateAll() {
 }
 
 void GvbSimInputDialog::fieldValidated(bool ok) {
+  if (result() != QDialog::Rejected && m_input.size() == 1 && ok) {
+    emit accepted();
+    return;
+  }
+
   if (!m_validateAll) {
     return;
   }
@@ -274,4 +320,10 @@ void GvbSimInputDialog::endValidateAll() {
   m_validateAll = false;
   m_validatedFields = 0;
   m_validateOkFields = 0;
+}
+
+void GvbSimInputDialog::keyPressEvent(QKeyEvent *ev) {
+  if (ev->key() == Qt::Key_Enter || ev->key() == Qt::Key_Return)
+    return;
+  QDialog::keyPressEvent(ev);
 }

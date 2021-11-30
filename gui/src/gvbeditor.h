@@ -183,6 +183,7 @@ private:
   QToolBar *initToolBar();
   QStatusBar *initStatusBar();
   void computeDiagnostics();
+  void updateStartAction(QState *);
 
 signals:
   void updateDiagnostics(std::vector<Diagnostic>);
