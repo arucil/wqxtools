@@ -906,13 +906,12 @@ impl Device for DefaultDevice {
       return;
     }
 
-    if addr >= self.props.graphics_base_addr
-      && addr < self.props.graphics_base_addr + screen::BYTES as u16
-    {
+    let g = self.props.graphics_base_addr;
+    if addr >= g && addr < g + screen::BYTES as u16 {
       let index = (addr - self.props.graphics_base_addr) as usize;
       let y = index / screen::WIDTH_IN_BYTE;
       let x = (index % screen::WIDTH_IN_BYTE) << 3;
-      self.update_dirty_area(y, x, y + 1, x + 8);
+      self.update_dirty_area(x, y, x + 8, y + 1);
     }
   }
 
@@ -969,7 +968,7 @@ impl Device for DefaultDevice {
       AsmExecState::Cont(sim) => sim,
     };
     while *steps > 0 {
-      for _ in 0..100 {
+      for _ in 0..50 {
         sim.execute_instruction(self);
         if sim.get_stack_pointer() > 0xfd {
           return None;

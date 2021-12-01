@@ -202,8 +202,9 @@ public slots:
   void paste();
   void undo();
   void redo();
-  LoadResult load(const QString &);
-  bool canLoad(const QString &) const;
+  LoadResult load(const QString &) override;
+  bool canLoad(const QString &) const override;
+  QSize preferredWindowSize() const override;
   void tryStartPause(QWidget *sender);
 
 private slots:

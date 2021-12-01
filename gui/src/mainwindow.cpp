@@ -4,14 +4,17 @@
 #include <QCloseEvent>
 #include <QFileDialog>
 #include <QFileInfo>
+#include <QFrame>
+#include <QLabel>
 #include <QMenu>
 #include <QMenuBar>
 #include <QMessageBox>
-#include <QSplitter>
+#include <QScreen>
 #include <QTimer>
 
 #include "action.h"
 #include "api.h"
+#include "config.h"
 #include "gvbeditor.h"
 #include "tool_factory.h"
 #include "value.h"
@@ -21,7 +24,7 @@
 MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
   initUi();
 
-  resize(800, 540);
+  resize(400, 340);
 
   QTimer::singleShot(0, this, [this] {
     m_loaded.setValue(false);
@@ -42,6 +45,14 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
 
 void MainWindow::initUi() {
   initMenu();
+
+  auto help = new QLabel(
+    "<p>点击菜单 [文件] -> [打开] 打开文件<br>"
+    "或拖动文件到此窗口</p>");
+  help->setFrameStyle(QFrame::StyledPanel);
+  help->setAlignment(Qt::AlignCenter | Qt::AlignVCenter);
+  help->setContentsMargins(20, 20, 20, 20);
+  setCentralWidget(help);
 
   connect(&m_openFilePath, &StrValue::changed, this, &MainWindow::setTitle);
   setTitle();
@@ -117,8 +128,8 @@ void MainWindow::initMenu() {
 }
 
 void MainWindow::closeEvent(QCloseEvent *event) {
-  auto widget = static_cast<Tool *>(centralWidget());
-  if (confirmSaveIfDirty(widget) == ActionResult::Fail) {
+  auto widget = dynamic_cast<Tool *>(centralWidget());
+  if (widget && confirmSaveIfDirty(widget) == ActionResult::Fail) {
     event->ignore();
   }
 }
@@ -140,7 +151,7 @@ void MainWindow::openFileByPath(const QString &path) {
     return;
   }
 
-  auto widget = static_cast<Tool *>(centralWidget());
+  auto widget = dynamic_cast<Tool *>(centralWidget());
   if (confirmSaveIfDirty(widget) == ActionResult::Fail) {
     return;
   }
@@ -166,6 +177,12 @@ void MainWindow::openFileByPath(const QString &path) {
     isNew = true;
     widget = ctor.value()(this);
     setCentralWidget(widget);
+
+    resize(widget->preferredWindowSize());
+    auto size = frameGeometry().size();
+    move(
+      screen()->geometry().center()
+      - QPoint(size.width() / 2, size.height() / 2));
   }
 
   QTimer::singleShot(0, widget, [widget, path, this] {
@@ -399,18 +416,35 @@ ActionResult MainWindow::handleSaveFileError(const SaveResult &result) {
 }
 
 ActionResult MainWindow::loadConfig(QWidget *parent) {
-  auto result = api::gvb_init_machines();
-  if (result.tag == api::GvbInitMachineResult::Tag::Left) {
-    QMessageBox::critical(
-      parent,
-      "错误",
-      tr("配置文件加载失败：%1")
-        .arg(QString::fromUtf8(result.left._0.data, result.left._0.len)));
-    api::destroy_string(result.left._0);
-    return ActionResult::Fail;
-  } else {
-    return ActionResult::Succeed;
+  {
+    auto result = api::gvb_init_machines();
+    if (result.tag == api::GvbInitMachineResult::Tag::Left) {
+      QMessageBox::critical(
+        parent,
+        "错误",
+        tr("机型配置文件加载失败：%1")
+          .arg(QString::fromUtf8(result.left._0.data, result.left._0.len)));
+      api::destroy_string(result.left._0);
+      return ActionResult::Fail;
+    }
   }
+
+  {
+    auto result = api::load_config();
+    if (result.tag == api::LoadConfigResult::Tag::Left) {
+      QMessageBox::critical(
+        parent,
+        "错误",
+        tr("配置文件加载失败：%1")
+          .arg(QString::fromUtf8(result.left._0.data, result.left._0.len)));
+      api::destroy_string(result.left._0);
+      return ActionResult::Fail;
+    }
+  }
+
+  emit Config::instance().configChanged();
+
+  return ActionResult::Succeed;
 }
 
 void MainWindow::setTitle() {

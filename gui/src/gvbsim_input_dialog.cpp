@@ -3,6 +3,7 @@
 #include <QDialogButtonBox>
 #include <QDoubleSpinBox>
 #include <QFormLayout>
+#include <QFrame>
 #include <QKeyEvent>
 #include <QLabel>
 #include <QLineEdit>
@@ -26,13 +27,14 @@ GvbSimInputDialog::GvbSimInputDialog(
   m_input(static_cast<int>(input.fields.len)),
   m_validateAll(false),
   m_validatedFields(0),
-  m_validateOkFields(0) {
+  m_validateOkFields(0),
+  m_rejected(false) {
   initUi(input);
   setWindowTitle("输入");
 }
 
 GvbSimInputDialog::~GvbSimInputDialog() {
-  if (result() == QDialog::Rejected) {
+  if (m_rejected) {
     for (const auto &field : m_input) {
       if (auto s = std::get_if<2>(&field)) {
         api::destroy_byte_string(*s);
@@ -52,9 +54,12 @@ void GvbSimInputDialog::initUi(
   )");
 
   auto layout = new QVBoxLayout(this);
+
   if (input.prompt.tag == api::Maybe<api::Utf8String>::Tag::Just) {
-    layout->addWidget(new QLabel(
-      QString::fromUtf8(input.prompt.just._0.data, input.prompt.just._0.len)));
+    layout->addWidget(new QLabel(tr("<b>%1</b>")
+                                   .arg(QString::fromUtf8(
+                                     input.prompt.just._0.data,
+                                     input.prompt.just._0.len))));
   }
 
   auto form = new QFormLayout();
@@ -147,10 +152,10 @@ void GvbSimInputDialog::initUi(
                   auto c = result.left._0.invalid_char._0;
                   msg->setText(tr("非法字符：U+%1")
                                  .arg(
-                                   static_cast<uint>(c),
+                                   static_cast<unsigned>(c),
                                    c <= 0xffff ? 4 : 6,
                                    16,
-                                   '0')
+                                   QChar('0'))
                                  .toUpper());
                   break;
                 }
@@ -171,6 +176,8 @@ void GvbSimInputDialog::initUi(
             api::destroy_byte_string(result.right._0);
           });
         form->addRow("字符串", layout);
+        dynamic_cast<QLabel *>(form->labelForField(layout))
+          ->setAlignment(Qt::AlignLeft | Qt::AlignTop);
         break;
       }
       case api::GvbKeyboardInputType::Tag::Func: {
@@ -234,6 +241,8 @@ void GvbSimInputDialog::initUi(
             .arg(
               QString::fromUtf8(field.func.param.data, field.func.param.len)),
           layout);
+        dynamic_cast<QLabel *>(form->labelForField(layout))
+          ->setAlignment(Qt::AlignLeft | Qt::AlignTop);
         break;
       }
       default:
@@ -243,14 +252,33 @@ void GvbSimInputDialog::initUi(
     if (lastField) {
       QWidget::setTabOrder(lastField, fieldInput);
     } else {
-      lastField = fieldInput;
-      lastField->focusWidget();
+      fieldInput->focusWidget();
     }
+    lastField = fieldInput;
   }
+
+  auto confirmLayout = new QHBoxLayout();
+  layout->addLayout(confirmLayout);
+
+  auto help = new QFrame();
+  auto helpLayout = new QVBoxLayout();
+  helpLayout->addWidget(new QLabel("?"));
+  helpLayout->setContentsMargins(6, 2, 6, 2);
+  help->setLayout(helpLayout);
+  help->setFrameStyle(QFrame::StyledPanel);
+
+#define COMMON_HELP "<b>Esc</b> 取消输入<br>"
+
+  if (m_input.size() == 1) {
+    help->setToolTip(COMMON_HELP "<b>Ctrl+Enter</b> 或 <b>Enter</b> 输入完毕");
+  } else {
+    help->setToolTip(COMMON_HELP "<b>Ctrl+Enter</b> 输入完毕");
+  }
+  confirmLayout->addWidget(help);
 
   auto confirm =
     new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, this);
-  layout->addWidget(confirm);
+  confirmLayout->addWidget(confirm, 1);
   confirm->button(QDialogButtonBox::Ok)->setShortcut(Qt::CTRL | Qt::Key_Return);
   connect(confirm, &QDialogButtonBox::rejected, this, &QDialog::reject);
   connect(
@@ -258,8 +286,6 @@ void GvbSimInputDialog::initUi(
     &QDialogButtonBox::accepted,
     this,
     &GvbSimInputDialog::startValidateAll);
-
-  layout->addWidget(new QLabel("Esc 取消输入;  Ctrl+Enter 输入完毕"));
 }
 
 QVector<api::GvbKeyboardInput> GvbSimInputDialog::inputData() {
@@ -295,8 +321,8 @@ void GvbSimInputDialog::startValidateAll() {
 }
 
 void GvbSimInputDialog::fieldValidated(bool ok) {
-  if (result() != QDialog::Rejected && m_input.size() == 1 && ok) {
-    emit accepted();
+  if (!m_rejected && m_input.size() == 1 && ok) {
+    emit accept();
     return;
   }
 
@@ -326,4 +352,9 @@ void GvbSimInputDialog::keyPressEvent(QKeyEvent *ev) {
   if (ev->key() == Qt::Key_Enter || ev->key() == Qt::Key_Return)
     return;
   QDialog::keyPressEvent(ev);
+}
+
+void GvbSimInputDialog::reject() {
+  QDialog::reject();
+  m_rejected = true;
 }

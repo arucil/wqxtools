@@ -8,6 +8,7 @@ workspace = false
 script_runner = "@shell"
 script = """
 cp gvb_interp/machines.yaml gui/machines.yaml
+cp gvb_interp/config.yaml gui/config.yaml
 """
 dependencies = [
   { name = "header", path = "api_cpp_binding" }

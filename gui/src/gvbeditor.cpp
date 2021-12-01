@@ -347,6 +347,10 @@ bool GvbEditor::canLoad(const QString &path) const {
   return ext == "bas" || ext == "txt";
 }
 
+QSize GvbEditor::preferredWindowSize() const {
+  return QSize(800, 540);
+}
+
 void GvbEditor::find() {
   // TODO
 }

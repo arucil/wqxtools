@@ -13,19 +13,19 @@ tc808:
   # 在文曲星中运行以下GVBASIC程序：
   # 10 PRINT CHR$(250)+CHR$(172)
   # 如果屏幕上显示的是一个蘑菇，则是新型图形；如果显示的是一个太极图（阴阳鱼）则是旧版图形。
-  emoji_style: new
+  emoji-style: new
 
   # SLEEP 语句的单位，支持的单位：秒 s, 毫秒 ms, 微秒 us, 纳秒 ns
-  sleep_unit: 0.4ms
+  sleep-unit: 0.4ms
 
   # 屏幕映射的地址，也可以用十进制表示
-  graphics_base_addr: 0x19c0
+  graphics-base-addr: 0x19c0
 
   # 屏幕文字缓冲区的地址，也可以用十六进制表示
-  text_buffer_base_addr: 704
+  text-buffer-base-addr: 704
 
   # 按键缓冲区的地址，也可以用十六进制表示
-  key_buffer_addr: 199
+  key-buffer-addr: 199
 
   # 每执行一条语句后，都会检查用户是否按下了[跳出]，来判断是否立即退出程序。
   # 这个配置表示是否以 PEEK(199) 的值作为标准来判断是否按下了[跳出]，如果是，则在程序中可以通过
@@ -33,10 +33,10 @@ tc808:
   # 如果否，则只能由用户自己按下[跳出]才会立即退出程序。
   #
   # 可用的值：true （检查），false （不检查）
-  key_buffer_quit: false
+  key-buffer-quit: false
 
   # 按键的内存映射地址
-  key_mappings:
+  key-mappings:
     24 : { addr: 198, bit: 0 }
 
     0 : { addr: 198, bit: 1 }
@@ -100,13 +100,13 @@ tc808:
     23 : { addr: 191, bit: 7 } # 左
 
 pc1000a:
-  emoji_style: old
-  sleep_unit: 1ms
-  graphics_base_addr: 2496
-  text_buffer_base_addr: 704
-  key_buffer_addr: 199
-  key_buffer_quit: true
-  key_mappings:
+  emoji-style: old
+  sleep-unit: 1ms
+  graphics-base-addr: 2496
+  text-buffer-base-addr: 704
+  key-buffer-addr: 199
+  key-buffer-quit: true
+  key-mappings:
     28 : { addr: 200, bit: 2 } # F1
     29 : { addr: 200, bit: 3 } # F2
     30 : { addr: 200, bit: 4 } # F3

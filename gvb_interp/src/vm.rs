@@ -259,6 +259,7 @@ where
   }
 
   pub fn stop(&mut self) -> Result<()> {
+    self.device.clear_cursor();
     self.close_files(Location {
       line: 0,
       range: Range { start: 0, end: 0 },
@@ -273,7 +274,6 @@ where
   ) -> std::result::Result<crate::ByteString, crate::StringError> {
     ByteString::from_str(s, self.emoji_style)
   }
-
 
   fn reset(&mut self, loc: Location, reset_pc: bool) -> Result<()> {
     self.data_ptr = 0;

@@ -1,5 +1,5 @@
 use crate::array::Array;
-use crate::string::{Utf8String, Utf8Str, destroy_string};
+use crate::string::{destroy_string, Utf8Str, Utf8String};
 
 #[repr(C)]
 pub enum GvbSeverity {

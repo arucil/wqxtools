@@ -1,0 +1,7 @@
+gvb:
+  editor:
+    font-size: 13
+  simulator:
+    pixel-scale: 2
+    foreground: "#313132"
+    background: "#7a8870"

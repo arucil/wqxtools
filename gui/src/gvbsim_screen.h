@@ -19,9 +19,13 @@ public:
 
 public slots:
   void markDirty(const QRect &);
+  void configChanged();
 
 protected:
   void paintEvent(QPaintEvent *) Q_DECL_OVERRIDE;
+
+private:
+  void updateColors();
 
 private:
   QImage m_img;

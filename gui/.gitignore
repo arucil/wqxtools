@@ -7,4 +7,4 @@ Makefile
 /include/
 /*.tgz
 /*.zip
-machines.yaml
+/*.yaml

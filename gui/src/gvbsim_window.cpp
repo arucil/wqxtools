@@ -194,9 +194,9 @@ void GvbSimWindow::pause() {
 void GvbSimWindow::stop() {
   stopCursorTimer();
   stopRepaintTimer();
-  m_screen->update();
 
   if (m_execResult.tag == api::GvbExecResult::Tag::End) {
+    m_screen->update();
     return;
   }
 
@@ -210,6 +210,7 @@ void GvbSimWindow::stop() {
     destroy_string(result.left._0);
   }
   m_execResult.tag = api::GvbExecResult::Tag::End;
+  m_screen->update();
 }
 
 void GvbSimWindow::execLater() {
@@ -320,9 +321,10 @@ void GvbSimWindow::timerEvent(QTimerEvent *ev) {
       auto right = static_cast<int>(dirty.just._0.right);
       auto bottom = static_cast<int>(dirty.just._0.bottom);
       m_screen->markDirty(QRect(QPoint(left, top), QPoint(right, bottom)));
-      // TODO dirty area
-      m_screen->update(
-        QRect(QPoint(left * 2, top * 2), QPoint(right * 2, bottom * 2)));
+      const auto scale = api::config()->gvb.simulator.pixel_scale;
+      m_screen->update(QRect(
+        QPoint(left * scale, top * scale),
+        QPoint(right * scale, bottom * scale)));
     }
   }
 }

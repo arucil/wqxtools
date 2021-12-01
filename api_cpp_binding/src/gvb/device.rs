@@ -12,13 +12,13 @@ pub extern "C" fn gvb_init_machines() -> GvbInitMachineResult {
     Ok(()) => Either::Right(Unit::new()),
     Err(err) => match err {
       InitError::Io(err) => Either::Left(unsafe {
-        Utf8String::new(format!("读取配置文件失败：{}", err))
+        Utf8String::new(format!("读取机型配置文件失败：{}", err))
       }),
       InitError::Yaml(err) => Either::Left(unsafe {
-        Utf8String::new(format!("解析配置文件失败：{}", err))
+        Utf8String::new(format!("解析机型配置文件失败：{}", err))
       }),
       InitError::Other(err) => Either::Left(unsafe {
-        Utf8String::new(format!("配置文件错误：{}", err))
+        Utf8String::new(format!("机型配置文件错误：{}", err))
       }),
     },
   }

@@ -11,7 +11,6 @@ bstr = "0.2.17"
 emulator_6502 = { version = "1.1.0", features = ["implementation_transparency"] }
 fasthash = "0.4.0"
 id-arena = "2.2.1"
-itertools = "0.10.1"
 nanorand = "0.6.1"
 num-derive = "0.3.3"
 num-traits = "0.2.14"
@@ -20,6 +19,7 @@ rand = "0.8.4"
 smallvec = "1.7.0"
 string-interner = "0.14.0"
 yaml-rust = "0.4.5"
+util = { path = "../util" }
 
 [dev-dependencies]
 insta = "1.8.0"

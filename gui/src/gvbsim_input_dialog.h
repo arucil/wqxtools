@@ -30,6 +30,7 @@ public:
 
 protected:
   void keyPressEvent(QKeyEvent *) Q_DECL_OVERRIDE;
+  void reject() Q_DECL_OVERRIDE;
 
 signals:
   void validateAll();
@@ -48,4 +49,5 @@ private:
   bool m_validateAll;
   size_t m_validatedFields;
   size_t m_validateOkFields;
+  bool m_rejected;
 };
