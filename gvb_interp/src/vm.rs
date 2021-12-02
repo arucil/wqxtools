@@ -1,5 +1,6 @@
 use bstr::{ByteSlice, ByteVec};
 use nanorand::{Rng, WyRand};
+use std::collections::BTreeMap;
 use std::fmt::{self, Display, Formatter};
 use std::io;
 use std::num::NonZeroUsize;
@@ -46,7 +47,7 @@ pub struct VirtualMachine<'d, D: Device> {
   str_stack: Vec<(Location, ByteString)>,
   lval_stack: Vec<(Location, LValue)>,
   interner: StringInterner,
-  store: Store,
+  bindings: Bindings,
   fn_call_stack: Vec<FnCallRecord>,
   device: &'d mut D,
   files: [Option<OpenFile<D::File>>; NUM_FILES],
@@ -56,10 +57,15 @@ pub struct VirtualMachine<'d, D: Device> {
 }
 
 #[derive(Default)]
-struct Store {
+struct Bindings {
   vars: HashMap<Symbol, Value>,
   arrays: HashMap<Symbol, Array>,
   user_funcs: HashMap<Symbol, UserFunc>,
+}
+
+pub enum Binding {
+  Var,
+  Array { dimensions: Vec<usize> },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -234,7 +240,7 @@ where
       str_stack: vec![],
       lval_stack: vec![],
       interner: g.interner,
-      store: Store::default(),
+      bindings: Bindings::default(),
       fn_call_stack: vec![],
       device,
       files: [None, None, None],
@@ -275,6 +281,67 @@ where
     ByteString::from_str(s, self.emoji_version)
   }
 
+  pub fn string_from_byte_string_lossy(&self, s: ByteString) -> String {
+    s.to_string_lossy(self.emoji_version)
+  }
+
+  pub fn bindings(&self) -> BTreeMap<String, Binding> {
+    let mut bindings = BTreeMap::new();
+    for &sym in self.bindings.vars.keys() {
+      bindings
+        .insert(self.interner.resolve(sym).unwrap().to_owned(), Binding::Var);
+    }
+    for (sym, arr) in &self.bindings.arrays {
+      bindings.insert(
+        self.interner.resolve(*sym).unwrap().to_owned(),
+        Binding::Array {
+          dimensions: arr
+            .dimensions
+            .iter()
+            .map(|d| d.bound.get() - 1)
+            .collect(),
+        },
+      );
+    }
+    bindings
+  }
+
+  pub fn var_value(&self, name:&str) -> Value {
+    let sym = self.interner.get(name).unwrap();
+    self.bindings.vars[&sym].clone()
+  }
+
+  pub fn modify_var(&mut self, name: &str, val: Value) {
+    let sym = self.interner.get(name).unwrap();
+    self.bindings.vars.insert(sym, val);
+  }
+
+  pub fn arr_value(&self, name: &str, subs: &[usize]) -> Value {
+    let sym = self.interner.get(name).unwrap();
+    let array = &self.bindings.arrays[&sym];
+    let mut offset = 0;
+    for (i, &sub) in subs.iter().enumerate().rev() {
+      offset += sub * array.dimensions[i].multiplier;
+    }
+    match &self.bindings.arrays[&sym].data {
+      ArrayData::Integer(vec) => Value::Integer(vec[offset]),
+      ArrayData::Real(vec) => Value::Real(vec[offset]),
+      ArrayData::String(vec) => Value::String(vec[offset].clone()),
+    }
+  }
+
+  pub fn modify_arr(&mut self, name: &str, subs: &[usize], val: Value) {
+    let sym = self.interner.get(name).unwrap();
+    let array = &self.bindings.arrays[&sym];
+    let mut offset = 0;
+    for (i, &sub) in subs.iter().enumerate().rev() {
+      offset += sub * array.dimensions[i].multiplier;
+    }
+    self
+      .bindings
+      .store_value(LValue::Index { name: sym, offset }, val);
+  }
+
   fn reset(&mut self, loc: Location, reset_pc: bool) -> Result<()> {
     self.data_ptr = 0;
     if reset_pc {
@@ -285,7 +352,7 @@ where
     self.num_stack.clear();
     self.str_stack.clear();
     self.lval_stack.clear();
-    self.store.clear();
+    self.bindings.clear();
     self.fn_call_stack.clear();
     //self.device.clear();
     self.close_files(loc)?;
@@ -452,7 +519,7 @@ where
 
     match kind {
       InstrKind::DefFn { name, param, end } => {
-        self.store.user_funcs.insert(
+        self.bindings.user_funcs.insert(
           name,
           UserFunc {
             param,
@@ -466,7 +533,7 @@ where
         name,
         dimensions: num_dimensions,
       } => {
-        if self.store.arrays.contains_key(&name) {
+        if self.bindings.arrays.contains_key(&name) {
           self.state.error(loc, "重复定义数组")?;
         }
         let mut size = 1;
@@ -492,7 +559,10 @@ where
           multiplier *= bound;
         }
         let data = ArrayData::new(symbol_type(&self.interner, name), size);
-        self.store.arrays.insert(name, Array { dimensions, data });
+        self
+          .bindings
+          .arrays
+          .insert(name, Array { dimensions, data });
       }
       InstrKind::PushVarLValue { name } => {
         self.lval_stack.push((loc, LValue::Var { name }));
@@ -534,10 +604,10 @@ where
         return Ok(());
       }
       InstrKind::CallFn(func) => {
-        if let Some(func) = self.store.user_funcs.get(&func).cloned() {
+        if let Some(func) = self.bindings.user_funcs.get(&func).cloned() {
           let arg = self.num_stack.pop().unwrap();
           let param_org_value = self
-            .store
+            .bindings
             .load_value(&self.interner, LValue::Var { name: func.param });
           self.fn_call_stack.push(FnCallRecord {
             param: func.param,
@@ -553,7 +623,7 @@ where
       }
       InstrKind::ReturnFn => {
         let record = self.fn_call_stack.pop().unwrap();
-        self.store.store_value(
+        self.bindings.store_value(
           LValue::Var { name: record.param },
           record.param_org_value,
         );
@@ -614,7 +684,10 @@ where
         self.num_stack.push((loc, num));
       }
       InstrKind::PushVar(name) => {
-        match self.store.load_value(&self.interner, LValue::Var { name }) {
+        match self
+          .bindings
+          .load_value(&self.interner, LValue::Var { name })
+        {
           Value::Integer(n) => self.num_stack.push((loc, n.into())),
           Value::Real(n) => self.num_stack.push((loc, n)),
           Value::String(s) => self.str_stack.push((loc, s)),
@@ -628,7 +701,7 @@ where
       }
       InstrKind::PushIndex { name, dimensions } => {
         let offset = self.calc_array_offset(name, dimensions)?;
-        match &self.store.arrays[&name].data {
+        match &self.bindings.arrays[&name].data {
           ArrayData::Integer(arr) => {
             self.num_stack.push((loc, Mbf5::from(arr[offset])));
           }
@@ -924,7 +997,7 @@ where
         for (lval_loc, lvalue) in self.lval_stack.drain(offset..) {
           exec_file_input(
             &mut self.state,
-            &mut self.store,
+            &mut self.bindings,
             &self.interner,
             self.emoji_version,
             lval_loc,
@@ -1027,7 +1100,7 @@ where
 
           let mut offset = 0;
           for field in fields {
-            self.store.store_value(
+            self.bindings.store_value(
               field.lvalue.clone(),
               Value::String(
                 buf[offset..offset + field.len as usize].to_owned().into(),
@@ -1043,7 +1116,7 @@ where
           let mut offset = 0;
           for field in fields {
             let str = self
-              .store
+              .bindings
               .load_value(&self.interner, field.lvalue.clone())
               .unwrap_string();
             if str.len() == field.len as usize {
@@ -1063,7 +1136,7 @@ where
       InstrKind::AssignStr => {
         let (_, lvalue) = self.lval_stack.pop().unwrap();
         let str = self.str_stack.pop().unwrap().1;
-        self.store.store_value(lvalue, Value::String(str));
+        self.bindings.store_value(lvalue, Value::String(str));
       }
       InstrKind::DrawLine { has_mode } => {
         let mode = self.calc_draw_mode(has_mode)?;
@@ -1092,10 +1165,10 @@ where
       InstrKind::Swap => {
         let lvalue2 = self.lval_stack.pop().unwrap().1;
         let lvalue1 = self.lval_stack.pop().unwrap().1;
-        let value1 = self.store.load_value(&self.interner, lvalue1.clone());
-        let value2 = self.store.load_value(&self.interner, lvalue2.clone());
-        self.store.store_value(lvalue2, value1);
-        self.store.store_value(lvalue1, value2);
+        let value1 = self.bindings.load_value(&self.interner, lvalue1.clone());
+        let value2 = self.bindings.load_value(&self.interner, lvalue2.clone());
+        self.bindings.store_value(lvalue2, value1);
+        self.bindings.store_value(lvalue1, value2);
       }
       InstrKind::Restart => {
         self.device.set_screen_mode(ScreenMode::Text);
@@ -1554,7 +1627,7 @@ where
     match lvalue.get_type(&self.interner) {
       Type::String => {
         let str = datum.value.clone();
-        self.store.store_value(lvalue, Value::String(str));
+        self.bindings.store_value(lvalue, Value::String(str));
       }
       ty @ (Type::Integer | Type::Real) => {
         if datum.is_quoted {
@@ -1575,7 +1648,7 @@ where
           } else {
             Value::Real(Mbf5::zero())
           };
-          self.store.store_value(lvalue, value);
+          self.bindings.store_value(lvalue, value);
         } else {
           match unsafe { std::str::from_utf8_unchecked(&str) }.parse::<Mbf5>() {
             Ok(num) => {
@@ -1591,10 +1664,10 @@ where
                     ),
                   )?;
                 } else {
-                  self.store.store_value(lvalue, Value::Integer(int as _));
+                  self.bindings.store_value(lvalue, Value::Integer(int as _));
                 }
               } else {
-                self.store.store_value(lvalue, Value::Real(num));
+                self.bindings.store_value(lvalue, Value::Real(num));
               }
             }
             Err(ParseRealError::Malformed) => {
@@ -1652,7 +1725,7 @@ where
       let lvalue = self.lval_stack.pop().unwrap().1;
       let len = self.pop_u8(false)?;
       self
-        .store
+        .bindings
         .store_value(lvalue.clone(), Value::String(vec![0u8; len as _].into()));
       fields.push(RecordField { len, lvalue });
       total_len += len as u32;
@@ -1743,7 +1816,7 @@ where
 
     if let Some(record) = found {
       let value = self
-        .store
+        .bindings
         .load_value(&self.interner, LValue::Var { name: record.var })
         .unwrap_real();
       let loc = self.code[record.addr.0].loc.clone();
@@ -1786,7 +1859,7 @@ where
     let lvalue = self.lval_stack.pop().unwrap().1;
 
     let mut dest = self
-      .store
+      .bindings
       .load_value(&self.interner, lvalue.clone())
       .unwrap_string();
     if value.len() > dest.len() {
@@ -1804,7 +1877,7 @@ where
         }
       }
     }
-    self.store.store_value(lvalue, Value::String(dest));
+    self.bindings.store_value(lvalue, Value::String(dest));
 
     Ok(())
   }
@@ -1837,15 +1910,15 @@ where
           match value {
             KeyboardInput::Integer(num) => {
               self.device.print(num.to_string().as_bytes());
-              self.store.store_value(lvalue, Value::Integer(num));
+              self.bindings.store_value(lvalue, Value::Integer(num));
             }
             KeyboardInput::Real(num) => {
               self.device.print(num.to_string().as_bytes());
-              self.store.store_value(lvalue, Value::Real(num));
+              self.bindings.store_value(lvalue, Value::Real(num));
             }
             KeyboardInput::String(s) => {
               self.device.print(&s);
-              self.store.store_value(lvalue, Value::String(s));
+              self.bindings.store_value(lvalue, Value::String(s));
             }
             KeyboardInput::Func { body } => {
               let (name, param) = match &lvalue {
@@ -1880,7 +1953,7 @@ where
               });
 
               self
-                .store
+                .bindings
                 .user_funcs
                 .insert(name, UserFunc { param, body_addr });
             }
@@ -1902,12 +1975,12 @@ where
   ) -> Result<usize> {
     let dimensions = dimensions.get();
 
-    if !self.store.arrays.contains_key(&name) {
+    if !self.bindings.arrays.contains_key(&name) {
       let data = ArrayData::new(
         symbol_type(&self.interner, name),
         11usize.pow(dimensions as _),
       );
-      self.store.arrays.insert(
+      self.bindings.arrays.insert(
         name,
         Array {
           dimensions: (0..dimensions)
@@ -1924,33 +1997,33 @@ where
       );
     }
 
-    let array = &self.store.arrays[&name];
+    let array = &self.bindings.arrays[&name];
     let mut offset = 0;
     for i in (0..dimensions).rev() {
       let (loc, value) = self.num_stack.pop().unwrap();
-      let bound = f64::from(value.truncate()) as isize;
-      if bound < 0 {
+      let sub = f64::from(value.truncate()) as isize;
+      if sub < 0 {
         self.state.error(
           loc,
           format!(
             "数组下标不能为负数。该下标的值为：{}，取整后的值为：{}",
             f64::from(value),
-            bound
+            sub
           ),
         )?
-      } else if bound as usize >= array.dimensions[i].bound.get() {
+      } else if sub as usize >= array.dimensions[i].bound.get() {
         self.state.error(
           loc,
           format!(
             "数组下标超出上限。该下标的上限为：{}，该下标的值为：{}, 取整后的值为：{}",
             array.dimensions[i].bound.get() - 1,
             f64::from(value),
-            bound
+            sub
           ),
         )?
       }
 
-      offset += bound as usize * array.dimensions[i].multiplier;
+      offset += sub as usize * array.dimensions[i].multiplier;
     }
     Ok(offset)
   }
@@ -2024,7 +2097,7 @@ where
       Type::Real => Value::Real(num),
       _ => unreachable!(),
     };
-    self.store.store_value(lvalue, value);
+    self.bindings.store_value(lvalue, value);
     Ok(())
   }
 
@@ -2059,7 +2132,7 @@ fn compile_fn(
 
 fn exec_file_input<F: FileHandle, S>(
   state: &mut ExecState<S>,
-  store: &mut Store,
+  bindings: &mut Bindings,
   interner: &StringInterner,
   emoji_version: EmojiVersion,
   loc: Location,
@@ -2174,7 +2247,7 @@ fn exec_file_input<F: FileHandle, S>(
     Type::String => Value::String(buf.into()),
   };
 
-  store.store_value(lvalue, value);
+  bindings.store_value(lvalue, value);
 
   Ok(())
 }
@@ -2333,7 +2406,7 @@ impl Display for FileMode {
   }
 }
 
-impl Store {
+impl Bindings {
   fn clear(&mut self) {
     self.vars.clear();
     self.arrays.clear();

@@ -57,6 +57,7 @@ impl From<::config::GvbSimulatorConfig> for GvbSimulatorConfig {
   }
 }
 
+/// cbindgen:ignore
 static mut CONFIG: MaybeUninit<Config> = MaybeUninit::uninit();
 
 pub type LoadConfigResult = Either<Utf8String, Unit>;

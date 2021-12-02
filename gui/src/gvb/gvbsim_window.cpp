@@ -3,6 +3,7 @@
 #include <QDateTime>
 #include <QKeyEvent>
 #include <QMessageBox>
+#include <QTableView>
 #include <QTimer>
 #include <QToolBar>
 #include <QToolTip>
@@ -68,6 +69,7 @@ void GvbSimWindow::reset(
     api::gvb_destroy_vm(m_vm);
   }
   m_vm = vm;
+  m_bindingModel.setVm(vm);
   if (m_device) {
     api::gvb_destroy_device(m_device);
   }
@@ -90,17 +92,25 @@ GvbSimWindow::~GvbSimWindow() {
 
 void GvbSimWindow::initUi() {
   auto central = new QWidget;
-  auto centralLayout = new QVBoxLayout(central);
+  auto centralLayout = new QHBoxLayout(central);
+
+  auto leftLayout = new QVBoxLayout();
+  centralLayout->addLayout(leftLayout);
 
   m_screen = new GvbSimScreen(this);
   m_screen->setContentsMargins(4, 4, 4, 4);
-  centralLayout->addWidget(m_screen, 0, Qt::AlignHCenter);
+  leftLayout->addWidget(m_screen, 0, Qt::AlignHCenter);
 
   auto keyboard = new GvbSimKeyboard(central);
   keyboard->setContentsMargins(0, 4, 0, 0);
-  centralLayout->addWidget(keyboard, 0, Qt::AlignHCenter);
+  leftLayout->addWidget(keyboard, 0, Qt::AlignHCenter);
   connect(keyboard, &GvbSimKeyboard::keyDown, this, &GvbSimWindow::keyDown);
   connect(keyboard, &GvbSimKeyboard::keyUp, this, &GvbSimWindow::keyUp);
+
+  m_bindingView = new QTableView();
+  m_bindingView->resize(120, 0);
+  m_bindingView->setModel(&m_bindingModel);
+  centralLayout->addWidget(m_bindingView);
 
   setCentralWidget(central);
 
@@ -174,24 +184,39 @@ void GvbSimWindow::closeEvent(QCloseEvent *) {
   emit m_editor->stop();
 }
 
+void GvbSimWindow::setEnableBindingTable(bool enable) {
+  m_bindingView->setEnabled(enable);
+  if (enable) {
+    m_bindingModel.enable();
+    m_bindingView->setToolTip("");
+  } else {
+    m_bindingModel.disable();
+    m_bindingView->setToolTip("暂停程序后才可以查看、编辑变量");
+  }
+}
+
 void GvbSimWindow::start() {
   reset();
   execLater();
   m_screen->update();
   startRepaintTimer();
   m_message.setValue("");
+  setEnableBindingTable(false);
 }
 
 void GvbSimWindow::cont() {
   m_paused = false;
   execLater();
+  setEnableBindingTable(false);
 }
 
 void GvbSimWindow::pause() {
   m_paused = true;
+  setEnableBindingTable(true);
 }
 
 void GvbSimWindow::stop() {
+  setEnableBindingTable(true);
   stopCursorTimer();
   stopRepaintTimer();
 

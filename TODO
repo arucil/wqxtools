@@ -37,6 +37,7 @@
 - drag and drop (初始界面支持所有文件，gvbeditor界面支持bas/txt文件)
 - 初始界面显示功能列表
 - 如果打开gvbsim后打开其他类型文件，gvbsim窗口是否能正常关闭？
+- 搜索变量内容
 
 
 - document:

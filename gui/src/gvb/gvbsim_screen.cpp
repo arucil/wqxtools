@@ -4,7 +4,7 @@
 #include <QPainter>
 
 #include "api.h"
-#include "config.h"
+#include "../config.h"
 
 GvbSimScreen::GvbSimScreen(QWidget *parent) : QWidget(parent) {
   connect(

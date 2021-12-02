@@ -14,16 +14,19 @@ INCLUDEPATH += \
     scintilla/include
 
 HEADERS += src/mainwindow.h \
-    src/gvbeditor.h \
     src/capability.h \
     src/value.h \
     src/action.h \
-    src/gvbsim_window.h \
-    src/gvbsim_screen.h \
-    src/gvbsim_keyboard.h \
-    src/gvbsim_input_dialog.h \
-    src/config.h
-SOURCES += src/*.cpp
+    src/config.h \
+    src/about_dialog.h \
+    src/gvb/gvbeditor.h \
+    src/gvb/gvbsim_window.h \
+    src/gvb/gvbsim_screen.h \
+    src/gvb/gvbsim_keyboard.h \
+    src/gvb/gvbsim_input_dialog.h \
+    src/gvb/binding_model.h
+SOURCES += src/*.cpp \
+    src/gvb/*.cpp
 
 QT += widgets
 

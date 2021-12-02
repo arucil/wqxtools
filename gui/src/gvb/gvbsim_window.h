@@ -4,8 +4,9 @@
 #include <QString>
 #include <cstdint>
 
+#include "../value.h"
 #include "api.h"
-#include "value.h"
+#include "binding_model.h"
 
 class GvbEditor;
 class GvbSimScreen;
@@ -13,6 +14,7 @@ class QCloseEvent;
 class QKeyEvent;
 class QTimerEvent;
 class QShowEvent;
+class QTableView;
 
 class GvbSimWindow: public QMainWindow {
   Q_OBJECT
@@ -39,6 +41,7 @@ private:
   void startRepaintTimer();
   void stopCursorTimer();
   void stopRepaintTimer();
+  void setEnableBindingTable(bool);
 
 private slots:
   void start();
@@ -62,4 +65,6 @@ private:
   QString m_name;
   QString m_state;
   StrValue m_message;
+  QTableView *m_bindingView;
+  BindingModel m_bindingModel;
 };

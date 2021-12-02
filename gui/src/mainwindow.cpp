@@ -12,10 +12,10 @@
 #include <QScreen>
 #include <QTimer>
 
+#include "about_dialog.h"
 #include "action.h"
 #include "api.h"
 #include "config.h"
-#include "gvbeditor.h"
 #include "tool_factory.h"
 #include "value.h"
 
@@ -125,6 +125,14 @@ void MainWindow::initMenu() {
 
   auto actConfig = mnuProg->addAction("重新加载配置文件");
   connect(actConfig, &QAction::triggered, this, [this] { loadConfig(this); });
+
+  auto mnuHelp = menuBar()->addMenu("帮助");
+
+  auto actAbout = mnuHelp->addAction("关于");
+
+  connect(actAbout, &QAction::triggered, this, [this] {
+    AboutDialog(this).exec();
+  });
 }
 
 void MainWindow::closeEvent(QCloseEvent *event) {

@@ -3,7 +3,7 @@
 #include <QWidget>
 #include <vector>
 
-#include "gvbeditor.h"
+#include "gvb/gvbeditor.h"
 #include "mainwindow.h"
 #include "tool_factory.h"
 

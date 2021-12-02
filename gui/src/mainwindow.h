@@ -3,7 +3,7 @@
 #include <QMainWindow>
 
 #include "capability.h"
-#include "gvbeditor.h"
+#include "gvb/gvbeditor.h"
 #include "util.h"
 
 class QWidget;

@@ -18,9 +18,9 @@
 #include <string>
 #include <utility>
 
-#include "action.h"
+#include "../action.h"
 #include "gvbsim_window.h"
-#include "util.h"
+#include "../util.h"
 
 #define INDICATOR_WARNING 0
 #define INDICATOR_ERROR 1

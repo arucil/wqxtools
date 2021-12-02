@@ -9,9 +9,9 @@
 #include <vector>
 
 #include "api.h"
-#include "capability.h"
-#include "interval-tree/interval_tree.hpp"
-#include "tool.h"
+#include "../capability.h"
+#include "../interval-tree/interval_tree.hpp"
+#include "../tool.h"
 
 class QAction;
 class QToolBar;
