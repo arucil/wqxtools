@@ -3,7 +3,7 @@ source: gvb_interp/src/compiler.rs
 expression: "compile(r#\"\n10 input a, b$, c%(m+2,i): input \"ABC123俄\"; fn v(t ), c%\n    \"#.trim())"
 
 ---
-emoji_style: New
+emoji_version: New
 --------- data ----------
 --------- code ----------
 0     0:9..10   push var lvalue A

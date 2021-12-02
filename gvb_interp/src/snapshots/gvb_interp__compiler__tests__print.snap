@@ -3,7 +3,7 @@ source: gvb_interp/src/compiler.rs
 expression: "compile(r#\"\n10 print:print;:print,:print a$:print a$+b$;: print a$b$:\n20 print a$ 3;spc(n+1);7:print spc(2)abc$: print;;t;:print ,T%(K),,;\n30 print 3;4,tab(7)6,tab(12);8,:\n40 print spc(2):print ,,tab(3)\n    \"#.trim())"
 
 ---
-emoji_style: New
+emoji_version: New
 --------- data ----------
 --------- code ----------
 0     0:3..8    newline

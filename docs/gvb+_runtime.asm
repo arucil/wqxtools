@@ -501,7 +501,7 @@
 
 ; increment ($5E,$5F) and read character code into A, ignoring spaces
 ; return: C = if A is not digit
-;         Z = if A is $00 or ':'
+;         Z = if A is $00 or ':' or ELSE
 6634: E6 5E    INC $5E
 6636: D0 02    BNE $663A
 6638: E6 5F    INC $5F
@@ -511,7 +511,7 @@
 663D: A0 00    LDY #$00
 663F: B1 5E    LDA ($5E),Y
 6641: AC 47 B9 LDY $B947
-6644: C9 C5    CMP #$C5
+6644: C9 C5    CMP #$C5   ; ELSE
 6646: B0 0E    BCS $6656
 6648: C9 3A    CMP #$3A   ; ':'
 664A: B0 0A    BCS $6656

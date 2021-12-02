@@ -1,5 +1,5 @@
 #[cfg(test)]
-use crate::machine::EmojiStyle;
+use crate::machine::EmojiVersion;
 use std::fmt::{self, Debug, Formatter};
 use std::num::NonZeroUsize;
 #[cfg(test)]
@@ -263,12 +263,12 @@ impl Instr {
   pub fn print(
     &self,
     interner: &StringInterner,
-    emoji_style: EmojiStyle,
+    emoji_version: EmojiVersion,
   ) -> String {
     format!(
       "{:<10?}{}",
       self.loc,
-      self.kind.print(interner, emoji_style)
+      self.kind.print(interner, emoji_version)
     )
   }
 }
@@ -278,7 +278,7 @@ impl InstrKind {
   pub fn print(
     &self,
     interner: &StringInterner,
-    emoji_style: EmojiStyle,
+    emoji_version: EmojiVersion,
   ) -> String {
     macro_rules! sym {
       ($sym:ident) => {
@@ -334,7 +334,7 @@ impl InstrKind {
       Self::PushNum(num) => format!("push number {}", num),
       Self::PushVar(name) => format!("push var {}", sym!(name)),
       Self::PushStr(str) => {
-        format!("push string \"{}\"", str.to_string_lossy(emoji_style))
+        format!("push string \"{}\"", str.to_string_lossy(emoji_version))
       }
       Self::PushInKey => format!("push inkey"),
       Self::PushIndex { name, dimensions } => {

@@ -1,10 +1,10 @@
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum EmojiStyle {
+pub enum EmojiVersion {
   Old,
   New,
 }
 
-impl EmojiStyle {
+impl EmojiVersion {
   pub fn code_to_index(&self, code: u16) -> Option<usize> {
     let hi = code >> 8;
     let lo = code & 255;
@@ -84,8 +84,8 @@ impl EmojiStyle {
   pub fn default_machine_name(&self) -> &'static str {
     unsafe {
       match self {
-        Self::New => super::DEFAULT_MACHINE_FOR_NEW_EMOJI_STYLE.as_ref(),
-        Self::Old => super::DEFAULT_MACHINE_FOR_OLD_EMOJI_STYLE.as_ref(),
+        Self::New => super::DEFAULT_MACHINE_FOR_NEW_EMOJI_VERSION.as_ref(),
+        Self::Old => super::DEFAULT_MACHINE_FOR_OLD_EMOJI_VERSION.as_ref(),
       }
     }
   }
@@ -110,9 +110,9 @@ mod tests {
   }
 
   #[quickcheck]
-  fn new_style_is_symmetric(Gb(code): Gb) -> bool {
-    EmojiStyle::New.code_to_char(code).map_or(true, |c| {
-      EmojiStyle::New
+  fn new_version_is_symmetric(Gb(code): Gb) -> bool {
+    EmojiVersion::New.code_to_char(code).map_or(true, |c| {
+      EmojiVersion::New
         .char_to_code(c)
         .filter(|&new_code| new_code == code)
         .is_some()
@@ -120,9 +120,9 @@ mod tests {
   }
 
   #[quickcheck]
-  fn old_style_is_symmetric(Gb(code): Gb) -> bool {
-    EmojiStyle::Old.code_to_char(code).map_or(true, |c| {
-      EmojiStyle::Old
+  fn old_version_is_symmetric(Gb(code): Gb) -> bool {
+    EmojiVersion::Old.code_to_char(code).map_or(true, |c| {
+      EmojiVersion::Old
         .char_to_code(c)
         .filter(|&new_code| new_code == code)
         .is_some()

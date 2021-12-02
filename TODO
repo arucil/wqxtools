@@ -1,11 +1,17 @@
-- PRINT、WRITE、READ、INPUT、DIM、NEXT 不能以 ELSE 结束？
-- 同名的数组只能定义一个？
+- [x] PRINT、WRITE、READ、INPUT、DIM、NEXT 不能以 ELSE 结束？
+  NO
+- [x] 同名的数组只能定义一个？
+  YES
 - [x] 所有 parse_expr （所有extend_symbol）前面要 reset first_symbols
 - [x] match多个token时 first_symbols 不对（match_token只能处理单个token的情况）
-- READ、键盘 INPUT 输入实数，忽略实数后面的字符串？文件 INPUT 输入实数，实数后面不行？
-- FOR、FN的函数名和参数只能是实数？
-- WRITE 输出0x00后面的引号？剔除 0x1f？
-- OPEN 文件名以0x00结尾？
+- [x] READ、键盘 INPUT 输入实数，忽略实数后面的字符串？文件 INPUT 输入实数，实数后面不行？
+  NO
+- [x] FOR、FN的函数名和参数只能是实数？
+  YES
+- [x] WRITE 输出0x00后面的引号？剔除 0x1f？
+  NO, YES
+- [x] OPEN 文件名以0x00结尾？
+  NO
 - [x] editor 一行文本最长多长？包含中文呢？
   94字符；中文不考虑0x1f
 - [x] tokenize 关键字只识别前缀？（IFA 会当成 IF A）
@@ -14,7 +20,8 @@
   实际的光标位置
 - [x] 当光标在第一列时，无论调用多少次空的 PRINT，都不会换行？
   yes
-- 输入的内容不会导致后面的字符变成 NUL ？
+- [x] 输入的内容不会导致后面的字符变成 NUL ？
+  会把输入的内容末尾后的一个字节变成 NUL，然后再把后续的连续非 NUL 字节变成 NUL
 - [x] LOCATE 5,20:PRINT 0; 会不会换行？
   yes
 - 看看TC808和PC1000A的键值和映射

@@ -19,7 +19,7 @@
 | DATA    | 忽略其后的所有字符，直到行尾，或者遇到没有被双引号括起来的 `:`。 |
 | DEF FN `<name var>`( `<parameter var>` ) = `<body expr>` | 定义函数。name 和 parameter 必须是实数类型。可以重定义之前定义的同名函数。 |
 | DEL     | 和 REM 一样 |
-| DIM `<lvalue>` ( , `<another lvalue>` )* | 定义变量或数组。如果定义的变量已存在，则保留变量原有的值，不会重置变量。如果定义的数组已存在，则报错。 |
+| DIM `<lvalue>` ( , `<another lvalue>` )* | 定义变量或数组。如果定义的变量已存在，则保留变量原有的值，不会重置变量。如果定义的数组已存在，则报错。不能定义名称相同（如果名称的后缀 `$`、`%` 不同，也算不同名称）但维度不同的数组，例如 `DIM A(1), A(1, 2)` 会报错，但是 `DIM A(1), A$(2)` 没有问题。 |
 | DRAW `<X expr>` , `<Y expr>` [ , `<draw mode expr>` ] | 画点。X、Y、draw mode 必须在 0~255 之间。<br>draw mode 的值在下面的注解中说明。 |
 | EDIT    | 和 REM 一样 |
 | ELLIPSE `<X expr>` , `<Y expr>` , `<X radius expr>` , `<Y radius expr>` [ , `<fill mode expr>` [ , `<draw mode expr>` ] ] | 画椭圆。X、Y、X radius、Y radius、fill mode、draw mode 必须在 0~255 之间。<br>如果 fill mode 的 bit0 为 1，则画实心椭圆，否则画空心椭圆。<br>draw mode 的值在下面的注解中说明。 |
@@ -48,7 +48,7 @@
 | NORMAL  | 取消 INVERSE 模式，后续打印的字符没有反显效果。 |
 | NOTRACE | 关闭 tracing |
 | ON `<expr>` ( GOTO \| GOSUB ) [ `<integer>` ( , [ `<integer>` ] )* ] | 根据 `<expr>` 的结果跳转到对应的行号。如果结果取整之后为 1，则跳转到第一个行号；为 2 则跳转到第二个行号，以此类推。如果没有对应的行号则往后面继续执行。<br>`<expr>` 的结果必须在 0~255 之间。<br>行号可以省略，如果省略某个行号，则默认为 `0`。甚至所有行号都能省略，例如 `ON <expr> GOTO` 等价于 `ON <expr> GOTO 0`。 |
-| OPEN `<filename expr>` [ FOR ] [ INPUT \| OUTPUT \| APPEND \| RANDOM ] AS [ # ] `<file number>` [ LEN = `<len expr>` ] | 打开文件。filename 结果必须是字符串，不能为空，不能包含`/`字符。filename 中的 `0x1F` 字符会被删除，经过处理的 filename 最长 14 字节，超出的部分将被截断。<br>如果省略 INPUT / OUTPUT / APPEND / RANDOM，则要用一个任意的非空格字符代替，在这种情况下默认为 RANDOM，例如 `OPEN A$ FOR @ AS 1`。<br>OUTPUT、APPEND、RANDOM 不是关键字。<br>AS 中间可以有空格，并且可以和前面的文件打开模式连起来，例如 `APPENDA  S`；不需要和后面的变量名用空格分隔。<br>file number 必须在 1~3 之间。<br>LEN 只能用于 RANDOM 模式，len 必须在 0~255 之间，如果 len 等于 0 或大于 128，则改为 32。如果省略 LEN 则 len 默认为 32。 |
+| OPEN `<filename expr>` [ FOR ] [ INPUT \| OUTPUT \| APPEND \| RANDOM ] AS [ # ] `<file number>` [ LEN = `<len expr>` ] | 打开文件。filename 结果必须是字符串，不能为空，不能包含`/`字符，不能包含中文，可以包含 `0x00` 字符。filename 中的 `0x1F` 字符会被删除，经过处理的 filename 最长 14 字节，超出的部分将被截断。<br>如果省略 INPUT / OUTPUT / APPEND / RANDOM，则要用一个任意的非空格字符代替，在这种情况下默认为 RANDOM，例如 `OPEN A$ FOR @ AS 1`。<br>OUTPUT、APPEND、RANDOM 不是关键字。<br>AS 中间可以有空格，并且可以和前面的文件打开模式连起来，例如 `APPENDA  S`；不需要和后面的变量名用空格分隔。<br>file number 必须在 1~3 之间。<br>LEN 只能用于 RANDOM 模式，len 必须在 0~255 之间，如果 len 等于 0 或大于 128，则改为 32。如果省略 LEN 则 len 默认为 32。 |
 | PLAY    | 和 REM 一样 |
 | POKE `<addr expr>` , `<value expr>` | 把 addr 地址的字节设置为 value。<br>addr 在 -65535 ~ 65535 之间，如果是负数则取补码。<br>value 必须在 0~255 之间。 |
 | POP     | 最近的 GOSUB 记录出栈，然后从 POP 语句之后继续执行。 |

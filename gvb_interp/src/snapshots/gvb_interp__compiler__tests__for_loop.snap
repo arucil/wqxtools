@@ -3,7 +3,7 @@ source: gvb_interp/src/compiler.rs
 expression: "compile(r#\"\n10 for i =10 to n+1:for abc=k(m)*3 to 31 step -n*k\n20 next:next i:next i,j,ka\n    \"#.trim())"
 
 ---
-emoji_style: New
+emoji_version: New
 --------- data ----------
 --------- code ----------
 0     0:10..12  push number 10

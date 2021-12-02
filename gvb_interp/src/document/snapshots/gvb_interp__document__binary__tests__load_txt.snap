@@ -4,7 +4,7 @@ expression: doc
 
 ---
 base_addr: 0x7000
-guessed_emoji_style: New
+guessed_emoji_version: New
 -------------------------------------
 3 N$(2)="曹操":N$(3)="董卓":N$(4)="袁绍":N$(5)="袁术":N$(6)="孙策"
 4 N$(7)="刘备":N$(8)="刘表":N$(9)="刘璋":N$(10)="马腾":N$(1)="天地会"

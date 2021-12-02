@@ -570,7 +570,7 @@ impl Device for DefaultDevice {
         let mut data_ptr;
         if let Some(emoji_index) = self
           .props
-          .emoji_style
+          .emoji_version
           .code_to_index((c as u16) << 8 | c2 as u16)
         {
           data_ptr = unsafe {
@@ -937,7 +937,7 @@ impl Device for DefaultDevice {
       .write(write)
       .truncate(truncate)
       .create(write);
-    let name = ByteString::from(name).to_string_lossy(self.props.emoji_style);
+    let name = ByteString::from(name).to_string_lossy(self.props.emoji_version);
     options
       .open(self.data_dir.join(name))
       .and_then(DefaultFileHandle::new)
@@ -1103,7 +1103,7 @@ impl FileHandle for DefaultFileHandle {
 #[cfg(test)]
 mod tests {
   use super::*;
-  use crate::machine::EmojiStyle;
+  use crate::machine::EmojiVersion;
   use crate::vm::ByteString;
   use insta::assert_snapshot;
   use pretty_assertions::assert_eq;
@@ -1120,7 +1120,7 @@ mod tests {
   fn new_device() -> DefaultDevice {
     initialize();
     DefaultDevice::new(
-      crate::machine::machines()[EmojiStyle::New.default_machine_name()]
+      crate::machine::machines()[EmojiVersion::New.default_machine_name()]
         .clone(),
       "",
     )
@@ -1154,7 +1154,7 @@ mod tests {
   }
 
   fn string(str: &str) -> ByteString {
-    ByteString::from_str(str, EmojiStyle::New).unwrap()
+    ByteString::from_str(str, EmojiVersion::New).unwrap()
   }
 
   fn pad_text_buffer(mut s: ByteString) -> ByteString {

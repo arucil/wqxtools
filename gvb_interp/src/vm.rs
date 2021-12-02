@@ -9,7 +9,7 @@ use crate::ast::{self, Range, SysFuncKind};
 use crate::compiler::compile_fn_body;
 use crate::device::{AsmExecState, Device, DrawMode, FileHandle};
 use crate::diagnostic::{contains_errors, Diagnostic};
-use crate::machine::EmojiStyle;
+use crate::machine::EmojiVersion;
 use crate::parser::{parse_expr, read_number};
 use crate::util::mbf5::{Mbf5, ParseRealError, RealError};
 use crate::HashMap;
@@ -35,7 +35,7 @@ pub(crate) struct Datum {
 const NUM_FILES: usize = 3;
 
 pub struct VirtualMachine<'d, D: Device> {
-  emoji_style: EmojiStyle,
+  emoji_version: EmojiVersion,
   data: Vec<Datum>,
   data_ptr: usize,
   pc: usize,
@@ -223,7 +223,7 @@ where
 {
   pub fn new(g: CodeGen, device: &'d mut D) -> Self {
     let mut vm = Self {
-      emoji_style: g.emoji_style,
+      emoji_version: g.emoji_version,
       data: g.data,
       data_ptr: 0,
       pc: 0,
@@ -272,7 +272,7 @@ where
     &self,
     s: &str,
   ) -> std::result::Result<crate::ByteString, crate::StringError> {
-    ByteString::from_str(s, self.emoji_style)
+    ByteString::from_str(s, self.emoji_version)
   }
 
   fn reset(&mut self, loc: Location, reset_pc: bool) -> Result<()> {
@@ -806,7 +806,7 @@ where
       }
       InstrKind::PrintStr => {
         let mut value = self.str_stack.pop().unwrap().1;
-        value.drop_null();
+        value.end_at_null();
         value.drop_0x1f();
         self.device.print(&value);
       }
@@ -837,7 +837,7 @@ where
       InstrKind::WriteStr { to_file, end } => {
         let mut str = self.str_stack.pop().unwrap().1;
         str.push(b'"');
-        str.drop_null();
+        str.end_at_null();
         str.drop_0x1f();
         do_write!(
           to_file,
@@ -858,7 +858,7 @@ where
       } => {
         let prompt = if has_prompt {
           let mut prompt = self.str_stack.pop().unwrap().1;
-          prompt.drop_null();
+          prompt.end_at_null();
           prompt.drop_0x1f();
           Some(prompt)
         } else {
@@ -896,7 +896,7 @@ where
         lvalues.reverse();
         self.state.input(
           lvalues,
-          prompt.map(|s| s.to_string_lossy(self.emoji_style)),
+          prompt.map(|s| s.to_string_lossy(self.emoji_version)),
           fields,
         )?;
       }
@@ -926,7 +926,7 @@ where
             &mut self.state,
             &mut self.store,
             &self.interner,
-            self.emoji_style,
+            self.emoji_version,
             lval_loc,
             lvalue,
             file,
@@ -1481,7 +1481,7 @@ where
 
     let filenum = self.get_filenum(true)?;
     let (name_loc, mut filename) = self.str_stack.pop().unwrap();
-    filename.drop_null();
+    filename.end_at_null();
     filename.drop_0x1f();
 
     if self.files[filenum as usize].is_some() {
@@ -1562,7 +1562,7 @@ where
             loc,
             format!(
               "读取到的数据：\"{}\"，是用引号括起来的字符串，无法转换为数值",
-              datum.value.to_string_lossy(self.emoji_style)
+              datum.value.to_string_lossy(self.emoji_version)
             ),
           )?
         }
@@ -1602,7 +1602,7 @@ where
                 loc,
                 format!(
                   "读取到的数据：{}，不符合实数的格式",
-                  datum.value.to_string_lossy(self.emoji_style)
+                  datum.value.to_string_lossy(self.emoji_version)
                 ),
               )?;
             }
@@ -1611,7 +1611,7 @@ where
                 loc,
                 format!(
                   "读取到的数据：{}，数值过大，超出了实数的表示范围",
-                  datum.value.to_string_lossy(self.emoji_style)
+                  datum.value.to_string_lossy(self.emoji_version)
                 ),
               )?;
             }
@@ -1889,6 +1889,7 @@ where
       }
       _ => unreachable!(),
     }
+    self.device.print(b"\0");
     self.device.newline();
     self.device.flush();
     self.pc += 1;
@@ -2031,13 +2032,13 @@ where
     &self,
     input: &str,
   ) -> (Option<InputFuncBody>, Vec<Diagnostic>) {
-    compile_fn(input, self.emoji_style)
+    compile_fn(input, self.emoji_version)
   }
 }
 
 fn compile_fn(
   input: &str,
-  emoji_style: EmojiStyle,
+  emoji_version: EmojiVersion,
 ) -> (Option<InputFuncBody>, Vec<Diagnostic>) {
   if input.trim_matches(|c: char| c == ' ').is_empty() {
     return (
@@ -2047,7 +2048,7 @@ fn compile_fn(
   }
 
   let (mut expr, _) = parse_expr(input);
-  let mut codegen = CodeGen::new(emoji_style);
+  let mut codegen = CodeGen::new(emoji_version);
   compile_fn_body(input, &mut expr, &mut codegen);
   if contains_errors(&expr.diagnostics) {
     (None, expr.diagnostics)
@@ -2060,7 +2061,7 @@ fn exec_file_input<F: FileHandle, S>(
   state: &mut ExecState<S>,
   store: &mut Store,
   interner: &StringInterner,
-  emoji_style: EmojiStyle,
+  emoji_version: EmojiVersion,
   loc: Location,
   lvalue: LValue,
   file: &mut F,
@@ -2101,7 +2102,7 @@ fn exec_file_input<F: FileHandle, S>(
               loc,
               format!(
                 "读取到的数据：\"{}\"，没有以逗号或 U+00FF 字符结尾",
-                ByteString::from(buf).to_string_lossy(emoji_style)
+                ByteString::from(buf).to_string_lossy(emoji_version)
               ),
             )?
           }
@@ -2125,7 +2126,7 @@ fn exec_file_input<F: FileHandle, S>(
           loc,
           format!(
             "读取到的数据：\"{}\"，是用引号括起来的字符串，无法转换为数值",
-            ByteString::from(buf).to_string_lossy(emoji_style)
+            ByteString::from(buf).to_string_lossy(emoji_version)
           ),
         )?
       }
@@ -2155,7 +2156,7 @@ fn exec_file_input<F: FileHandle, S>(
             loc,
             format!(
               "读取到的数据：{}，不符合实数的格式",
-              ByteString::from(buf).to_string_lossy(emoji_style)
+              ByteString::from(buf).to_string_lossy(emoji_version)
             ),
           )?;
         }
@@ -2164,7 +2165,7 @@ fn exec_file_input<F: FileHandle, S>(
             loc,
             format!(
               "读取到的数据：{}，数值过大，超出了实数的表示范围",
-              ByteString::from(buf).to_string_lossy(emoji_style)
+              ByteString::from(buf).to_string_lossy(emoji_version)
             ),
           )?;
         }
@@ -2392,7 +2393,7 @@ mod tests {
   use crate::ast::Range;
   use crate::compiler::compile_prog;
   use crate::diagnostic::Severity;
-  use crate::machine::EmojiStyle;
+  use crate::machine::EmojiVersion;
   use crate::parser::parse_prog;
   use crate::vm::codegen::CodeGen;
   use insta::assert_snapshot;
@@ -2402,7 +2403,7 @@ mod tests {
 
   fn compile(text: &str) -> CodeGen {
     let mut prog = parse_prog(text);
-    let mut codegen = CodeGen::new(EmojiStyle::New);
+    let mut codegen = CodeGen::new(EmojiVersion::New);
     compile_prog(text, &mut prog, &mut codegen);
     for (i, line) in prog.lines.iter().enumerate() {
       let diags: Vec<_> = line
@@ -3064,7 +3065,7 @@ mod tests {
             ],
           },
           {
-            let body = compile_fn("fn g(y)+2", EmojiStyle::New).0.unwrap();
+            let body = compile_fn("fn g(y)+2", EmojiVersion::New).0.unwrap();
             ExecInput::KeyboardInput(vec![
               KeyboardInput::Integer(37),
               KeyboardInput::Func { body },

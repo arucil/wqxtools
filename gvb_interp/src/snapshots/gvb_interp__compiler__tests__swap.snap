@@ -3,7 +3,7 @@ source: gvb_interp/src/compiler.rs
 expression: "compile(r#\"\n10 swap a$(b*2,3,i*10+j), c$:swap c%,d%\n    \"#.trim())"
 
 ---
-emoji_style: New
+emoji_version: New
 --------- data ----------
 --------- code ----------
 0     0:11..12  push var B

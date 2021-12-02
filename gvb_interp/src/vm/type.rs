@@ -1,7 +1,7 @@
 use bstr::ByteSlice;
 use std::ops::{Deref, DerefMut};
 
-use crate::machine::EmojiStyle;
+use crate::machine::EmojiVersion;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ByteString(Vec<u8>);
@@ -32,7 +32,7 @@ impl ByteString {
 
   pub fn from_str<S: AsRef<str>>(
     str: S,
-    emoji_style: EmojiStyle,
+    emoji_version: EmojiVersion,
   ) -> Result<Self, StringError> {
     let str = str.as_ref();
     let mut bytes = vec![];
@@ -45,7 +45,7 @@ impl ByteString {
         bytes.push(0x1f);
         bytes.push((c >> 8) as _);
         bytes.push(c as _);
-      } else if let Some(c) = emoji_style.char_to_code(c) {
+      } else if let Some(c) = emoji_version.char_to_code(c) {
         bytes.push(0x1f);
         bytes.push((c >> 8) as _);
         bytes.push(c as _);
@@ -56,7 +56,7 @@ impl ByteString {
     Ok(Self(bytes))
   }
 
-  pub fn to_string_lossy(&self, emoji_style: EmojiStyle) -> String {
+  pub fn to_string_lossy(&self, emoji_version: EmojiVersion) -> String {
     let mut s = String::new();
     let mut i = 0;
     while i < self.len() {
@@ -70,7 +70,7 @@ impl ByteString {
         let code = ((b as u16) << 8) + b2 as u16;
         if let Some(&c) = crate::gb2312::GB2312_TO_UNICODE.get(&code) {
           s.push(unsafe { char::from_u32_unchecked(c as _) });
-        } else if let Some(c) = emoji_style.code_to_char(code) {
+        } else if let Some(c) = emoji_version.code_to_char(code) {
           s.push(c);
         } else {
           s.push(char::REPLACEMENT_CHARACTER);
@@ -109,7 +109,7 @@ impl ByteString {
     }
   }
 
-  pub fn drop_null(&mut self) {
+  pub fn end_at_null(&mut self) {
     if let Some(i) = self.find_byte(0) {
       self.truncate(i);
     }

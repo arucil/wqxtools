@@ -1,4 +1,4 @@
-use crate::machine::EmojiStyle;
+use crate::machine::EmojiVersion;
 use std::fmt::Write;
 
 include!(concat!(env!("OUT_DIR"), "/keyword.rs"));
@@ -7,7 +7,7 @@ pub const DEFAULT_BASE_ADDR: u16 = 0x7000;
 
 pub struct BasTextDocument {
   pub base_addr: u16,
-  pub guessed_emoji_style: EmojiStyle,
+  pub guessed_emoji_version: EmojiVersion,
   pub text: String,
 }
 
@@ -26,16 +26,16 @@ pub struct SaveError {
 
 pub fn load_bas(
   content: impl AsRef<[u8]>,
-  emoji_style: Option<EmojiStyle>,
+  emoji_version: Option<EmojiVersion>,
 ) -> Result<BasTextDocument, LoadError<usize>> {
   let mut content = content.as_ref();
   let mut base_addr = 0;
   let mut lines: Vec<&[u8]> = vec![];
   let mut offset = 0;
-  let mut guessed_emoji_styles = if let Some(emoji_style) = emoji_style {
-    vec![emoji_style]
+  let mut guessed_emoji_versions = if let Some(emoji_version) = emoji_version {
+    vec![emoji_version]
   } else {
-    vec![EmojiStyle::New, EmojiStyle::Old]
+    vec![EmojiVersion::New, EmojiVersion::Old]
   };
 
   let mut second_line_addr = 0;
@@ -93,11 +93,11 @@ pub fn load_bas(
 
         let gbcode = ((content[i + 1] as u16) << 8) + content[i + 2] as u16;
         if !crate::gb2312::GB2312_TO_UNICODE.contains_key(&gbcode) {
-          guessed_emoji_styles.retain(|s| s.code_to_char(gbcode).is_some());
-          if guessed_emoji_styles.is_empty() {
+          guessed_emoji_versions.retain(|s| s.code_to_char(gbcode).is_some());
+          if guessed_emoji_versions.is_empty() {
             return Err(LoadError {
               location: offset + i + 1,
-              message: format!("unable to determine emoji style"),
+              message: format!("unable to determine emoji version"),
             });
           }
         }
@@ -114,7 +114,7 @@ pub fn load_bas(
     }
   }
 
-  let guessed_emoji_style = guessed_emoji_styles[0];
+  let guessed_emoji_version = guessed_emoji_versions[0];
   let mut text = String::new();
   let mut newline = false;
 
@@ -136,7 +136,7 @@ pub fn load_bas(
         if let Some(&u) = crate::gb2312::GB2312_TO_UNICODE.get(&gbcode) {
           text.push(char::from_u32(u as _).unwrap());
         } else {
-          let u = guessed_emoji_style.code_to_char(gbcode).unwrap();
+          let u = guessed_emoji_version.code_to_char(gbcode).unwrap();
           text.push(char::from_u32(u as _).unwrap());
         }
         last_is_keyword = false;
@@ -178,20 +178,20 @@ pub fn load_bas(
 
   Ok(BasTextDocument {
     base_addr,
-    guessed_emoji_style,
+    guessed_emoji_version,
     text,
   })
 }
 
 pub fn load_txt(
   content: impl AsRef<[u8]>,
-  emoji_style: Option<EmojiStyle>,
+  emoji_version: Option<EmojiVersion>,
 ) -> Result<BasTextDocument, LoadError<(usize, usize)>> {
   let base_addr = DEFAULT_BASE_ADDR;
-  let mut guessed_emoji_styles = if let Some(emoji_style) = emoji_style {
-    vec![emoji_style]
+  let mut guessed_emoji_versions = if let Some(emoji_version) = emoji_version {
+    vec![emoji_version]
   } else {
-    vec![EmojiStyle::New, EmojiStyle::Old]
+    vec![EmojiVersion::New, EmojiVersion::Old]
   };
   let mut text = String::new();
 
@@ -217,14 +217,14 @@ pub fn load_txt(
       if let Some(&u) = crate::gb2312::GB2312_TO_UNICODE.get(&gbcode) {
         text.push(char::from_u32(u as _).unwrap());
       } else {
-        guessed_emoji_styles.retain(|s| s.code_to_char(gbcode).is_some());
-        if guessed_emoji_styles.is_empty() {
+        guessed_emoji_versions.retain(|s| s.code_to_char(gbcode).is_some());
+        if guessed_emoji_versions.is_empty() {
           return Err(LoadError {
             location: (line, i - line_offset),
-            message: format!("unable to determine emoji style"),
+            message: format!("unable to determine emoji version"),
           });
         } else {
-          let u = guessed_emoji_styles[0].code_to_char(gbcode).unwrap();
+          let u = guessed_emoji_versions[0].code_to_char(gbcode).unwrap();
           text.push(char::from_u32(u as _).unwrap());
         }
       }
@@ -238,17 +238,17 @@ pub fn load_txt(
 
   Ok(BasTextDocument {
     base_addr,
-    guessed_emoji_style: guessed_emoji_styles[0],
+    guessed_emoji_version: guessed_emoji_versions[0],
     text,
   })
 }
 
 pub fn save_bas(
   text: impl AsRef<str>,
-  emoji_style: EmojiStyle,
+  emoji_version: EmojiVersion,
   base_addr: u16,
 ) -> Result<Vec<u8>, SaveError> {
-  let text = save_txt(text, emoji_style)?;
+  let text = save_txt(text, emoji_version)?;
   let mut bytes = vec![0u8];
 
   let mut line_start_addr = base_addr + 1;
@@ -435,7 +435,7 @@ pub fn save_bas(
 
 pub fn save_txt(
   text: impl AsRef<str>,
-  emoji_style: EmojiStyle,
+  emoji_version: EmojiVersion,
 ) -> Result<Vec<u8>, SaveError> {
   let text = text.as_ref();
   let mut bytes = vec![];
@@ -450,7 +450,7 @@ pub fn save_txt(
       if let Some(&gbcode) = crate::gb2312::UNICODE_TO_GB2312.get(&(c as u16)) {
         bytes.push((gbcode >> 8) as _);
         bytes.push(gbcode as _);
-      } else if let Some(gbcode) = emoji_style.char_to_code(c) {
+      } else if let Some(gbcode) = emoji_version.char_to_code(c) {
         bytes.push((gbcode >> 8) as _);
         bytes.push(gbcode as _);
       } else {
@@ -481,7 +481,7 @@ mod tests {
   impl Debug for BasTextDocument {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
       writeln!(f, "base_addr: 0x{:04x}", self.base_addr)?;
-      writeln!(f, "guessed_emoji_style: {:?}", self.guessed_emoji_style)?;
+      writeln!(f, "guessed_emoji_version: {:?}", self.guessed_emoji_version)?;
       writeln!(f, "-------------------------------------")?;
       writeln!(f, "{}", self.text)
     }
@@ -513,7 +513,7 @@ mod tests {
     let doc = load_bas(&bytes, None).unwrap();
 
     let saved =
-      save_bas(doc.text, doc.guessed_emoji_style, doc.base_addr).unwrap();
+      save_bas(doc.text, doc.guessed_emoji_version, doc.base_addr).unwrap();
 
     assert_eq!(bytes, saved);
   }

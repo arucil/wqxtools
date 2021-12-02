@@ -12,14 +12,14 @@ use crate::ast::{
 };
 use crate::diagnostic::Diagnostic;
 use crate::util::mbf5::Mbf5;
-use crate::{compiler::CodeEmitter, machine::EmojiStyle};
+use crate::{compiler::CodeEmitter, machine::EmojiVersion};
 use string_interner::StringInterner;
 
 use super::Datum;
 
 #[derive(Clone)]
 pub struct CodeGen {
-  pub(super) emoji_style: EmojiStyle,
+  pub(super) emoji_version: EmojiVersion,
   pub(super) interner: StringInterner,
   pub(super) data: Vec<Datum>,
   pub(super) code: Vec<Instr>,
@@ -27,9 +27,9 @@ pub struct CodeGen {
 }
 
 impl CodeGen {
-  pub fn new(emoji_style: EmojiStyle) -> Self {
+  pub fn new(emoji_version: EmojiVersion) -> Self {
     Self {
-      emoji_style,
+      emoji_version,
       interner: StringInterner::new(),
       data: vec![],
       code: vec![],
@@ -151,7 +151,7 @@ impl CodeEmitter for CodeGen {
     is_quoted: bool,
   ) -> Result<(Self::DatumIndex, usize), char> {
     let index = DatumIndex(self.data.len());
-    let value = match ByteString::from_str(value, self.emoji_style) {
+    let value = match ByteString::from_str(value, self.emoji_version) {
       Ok(value) => value,
       Err(StringError::InvalidChar(c)) => return Err(c),
     };
@@ -394,7 +394,7 @@ impl CodeEmitter for CodeGen {
   }
 
   fn emit_string(&mut self, range: Range, str: String) -> Result<usize, char> {
-    let str = match ByteString::from_str(str, self.emoji_style) {
+    let str = match ByteString::from_str(str, self.emoji_version) {
       Ok(str) => str,
       Err(StringError::InvalidChar(c)) => return Err(c),
     };
@@ -576,7 +576,7 @@ impl CodeGen {
 #[cfg(test)]
 impl Debug for CodeGen {
   fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-    writeln!(f, "emoji_style: {:?}", self.emoji_style)?;
+    writeln!(f, "emoji_version: {:?}", self.emoji_version)?;
     writeln!(f, "--------- data ----------")?;
     for (i, datum) in self.data.iter().enumerate() {
       let quote = if datum.is_quoted { "\"" } else { "" };
@@ -585,7 +585,7 @@ impl Debug for CodeGen {
         "{:<6}{}{}{}",
         i,
         quote,
-        datum.value.to_string_lossy(self.emoji_style),
+        datum.value.to_string_lossy(self.emoji_version),
         quote
       )?;
     }
@@ -595,7 +595,7 @@ impl Debug for CodeGen {
         f,
         "{:<6}{}",
         i,
-        instr.print(&self.interner, self.emoji_style)
+        instr.print(&self.interner, self.emoji_version)
       )?;
     }
     Ok(())

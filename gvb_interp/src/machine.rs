@@ -12,7 +12,7 @@ pub(crate) use emoji::*;
 #[derive(Debug, Clone)]
 pub(crate) struct MachineProps {
   pub name: String,
-  pub emoji_style: EmojiStyle,
+  pub emoji_version: EmojiVersion,
   pub graphics_base_addr: u16,
   pub sleep_unit: Duration,
   pub text_buffer_base_addr: u16,
@@ -26,7 +26,7 @@ impl Default for MachineProps {
   fn default() -> Self {
     Self {
       name: String::new(),
-      emoji_style: EmojiStyle::New,
+      emoji_version: EmojiVersion::New,
       graphics_base_addr: 0,
       sleep_unit: Duration::default(),
       text_buffer_base_addr: 0,
@@ -55,10 +55,10 @@ pub(crate) fn machines() -> &'static HashMap<String, MachineProps> {
 static mut MACHINES: MaybeUninit<HashMap<String, MachineProps>> =
   MaybeUninit::uninit();
 
-pub(crate) static mut DEFAULT_MACHINE_FOR_NEW_EMOJI_STYLE: String =
+pub(crate) static mut DEFAULT_MACHINE_FOR_NEW_EMOJI_VERSION: String =
   String::new();
 
-pub(crate) static mut DEFAULT_MACHINE_FOR_OLD_EMOJI_STYLE: String =
+pub(crate) static mut DEFAULT_MACHINE_FOR_OLD_EMOJI_VERSION: String =
   String::new();
 
 #[derive(Debug)]
@@ -121,7 +121,7 @@ pub fn init_machines() -> Result<(), InitError> {
     .into_string()
     .ok_or_else(|| "default.new is not string")?;
   unsafe {
-    DEFAULT_MACHINE_FOR_NEW_EMOJI_STYLE = new.to_ascii_uppercase();
+    DEFAULT_MACHINE_FOR_NEW_EMOJI_VERSION = new.to_ascii_uppercase();
   }
 
   // default.old
@@ -132,7 +132,7 @@ pub fn init_machines() -> Result<(), InitError> {
     .into_string()
     .ok_or_else(|| "default.old is not string")?;
   unsafe {
-    DEFAULT_MACHINE_FOR_OLD_EMOJI_STYLE = old.to_ascii_uppercase();
+    DEFAULT_MACHINE_FOR_OLD_EMOJI_VERSION = old.to_ascii_uppercase();
   }
 
   if let Some((key, _)) = default.pop_front() {
@@ -153,19 +153,19 @@ pub fn init_machines() -> Result<(), InitError> {
     let mut props = MachineProps::default();
     props.name = name.to_owned();
 
-    // emoji-style
-    let emoji_style = obj
-      .remove(&Yaml::String("emoji-style".into()))
-      .ok_or_else(|| format!("missing field 'emoji-style' in '{}'", name))?;
-    let emoji_style = emoji_style
+    // emoji-version
+    let emoji_version = obj
+      .remove(&Yaml::String("emoji-version".into()))
+      .ok_or_else(|| format!("missing field 'emoji-version' in '{}'", name))?;
+    let emoji_version = emoji_version
       .as_str()
-      .ok_or_else(|| format!("{}.emoji-style is not string", name))?;
-    if emoji_style == "new" {
-      props.emoji_style = EmojiStyle::New;
-    } else if emoji_style == "old" {
-      props.emoji_style = EmojiStyle::Old;
+      .ok_or_else(|| format!("{}.emoji-version is not string", name))?;
+    if emoji_version == "new" {
+      props.emoji_version = EmojiVersion::New;
+    } else if emoji_version == "old" {
+      props.emoji_version = EmojiVersion::Old;
     } else {
-      return Err(format!("unrecognized emoji style '{}'", emoji_style).into());
+      return Err(format!("unrecognized emoji version '{}'", emoji_version).into());
     }
 
     // sleep-unit
@@ -326,14 +326,14 @@ pub fn init_machines() -> Result<(), InitError> {
   unsafe {
     if !MACHINES
       .assume_init_ref()
-      .contains_key(&DEFAULT_MACHINE_FOR_NEW_EMOJI_STYLE)
+      .contains_key(&DEFAULT_MACHINE_FOR_NEW_EMOJI_VERSION)
     {
       return Err(format!("new default machine '{}' not found", new).into());
     }
 
     if !MACHINES
       .assume_init_ref()
-      .contains_key(&DEFAULT_MACHINE_FOR_OLD_EMOJI_STYLE)
+      .contains_key(&DEFAULT_MACHINE_FOR_OLD_EMOJI_VERSION)
     {
       return Err(format!("old default machine '{}' not found", old).into());
     }

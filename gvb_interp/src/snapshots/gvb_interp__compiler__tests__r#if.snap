@@ -3,7 +3,7 @@ source: gvb_interp/src/compiler.rs
 expression: "compile(r#\"\n10 if a+b goto print:30:\n20 if f(x)>3 then cont:else graph:cls:gosub 10\n30 if a< >b goto x=x+1:20:30:if x>10 then play \"abc\" else 50:t(i)=int(x/2):else 10\n50 rem x\n    \"#.trim())"
 
 ---
-emoji_style: New
+emoji_version: New
 --------- data ----------
 --------- code ----------
 0     0:6..7    push var A

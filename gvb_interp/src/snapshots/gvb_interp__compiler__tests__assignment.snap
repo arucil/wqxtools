@@ -3,7 +3,7 @@ source: gvb_interp/src/compiler.rs
 expression: "compile(r#\"10 a=a*b+coo%/2^len(a$+\"xx和\")\"#)"
 
 ---
-emoji_style: New
+emoji_version: New
 --------- data ----------
 --------- code ----------
 0     0:3..4    push var lvalue A

@@ -84,9 +84,9 @@ pub fn load_config() -> Result<Config, ConfigError> {
   let mut obj = doc.into_hash().ok_or_else(|| "toplevel is not object")?;
 
   // gvb
-  if let Some(gvb) = obj.remove(&Yaml::String("gvb".to_owned())) {
+  if let Some(gvb) = obj.remove(&Yaml::String("gvbasic".to_owned())) {
     if !gvb.is_null() {
-      let gvb = gvb.into_hash().ok_or_else(|| "gvb is not object")?;
+      let gvb = gvb.into_hash().ok_or_else(|| "gvbasic is not object")?;
       config.gvb = load_gvb_config(gvb)?;
     }
   }
@@ -108,22 +108,22 @@ fn load_gvb_config(
     if !editor.is_null() {
       let mut editor = editor
         .into_hash()
-        .ok_or_else(|| "gvb.editor is not object")?;
+        .ok_or_else(|| "gvbasic.editor is not object")?;
 
       if let Some(font_size) = editor.remove(&Yaml::String("font-size".into()))
       {
         let font_size = font_size
           .into_i64()
-          .ok_or_else(|| "gvb.editor.font-size is not integer")?;
+          .ok_or_else(|| "gvbasic.editor.font-size is not integer")?;
         if font_size <= 0 {
-          return Err("gvb.editor.font-size must be positive".into());
+          return Err("gvbasic.editor.font-size must be positive".into());
         }
         gvb_config.editor.font_size = font_size as u32;
       }
 
       if let Some((key, _)) = editor.pop_front() {
         return Err(
-          format!("superfluous field {} in gvb.editor", yaml_to_string(&key))
+          format!("superfluous field {} in gvbasic.editor", yaml_to_string(&key))
             .into(),
         );
       }
@@ -135,26 +135,26 @@ fn load_gvb_config(
     if !simulator.is_null() {
       let mut simulator = simulator
         .into_hash()
-        .ok_or_else(|| "gvb.simulator is not object")?;
+        .ok_or_else(|| "gvbasic.simulator is not object")?;
 
       if let Some(pixel_scale) =
         simulator.remove(&Yaml::String("pixel-scale".into()))
       {
         let pixel_scale = pixel_scale
           .into_i64()
-          .ok_or_else(|| "gvb.simulator.pixel-scale is not integer")?;
+          .ok_or_else(|| "gvbasic.simulator.pixel-scale is not integer")?;
         if pixel_scale <= 0 {
-          return Err("gvb.simulator.pixel-scale must be positive".into());
+          return Err("gvbasic.simulator.pixel-scale must be positive".into());
         }
         gvb_config.simulator.pixel_scale = pixel_scale as u32;
       }
 
-      if let Some(c) = read_rgb(&mut simulator, "gvb.simulator", "foreground")?
+      if let Some(c) = read_rgb(&mut simulator, "gvbasic.simulator", "foreground")?
       {
         gvb_config.simulator.foreground = c;
       }
 
-      if let Some(c) = read_rgb(&mut simulator, "gvb.simulator", "background")?
+      if let Some(c) = read_rgb(&mut simulator, "gvbasic.simulator", "background")?
       {
         gvb_config.simulator.background = c;
       }
@@ -162,7 +162,7 @@ fn load_gvb_config(
       if let Some((key, _)) = simulator.pop_front() {
         return Err(
           format!(
-            "superfluous field {} in gvb.simulator",
+            "superfluous field {} in gvbasic.simulator",
             yaml_to_string(&key)
           )
           .into(),
@@ -173,7 +173,7 @@ fn load_gvb_config(
 
   if let Some((key, _)) = gvb.pop_front() {
     return Err(
-      format!("superfluous field {} in gvb", yaml_to_string(&key)).into(),
+      format!("superfluous field {} in gvbasic", yaml_to_string(&key)).into(),
     );
   }
 

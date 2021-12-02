@@ -3,7 +3,7 @@ source: gvb_interp/src/compiler.rs
 expression: "compile(r#\"\n10 while a$>\"AB=号即\":print:wend:while a<>b:cls:while a<2:cls:wend\n20 cls:goto 20:wend\n    \"#.trim())"
 
 ---
-emoji_style: New
+emoji_version: New
 --------- data ----------
 --------- code ----------
 0     0:9..11   push var A$

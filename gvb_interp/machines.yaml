@@ -13,7 +13,7 @@ tc808:
   # 在文曲星中运行以下GVBASIC程序：
   # 10 PRINT CHR$(250)+CHR$(172)
   # 如果屏幕上显示的是一个蘑菇，则是新型图形；如果显示的是一个太极图（阴阳鱼）则是旧版图形。
-  emoji-style: new
+  emoji-version: new
 
   # SLEEP 语句的单位，支持的单位：秒 s, 毫秒 ms, 微秒 us, 纳秒 ns
   sleep-unit: 0.4ms
@@ -100,7 +100,7 @@ tc808:
     23 : { addr: 191, bit: 7 } # 左
 
 pc1000a:
-  emoji-style: old
+  emoji-version: old
   sleep-unit: 1ms
   graphics-base-addr: 2496
   text-buffer-base-addr: 704

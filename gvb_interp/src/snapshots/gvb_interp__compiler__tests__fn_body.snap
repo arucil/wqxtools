@@ -3,7 +3,7 @@ source: gvb_interp/src/compiler.rs
 expression: codegen
 
 ---
-emoji_style: New
+emoji_version: New
 --------- data ----------
 --------- code ----------
 0     0:0..1    push var X

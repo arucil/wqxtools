@@ -6,7 +6,7 @@ use crate::ast::{Program, ProgramLine};
 use crate::compiler::compile_prog;
 use crate::device::default::DefaultDevice;
 use crate::device::Device;
-use crate::machine::EmojiStyle;
+use crate::machine::EmojiVersion;
 use crate::machine::MachineProps;
 use crate::parser::{parse_line, ParseResult};
 use crate::{CodeGen, Diagnostic, VirtualMachine};
@@ -17,7 +17,7 @@ const DEFAULT_TEXT: &str = "10 ";
 
 pub struct Document {
   base_addr: u16,
-  emoji_style: EmojiStyle,
+  emoji_version: EmojiVersion,
   machine_props: MachineProps,
   text: String,
   lines: Vec<DocLine>,
@@ -107,9 +107,9 @@ impl Document {
   pub fn new() -> Self {
     Self {
       base_addr: binary::DEFAULT_BASE_ADDR,
-      emoji_style: EmojiStyle::New,
+      emoji_version: EmojiVersion::New,
       machine_props: crate::machine::machines()
-        [EmojiStyle::New.default_machine_name()]
+        [EmojiVersion::New.default_machine_name()]
       .clone(),
       text: DEFAULT_TEXT.to_owned(),
       lines: text_to_doc_lines(DEFAULT_TEXT),
@@ -147,27 +147,27 @@ impl Document {
       binary::load_txt(&data, None)?
     };
 
-    let mut emoji_style = doc.guessed_emoji_style;
+    let mut emoji_version = doc.guessed_emoji_version;
 
     let machine_props;
     if let Some(props) = detect_machine_props(&doc.text).and_then(|p| p.ok()) {
-      emoji_style = props.emoji_style;
+      emoji_version = props.emoji_version;
       doc = if is_bas {
-        binary::load_bas(&data, Some(emoji_style))?
+        binary::load_bas(&data, Some(emoji_version))?
       } else {
-        binary::load_txt(&data, Some(emoji_style))?
+        binary::load_txt(&data, Some(emoji_version))?
       };
       machine_props = props;
     } else {
       machine_props =
-        crate::machine::machines()[emoji_style.default_machine_name()].clone();
+        crate::machine::machines()[emoji_version.default_machine_name()].clone();
     }
 
     let lines = text_to_doc_lines(&doc.text);
 
     Ok(Document {
       base_addr: doc.base_addr,
-      emoji_style,
+      emoji_version,
       machine_props,
       text: doc.text,
       lines,
@@ -198,9 +198,9 @@ impl Document {
     };
 
     let data = if is_bas {
-      binary::save_bas(&self.text, self.emoji_style, self.base_addr)?
+      binary::save_bas(&self.text, self.emoji_version, self.base_addr)?
     } else {
-      binary::save_txt(&self.text, self.emoji_style)?
+      binary::save_txt(&self.text, self.emoji_version)?
     };
 
     fs::write(path, data)?;
@@ -235,7 +235,7 @@ impl Document {
         prog.lines.push(p);
       }
     }
-    let mut codegen = CodeGen::new(self.emoji_style);
+    let mut codegen = CodeGen::new(self.emoji_version);
     compile_prog(&self.text, &mut prog, &mut codegen);
 
     let diagnostics = prog
@@ -275,14 +275,14 @@ impl Document {
       self.machine_props = props;
     } else {
       self.machine_props = crate::machine::machines()
-        [self.emoji_style.default_machine_name()]
+        [self.emoji_version.default_machine_name()]
       .clone();
     }
-    todo!("set emoji_style, reload text")
+    todo!("set emoji_version, reload text")
   }
 
   pub fn set_machine_name(&self, name: &str) -> bool {
-    todo!("set emoji_style, reload text, set machine_props")
+    todo!("set emoji_version, reload text, set machine_props")
   }
 
   pub fn create_device<P>(&self, data_dir: P) -> DefaultDevice

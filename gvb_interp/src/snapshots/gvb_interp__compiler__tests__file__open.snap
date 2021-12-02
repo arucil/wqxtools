@@ -3,7 +3,7 @@ source: gvb_interp/src/compiler.rs
 expression: "compile(r#\"\n10 open a$ for append as i: open \"foo\" inpuT as3:\n30 open a$+b$ random a sc:open a$(3) output as#k+1\n40 open c$(2) for random as #3len=v*2:\n    \"#.trim())"
 
 ---
-emoji_style: New
+emoji_version: New
 --------- data ----------
 --------- code ----------
 0     0:8..10   push var A$
