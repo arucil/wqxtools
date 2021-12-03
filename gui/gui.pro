@@ -18,13 +18,15 @@ HEADERS += src/mainwindow.h \
     src/value.h \
     src/action.h \
     src/config.h \
+    src/tool.h \
     src/about_dialog.h \
     src/gvb/gvbeditor.h \
     src/gvb/gvbsim_window.h \
     src/gvb/gvbsim_screen.h \
     src/gvb/gvbsim_keyboard.h \
     src/gvb/gvbsim_input_dialog.h \
-    src/gvb/binding_model.h
+    src/gvb/binding_model.h \
+    src/gvb/binding_delegate.h
 SOURCES += src/*.cpp \
     src/gvb/*.cpp
 

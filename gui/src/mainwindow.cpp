@@ -136,7 +136,7 @@ void MainWindow::initMenu() {
 }
 
 void MainWindow::closeEvent(QCloseEvent *event) {
-  auto widget = dynamic_cast<Tool *>(centralWidget());
+  auto widget = qobject_cast<Tool *>(centralWidget());
   if (widget && confirmSaveIfDirty(widget) == ActionResult::Fail) {
     event->ignore();
   }
@@ -159,7 +159,7 @@ void MainWindow::openFileByPath(const QString &path) {
     return;
   }
 
-  auto widget = dynamic_cast<Tool *>(centralWidget());
+  auto widget = qobject_cast<Tool *>(centralWidget());
   if (confirmSaveIfDirty(widget) == ActionResult::Fail) {
     return;
   }

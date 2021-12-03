@@ -7,6 +7,7 @@
 #include "../value.h"
 #include "api.h"
 #include "binding_model.h"
+#include "binding_delegate.h"
 
 class GvbEditor;
 class GvbSimScreen;
@@ -26,10 +27,10 @@ public:
   void reset(api::GvbVirtualMachine *, api::GvbDevice *, const QString &);
 
 protected:
-  void closeEvent(QCloseEvent *) Q_DECL_OVERRIDE;
-  void keyPressEvent(QKeyEvent *) Q_DECL_OVERRIDE;
-  void keyReleaseEvent(QKeyEvent *) Q_DECL_OVERRIDE;
-  void timerEvent(QTimerEvent *) Q_DECL_OVERRIDE;
+  void closeEvent(QCloseEvent *) override;
+  void keyPressEvent(QKeyEvent *) override;
+  void keyReleaseEvent(QKeyEvent *) override;
+  void timerEvent(QTimerEvent *) override;
 
 private:
   void initUi();
@@ -67,4 +68,5 @@ private:
   StrValue m_message;
   QTableView *m_bindingView;
   BindingModel m_bindingModel;
+  BindingDelegate m_bindingDelegate;
 };

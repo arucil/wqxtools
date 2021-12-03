@@ -250,22 +250,12 @@ pub extern "C" fn gvb_reset_exec_input(input: *mut GvbExecInput) {
     GvbExecInput::None => {}
     GvbExecInput::Key(_) => {}
     GvbExecInput::KeyboardInput(input) => {
-      for input in unsafe { input.into_boxed_slice() }.iter() {
-        match input {
-          GvbKeyboardInput::Integer(_) => {}
-          GvbKeyboardInput::Real(_) => {}
-          GvbKeyboardInput::String(s) => {
-            destroy_byte_string((*s).clone());
-          }
-          GvbKeyboardInput::Func(_func) => {
-            // NOTE no need to free `_func`, since it was consumed by VM.
-          }
-        }
-      }
+      gvb_destroy_input_array(input);
     }
   }
 }
 
+/// memory of `GvbKeyboardInput`s in `data` is consumed.
 #[no_mangle]
 pub extern "C" fn gvb_new_input_array(
   data: *const GvbKeyboardInput,
@@ -278,6 +268,23 @@ pub extern "C" fn gvb_new_input_array(
     }
   }
   unsafe { Array::new(v) }
+}
+
+/// memory of `GvbKeyboardInput`s in `data` is consumed.
+#[no_mangle]
+pub extern "C" fn gvb_destroy_input_array(input: Array<GvbKeyboardInput>) {
+  for input in unsafe { input.into_boxed_slice() }.iter() {
+    match input {
+      GvbKeyboardInput::Integer(_) => {}
+      GvbKeyboardInput::Real(_) => {}
+      GvbKeyboardInput::String(s) => {
+        destroy_byte_string((*s).clone());
+      }
+      GvbKeyboardInput::Func(_func) => {
+        // NOTE no need to free `_func`, since it was consumed by VM.
+      }
+    }
+  }
 }
 
 /// Returns if a key was pressed.
@@ -337,7 +344,7 @@ pub enum GvbBinding {
   },
   Array {
     name: Utf8String,
-    dimensions: Array<usize>,
+    dimensions: Array<u16>,
   },
 }
 
@@ -411,6 +418,31 @@ pub extern "C" fn gvb_destroy_bindings(bindings: Array<GvbBinding>) {
         drop(unsafe { dimensions.clone().into_boxed_slice() });
       }
     }
+  }
+}
+
+#[repr(C)]
+pub enum GvbBindingType {
+  Integer,
+  Real,
+  String,
+}
+
+#[no_mangle]
+pub extern "C" fn gvb_binding_type(
+  binding: *const GvbBinding,
+) -> GvbBindingType {
+  let binding = unsafe { &*binding };
+  let name = match binding {
+    GvbBinding::Var { name } => name,
+    GvbBinding::Array { name, .. } => name,
+  };
+  let name =
+    unsafe { std::slice::from_raw_parts(name.data as *const u8, name.len) };
+  match name.last().unwrap() {
+    b'%' => GvbBindingType::Integer,
+    b'$' => GvbBindingType::String,
+    _ => GvbBindingType::Real,
   }
 }
 

@@ -1,6 +1,7 @@
 #include "gvbsim_window.h"
 
 #include <QDateTime>
+#include <QHeaderView>
 #include <QKeyEvent>
 #include <QMessageBox>
 #include <QTableView>
@@ -24,7 +25,8 @@ GvbSimWindow::GvbSimWindow(QWidget *parent, GvbEditor *editor) :
   m_paused(false),
   m_timerCursor(0),
   m_timerRepaint(0),
-  m_state("准备就绪") {
+  m_state("准备就绪"),
+  m_bindingModel(this) {
   initUi();
 
   connect(
@@ -83,6 +85,7 @@ GvbSimWindow::~GvbSimWindow() {
   api::gvb_reset_exec_input(&m_execInput);
   m_screen->setImageData(nullptr);
   if (m_vm) {
+    m_bindingModel.setVm(nullptr);
     api::gvb_destroy_vm(m_vm);
   }
   if (m_device) {
@@ -110,6 +113,13 @@ void GvbSimWindow::initUi() {
   m_bindingView = new QTableView();
   m_bindingView->resize(120, 0);
   m_bindingView->setModel(&m_bindingModel);
+  m_bindingView->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
+  m_bindingView->setItemDelegate(&m_bindingDelegate);
+  connect(
+    m_bindingView,
+    &QTableView::doubleClicked,
+    &m_bindingModel,
+    &BindingModel::editValue);
   centralLayout->addWidget(m_bindingView);
 
   setCentralWidget(central);
@@ -191,7 +201,7 @@ void GvbSimWindow::setEnableBindingTable(bool enable) {
     m_bindingView->setToolTip("");
   } else {
     m_bindingModel.disable();
-    m_bindingView->setToolTip("暂停程序后才可以查看、编辑变量");
+    m_bindingView->setToolTip("暂停程序后才可以查看、修改变量");
   }
 }
 

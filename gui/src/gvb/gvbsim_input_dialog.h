@@ -23,20 +23,25 @@ public:
   GvbSimInputDialog(
     QWidget *,
     const api::GvbVirtualMachine *,
-    const api::GvbExecResult::KeyboardInput_Body &);
+    const api::GvbExecResult::KeyboardInput_Body &,
+    const api::Array<api::GvbKeyboardInput> *initial = nullptr);
   ~GvbSimInputDialog();
 
   QVector<api::GvbKeyboardInput> inputData();
 
+  void updateValue(size_t index, const api::GvbKeyboardInput &);
+
 protected:
-  void keyPressEvent(QKeyEvent *) Q_DECL_OVERRIDE;
-  void reject() Q_DECL_OVERRIDE;
+  void keyPressEvent(QKeyEvent *) override;
+  void reject() override;
 
 signals:
   void validateAll();
 
 private:
-  void initUi(const api::GvbExecResult::KeyboardInput_Body &);
+  void initUi(
+    const api::GvbExecResult::KeyboardInput_Body &,
+    const api::Array<api::GvbKeyboardInput> *);
   void endValidateAll();
 
 private slots:

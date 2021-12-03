@@ -3,7 +3,7 @@ use nanorand::{Rng, WyRand};
 use std::collections::BTreeMap;
 use std::fmt::{self, Display, Formatter};
 use std::io;
-use std::num::NonZeroUsize;
+use std::num::{NonZeroUsize, NonZeroU16};
 use std::time::Duration;
 
 use crate::ast::{self, Range, SysFuncKind};
@@ -65,7 +65,7 @@ struct Bindings {
 
 pub enum Binding {
   Var,
-  Array { dimensions: Vec<usize> },
+  Array { dimensions: Vec<u16> },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -129,7 +129,7 @@ struct Array {
 
 #[derive(Debug, Clone)]
 struct Dimension {
-  bound: NonZeroUsize,
+  bound: NonZeroU16,
   multiplier: usize,
 }
 
@@ -549,11 +549,16 @@ where
               loc,
               format!("数组下标不能为负数。该下标的值为：{}", f64::from(value)),
             )?
+          } else if bound > 32767 {
+            self.state.error(
+              loc,
+              format!("数组下标超出上限 32767。该下标的值为：{}", f64::from(value)),
+            )?
           }
           let bound = bound as usize + 1;
           size *= bound;
           dimensions.push(Dimension {
-            bound: unsafe { NonZeroUsize::new_unchecked(bound) },
+            bound: unsafe { NonZeroU16::new_unchecked(bound as u16) },
             multiplier,
           });
           multiplier *= bound;
@@ -1986,7 +1991,7 @@ where
           dimensions: (0..dimensions)
             .fold((vec![], 1), |(mut d, mult), _| {
               d.push(Dimension {
-                bound: unsafe { NonZeroUsize::new_unchecked(11) },
+                bound: unsafe { NonZeroU16::new_unchecked(11) },
                 multiplier: mult,
               });
               (d, mult * 11)
@@ -2011,7 +2016,7 @@ where
             sub
           ),
         )?
-      } else if sub as usize >= array.dimensions[i].bound.get() {
+      } else if sub as usize >= array.dimensions[i].bound.get() as usize {
         self.state.error(
           loc,
           format!(

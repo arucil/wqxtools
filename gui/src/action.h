@@ -19,5 +19,5 @@ signals:
   void enabledChanged(bool);
 
 protected:
-  bool event(QEvent *) Q_DECL_OVERRIDE;
+  bool event(QEvent *) override;
 };

@@ -1,7 +1,7 @@
 #pragma once
 
-#include <QWidget>
 #include <QSize>
+#include <QWidget>
 
 #include "util.h"
 
@@ -10,6 +10,9 @@
 using LoadResult = std::variant<Unit, QString>;
 
 struct Tool: public QWidget {
+  Q_OBJECT
+
+public:
   Tool(QWidget *parent = nullptr) : QWidget(parent) {}
 
   virtual LoadResult load(const QString &) = 0;

@@ -19,7 +19,7 @@
 | DATA    | 忽略其后的所有字符，直到行尾，或者遇到没有被双引号括起来的 `:`。 |
 | DEF FN `<name var>`( `<parameter var>` ) = `<body expr>` | 定义函数。name 和 parameter 必须是实数类型。可以重定义之前定义的同名函数。 |
 | DEL     | 和 REM 一样 |
-| DIM `<lvalue>` ( , `<another lvalue>` )* | 定义变量或数组。如果定义的变量已存在，则保留变量原有的值，不会重置变量。如果定义的数组已存在，则报错。不能定义名称相同（如果名称的后缀 `$`、`%` 不同，也算不同名称）但维度不同的数组，例如 `DIM A(1), A(1, 2)` 会报错，但是 `DIM A(1), A$(2)` 没有问题。 |
+| DIM `<lvalue>` ( , `<another lvalue>` )* | 定义变量或数组。如果定义的变量已存在，则保留变量原有的值，不会重置变量。如果定义的数组已存在，则报错。不能定义名称相同（如果名称的后缀 `$`、`%` 不同，也算不同名称）但维度不同的数组，例如 `DIM A(1), A(1, 2)` 会报错，但是 `DIM A(1), A$(2)` 没有问题。数组下标的范围是 0~32767。 |
 | DRAW `<X expr>` , `<Y expr>` [ , `<draw mode expr>` ] | 画点。X、Y、draw mode 必须在 0~255 之间。<br>draw mode 的值在下面的注解中说明。 |
 | EDIT    | 和 REM 一样 |
 | ELLIPSE `<X expr>` , `<Y expr>` , `<X radius expr>` , `<Y radius expr>` [ , `<fill mode expr>` [ , `<draw mode expr>` ] ] | 画椭圆。X、Y、X radius、Y radius、fill mode、draw mode 必须在 0~255 之间。<br>如果 fill mode 的 bit0 为 1，则画实心椭圆，否则画空心椭圆。<br>draw mode 的值在下面的注解中说明。 |
@@ -121,6 +121,7 @@
 - 实数字面值、READ 语句读取的实数、键盘 INPUT 读取的实数支持中间出现空格；文件 INPUT 读取的实数不支持中间出现空格。
 - 表达式中所有转换为整数的操作都是截断小数部分。
 - 匹配合法的实数的正则表达式是 `[-+]?\d*(\.\d*)?(E[-+]?\d*)?`。
+- 数组下标的范围是 0~32767。
 
 ## 函数
 

@@ -21,7 +21,8 @@
 GvbSimInputDialog::GvbSimInputDialog(
   QWidget *parent,
   const api::GvbVirtualMachine *vm,
-  const api::GvbExecResult::KeyboardInput_Body &input) :
+  const api::GvbExecResult::KeyboardInput_Body &input,
+  const api::Array<api::GvbKeyboardInput> *initial) :
   QDialog(parent),
   m_vm(vm),
   m_input(static_cast<int>(input.fields.len)),
@@ -29,7 +30,7 @@ GvbSimInputDialog::GvbSimInputDialog(
   m_validatedFields(0),
   m_validateOkFields(0),
   m_rejected(false) {
-  initUi(input);
+  initUi(input, initial);
   setWindowTitle("输入");
 }
 
@@ -46,7 +47,8 @@ GvbSimInputDialog::~GvbSimInputDialog() {
 }
 
 void GvbSimInputDialog::initUi(
-  const api::GvbExecResult::KeyboardInput_Body &input) {
+  const api::GvbExecResult::KeyboardInput_Body &input,
+  const api::Array<api::GvbKeyboardInput> *initial) {
   setStyleSheet(R"(
     QLabel#error {
       color: hsl(0, 100%, 50%);
@@ -87,6 +89,9 @@ void GvbSimInputDialog::initUi(
         input->setMinimum(-32768);
         input->setMaximum(32767);
         input->setToolTip("范围：-32768 ~ 32767");
+        if (initial) {
+          input->setValue(initial->data[i].integer._0);
+        }
         connect(
           this,
           &GvbSimInputDialog::validateAll,
@@ -106,6 +111,9 @@ void GvbSimInputDialog::initUi(
         input->setMinimum(-1.7e38);
         input->setMaximum(1.7e38);
         input->setToolTip("范围：-1.7E+38 ~ +1.7E+38");
+        if (initial) {
+          input->setValue(initial->data[i].real._0._0);
+        }
         connect(
           this,
           &GvbSimInputDialog::validateAll,
@@ -124,6 +132,14 @@ void GvbSimInputDialog::initUi(
         auto layout = new QVBoxLayout();
         auto input = new QLineEdit();
         input->setFont(font);
+        if (initial) {
+          auto s = api::gvb_byte_string_to_utf8_lossy(
+            m_vm,
+            initial->data[i].string._0);
+          input->setText(QString::fromUtf8(s.data, s.len));
+          api::destroy_string(s);
+        }
+
         layout->addWidget(input);
         fieldInput = input;
         auto msg = new QLabel(" ");
@@ -176,7 +192,7 @@ void GvbSimInputDialog::initUi(
             api::destroy_byte_string(result.right._0);
           });
         form->addRow("字符串", layout);
-        dynamic_cast<QLabel *>(form->labelForField(layout))
+        qobject_cast<QLabel *>(form->labelForField(layout))
           ->setAlignment(Qt::AlignLeft | Qt::AlignTop);
         break;
       }
@@ -241,7 +257,7 @@ void GvbSimInputDialog::initUi(
             .arg(
               QString::fromUtf8(field.func.param.data, field.func.param.len)),
           layout);
-        dynamic_cast<QLabel *>(form->labelForField(layout))
+        qobject_cast<QLabel *>(form->labelForField(layout))
           ->setAlignment(Qt::AlignLeft | Qt::AlignTop);
         break;
       }

@@ -7101,9 +7101,9 @@
 989D: .db $90, $80, $00, $00, $00  ; -32768
 
 98A2: 20 34 66 JSR $6634  ; read a character
-98A5: 20 2C 7D JSR $7D2C
+98A5: 20 2C 7D JSR $7D2C  ; evaluate expression and assert result is number
 
-; convert FAC1 to non-negative 2-byte integer
+; convert FAC1 to non-negative 2-byte integer (0~32767)
 98A8: A5 74    LDA $74
 98AA: 30 0D    BMI $98B9  ; branch if negative
 
@@ -7116,7 +7116,7 @@
 98B4: A0 98    LDY #$98
 98B6: 20 3A A2 JSR $A23A  ; compare FAC1 with A, Y (-32768)
 98B9: F0 03    BEQ $98BE
-98BB: 4C 99 99 JMP $9999
+98BB: 4C 99 99 JMP $9999  ; illegal quantity
 98BE: 4C 7B A2 JMP $A27B
 
 98C1: AD 0B B8 LDA $B80B
@@ -7137,7 +7137,7 @@
 98E1: 48       PHA
 98E2: A5 59    LDA $59
 98E4: 48       PHA
-98E5: 20 A2 98 JSR $98A2
+98E5: 20 A2 98 JSR $98A2  ; evaluate expression and assert result is in 0~32767
 98E8: 68       PLA
 98E9: 85 59    STA $59
 98EB: 68       PLA
