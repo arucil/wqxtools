@@ -481,6 +481,7 @@ pub extern "C" fn gvb_vm_arr_value(
   .into()
 }
 
+/// memory of `value` is consumed.
 #[no_mangle]
 pub extern "C" fn gvb_vm_modify_var(
   vm: *mut GvbVirtualMachine,
@@ -499,6 +500,8 @@ pub extern "C" fn gvb_vm_modify_var(
 }
 
 /// memory of `subs` is managed by C++ code.
+/// 
+/// memory of `value` is consumed.
 #[no_mangle]
 pub extern "C" fn gvb_vm_modify_arr(
   vm: *mut GvbVirtualMachine,

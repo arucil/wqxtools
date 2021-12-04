@@ -4,7 +4,6 @@
 #include <QFont>
 #include <QSpinBox>
 #include <QTextStream>
-#include <QVector>
 #include <cstdint>
 #include <stdexcept>
 
@@ -37,6 +36,7 @@ void BindingModel::enable() {
   }
 
   auto oldLen = static_cast<int>(m_bindings.len);
+  api::gvb_destroy_bindings(m_bindings);
   m_bindings = api::gvb_vm_bindings(m_vm);
   auto newLen = static_cast<int>(m_bindings.len);
   if (newLen > oldLen) {
@@ -115,17 +115,21 @@ QVariant BindingModel::data(const QModelIndex &index, int role) const {
               {binding.var.name.data, binding.var.name.len});
             switch (value.tag) {
               case api::GvbValue::Tag::Integer:
+                api::gvb_destroy_value(value);
                 return value.integer._0;
               case api::GvbValue::Tag::Real:
+                api::gvb_destroy_value(value);
                 return value.real._0._0;
               case api::GvbValue::Tag::String: {
                 if (role == Qt::EditRole) {
+                  api::gvb_destroy_value(value);
                   break;
                 }
                 auto s =
                   api::gvb_byte_string_to_utf8_lossy(m_vm, value.string._0);
                 auto result = QString::fromUtf8(s.data, s.len);
                 api::destroy_string(s);
+                api::gvb_destroy_value(value);
                 return result;
               }
             }
@@ -171,15 +175,14 @@ BindingModel::createEditor(QWidget *parent, const QModelIndex &index) const {
       switch (api::gvb_binding_type(&binding)) {
         case api::GvbBindingType::Integer: {
           auto box = new QSpinBox(parent);
-          box->setMinimum(-32768);
-          box->setMaximum(32767);
+          box->setRange(-32768, 32767);
           box->setToolTip("范围：-32768 ~ 32767");
           return box;
         }
         case api::GvbBindingType::Real: {
           auto box = new QDoubleSpinBox(parent);
-          box->setMinimum(-1.7e38);
-          box->setMaximum(1.7e38);
+          box->setRange(-1.7e38, 1.7e38);
+          box->setDecimals(6);
           box->setToolTip("范围：-1.7E+38 ~ +1.7E+38");
           return box;
         }
@@ -220,6 +223,7 @@ void BindingModel::setEditorData(QWidget *editor, const QModelIndex &index)
           throw std::logic_error("setEditorData: string");
         }
       }
+      api::gvb_destroy_value(value);
     }
     case api::GvbBinding::Tag::Array:
       return;
@@ -254,6 +258,7 @@ void BindingModel::setData(QWidget *editor, const QModelIndex &index) {
           throw std::logic_error("setData: string");
         }
       }
+      api::gvb_destroy_value(value);
       emit dataChanged(index, index);
       break;
     }
@@ -318,32 +323,41 @@ void BindingModel::editValue(const QModelIndex &index) {
       return;
     }
 
+    api::Utf8Str name = {binding.var.name.data, binding.var.name.len};
+
     // edit string
     api::GvbExecResult res;
     res.tag = api::GvbExecResult::Tag::KeyboardInput;
     res.keyboard_input.prompt.tag = api::Maybe<api::Utf8String>::Tag::Nothing;
-    QVector<api::GvbKeyboardInputType> types;
-    api::GvbKeyboardInputType type;
-    type.tag = api::GvbKeyboardInputType::Tag::String;
-    types.push_back(type);
-    res.keyboard_input.fields.data = types.constData();
-    res.keyboard_input.fields.len = types.size();
+    api::GvbKeyboardInputType types[1];
+    types[0].tag = api::GvbKeyboardInputType::Tag::String;
+    res.keyboard_input.fields.data = types;
+    res.keyboard_input.fields.len = 1;
 
-    // TODO init string
-    GvbSimInputDialog dlg(m_parent, m_vm, res.keyboard_input);
+    auto value = api::gvb_vm_var_value(m_vm, name);
+
+    api::GvbKeyboardInput initial[1];
+    initial[0].tag = api::GvbKeyboardInput::Tag::String;
+    initial[0].string._0 = value.string._0;
+    auto initialInput = api::gvb_new_input_array(initial, 1);
+    //api::gvb_destroy_value(value);
+    GvbSimInputDialog dlg(m_parent, m_vm, res.keyboard_input, &initialInput);
+    api::gvb_destroy_input_array(initialInput);
+    dlg.setWindowTitle(tr("修改变量 %1").arg(
+      QString::fromUtf8(name.data, static_cast<int>(name.len))));
     dlg.setModal(true);
     if (dlg.exec() == QDialog::Rejected) {
       return;
     }
 
-    api::GvbValue value;
     value.tag = api::GvbValue::Tag::String;
     value.string._0 = dlg.inputData()[0].string._0;
 
-    api::Utf8Str name = {binding.var.name.data, binding.var.name.len};
     api::gvb_vm_modify_var(m_vm, name, value);
     emit dataChanged(index, index);
 
     return;
   }
+
+  // TODO edit array
 }

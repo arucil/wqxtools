@@ -12,6 +12,7 @@ AboutDialog::AboutDialog(QWidget *parent) : QDialog(parent) {
   about->setTextInteractionFlags(Qt::TextSelectableByMouse);
   about->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
   about->setContentsMargins(15, 15, 15, 15);
+  about->setCursor(Qt::IBeamCursor);
   layout->addWidget(about);
   auto buttons = new QDialogButtonBox(QDialogButtonBox::Ok);
   connect(buttons, &QDialogButtonBox::accepted, this, &QDialog::accept);

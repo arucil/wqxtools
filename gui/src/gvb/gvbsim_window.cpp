@@ -25,7 +25,6 @@ GvbSimWindow::GvbSimWindow(QWidget *parent, GvbEditor *editor) :
   m_paused(false),
   m_timerCursor(0),
   m_timerRepaint(0),
-  m_state("准备就绪"),
   m_bindingModel(this) {
   initUi();
 
@@ -46,6 +45,7 @@ GvbSimWindow::GvbSimWindow(QWidget *parent, GvbEditor *editor) :
 
   QTimer::singleShot(0, this, [this] {
     m_message.setValue("点击工具栏的 [开始] 图标或按 [F5] 开始运行程序");
+    centerWindow(this, qobject_cast<QMainWindow *>(this->parent())->screen());
   });
 }
 
@@ -130,6 +130,8 @@ void GvbSimWindow::initUi() {
   });
 
   initToolBar();
+
+  connect(&m_state, &StrValue::changed, this, &GvbSimWindow::updateTitle);
 }
 
 void GvbSimWindow::initToolBar() {
@@ -137,9 +139,9 @@ void GvbSimWindow::initToolBar() {
   toolbar->setContextMenuPolicy(Qt::PreventContextMenu);
   toolbar->setMovable(false);
 
-  auto actStart = toolbar->addAction("");
-  actStart->setShortcut(Qt::Key_F5);
-  connect(actStart, &QAction::triggered, this, [this] {
+  m_actStart = toolbar->addAction("");
+  m_actStart->setShortcut(Qt::Key_F5);
+  connect(m_actStart, &QAction::triggered, this, [this] {
     m_editor->tryStartPause(this);
   });
 
@@ -147,47 +149,45 @@ void GvbSimWindow::initToolBar() {
   empty->setMinimumWidth(20);
   toolbar->addWidget(empty);
 
-  auto actStop =
+  m_actStop =
     toolbar->addAction(QPixmap(":/assets/images/Stop.svg"), "停止");
-  actStop->setShortcut(Qt::Key_F7);
-  connect(actStop, &QAction::triggered, m_editor, &GvbEditor::stop);
+  m_actStop->setShortcut(Qt::Key_F7);
+  connect(m_actStop, &QAction::triggered, m_editor, &GvbEditor::stop);
 
   auto startIcon = QPixmap(":/assets/images/Run.svg");
   auto pauseIcon = QPixmap(":/assets/images/Pause.svg");
 
-  auto stoppedCallback = [actStart, actStop, startIcon, this] {
-    actStart->setText("运行");
-    actStart->setIcon(startIcon);
-    actStop->setEnabled(false);
-    m_state = "运行结束";
-    updateTitle();
+  auto stoppedCallback = [startIcon, this] {
+    m_actStart->setText("运行");
+    m_actStart->setIcon(startIcon);
+    m_actStop->setEnabled(false);
+    m_state.setValue("运行结束");
   };
 
   connect(
     m_editor->m_stStarted,
     &QState::entered,
     this,
-    [actStart, actStop, pauseIcon, this] {
-      actStart->setText("暂停");
-      actStart->setIcon(pauseIcon);
-      actStop->setEnabled(true);
-      m_state = "运行中";
-      updateTitle();
+    [pauseIcon, this] {
+      m_actStart->setText("暂停");
+      m_actStart->setIcon(pauseIcon);
+      m_actStop->setEnabled(true);
+      m_state.setValue("运行中");
     });
   connect(m_editor->m_stStopped, &QState::entered, this, stoppedCallback);
   connect(
     m_editor->m_stPaused,
     &QState::entered,
     this,
-    [actStart, actStop, startIcon, this] {
-      actStart->setText("继续");
-      actStart->setIcon(startIcon);
-      actStop->setEnabled(true);
-      m_state = "已暂停";
-      updateTitle();
+    [startIcon, this] {
+      m_actStart->setText("继续");
+      m_actStart->setIcon(startIcon);
+      m_actStop->setEnabled(true);
+      m_state.setValue("已暂停");
     });
 
   stoppedCallback();
+  m_state.setValue("准备就绪");
 }
 
 void GvbSimWindow::closeEvent(QCloseEvent *) {
@@ -388,5 +388,5 @@ void GvbSimWindow::stopRepaintTimer() {
 }
 
 void GvbSimWindow::updateTitle() {
-  setWindowTitle(tr("GVBASIC 模拟器 - %1 [%2]").arg(m_name).arg(m_state));
+  setWindowTitle(tr("GVBASIC 模拟器 - %1 [%2]").arg(m_name).arg(m_state.value()));
 }

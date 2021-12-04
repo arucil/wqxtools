@@ -16,6 +16,7 @@ class QKeyEvent;
 class QTimerEvent;
 class QShowEvent;
 class QTableView;
+class QAction;
 
 class GvbSimWindow: public QMainWindow {
   Q_OBJECT
@@ -63,8 +64,10 @@ private:
   bool m_paused;
   int m_timerCursor;
   int m_timerRepaint;
+  QAction *m_actStart;
+  QAction *m_actStop;
   QString m_name;
-  QString m_state;
+  StrValue m_state;
   StrValue m_message;
   QTableView *m_bindingView;
   BindingModel m_bindingModel;

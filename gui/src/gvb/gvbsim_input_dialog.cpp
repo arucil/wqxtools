@@ -86,11 +86,12 @@ void GvbSimInputDialog::initUi(
         m_input[i] = InputField {std::in_place_index<0>, 0};
         auto input = new QSpinBox();
         fieldInput = input;
-        input->setMinimum(-32768);
-        input->setMaximum(32767);
+        input->setRange(-32768, 32767);
         input->setToolTip("范围：-32768 ~ 32767");
         if (initial) {
           input->setValue(initial->data[i].integer._0);
+          input->focusWidget();
+          input->selectAll();
         }
         connect(
           this,
@@ -99,8 +100,8 @@ void GvbSimInputDialog::initUi(
           &QSpinBox::editingFinished);
         connect(input, &QSpinBox::editingFinished, this, [i, input, this] {
           m_input[i] = static_cast<std::int16_t>(input->value());
-          emit fieldValidated(true);
-        });
+          fieldValidated(true);
+        }, Qt::QueuedConnection);
         form->addRow("整数", input);
         break;
       }
@@ -108,11 +109,13 @@ void GvbSimInputDialog::initUi(
         m_input[i] = InputField {std::in_place_index<1>, api::GvbReal {0.0}};
         auto input = new QDoubleSpinBox();
         fieldInput = input;
-        input->setMinimum(-1.7e38);
-        input->setMaximum(1.7e38);
+        input->setRange(-1.7e38, 1.7e38);
+        input->setDecimals(6);
         input->setToolTip("范围：-1.7E+38 ~ +1.7E+38");
         if (initial) {
           input->setValue(initial->data[i].real._0._0);
+          input->focusWidget();
+          input->selectAll();
         }
         connect(
           this,
@@ -121,8 +124,8 @@ void GvbSimInputDialog::initUi(
           &QDoubleSpinBox::editingFinished);
         connect(input, &QSpinBox::editingFinished, this, [i, input, this] {
           m_input[i] = api::GvbReal {input->value()};
-          emit fieldValidated(true);
-        });
+          fieldValidated(true);
+        }, Qt::QueuedConnection);
         form->addRow("实数", input);
         break;
       }
@@ -138,6 +141,8 @@ void GvbSimInputDialog::initUi(
             initial->data[i].string._0);
           input->setText(QString::fromUtf8(s.data, s.len));
           api::destroy_string(s);
+          input->focusWidget();
+          input->selectAll();
         }
 
         layout->addWidget(input);
@@ -181,16 +186,16 @@ void GvbSimInputDialog::initUi(
             if (result.right._0.len > 255) {
               msg->setText(
                 tr("字符串长度为 %1，超出上限 255").arg(result.right._0.len));
-              emit fieldValidated(false);
+              fieldValidated(false);
             } else {
               msg->setText("");
               auto old = std::get<2>(m_input[i]);
               m_input[i] = InputField {std::in_place_index<2>, result.right._0};
               result.right._0 = old;
-              emit fieldValidated(true);
+              fieldValidated(true);
             }
             api::destroy_byte_string(result.right._0);
-          });
+          }, Qt::QueuedConnection);
         form->addRow("字符串", layout);
         qobject_cast<QLabel *>(form->labelForField(layout))
           ->setAlignment(Qt::AlignLeft | Qt::AlignTop);
@@ -240,17 +245,17 @@ void GvbSimInputDialog::initUi(
                              .arg(QString::fromUtf8(
                                firstError.message.data,
                                firstError.message.len)));
-              emit fieldValidated(false);
+              fieldValidated(false);
             } else {
               msg->setText("");
               auto old = std::get<3>(m_input[i]);
               m_input[i] = InputField {std::in_place_index<3>, result.body};
               result.body = old;
-              emit fieldValidated(true);
+              fieldValidated(true);
             }
             api::gvb_destroy_fn_body(result.body);
             api::gvb_destroy_string_diagnostic_array(result.diagnostics);
-          });
+          }, Qt::QueuedConnection);
         form->addRow(
           tr("函数 %1(%2) =")
             .arg(QString::fromUtf8(field.func.name.data, field.func.name.len))
@@ -267,8 +272,6 @@ void GvbSimInputDialog::initUi(
 
     if (lastField) {
       QWidget::setTabOrder(lastField, fieldInput);
-    } else {
-      fieldInput->focusWidget();
     }
     lastField = fieldInput;
   }
@@ -279,9 +282,9 @@ void GvbSimInputDialog::initUi(
   auto help = new QFrame();
   auto helpLayout = new QVBoxLayout();
   helpLayout->addWidget(new QLabel("?"));
-  helpLayout->setContentsMargins(6, 2, 6, 2);
+  helpLayout->setContentsMargins(6, 0, 6, 0);
   help->setLayout(helpLayout);
-  help->setFrameStyle(QFrame::StyledPanel);
+  help->setFrameStyle(QFrame::Box);
 
 #define COMMON_HELP "<b>Esc</b> 取消输入<br>"
 
@@ -337,11 +340,6 @@ void GvbSimInputDialog::startValidateAll() {
 }
 
 void GvbSimInputDialog::fieldValidated(bool ok) {
-  if (!m_rejected && m_input.size() == 1 && ok) {
-    emit accept();
-    return;
-  }
-
   if (!m_validateAll) {
     return;
   }
@@ -357,7 +355,7 @@ void GvbSimInputDialog::fieldValidated(bool ok) {
 
 void GvbSimInputDialog::endValidateAll() {
   if (m_validateOkFields == m_validatedFields) {
-    emit accept();
+    accept();
   }
   m_validateAll = false;
   m_validatedFields = 0;
@@ -365,12 +363,14 @@ void GvbSimInputDialog::endValidateAll() {
 }
 
 void GvbSimInputDialog::keyPressEvent(QKeyEvent *ev) {
-  if (ev->key() == Qt::Key_Enter || ev->key() == Qt::Key_Return)
+  if (ev->key() == Qt::Key_Enter || ev->key() == Qt::Key_Return) {
+    startValidateAll();
     return;
+  }
   QDialog::keyPressEvent(ev);
 }
 
 void GvbSimInputDialog::reject() {
-  QDialog::reject();
   m_rejected = true;
+  QDialog::reject();
 }

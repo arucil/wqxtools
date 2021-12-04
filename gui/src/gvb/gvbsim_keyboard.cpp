@@ -119,7 +119,7 @@ void GvbSimKeyboard::initUi() {
       width: 40px;
       height: 22px;
       border-radius: 4px;
-      border: 1px solid #bbb;
+      border: 1px solid rgba(128, 128, 128, 40%);
       background: hsla(70, 80%, 50%, 5%);
     }
     QPushButton:hover {

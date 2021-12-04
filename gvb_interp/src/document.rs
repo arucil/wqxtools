@@ -159,8 +159,9 @@ impl Document {
       };
       machine_props = props;
     } else {
-      machine_props =
-        crate::machine::machines()[emoji_version.default_machine_name()].clone();
+      machine_props = crate::machine::machines()
+        [emoji_version.default_machine_name()]
+      .clone();
     }
 
     let lines = text_to_doc_lines(&doc.text);

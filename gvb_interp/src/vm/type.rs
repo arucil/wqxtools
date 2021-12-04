@@ -33,6 +33,7 @@ impl ByteString {
   pub fn from_str<S: AsRef<str>>(
     str: S,
     emoji_version: EmojiVersion,
+    add_0x1f: bool,
   ) -> Result<Self, StringError> {
     let str = str.as_ref();
     let mut bytes = vec![];
@@ -42,11 +43,15 @@ impl ByteString {
         bytes.push(b as u8);
       } else if let Some(&c) = crate::gb2312::UNICODE_TO_GB2312.get(&(b as u16))
       {
-        bytes.push(0x1f);
+        if add_0x1f {
+          bytes.push(0x1f);
+        }
         bytes.push((c >> 8) as _);
         bytes.push(c as _);
       } else if let Some(c) = emoji_version.char_to_code(c) {
-        bytes.push(0x1f);
+        if add_0x1f {
+          bytes.push(0x1f);
+        }
         bytes.push((c >> 8) as _);
         bytes.push(c as _);
       } else {

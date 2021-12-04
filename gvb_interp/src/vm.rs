@@ -3,7 +3,7 @@ use nanorand::{Rng, WyRand};
 use std::collections::BTreeMap;
 use std::fmt::{self, Display, Formatter};
 use std::io;
-use std::num::{NonZeroUsize, NonZeroU16};
+use std::num::{NonZeroU16, NonZeroUsize};
 use std::time::Duration;
 
 use crate::ast::{self, Range, SysFuncKind};
@@ -278,7 +278,7 @@ where
     &self,
     s: &str,
   ) -> std::result::Result<crate::ByteString, crate::StringError> {
-    ByteString::from_str(s, self.emoji_version)
+    ByteString::from_str(s, self.emoji_version, false)
   }
 
   pub fn string_from_byte_string_lossy(&self, s: ByteString) -> String {
@@ -306,7 +306,7 @@ where
     bindings
   }
 
-  pub fn var_value(&self, name:&str) -> Value {
+  pub fn var_value(&self, name: &str) -> Value {
     let sym = self.interner.get(name).unwrap();
     self.bindings.vars[&sym].clone()
   }
@@ -552,7 +552,10 @@ where
           } else if bound > 32767 {
             self.state.error(
               loc,
-              format!("数组下标超出上限 32767。该下标的值为：{}", f64::from(value)),
+              format!(
+                "数组下标超出上限 32767。该下标的值为：{}",
+                f64::from(value)
+              ),
             )?
           }
           let bound = bound as usize + 1;

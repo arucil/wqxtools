@@ -1072,8 +1072,15 @@ impl FileHandle for DefaultFileHandle {
   }
 
   fn write(&mut self, data: &[u8]) -> io::Result<()> {
-    if self.pos + data.len() > self.data.len() {
-      self.data.resize(self.pos + data.len(), 0);
+    let data_end = self.pos + data.len();
+    if data_end > self.data.len() {
+      if data_end > 65534 {
+        return Err(io::Error::new(
+          io::ErrorKind::FileTooLarge,
+          format!("文件大小为 {} 字节，超出文件大小上限 65534", data_end),
+        ));
+      }
+      self.data.resize(data_end, 0);
     }
     self.data[self.pos..self.pos + data.len()].copy_from_slice(data);
     self.pos += data.len();
@@ -1088,7 +1095,7 @@ impl FileHandle for DefaultFileHandle {
     }
     data[..len].copy_from_slice(&self.data[self.pos..self.pos + len]);
     self.pos += len;
-    Ok(len)
+    Ok(len as _)
   }
 
   fn close(mut self) -> io::Result<()> {
@@ -1154,7 +1161,7 @@ mod tests {
   }
 
   fn string(str: &str) -> ByteString {
-    ByteString::from_str(str, EmojiVersion::New).unwrap()
+    ByteString::from_str(str, EmojiVersion::New, true).unwrap()
   }
 
   fn pad_text_buffer(mut s: ByteString) -> ByteString {

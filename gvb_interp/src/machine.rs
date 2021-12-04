@@ -1,8 +1,8 @@
 use crate::HashMap;
-use util::config;
 use std::io;
 use std::mem::MaybeUninit;
 use std::time::Duration;
+use util::config;
 use yaml_rust::{Yaml, YamlLoader};
 
 pub(crate) mod emoji;
@@ -165,7 +165,9 @@ pub fn init_machines() -> Result<(), InitError> {
     } else if emoji_version == "old" {
       props.emoji_version = EmojiVersion::Old;
     } else {
-      return Err(format!("unrecognized emoji version '{}'", emoji_version).into());
+      return Err(
+        format!("unrecognized emoji version '{}'", emoji_version).into(),
+      );
     }
 
     // sleep-unit

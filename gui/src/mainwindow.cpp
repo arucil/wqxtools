@@ -1,5 +1,6 @@
 #include "mainwindow.h"
 
+#include "util.h"
 #include <QApplication>
 #include <QCloseEvent>
 #include <QFileDialog>
@@ -40,6 +41,8 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     m_actReplace->setEnabled(false);
     m_actStart->setEnabled(false);
     m_actStop->setEnabled(false);
+
+    centerWindow(this, qApp->primaryScreen());
   });
 }
 
@@ -49,7 +52,7 @@ void MainWindow::initUi() {
   auto help = new QLabel(
     "<p>点击菜单 [文件] -> [打开] 打开文件<br>"
     "或拖动文件到此窗口</p>");
-  help->setFrameStyle(QFrame::StyledPanel);
+  help->setFrameStyle(QFrame::Box);
   help->setAlignment(Qt::AlignCenter | Qt::AlignVCenter);
   help->setContentsMargins(20, 20, 20, 20);
   setCentralWidget(help);
@@ -187,10 +190,7 @@ void MainWindow::openFileByPath(const QString &path) {
     setCentralWidget(widget);
 
     resize(widget->preferredWindowSize());
-    auto size = frameGeometry().size();
-    move(
-      screen()->geometry().center()
-      - QPoint(size.width() / 2, size.height() / 2));
+    centerWindow(this, screen());
   }
 
   QTimer::singleShot(0, widget, [widget, path, this] {

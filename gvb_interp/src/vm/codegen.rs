@@ -151,7 +151,7 @@ impl CodeEmitter for CodeGen {
     is_quoted: bool,
   ) -> Result<(Self::DatumIndex, usize), char> {
     let index = DatumIndex(self.data.len());
-    let value = match ByteString::from_str(value, self.emoji_version) {
+    let value = match ByteString::from_str(value, self.emoji_version, true) {
       Ok(value) => value,
       Err(StringError::InvalidChar(c)) => return Err(c),
     };
@@ -394,7 +394,7 @@ impl CodeEmitter for CodeGen {
   }
 
   fn emit_string(&mut self, range: Range, str: String) -> Result<usize, char> {
-    let str = match ByteString::from_str(str, self.emoji_version) {
+    let str = match ByteString::from_str(str, self.emoji_version, true) {
       Ok(str) => str,
       Err(StringError::InvalidChar(c)) => return Err(c),
     };

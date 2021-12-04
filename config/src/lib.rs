@@ -123,8 +123,11 @@ fn load_gvb_config(
 
       if let Some((key, _)) = editor.pop_front() {
         return Err(
-          format!("superfluous field {} in gvbasic.editor", yaml_to_string(&key))
-            .into(),
+          format!(
+            "superfluous field {} in gvbasic.editor",
+            yaml_to_string(&key)
+          )
+          .into(),
         );
       }
     }
@@ -149,12 +152,14 @@ fn load_gvb_config(
         gvb_config.simulator.pixel_scale = pixel_scale as u32;
       }
 
-      if let Some(c) = read_rgb(&mut simulator, "gvbasic.simulator", "foreground")?
+      if let Some(c) =
+        read_rgb(&mut simulator, "gvbasic.simulator", "foreground")?
       {
         gvb_config.simulator.foreground = c;
       }
 
-      if let Some(c) = read_rgb(&mut simulator, "gvbasic.simulator", "background")?
+      if let Some(c) =
+        read_rgb(&mut simulator, "gvbasic.simulator", "background")?
       {
         gvb_config.simulator.background = c;
       }
