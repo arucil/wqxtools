@@ -98,10 +98,15 @@ void GvbSimInputDialog::initUi(
           &GvbSimInputDialog::validateAll,
           input,
           &QSpinBox::editingFinished);
-        connect(input, &QSpinBox::editingFinished, this, [i, input, this] {
-          m_input[i] = static_cast<std::int16_t>(input->value());
-          fieldValidated(true);
-        }, Qt::QueuedConnection);
+        connect(
+          input,
+          &QSpinBox::editingFinished,
+          this,
+          [i, input, this] {
+            m_input[i] = static_cast<std::int16_t>(input->value());
+            fieldValidated(true);
+          },
+          Qt::QueuedConnection);
         form->addRow("整数", input);
         break;
       }
@@ -122,10 +127,15 @@ void GvbSimInputDialog::initUi(
           &GvbSimInputDialog::validateAll,
           input,
           &QDoubleSpinBox::editingFinished);
-        connect(input, &QSpinBox::editingFinished, this, [i, input, this] {
-          m_input[i] = api::GvbReal {input->value()};
-          fieldValidated(true);
-        }, Qt::QueuedConnection);
+        connect(
+          input,
+          &QSpinBox::editingFinished,
+          this,
+          [i, input, this] {
+            m_input[i] = api::GvbReal {input->value()};
+            fieldValidated(true);
+          },
+          Qt::QueuedConnection);
         form->addRow("实数", input);
         break;
       }
@@ -171,7 +181,8 @@ void GvbSimInputDialog::initUi(
                   break;
                 case api::GvbStringError::Tag::InvalidChar: {
                   auto c = result.left._0.invalid_char._0;
-                  msg->setText(tr("非法字符：U+%1")
+                  msg->setText(tr("非法字符：%1 (U+%2)")
+                                 .arg(printable QString::fromUcs4(&c, 1))
                                  .arg(
                                    static_cast<unsigned>(c),
                                    c <= 0xffff ? 4 : 6,
@@ -195,7 +206,8 @@ void GvbSimInputDialog::initUi(
               fieldValidated(true);
             }
             api::destroy_byte_string(result.right._0);
-          }, Qt::QueuedConnection);
+          },
+          Qt::QueuedConnection);
         form->addRow("字符串", layout);
         qobject_cast<QLabel *>(form->labelForField(layout))
           ->setAlignment(Qt::AlignLeft | Qt::AlignTop);
@@ -255,7 +267,8 @@ void GvbSimInputDialog::initUi(
             }
             api::gvb_destroy_fn_body(result.body);
             api::gvb_destroy_string_diagnostic_array(result.diagnostics);
-          }, Qt::QueuedConnection);
+          },
+          Qt::QueuedConnection);
         form->addRow(
           tr("函数 %1(%2) =")
             .arg(QString::fromUtf8(field.func.name.data, field.func.name.len))

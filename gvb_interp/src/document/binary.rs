@@ -456,14 +456,14 @@ pub fn save_txt(
       } else {
         return Err(SaveError {
           line,
-          message: format!("非法字符：U+{:04X}", c as u32),
+          message: printable format!("非法字符：U+{:04X}", c as u32),
           bas_specific: false,
         });
       }
     } else {
       return Err(SaveError {
         line,
-        message: format!("非法字符：U+{:06X}", c as u32),
+        message: printable format!("非法字符：U+{:06X}", c as u32),
         bas_specific: false,
       });
     }
