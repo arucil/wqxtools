@@ -169,7 +169,7 @@ impl DefaultDevice {
       self.memory[graph_addr + i] ^= 0xff;
     }
 
-    if self.cursor == CursorState::FullWidth && self.column < 19 {
+    if cursor == CursorState::FullWidth && self.column < 19 {
       graph_addr += 1;
       for i in (0..s::WIDTH_IN_BYTE * CHAR_HEIGHT).step_by(s::WIDTH_IN_BYTE) {
         self.memory[graph_addr + i] ^= 0xff;
@@ -178,7 +178,7 @@ impl DefaultDevice {
 
     let left = (self.column as usize) << 3;
     let top = self.row as usize * CHAR_HEIGHT;
-    let right = if self.cursor == CursorState::FullWidth {
+    let right = if cursor == CursorState::FullWidth {
       left + 16
     } else {
       left + 8

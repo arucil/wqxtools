@@ -1455,7 +1455,7 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
         if self.input.as_bytes()[..5].eq_ignore_ascii_case(b"input") {
           self.advance(5);
           break FileMode::Input;
-        } else {
+        } else if self.input.len() >= 6 {
           let m = &self.input.as_bytes()[..6];
           if m.eq_ignore_ascii_case(b"output") {
             self.advance(6);
