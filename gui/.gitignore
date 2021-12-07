@@ -8,3 +8,6 @@ Makefile
 /*.tgz
 /*.zip
 /*.yaml
+/*.txt
+/*.bas
+/*.BAS
