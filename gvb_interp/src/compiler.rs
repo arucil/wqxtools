@@ -215,7 +215,7 @@ impl<'a, 'b, E: CodeEmitter, T> CompileState<'a, 'b, E, T> {
   fn add_invalid_char_error(&mut self, range: Range, c: char) {
     self.add_error(
       range,
-      printable
+      // TODO check if c is printable
       if (c as u32) < 0x10000 {
         format!("字符串中包含非法字符：U+{:04X}", c as u32)
       } else {

@@ -16,7 +16,7 @@ BindingModel::BindingModel(QWidget *parent) :
   m_parent(parent) {}
 
 BindingModel::~BindingModel() {
-  api::gvb_destroy_bindings(m_bindings);
+  api::gvb_destroy_bindings(&m_bindings);
 }
 
 void BindingModel::setVm(api::GvbVirtualMachine *vm) {
@@ -26,6 +26,9 @@ void BindingModel::setVm(api::GvbVirtualMachine *vm) {
 
 void BindingModel::disable() {
   m_enabled = false;
+  beginResetModel();
+  api::gvb_destroy_bindings(&m_bindings);
+  endResetModel();
 }
 
 void BindingModel::enable() {
@@ -36,7 +39,7 @@ void BindingModel::enable() {
   }
 
   auto oldLen = static_cast<int>(m_bindings.len);
-  api::gvb_destroy_bindings(m_bindings);
+  api::gvb_destroy_bindings(&m_bindings);
   m_bindings = api::gvb_vm_bindings(m_vm);
   auto newLen = static_cast<int>(m_bindings.len);
   if (newLen > oldLen) {

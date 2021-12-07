@@ -138,9 +138,11 @@ impl DefaultDevice {
       } else {
         CursorState::HalfWidth
       };
+      self.inverse_cursor(self.cursor);
+    } else {
+      self.inverse_cursor(self.cursor);
+      self.cursor = CursorState::None;
     }
-
-    self.inverse_cursor();
   }
 
   #[cfg(test)]
@@ -158,7 +160,7 @@ impl DefaultDevice {
     self.graphics_dirty.take()
   }
 
-  fn inverse_cursor(&mut self) {
+  fn inverse_cursor(&mut self, cursor: CursorState) {
     use screen as s;
     let mut graph_addr = self.props.graphics_base_addr as usize
       + self.row as usize * s::WIDTH_IN_BYTE * CHAR_HEIGHT
@@ -1024,7 +1026,7 @@ impl Device for DefaultDevice {
       return;
     }
 
-    self.inverse_cursor();
+    self.blink_cursor();
 
     self.cursor = CursorState::None;
   }

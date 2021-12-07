@@ -244,6 +244,7 @@ void GvbSimWindow::stop() {
         .arg(QString::fromUtf8(result.left._0.data, result.left._0.len)));
     destroy_string(result.left._0);
   }
+  api::gvb_reset_exec_result(&m_execResult);
   m_execResult.tag = api::GvbExecResult::Tag::End;
   m_screen->update();
 }
@@ -302,6 +303,7 @@ void GvbSimWindow::execLater() {
         return;
     }
 
+    api::gvb_reset_exec_result(&m_execResult);
     m_execResult = api::gvb_vm_exec(m_vm, m_execInput, EXEC_STEPS);
     api::gvb_reset_exec_input(&m_execInput);
 

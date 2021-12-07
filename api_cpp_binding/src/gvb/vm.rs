@@ -221,7 +221,7 @@ pub extern "C" fn gvb_reset_exec_result(result: *mut GvbExecResult) {
       if let Maybe::Just(s) = prompt {
         destroy_string(s);
       }
-      for field in unsafe { fields.as_slice() } {
+      for field in unsafe { fields.into_boxed_slice() }.iter() {
         match field {
           GvbKeyboardInputType::Integer => {}
           GvbKeyboardInputType::Real => {}
@@ -232,7 +232,6 @@ pub extern "C" fn gvb_reset_exec_result(result: *mut GvbExecResult) {
           }
         }
       }
-      drop(unsafe { fields.into_boxed_slice() });
     }
     GvbExecResult::InKey => {}
     GvbExecResult::Error {
@@ -338,6 +337,7 @@ pub extern "C" fn gvb_byte_string_to_utf8_lossy(
 }
 
 #[repr(C)]
+#[derive(Clone)]
 pub enum GvbBinding {
   Var {
     name: Utf8String,
@@ -406,11 +406,11 @@ pub extern "C" fn gvb_vm_bindings(
 }
 
 #[no_mangle]
-pub extern "C" fn gvb_destroy_bindings(bindings: Array<GvbBinding>) {
-  if bindings.data.is_null() {
+pub extern "C" fn gvb_destroy_bindings(bindings: *mut Array<GvbBinding>) {
+  if unsafe { (*bindings).data.is_null() } {
     return;
   }
-  for binding in unsafe { bindings.into_boxed_slice() }.iter() {
+  for binding in unsafe { (*bindings).clone().into_boxed_slice() }.iter() {
     match binding {
       GvbBinding::Var { name } => destroy_string(name.clone()),
       GvbBinding::Array { name, dimensions } => {
@@ -418,6 +418,10 @@ pub extern "C" fn gvb_destroy_bindings(bindings: Array<GvbBinding>) {
         drop(unsafe { dimensions.clone().into_boxed_slice() });
       }
     }
+  }
+  unsafe {
+    (*bindings).data = std::ptr::null();
+    (*bindings).len = 0;
   }
 }
 
@@ -500,7 +504,7 @@ pub extern "C" fn gvb_vm_modify_var(
 }
 
 /// memory of `subs` is managed by C++ code.
-/// 
+///
 /// memory of `value` is consumed.
 #[no_mangle]
 pub extern "C" fn gvb_vm_modify_arr(

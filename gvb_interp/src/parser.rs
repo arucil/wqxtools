@@ -386,7 +386,7 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
           self.advance(c.len_utf8());
           self.add_error(
             Range::new(start, self.offset),
-              printable
+            // TODO check if c is printable
             if (c as u32) < 0x10000 {
               format!("非法字符：U+{:04X}", c as u32)
             } else {
