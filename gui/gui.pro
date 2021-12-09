@@ -26,7 +26,10 @@ HEADERS += src/mainwindow.h \
     src/gvb/gvbsim_keyboard.h \
     src/gvb/gvbsim_input_dialog.h \
     src/gvb/binding_model.h \
-    src/gvb/binding_delegate.h
+    src/gvb/binding_delegate.h \
+    src/gvb/array_dialog.h \
+    src/gvb/array_model.h \
+    src/gvb/editor_model.h
 SOURCES += src/*.cpp \
     src/gvb/*.cpp
 

@@ -1,20 +1,30 @@
 #pragma once
 
 #include <QAbstractTableModel>
+#include <QVector>
+#include <cstdint>
+#include <variant>
 
 #include "api.h"
 #include "table_editor_model.h"
 
-class BindingModel: public TableEditorModel {
+typedef std::variant<
+  QVector<QVector<std::int16_t>>,
+  QVector<QVector<double>>,
+  QVector<QVector<api::Array<std::uint8_t>>>>
+  ArrayPlaneData;
+
+class ArrayModel: public TableEditorModel {
   Q_OBJECT
-
 public:
-  BindingModel(QWidget *parent);
-  ~BindingModel();
+  ArrayModel(
+    QWidget *parent,
+    api::GvbVirtualMachine *,
+    const api::GvbBinding::Array_Body &);
+  ~ArrayModel();
 
-  void setVm(api::GvbVirtualMachine *);
-  void enable();
-  void disable();
+  void setSubscript(size_t index, std::uint16_t sub);
+  void setPlaneDim(size_t row, size_t col);
 
 public:
   int rowCount(const QModelIndex &parent) const override;
@@ -34,7 +44,9 @@ public slots:
 
 private:
   api::GvbVirtualMachine *m_vm;
-  api::Array<api::GvbBinding> m_bindings;
-  bool m_enabled;
+  ArrayPlaneData m_data;
+  api::Array<std::uint16_t> m_subscripts;
+  size_t m_rowDim;
+  size_t m_colDim;
   QWidget *m_parent;
 };

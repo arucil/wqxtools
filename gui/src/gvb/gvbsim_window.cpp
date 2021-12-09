@@ -111,7 +111,7 @@ void GvbSimWindow::initUi() {
   connect(keyboard, &GvbSimKeyboard::keyUp, this, &GvbSimWindow::keyUp);
 
   m_bindingView = new QTableView();
-  m_bindingView->resize(120, 0);
+  m_bindingView->resize(100, 0);
   m_bindingView->setModel(&m_bindingModel);
   m_bindingView->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
   m_bindingView->setItemDelegate(&m_bindingDelegate);

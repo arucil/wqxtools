@@ -19,8 +19,8 @@
 #include <utility>
 
 #include "../action.h"
-#include "gvbsim_window.h"
 #include "../util.h"
+#include "gvbsim_window.h"
 
 #define INDICATOR_WARNING 0
 #define INDICATOR_ERROR 1
@@ -331,8 +331,10 @@ LoadResult GvbEditor::load(const QString &path) {
     m_actUndo->setEnabled(false);
     m_actRedo->setEnabled(false);
 
-    auto digits = static_cast<size_t>(
-      std::log10(std::count(text.data, text.data + text.len, '\n') + 1));
+    auto digits = std::max(
+      static_cast<size_t>(
+        std::log10(std::count(text.data, text.data + text.len, '\n') + 1)),
+      static_cast<size_t>(1));
     auto digitWidth = m_edit->textWidth(STYLE_LINENUMBER, "9") * digits;
     m_edit->setMarginWidthN(2, digitWidth);
 
@@ -441,6 +443,7 @@ void GvbEditor::notified(Scintilla::NotificationData *data) {
         if (!messages.empty()) {
           messages += '\n';
         }
+        messages += "▸ ";
         messages += m_diagnostics[it->interval().index].message.c_str();
         return true;
       });

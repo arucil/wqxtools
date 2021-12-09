@@ -3,15 +3,17 @@
 #include <QString>
 #include <map>
 
+using std::optional;
+
 static std::map<QString, std::function<ToolCtor>> toolFactories;
 
 static std::map<QString, std::set<QString>> extensions;
 
-static std::optional<QString> openFileFilter;
+static optional<QString> openFileFilter;
 
 static std::map<QString, QString> saveFileFilters;
 
-std::optional<std::function<ToolCtor>>
+optional<std::function<ToolCtor>>
 ToolFactoryRegistry::get(const QString &ext) {
   auto it = toolFactories.find(ext.toLower());
   if (it == toolFactories.end()) {

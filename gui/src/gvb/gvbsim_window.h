@@ -7,7 +7,7 @@
 #include "../value.h"
 #include "api.h"
 #include "binding_model.h"
-#include "binding_delegate.h"
+#include "table_editor_delegate.h"
 
 class GvbEditor;
 class GvbSimScreen;
@@ -71,5 +71,5 @@ private:
   StrValue m_message;
   QTableView *m_bindingView;
   BindingModel m_bindingModel;
-  BindingDelegate m_bindingDelegate;
+  TableEditorDelegate m_bindingDelegate;
 };

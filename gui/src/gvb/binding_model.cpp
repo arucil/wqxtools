@@ -1,4 +1,5 @@
 #include "binding_model.h"
+#include "gvb_util.h"
 
 #include <QDoubleSpinBox>
 #include <QFont>
@@ -7,6 +8,7 @@
 #include <cstdint>
 #include <stdexcept>
 
+#include "array_dialog.h"
 #include "gvbsim_input_dialog.h"
 
 BindingModel::BindingModel(QWidget *parent) :
@@ -71,25 +73,7 @@ QVariant BindingModel::data(const QModelIndex &index, int role) const {
               binding.var.name.data,
               binding.var.name.len);
           case api::GvbBinding::Tag::Array: {
-            QString result;
-            QTextStream arr(&result);
-            arr << QString::fromUtf8(
-              binding.array.name.data,
-              binding.array.name.len);
-            arr << '(';
-            auto dimensions = binding.array.dimensions;
-            auto comma = false;
-            for (auto sub = dimensions.data;
-                 sub < dimensions.data + dimensions.len;
-                 sub++) {
-              if (comma) {
-                arr << ",";
-              }
-              comma = true;
-              arr << *sub;
-            }
-            arr << ')';
-            return result;
+            return array_binding_name(binding.array);
           }
         }
         break;
@@ -262,7 +246,7 @@ void BindingModel::setData(QWidget *editor, const QModelIndex &index) {
         }
       }
       api::gvb_destroy_value(value);
-      emit dataChanged(index, index);
+      emit dataChanged(index, index, {Qt::DisplayRole});
       break;
     }
     case api::GvbBinding::Tag::Array:
@@ -346,8 +330,9 @@ void BindingModel::editValue(const QModelIndex &index) {
     //api::gvb_destroy_value(value);
     GvbSimInputDialog dlg(m_parent, m_vm, res.keyboard_input, &initialInput);
     api::gvb_destroy_input_array(initialInput);
-    dlg.setWindowTitle(tr("修改变量 %1").arg(
-      QString::fromUtf8(name.data, static_cast<int>(name.len))));
+    dlg.setWindowTitle(
+      tr("修改变量 %1")
+        .arg(QString::fromUtf8(name.data, static_cast<int>(name.len))));
     dlg.setModal(true);
     if (dlg.exec() == QDialog::Rejected) {
       return;
@@ -357,10 +342,13 @@ void BindingModel::editValue(const QModelIndex &index) {
     value.string._0 = dlg.inputData()[0].string._0;
 
     api::gvb_vm_modify_var(m_vm, name, value);
-    emit dataChanged(index, index);
+    emit dataChanged(index, index, {Qt::DisplayRole});
 
     return;
   }
 
-  // TODO edit array
+  api::Utf8Str name = {binding.array.name.data, binding.array.name.len};
+  ArrayDialog dialog(m_parent, binding.array, m_vm);
+  dialog.setModal(true);
+  dialog.exec();
 }

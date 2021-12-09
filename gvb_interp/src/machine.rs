@@ -54,6 +54,7 @@ pub(crate) fn machines() -> &'static HashMap<String, MachineProps> {
 
 static mut MACHINES: MaybeUninit<HashMap<String, MachineProps>> =
   MaybeUninit::uninit();
+static mut MACHINES_INITED: bool = false;
 
 pub(crate) static mut DEFAULT_MACHINE_FOR_NEW_EMOJI_VERSION: String =
   String::new();
@@ -96,7 +97,11 @@ pub fn init_machines() -> Result<(), InitError> {
   let content = config::load_config_file("machines.yaml")?;
   let mut docs = YamlLoader::load_from_str(&content)?;
   unsafe {
+    if MACHINES_INITED {
+      MACHINES.assume_init_drop();
+    }
     MACHINES.write(HashMap::default());
+    MACHINES_INITED = true;
   }
   if docs.is_empty() {
     return Ok(());

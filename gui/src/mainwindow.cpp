@@ -136,6 +136,11 @@ void MainWindow::initMenu() {
   connect(actAbout, &QAction::triggered, this, [this] {
     AboutDialog(this).exec();
   });
+
+  auto actAboutQt = mnuHelp->addAction("关于 Qt");
+  connect(actAboutQt, &QAction::triggered, this, [this] {
+    QMessageBox::aboutQt(this, "关于 Qt");
+  });
 }
 
 void MainWindow::closeEvent(QCloseEvent *event) {

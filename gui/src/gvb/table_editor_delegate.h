@@ -2,12 +2,12 @@
 
 #include <QStyledItemDelegate>
 
-class BindingDelegate: public QStyledItemDelegate {
+class TableEditorDelegate: public QStyledItemDelegate {
   Q_OBJECT
 
 public:
-  BindingDelegate(QObject *parent = nullptr);
-  ~BindingDelegate();
+  TableEditorDelegate(QObject *parent = nullptr);
+  ~TableEditorDelegate();
 
   QWidget *createEditor(
     QWidget *parent,
