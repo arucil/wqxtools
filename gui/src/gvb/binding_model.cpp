@@ -8,7 +8,7 @@
 #include <cstdint>
 #include <stdexcept>
 
-#include "array_dialog.h"
+#include "array_edit_dialog.h"
 #include "gvbsim_input_dialog.h"
 
 BindingModel::BindingModel(QWidget *parent) :
@@ -347,8 +347,9 @@ void BindingModel::editValue(const QModelIndex &index) {
     return;
   }
 
+  // edit array
   api::Utf8Str name = {binding.array.name.data, binding.array.name.len};
-  ArrayDialog dialog(m_parent, binding.array, m_vm);
+  ArrayEditDialog dialog(m_parent, binding.array, m_vm);
   dialog.setModal(true);
   dialog.exec();
 }

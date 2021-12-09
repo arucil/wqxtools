@@ -11,7 +11,7 @@
 
 #include "gvb_util.h"
 
-ArrayDialog::ArrayDialog(
+ArrayEditDialog::ArrayEditDialog(
   QWidget *parent,
   const api::GvbBinding::Array_Body &array,
   api::GvbVirtualMachine *vm) :
@@ -35,9 +35,9 @@ ArrayDialog::ArrayDialog(
   });
 }
 
-ArrayDialog::~ArrayDialog() {}
+ArrayEditDialog::~ArrayEditDialog() {}
 
-void ArrayDialog::initUi(const api::GvbBinding::Array_Body &array) {
+void ArrayEditDialog::initUi(const api::GvbBinding::Array_Body &array) {
   auto layout = new QVBoxLayout(this);
 
   auto d = initDimensionSelector(array);
@@ -57,7 +57,7 @@ void ArrayDialog::initUi(const api::GvbBinding::Array_Body &array) {
 }
 
 QGridLayout *
-ArrayDialog::initDimensionSelector(const api::GvbBinding::Array_Body &array) {
+ArrayEditDialog::initDimensionSelector(const api::GvbBinding::Array_Body &array) {
   if (array.dimensions.len == 1) {
     return nullptr;
   }
@@ -97,7 +97,7 @@ ArrayDialog::initDimensionSelector(const api::GvbBinding::Array_Body &array) {
   return grid;
 }
 
-void ArrayDialog::setRowDim(const optional<size_t> &row) {
+void ArrayEditDialog::setRowDim(const optional<size_t> &row) {
   if (!row.has_value()) {
     if (m_curRowDim.has_value()) {
       auto &sel = m_dimSelItems[m_curRowDim.value()];

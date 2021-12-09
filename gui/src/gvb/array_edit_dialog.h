@@ -21,15 +21,15 @@ struct DimensionSelectorItem {
   QCheckBox *col;
 };
 
-class ArrayDialog: public QDialog {
+class ArrayEditDialog: public QDialog {
   Q_OBJECT
 
 public:
-  ArrayDialog(
+  ArrayEditDialog(
     QWidget *parent,
     const api::GvbBinding::Array_Body &array,
     api::GvbVirtualMachine *vm);
-  ~ArrayDialog();
+  ~ArrayEditDialog();
 
 private:
   void initUi(const api::GvbBinding::Array_Body &);
