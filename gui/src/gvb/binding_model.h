@@ -34,7 +34,7 @@ public slots:
 
 private:
   api::GvbVirtualMachine *m_vm;
-  api::Array<api::GvbBinding> m_bindings;
+  api::ArrayMut<api::GvbBinding> m_bindings;
   bool m_enabled;
   QWidget *m_parent;
 };

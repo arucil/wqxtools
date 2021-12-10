@@ -9,9 +9,9 @@
 #include "table_editor_model.h"
 
 typedef std::variant<
-  QVector<QVector<std::int16_t>>,
-  QVector<QVector<double>>,
-  QVector<QVector<api::Array<std::uint8_t>>>>
+  QVector<api::ArrayMut<std::int16_t>>,
+  QVector<api::ArrayMut<api::GvbReal>>,
+  QVector<api::ArrayMut<api::Array<std::uint8_t>>>>
   ArrayPlaneData;
 
 class ArrayModel: public TableEditorModel {
@@ -24,7 +24,7 @@ public:
   ~ArrayModel();
 
   void setSubscript(size_t index, std::uint16_t sub);
-  void setPlaneDim(size_t row, size_t col);
+  void setPlaneDim(size_t rowDim, size_t colDim);
 
 public:
   int rowCount(const QModelIndex &parent) const override;
@@ -43,10 +43,17 @@ public slots:
   void editValue(const QModelIndex &);
 
 private:
+  void loadData(size_t newRowDim, size_t newColDim);
+  QVector<std::uint16_t> calcSubs(const QModelIndex &) const;
+  void destroyData();
+
+private:
+  QWidget *m_parent;
   api::GvbVirtualMachine *m_vm;
   ArrayPlaneData m_data;
-  api::Array<std::uint16_t> m_subscripts;
+  api::Utf8Str m_name;
+  api::Array<std::uint16_t> m_bounds;
+  QVector<std::uint16_t> m_subscripts;
   size_t m_rowDim;
   size_t m_colDim;
-  QWidget *m_parent;
 };

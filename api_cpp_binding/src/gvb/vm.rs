@@ -1,6 +1,6 @@
 use crate::{
-  destroy_byte_string, destroy_string, Array, Either, GvbDevice, GvbDiagnostic,
-  GvbSeverity, Maybe, Unit, Utf16Str, Utf8Str, Utf8String,
+  destroy_byte_string, destroy_string, Array, ArrayMut, Either, GvbDevice,
+  GvbDiagnostic, GvbSeverity, Maybe, Unit, Utf16Str, Utf8Str, Utf8String,
 };
 use gvb_interp as gvb;
 use std::convert::TryInto;
@@ -341,6 +341,7 @@ pub extern "C" fn gvb_byte_string_to_utf8_lossy(
 pub enum GvbBinding {
   Var {
     name: Utf8String,
+    value: GvbValue,
   },
   Array {
     name: Utf8String,
@@ -349,6 +350,7 @@ pub enum GvbBinding {
 }
 
 #[repr(C)]
+#[derive(Clone)]
 pub enum GvbValue {
   Integer(i16),
   Real(GvbReal),
@@ -389,12 +391,13 @@ pub extern "C" fn gvb_destroy_value(value: GvbValue) {
 #[no_mangle]
 pub extern "C" fn gvb_vm_bindings(
   vm: *const GvbVirtualMachine,
-) -> Array<GvbBinding> {
+) -> ArrayMut<GvbBinding> {
   let bindings = unsafe { (*vm).0.bindings() }
     .into_iter()
     .map(|(name, b)| match b {
-      gvb::Binding::Var => GvbBinding::Var {
+      gvb::Binding::Var { value } => GvbBinding::Var {
         name: unsafe { Utf8String::new(name) },
+        value: value.into(),
       },
       gvb::Binding::Array { dimensions } => GvbBinding::Array {
         name: unsafe { Utf8String::new(name) },
@@ -402,17 +405,20 @@ pub extern "C" fn gvb_vm_bindings(
       },
     })
     .collect();
-  unsafe { Array::new(bindings) }
+  unsafe { ArrayMut::new(bindings) }
 }
 
 #[no_mangle]
-pub extern "C" fn gvb_destroy_bindings(bindings: *mut Array<GvbBinding>) {
+pub extern "C" fn gvb_destroy_bindings(bindings: *mut ArrayMut<GvbBinding>) {
   if unsafe { (*bindings).data.is_null() } {
     return;
   }
   for binding in unsafe { (*bindings).clone().into_boxed_slice() }.iter() {
     match binding {
-      GvbBinding::Var { name } => destroy_string(name.clone()),
+      GvbBinding::Var { name, value } => {
+        destroy_string(name.clone());
+        gvb_destroy_value(value.clone());
+      }
       GvbBinding::Array { name, dimensions } => {
         destroy_string(name.clone());
         drop(unsafe { dimensions.clone().into_boxed_slice() });
@@ -420,7 +426,7 @@ pub extern "C" fn gvb_destroy_bindings(bindings: *mut Array<GvbBinding>) {
     }
   }
   unsafe {
-    (*bindings).data = std::ptr::null();
+    (*bindings).data = std::ptr::null_mut();
     (*bindings).len = 0;
   }
 }
@@ -430,59 +436,6 @@ pub enum GvbBindingType {
   Integer,
   Real,
   String,
-}
-
-#[no_mangle]
-pub extern "C" fn gvb_binding_type(
-  binding: *const GvbBinding,
-) -> GvbBindingType {
-  let binding = unsafe { &*binding };
-  let name = match binding {
-    GvbBinding::Var { name } => name,
-    GvbBinding::Array { name, .. } => name,
-  };
-  let name =
-    unsafe { std::slice::from_raw_parts(name.data as *const u8, name.len) };
-  match name.last().unwrap() {
-    b'%' => GvbBindingType::Integer,
-    b'$' => GvbBindingType::String,
-    _ => GvbBindingType::Real,
-  }
-}
-
-#[no_mangle]
-pub extern "C" fn gvb_vm_var_value(
-  vm: *const GvbVirtualMachine,
-  name: Utf8Str,
-) -> GvbValue {
-  let name = unsafe {
-    std::str::from_utf8_unchecked(std::slice::from_raw_parts(
-      name.data as *const _,
-      name.len,
-    ))
-  };
-  unsafe { (*vm).0.var_value(name) }.into()
-}
-
-/// memory of `subs` is managed by C++ code.
-#[no_mangle]
-pub extern "C" fn gvb_vm_arr_value(
-  vm: *const GvbVirtualMachine,
-  name: Utf8Str,
-  subs: Array<usize>,
-) -> GvbValue {
-  let name = unsafe {
-    std::str::from_utf8_unchecked(std::slice::from_raw_parts(
-      name.data as *const _,
-      name.len,
-    ))
-  };
-  unsafe {
-    (*vm)
-      .0
-      .arr_value(name, std::slice::from_raw_parts(subs.data, subs.len))
-  }
-  .into()
 }
 
 /// memory of `value` is consumed.
@@ -503,6 +456,48 @@ pub extern "C" fn gvb_vm_modify_var(
   }
 }
 
+#[repr(C)]
+pub enum GvbDimensionValues {
+  Integer(ArrayMut<i16>),
+  Real(ArrayMut<GvbReal>),
+  String(ArrayMut<Array<u8>>),
+}
+
+#[no_mangle]
+pub extern "C" fn gvb_vm_arr_dim_values(
+  vm: *const GvbVirtualMachine,
+  name: Utf8Str,
+  subs: Array<u16>,
+  dim: usize,
+) -> GvbDimensionValues {
+  let name = unsafe {
+    std::str::from_utf8_unchecked(std::slice::from_raw_parts(
+      name.data as *const _,
+      name.len,
+    ))
+  };
+  let subs = unsafe { std::slice::from_raw_parts(subs.data, subs.len) };
+  match unsafe { (*vm).0.arr_dimension_values(name, subs, dim) } {
+    gvb::DimensionValues::Integer(vec) => {
+      GvbDimensionValues::Integer(unsafe { ArrayMut::new(vec) })
+    }
+    gvb::DimensionValues::Real(vec) => GvbDimensionValues::Real(unsafe {
+      ArrayMut::new(vec.into_iter().map(|n| GvbReal(n.into())).collect())
+    }),
+    gvb::DimensionValues::String(vec) => GvbDimensionValues::String(unsafe {
+      ArrayMut::new(vec.into_iter().map(|n| Array::new(n.into())).collect())
+    }),
+  }
+}
+
+#[no_mangle]
+pub extern "C" fn gvb_destroy_real_array_mut(arr: ArrayMut<GvbReal>) {
+  if arr.data.is_null() {
+    return;
+  }
+  drop(unsafe { arr.into_boxed_slice() });
+}
+
 /// memory of `subs` is managed by C++ code.
 ///
 /// memory of `value` is consumed.
@@ -510,7 +505,7 @@ pub extern "C" fn gvb_vm_modify_var(
 pub extern "C" fn gvb_vm_modify_arr(
   vm: *mut GvbVirtualMachine,
   name: Utf8Str,
-  subs: Array<usize>,
+  subs: Array<u16>,
   value: GvbValue,
 ) {
   let name = unsafe {
@@ -519,11 +514,8 @@ pub extern "C" fn gvb_vm_modify_arr(
       name.len,
     ))
   };
+  let subs = unsafe { std::slice::from_raw_parts(subs.data, subs.len) };
   unsafe {
-    (*vm).0.modify_arr(
-      name,
-      std::slice::from_raw_parts(subs.data, subs.len),
-      value.into(),
-    );
+    (*vm).0.modify_arr(name, subs, value.into());
   }
 }

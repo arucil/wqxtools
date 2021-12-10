@@ -1,4 +1,4 @@
-use crate::Array;
+use crate::{Array, ArrayMut};
 use std::{
   os::raw::{c_char, c_ushort},
   string::FromUtf16Error,
@@ -81,9 +81,24 @@ pub extern "C" fn destroy_string(str: Utf8String) {
 }
 
 #[no_mangle]
+pub extern "C" fn copy_byte_string(arr: Array<u8>) -> Array<u8> {
+  unsafe { Array::new(arr.as_slice().to_vec()) }
+}
+
+#[no_mangle]
 pub extern "C" fn destroy_byte_string(arr: Array<u8>) {
   if arr.data.is_null() {
     return;
   }
   drop(unsafe { arr.into_boxed_slice() });
+}
+
+#[no_mangle]
+pub extern "C" fn destroy_byte_string_array_mut(arr: ArrayMut<Array<u8>>) {
+  if arr.data.is_null() {
+    return;
+  }
+  for s in unsafe { arr.into_boxed_slice() }.iter() {
+    drop(unsafe { (*s).clone().into_boxed_slice() });
+  }
 }

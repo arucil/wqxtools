@@ -64,8 +64,14 @@ struct Bindings {
 }
 
 pub enum Binding {
-  Var,
+  Var { value: Value },
   Array { dimensions: Vec<u16> },
+}
+
+pub enum DimensionValues {
+  Integer(Vec<i16>),
+  Real(Vec<Mbf5>),
+  String(Vec<ByteString>),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -287,9 +293,13 @@ where
 
   pub fn bindings(&self) -> BTreeMap<String, Binding> {
     let mut bindings = BTreeMap::new();
-    for &sym in self.bindings.vars.keys() {
-      bindings
-        .insert(self.interner.resolve(sym).unwrap().to_owned(), Binding::Var);
+    for (sym, value) in &self.bindings.vars {
+      bindings.insert(
+        self.interner.resolve(*sym).unwrap().to_owned(),
+        Binding::Var {
+          value: value.clone(),
+        },
+      );
     }
     for (sym, arr) in &self.bindings.arrays {
       bindings.insert(
@@ -306,36 +316,52 @@ where
     bindings
   }
 
-  pub fn var_value(&self, name: &str) -> Value {
-    let sym = self.interner.get(name).unwrap();
-    self.bindings.vars[&sym].clone()
-  }
-
   pub fn modify_var(&mut self, name: &str, val: Value) {
     let sym = self.interner.get(name).unwrap();
     self.bindings.vars.insert(sym, val);
   }
 
-  pub fn arr_value(&self, name: &str, subs: &[usize]) -> Value {
+  pub fn arr_dimension_values(
+    &self,
+    name: &str,
+    subs: &[u16],
+    dimension: usize,
+  ) -> DimensionValues {
     let sym = self.interner.get(name).unwrap();
     let array = &self.bindings.arrays[&sym];
     let mut offset = 0;
     for (i, &sub) in subs.iter().enumerate().rev() {
-      offset += sub * array.dimensions[i].multiplier;
+      if i != dimension {
+        offset += sub as usize * array.dimensions[i].multiplier;
+      }
     }
-    match &self.bindings.arrays[&sym].data {
-      ArrayData::Integer(vec) => Value::Integer(vec[offset]),
-      ArrayData::Real(vec) => Value::Real(vec[offset]),
-      ArrayData::String(vec) => Value::String(vec[offset].clone()),
+    let bound = array.dimensions[dimension].bound;
+    let mult = array.dimensions[dimension].multiplier;
+    match &array.data {
+      ArrayData::Integer(vec) => DimensionValues::Integer(
+        (0..bound.get() as usize)
+          .map(|i| vec[offset + i * mult])
+          .collect(),
+      ),
+      ArrayData::Real(vec) => DimensionValues::Real(
+        (0..bound.get() as usize)
+          .map(|i| vec[offset + i * mult])
+          .collect(),
+      ),
+      ArrayData::String(vec) => DimensionValues::String(
+        (0..bound.get() as usize)
+          .map(|i| vec[offset + i * mult].clone())
+          .collect(),
+      ),
     }
   }
 
-  pub fn modify_arr(&mut self, name: &str, subs: &[usize], val: Value) {
+  pub fn modify_arr(&mut self, name: &str, subs: &[u16], val: Value) {
     let sym = self.interner.get(name).unwrap();
     let array = &self.bindings.arrays[&sym];
     let mut offset = 0;
     for (i, &sub) in subs.iter().enumerate().rev() {
-      offset += sub * array.dimensions[i].multiplier;
+      offset += sub as usize * array.dimensions[i].multiplier;
     }
     self
       .bindings

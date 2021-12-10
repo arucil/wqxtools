@@ -1,5 +1,4 @@
 #include "binding_model.h"
-#include "gvb_util.h"
 
 #include <QDoubleSpinBox>
 #include <QFont>
@@ -9,6 +8,7 @@
 #include <stdexcept>
 
 #include "array_edit_dialog.h"
+#include "gvb_util.h"
 #include "gvbsim_input_dialog.h"
 
 BindingModel::BindingModel(QWidget *parent) :
@@ -73,7 +73,7 @@ QVariant BindingModel::data(const QModelIndex &index, int role) const {
               binding.var.name.data,
               binding.var.name.len);
           case api::GvbBinding::Tag::Array: {
-            return array_binding_name(binding.array);
+            return arrayBindingName(binding.array);
           }
         }
         break;
@@ -92,31 +92,21 @@ QVariant BindingModel::data(const QModelIndex &index, int role) const {
           break;
         }
         // fall through
-      case Qt::EditRole:
       case Qt::DisplayRole: {
         const auto &binding = m_bindings.data[index.row()];
         switch (binding.tag) {
           case api::GvbBinding::Tag::Var: {
-            auto value = api::gvb_vm_var_value(
-              m_vm,
-              {binding.var.name.data, binding.var.name.len});
+            const auto &value = binding.var.value;
             switch (value.tag) {
               case api::GvbValue::Tag::Integer:
-                api::gvb_destroy_value(value);
                 return value.integer._0;
               case api::GvbValue::Tag::Real:
-                api::gvb_destroy_value(value);
                 return value.real._0._0;
               case api::GvbValue::Tag::String: {
-                if (role == Qt::EditRole) {
-                  api::gvb_destroy_value(value);
-                  break;
-                }
                 auto s =
                   api::gvb_byte_string_to_utf8_lossy(m_vm, value.string._0);
                 auto result = QString::fromUtf8(s.data, s.len);
                 api::destroy_string(s);
-                api::gvb_destroy_value(value);
                 return result;
               }
             }
@@ -159,21 +149,21 @@ BindingModel::createEditor(QWidget *parent, const QModelIndex &index) const {
   const auto &binding = m_bindings.data[index.row()];
   switch (binding.tag) {
     case api::GvbBinding::Tag::Var: {
-      switch (api::gvb_binding_type(&binding)) {
-        case api::GvbBindingType::Integer: {
+      switch (binding.var.value.tag) {
+        case api::GvbValue::Tag::Integer: {
           auto box = new QSpinBox(parent);
           box->setRange(-32768, 32767);
           box->setToolTip("范围：-32768 ~ 32767");
           return box;
         }
-        case api::GvbBindingType::Real: {
+        case api::GvbValue::Tag::Real: {
           auto box = new QDoubleSpinBox(parent);
           box->setRange(-1.7e38, 1.7e38);
           box->setDecimals(6);
           box->setToolTip("范围：-1.7E+38 ~ +1.7E+38");
           return box;
         }
-        case api::GvbBindingType::String:
+        case api::GvbValue::Tag::String:
           throw std::logic_error("createEditor: string");
       }
       return nullptr;
@@ -194,9 +184,7 @@ void BindingModel::setEditorData(QWidget *editor, const QModelIndex &index)
   const auto &binding = m_bindings.data[index.row()];
   switch (binding.tag) {
     case api::GvbBinding::Tag::Var: {
-      auto value = api::gvb_vm_var_value(
-        m_vm,
-        {binding.var.name.data, binding.var.name.len});
+      const auto &value = binding.var.value;
       switch (value.tag) {
         case api::GvbValue::Tag::Integer: {
           qobject_cast<QSpinBox *>(editor)->setValue(value.integer._0);
@@ -210,7 +198,6 @@ void BindingModel::setEditorData(QWidget *editor, const QModelIndex &index)
           throw std::logic_error("setEditorData: string");
         }
       }
-      api::gvb_destroy_value(value);
     }
     case api::GvbBinding::Tag::Array:
       return;
@@ -222,11 +209,11 @@ void BindingModel::setData(QWidget *editor, const QModelIndex &index) {
     return;
   }
 
-  const auto &binding = m_bindings.data[index.row()];
+  auto &binding = m_bindings.data[index.row()];
   switch (binding.tag) {
     case api::GvbBinding::Tag::Var: {
       api::Utf8Str name {binding.var.name.data, binding.var.name.len};
-      auto value = api::gvb_vm_var_value(m_vm, name);
+      auto &value = binding.var.value;
       switch (value.tag) {
         case api::GvbValue::Tag::Integer: {
           auto n = static_cast<std::int16_t>(
@@ -245,8 +232,7 @@ void BindingModel::setData(QWidget *editor, const QModelIndex &index) {
           throw std::logic_error("setData: string");
         }
       }
-      api::gvb_destroy_value(value);
-      emit dataChanged(index, index, {Qt::DisplayRole});
+      emit dataChanged(index, index, {Qt::DisplayRole, Qt::ToolTipRole});
       break;
     }
     case api::GvbBinding::Tag::Array:
@@ -287,11 +273,11 @@ Qt::ItemFlags BindingModel::flags(const QModelIndex &index) const {
   if (index.column() == 1) {
     const auto &binding = m_bindings.data[index.row()];
     if (binding.tag == api::GvbBinding::Tag::Var) {
-      switch (api::gvb_binding_type(&binding)) {
-        case api::GvbBindingType::Integer:
-        case api::GvbBindingType::Real:
+      switch (binding.var.value.tag) {
+        case api::GvbValue::Tag::Integer:
+        case api::GvbValue::Tag::Real:
           return Qt::ItemIsEditable | f;
-        case api::GvbBindingType::String:
+        case api::GvbValue::Tag::String:
           return f;
       }
     }
@@ -304,51 +290,32 @@ void BindingModel::editValue(const QModelIndex &index) {
     return;
   }
 
-  const auto &binding = m_bindings.data[index.row()];
+  auto &binding = m_bindings.data[index.row()];
   if (binding.tag == api::GvbBinding::Tag::Var) {
-    if (api::gvb_binding_type(&binding) != api::GvbBindingType::String) {
+    if (binding.var.value.tag != api::GvbValue::Tag::String) {
       return;
     }
-
-    api::Utf8Str name = {binding.var.name.data, binding.var.name.len};
 
     // edit string
-    api::GvbExecResult res;
-    res.tag = api::GvbExecResult::Tag::KeyboardInput;
-    res.keyboard_input.prompt.tag = api::Maybe<api::Utf8String>::Tag::Nothing;
-    api::GvbKeyboardInputType types[1];
-    types[0].tag = api::GvbKeyboardInputType::Tag::String;
-    res.keyboard_input.fields.data = types;
-    res.keyboard_input.fields.len = 1;
-
-    auto value = api::gvb_vm_var_value(m_vm, name);
-
-    api::GvbKeyboardInput initial[1];
-    initial[0].tag = api::GvbKeyboardInput::Tag::String;
-    initial[0].string._0 = value.string._0;
-    auto initialInput = api::gvb_new_input_array(initial, 1);
-    //api::gvb_destroy_value(value);
-    GvbSimInputDialog dlg(m_parent, m_vm, res.keyboard_input, &initialInput);
-    api::gvb_destroy_input_array(initialInput);
-    dlg.setWindowTitle(
+    api::Utf8Str name = {binding.var.name.data, binding.var.name.len};
+    auto result = inputString(
+      m_parent,
+      m_vm,
       tr("修改变量 %1")
-        .arg(QString::fromUtf8(name.data, static_cast<int>(name.len))));
-    dlg.setModal(true);
-    if (dlg.exec() == QDialog::Rejected) {
-      return;
+        .arg(QString::fromUtf8(name.data, static_cast<int>(name.len))),
+      api::copy_byte_string(binding.var.value.string._0));
+    if (result.has_value()) {
+      auto value = result.value();
+      api::destroy_byte_string(binding.var.value.string._0);
+      binding.var.value.string._0 = api::copy_byte_string(value.string._0);
+      api::gvb_vm_modify_var(m_vm, name, result.value());
+      emit dataChanged(index, index, {Qt::DisplayRole, Qt::ToolTipRole});
     }
-
-    value.tag = api::GvbValue::Tag::String;
-    value.string._0 = dlg.inputData()[0].string._0;
-
-    api::gvb_vm_modify_var(m_vm, name, value);
-    emit dataChanged(index, index, {Qt::DisplayRole});
 
     return;
   }
 
   // edit array
-  api::Utf8Str name = {binding.array.name.data, binding.array.name.len};
   ArrayEditDialog dialog(m_parent, binding.array, m_vm);
   dialog.setModal(true);
   dialog.exec();
