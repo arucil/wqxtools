@@ -1061,7 +1061,7 @@ impl FileHandle for DefaultFileHandle {
   }
 
   fn seek(&mut self, pos: u64) -> io::Result<()> {
-    if pos > self.pos as u64 {
+    if pos > self.data.len() as u64 {
       Err(io::Error::new(io::ErrorKind::Other, "out of range"))
     } else {
       self.pos = pos as _;
