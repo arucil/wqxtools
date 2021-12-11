@@ -1,5 +1,8 @@
-# wqxtools
+# WQX工具箱
 
+- [x] GVBASIC编辑器、模拟器
+- [ ] GVmaker1.0模拟器
+- [ ] PAC文件解包
 
 ## 编译
 
