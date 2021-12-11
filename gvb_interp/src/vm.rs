@@ -1996,7 +1996,8 @@ where
       }
       _ => unreachable!(),
     }
-    self.device.print(b"\0");
+    // TODO this should be handled in device
+    //self.device.print(b"\0");
     self.device.newline();
     self.device.flush();
     self.pc += 1;
