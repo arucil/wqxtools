@@ -122,7 +122,7 @@ void MainWindow::initMenu() {
   m_actStart->setShortcut(Qt::Key_F5);
 
   m_actStop = mnuProg->addAction("停止");
-  m_actStop->setShortcut(Qt::Key_F7);
+  m_actStop->setShortcut(Qt::CTRL | Qt::Key_F7);
 
   mnuProg->addSeparator();
 
