@@ -210,7 +210,7 @@ void MainWindow::openFileByPath(const QString &path) {
     }
   });
 
-  m_openFilePath.setValue(fileinfo.fileName());
+  m_openFilePath.setValue(fileinfo.absoluteFilePath());
 
   if (!isNew) {
     return;
