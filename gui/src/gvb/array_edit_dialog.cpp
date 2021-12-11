@@ -94,7 +94,7 @@ QGridLayout *ArrayEditDialog::initDimensionSelector(
     grid->addWidget(
       new QLabel(QString::number(array.dimensions.data[i])),
       0,
-      i + 1);
+      i + 1, Qt::AlignCenter);
 
     auto spin = new QSpinBox();
     m_spinBoxes[i] = spin;
@@ -113,14 +113,14 @@ QGridLayout *ArrayEditDialog::initDimensionSelector(
     if (i == 1) {
       row->setChecked(true);
     }
-    grid->addWidget(row, 2, i + 1);
+    grid->addWidget(row, 2, i + 1, Qt::AlignCenter);
     m_rowGroup->addButton(row, i);
 
     auto col = new QRadioButton();
     if (i == 0) {
       col->setChecked(true);
     }
-    grid->addWidget(col, 3, i + 1);
+    grid->addWidget(col, 3, i + 1, Qt::AlignCenter);
     m_colGroup->addButton(col, i);
   }
   return grid;
