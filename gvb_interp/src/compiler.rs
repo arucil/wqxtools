@@ -1424,6 +1424,7 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E, ProgramLine> {
 
     if elems.is_empty() {
       self.code_emitter.emit_newline(range.clone());
+      self.code_emitter.emit_flush(range);
     } else if printed {
       self.code_emitter.emit_flush(range);
     }
