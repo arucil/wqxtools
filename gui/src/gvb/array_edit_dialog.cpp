@@ -7,7 +7,6 @@
 #include <QRadioButton>
 #include <QSpinBox>
 #include <QTableView>
-#include <QTimer>
 #include <QVBoxLayout>
 
 #include "gvb_util.h"
@@ -26,17 +25,16 @@ ArrayEditDialog::ArrayEditDialog(
   m_curRowDim(0),
   m_curColDim(0) {
   initUi(array);
-  adjustSize();
   setWindowTitle(tr("修改数组 %1").arg(arrayBindingName(array)));
-  QTimer::singleShot(0, [this] {
-    if (m_bounds.len > 1) {
-      m_curRowDim = 1;
-      m_curColDim = 0;
-      m_arrayModel.setPlaneDim(1, 0);
-    } else {
-      m_arrayModel.setPlaneDim(0, 0);
-    }
-  });
+  if (m_bounds.len > 1) {
+    adjustSize();
+    m_curRowDim = 1;
+    m_curColDim = 0;
+    m_arrayModel.setPlaneDim(1, 0);
+  } else {
+    resize(500, 300);
+    m_arrayModel.setPlaneDim(0, 0);
+  }
 }
 
 ArrayEditDialog::~ArrayEditDialog() {
@@ -62,10 +60,9 @@ void ArrayEditDialog::initUi(const api::GvbBinding::Array_Body &array) {
     &ArrayModel::editValue);
   layout->addWidget(arrayView);
 
-  layout->addWidget(
-    new QDialogButtonBox(QDialogButtonBox::Ok),
-    0,
-    Qt::AlignRight);
+  auto buttons = new QDialogButtonBox(QDialogButtonBox::Ok);
+  connect(buttons, &QDialogButtonBox::accepted, this, &QDialog::accept);
+  layout->addWidget(buttons, 0, Qt::AlignRight);
 }
 
 QGridLayout *ArrayEditDialog::initDimensionSelector(
@@ -74,10 +71,11 @@ QGridLayout *ArrayEditDialog::initDimensionSelector(
     return nullptr;
   }
 
-  auto grid = new QGridLayout(this);
-  grid->addWidget(new QLabel("下标"), 0, 0);
-  grid->addWidget(new QLabel("行(Y轴)"), 1, 0);
-  grid->addWidget(new QLabel("列(X轴)"), 2, 0);
+  auto grid = new QGridLayout();
+  grid->addWidget(new QLabel("下标上限"), 0, 0);
+  grid->addWidget(new QLabel("下标"), 1, 0);
+  grid->addWidget(new QLabel("行(Y轴)"), 2, 0);
+  grid->addWidget(new QLabel("列(X轴)"), 3, 0);
 
   m_rowGroup = new QButtonGroup();
   connect(
@@ -93,6 +91,11 @@ QGridLayout *ArrayEditDialog::initDimensionSelector(
     &ArrayEditDialog::setColDim);
 
   for (size_t i = 0; i < array.dimensions.len; i++) {
+    grid->addWidget(
+      new QLabel(QString::number(array.dimensions.data[i])),
+      0,
+      i + 1);
+
     auto spin = new QSpinBox();
     m_spinBoxes[i] = spin;
     connect(
@@ -104,20 +107,20 @@ QGridLayout *ArrayEditDialog::initDimensionSelector(
     if (i < 2) {
       spin->setEnabled(false);
     }
-    grid->addWidget(spin, 0, i + 1);
+    grid->addWidget(spin, 1, i + 1);
 
     auto row = new QRadioButton();
     if (i == 1) {
       row->setChecked(true);
     }
-    grid->addWidget(row, 1, i + 1);
+    grid->addWidget(row, 2, i + 1);
     m_rowGroup->addButton(row, i);
 
     auto col = new QRadioButton();
     if (i == 0) {
       col->setChecked(true);
     }
-    grid->addWidget(col, 2, i + 1);
+    grid->addWidget(col, 3, i + 1);
     m_colGroup->addButton(col, i);
   }
   return grid;
@@ -126,7 +129,11 @@ QGridLayout *ArrayEditDialog::initDimensionSelector(
 void ArrayEditDialog::setRowDim(int i) {
   if (m_curColDim == static_cast<size_t>(i)) {
     m_curColDim = m_curRowDim;
+    m_curRowDim = i;
     m_colGroup->button(m_curColDim)->click();
+    // NOTE invocation of click() above will fire setColDim(), no need to call
+    // setPlaneDim() here.
+    return;
   } else {
     m_spinBoxes[m_curRowDim]->setEnabled(true);
     m_spinBoxes[i]->setEnabled(false);
@@ -138,7 +145,11 @@ void ArrayEditDialog::setRowDim(int i) {
 void ArrayEditDialog::setColDim(int i) {
   if (m_curRowDim == static_cast<size_t>(i)) {
     m_curRowDim = m_curColDim;
+    m_curColDim = i;
     m_rowGroup->button(m_curRowDim)->click();
+    // NOTE invocation of click() above will fire setRowDim(), no need to call
+    // setPlaneDim() here.
+    return;
   } else {
     m_spinBoxes[m_curColDim]->setEnabled(true);
     m_spinBoxes[i]->setEnabled(false);

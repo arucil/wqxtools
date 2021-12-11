@@ -17,22 +17,20 @@ ArrayModel::ArrayModel(
   m_bounds(array.dimensions),
   m_subscripts(array.dimensions.len),
   m_rowDim(0),
-  m_colDim(0) {}
+  m_colDim(0),
+  m_rows(0),
+  m_cols(0) {}
 
 ArrayModel::~ArrayModel() {
   destroyData();
 }
 
 int ArrayModel::rowCount(const QModelIndex &) const {
-  return m_bounds.data[m_rowDim];
+  return m_rows;
 }
 
 int ArrayModel::columnCount(const QModelIndex &) const {
-  if (m_bounds.len == 1) {
-    return 1;
-  } else {
-    return m_bounds.data[m_colDim];
-  }
+  return m_cols;
 }
 
 QVariant ArrayModel::data(const QModelIndex &index, int role) const {
@@ -40,11 +38,11 @@ QVariant ArrayModel::data(const QModelIndex &index, int role) const {
     case Qt::ToolTipRole:
     case Qt::DisplayRole:
       if (auto iarr = std::get_if<0>(&m_data)) {
-        return (*iarr)[index.column()].data[index.row()];
+        return (*iarr)[index.row()].data[index.column()];
       } else if (auto farr = std::get_if<1>(&m_data)) {
-        return (*farr)[index.column()].data[index.row()]._0;
+        return (*farr)[index.row()].data[index.column()]._0;
       } else if (auto sarr = std::get_if<2>(&m_data)) {
-        const auto &bs = (*sarr)[index.column()].data[index.row()];
+        const auto &bs = (*sarr)[index.row()].data[index.column()];
         auto us = api::gvb_byte_string_to_utf8_lossy(m_vm, bs);
         auto s = QString::fromUtf8(us.data, us.len);
         api::destroy_string(us);
@@ -88,10 +86,10 @@ void ArrayModel::setEditorData(QWidget *editor, const QModelIndex &index)
   const {
   if (auto iarr = std::get_if<0>(&m_data)) {
     qobject_cast<QSpinBox *>(editor)->setValue(
-      (*iarr)[index.column()].data[index.row()]);
+      (*iarr)[index.row()].data[index.column()]);
   } else if (auto farr = std::get_if<1>(&m_data)) {
     qobject_cast<QDoubleSpinBox *>(editor)->setValue(
-      (*farr)[index.column()].data[index.row()]._0);
+      (*farr)[index.row()].data[index.column()]._0);
   } else if (std::get_if<2>(&m_data)) {
     throw std::logic_error("setEditorData: string");
   }
@@ -101,7 +99,7 @@ QVariant ArrayModel::headerData(
   int section,
   Qt::Orientation orientation,
   int role) const {
-  if (orientation == Qt::Horizontal && m_bounds.len == 1) {
+  if (orientation == Qt::Vertical && m_bounds.len == 1) {
     return QVariant();
   }
   switch (role) {
@@ -123,7 +121,7 @@ Qt::ItemFlags ArrayModel::flags(const QModelIndex &index) const {
 
 void ArrayModel::setData(QWidget *editor, const QModelIndex &index) {
   api::GvbValue value;
-  const auto subVec = calcSubs(index);
+  const auto subVec = getSubs(index);
   const api::Array<std::uint16_t> subs {
     subVec.data(),
     static_cast<size_t>(subVec.size())};
@@ -132,13 +130,13 @@ void ArrayModel::setData(QWidget *editor, const QModelIndex &index) {
       static_cast<std::int16_t>(qobject_cast<QSpinBox *>(editor)->value());
     value.tag = api::GvbValue::Tag::Integer;
     value.integer._0 = n;
-    (*iarr)[index.column()].data[index.row()] = n;
+    (*iarr)[index.row()].data[index.column()] = n;
     api::gvb_vm_modify_arr(m_vm, m_name, subs, value);
   } else if (auto farr = std::get_if<1>(&m_data)) {
     auto n = qobject_cast<QDoubleSpinBox *>(editor)->value();
     value.tag = api::GvbValue::Tag::Real;
     value.real._0._0 = n;
-    (*farr)[index.column()].data[index.row()]._0 = n;
+    (*farr)[index.row()].data[index.column()]._0 = n;
     api::gvb_vm_modify_arr(m_vm, m_name, subs, value);
   } else {
     throw std::logic_error("setData: string");
@@ -147,10 +145,12 @@ void ArrayModel::setData(QWidget *editor, const QModelIndex &index) {
   emit dataChanged(index, index, {Qt::DisplayRole, Qt::ToolTipRole});
 }
 
-QVector<std::uint16_t> ArrayModel::calcSubs(const QModelIndex &index) const {
+QVector<std::uint16_t> ArrayModel::getSubs(const QModelIndex &index) const {
   QVector subs(m_subscripts);
   subs[m_colDim] = index.column();
-  subs[m_rowDim] = index.row();
+  if (m_bounds.len > 1) {
+    subs[m_rowDim] = index.row();
+  }
   return subs;
 }
 
@@ -161,7 +161,7 @@ void ArrayModel::editValue(const QModelIndex &index) {
   }
 
   // edit string
-  auto subVec = calcSubs(index);
+  auto subVec = getSubs(index);
   const api::Array<std::uint16_t> subs {
     subVec.data(),
     static_cast<size_t>(subVec.size())};
@@ -169,13 +169,13 @@ void ArrayModel::editValue(const QModelIndex &index) {
     m_parent,
     m_vm,
     tr("修改数组元素 %1").arg(arraySubsToString(m_name, subs)),
-    api::copy_byte_string((*sarr)[index.column()].data[index.row()]));
+    api::copy_byte_string((*sarr)[index.row()].data[index.column()]));
   if (result.has_value()) {
     auto value = result.value();
-    auto &s = (*sarr)[index.column()].data[index.row()];
+    auto &s = (*sarr)[index.row()].data[index.column()];
     api::destroy_byte_string(s);
     s = api::copy_byte_string(value.string._0);
-    api::gvb_vm_modify_var(m_vm, m_name, value);
+    api::gvb_vm_modify_arr(m_vm, m_name, subs, value);
     emit dataChanged(index, index, {Qt::DisplayRole, Qt::ToolTipRole});
   }
 }
@@ -186,12 +186,91 @@ void ArrayModel::setSubscript(size_t index, std::uint16_t sub) {
 }
 
 void ArrayModel::setPlaneDim(size_t rowDim, size_t colDim) {
-  loadData(rowDim, colDim);
+  if (m_bounds.len == 1 || rowDim != m_rowDim || colDim != m_colDim) {
+    loadData(rowDim, colDim);
+  }
 }
 
 void ArrayModel::loadData(size_t newRowDim, size_t newColDim) {
   destroyData();
-  api::GvbDimensionValues::Tag type = ;
+  auto subVec = m_subscripts;
+  auto fontChanged = false;
+  std::uint16_t bound = m_bounds.len == 1 ? 0 : m_bounds.data[newRowDim];
+  for (std::uint16_t i = 0; i <= bound; i++) {
+    subVec[newRowDim] = i;
+    auto values = api::gvb_vm_arr_dim_values(
+      m_vm,
+      m_name,
+      {subVec.constData(), static_cast<size_t>(subVec.size())},
+      newColDim);
+    switch (values.tag) {
+      case api::GvbDimensionValues::Tag::Integer: {
+        if (auto iarr = std::get_if<0>(&m_data)) {
+          iarr->push_back(values.integer._0);
+        } else {
+          m_data = QVector {values.integer._0};
+        }
+        break;
+      }
+      case api::GvbDimensionValues::Tag::Real: {
+        if (auto iarr = std::get_if<1>(&m_data)) {
+          iarr->push_back(values.real._0);
+        } else {
+          m_data = QVector {values.real._0};
+        }
+        break;
+      }
+      case api::GvbDimensionValues::Tag::String: {
+        if (auto iarr = std::get_if<2>(&m_data)) {
+          iarr->push_back(values.string._0);
+        } else {
+          fontChanged = true;
+          m_data = QVector {values.string._0};
+        }
+        break;
+      }
+    }
+  }
+
+  auto oldRows = m_rows;
+  auto newRows = m_bounds.data[newRowDim] + 1;
+  if (m_bounds.len == 1) {
+    if (m_rows != 1) {
+      beginInsertRows(QModelIndex(), 0, 0);
+      endInsertRows();
+    }
+    m_rows = 1;
+  } else if (newRows != oldRows) {
+    if (newRows > oldRows) {
+      beginInsertRows(QModelIndex(), oldRows, newRows - 1);
+      endInsertRows();
+    } else if (newRows < oldRows) {
+      beginRemoveRows(QModelIndex(), newRows, oldRows - 1);
+      endRemoveRows();
+    }
+    m_rowDim = newRowDim;
+    m_rows = newRows;
+  }
+
+  auto oldCols = m_cols;
+  auto newCols = m_bounds.data[newColDim] + 1;
+  if (newCols != oldCols) {
+    if (newCols > oldCols) {
+      beginInsertColumns(QModelIndex(), oldCols, newCols - 1);
+      endInsertColumns();
+    } else if (newCols < oldCols) {
+      beginRemoveColumns(QModelIndex(), newCols, oldCols - 1);
+      endRemoveColumns();
+    }
+    m_colDim = newColDim;
+    m_cols = newCols;
+  }
+
+  QVector<int> changed {Qt::ToolTipRole, Qt::DisplayRole};
+  if (fontChanged) {
+    changed.push_back(Qt::FontRole);
+  }
+  emit dataChanged(index(0, 0), index(m_rows, m_cols), changed);
 }
 
 void ArrayModel::destroyData() {

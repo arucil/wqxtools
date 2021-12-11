@@ -44,7 +44,7 @@ public slots:
 
 private:
   void loadData(size_t newRowDim, size_t newColDim);
-  QVector<std::uint16_t> calcSubs(const QModelIndex &) const;
+  QVector<std::uint16_t> getSubs(const QModelIndex &) const;
   void destroyData();
 
 private:
@@ -54,6 +54,6 @@ private:
   api::Utf8Str m_name;
   api::Array<std::uint16_t> m_bounds;
   QVector<std::uint16_t> m_subscripts;
-  size_t m_rowDim;
-  size_t m_colDim;
+  size_t m_rowDim, m_colDim;
+  std::uint16_t m_rows, m_cols;
 };

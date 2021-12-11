@@ -7,6 +7,8 @@ class BoolValue: public QObject {
   Q_OBJECT
 
 public:
+  BoolValue();
+
   bool value() const;
 
 signals:
@@ -40,6 +42,8 @@ class SizeValue: public QObject {
   Q_OBJECT
 
 public:
+  SizeValue();
+
   size_t value() const;
 
 signals:
