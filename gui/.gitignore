@@ -11,3 +11,4 @@ Makefile
 /*.txt
 /*.bas
 /*.BAS
+/3rdparty/*

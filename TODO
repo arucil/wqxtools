@@ -36,11 +36,16 @@
     + [x] gvb
 - 改成GBK（有些汉字会和emoji重叠，优先使用emoji）
 - drag and drop (初始界面支持所有文件，gvbeditor界面支持bas/txt文件)
-- 初始界面显示功能列表
+- [x] 初始界面显示功能列表
 - 如果打开gvbsim后打开其他类型文件，gvbsim窗口是否能正常关闭？
 - 搜索变量内容
 - 移除 scintilla 依赖
 - scintilla 行号宽度实时变动（监测 lines_added）
+- 扩展gvb:
+    + @POINT(x,y)
+    + @checkkey(key-code)
+    + @hour, @minute, @second
+    + text 支持小字模式：text 0（大字）, text 1（小字）。
 
 
 - document:
