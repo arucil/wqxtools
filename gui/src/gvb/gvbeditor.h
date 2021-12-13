@@ -10,7 +10,7 @@
 
 #include "api.h"
 #include "../capability.h"
-#include "../interval-tree/interval_tree.hpp"
+#include <interval-tree/interval_tree.hpp>
 #include "../tool.h"
 
 class QAction;

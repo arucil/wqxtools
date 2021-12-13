@@ -11,7 +11,8 @@ INCLUDEPATH += \
     scintilla/qt/ScintillaEdit \
     scintilla/qt/ScintillaEditBase \
     scintilla/src \
-    scintilla/include
+    scintilla/include \
+    3rdparty
 
 HEADERS += src/mainwindow.h \
     src/capability.h \
