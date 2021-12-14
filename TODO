@@ -39,7 +39,17 @@
 - [x] 初始界面显示功能列表
 - 如果打开gvbsim后打开其他类型文件，gvbsim窗口是否能正常关闭？
 - 搜索变量内容
-- 移除 scintilla 依赖
+- 移除 scintilla 依赖。替代物要有以下api：
+    + get cursor pos, cursor line, cursor position
+    + set font, font size
+    + line number
+    + highlight current line
+    + error/warning squiggles
+    + show error message tooltip when hovering on error/warning squiggles
+    + undo/redo
+    + copy/cut/paste
+    + can undo/can redo
+
 - scintilla 行号宽度实时变动（监测 lines_added）
 - 扩展gvb:
     + @POINT(x,y)
