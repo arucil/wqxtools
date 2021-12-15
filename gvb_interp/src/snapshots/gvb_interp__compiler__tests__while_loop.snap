@@ -9,22 +9,23 @@ emoji_version: New
 0     0:9..11   push var A$
 1     0:12..23  push string "AB=号即"
 2     0:9..23   str Gt
-3     0:3..23   start while loop, cond start addr: 0, end addr: 6
+3     0:3..23   start while loop, cond start addr: 0, end addr: 7
 4     0:24..29  newline
-5     0:30..34  wend
-6     0:41..42  push var A
-7     0:44..45  push var B
-8     0:41..45  num Ne
-9     0:35..45  start while loop, cond start addr: 6, end addr: 20
-10    0:46..49  cls
-11    0:56..57  push var A
-12    0:58..59  push number 2
-13    0:56..59  num Lt
-14    0:50..59  start while loop, cond start addr: 11, end addr: 17
-15    0:60..63  cls
-16    0:64..68  wend
-17    1:3..6    cls
-18    1:7..14   goto 17
-19    1:15..19  wend
-20    1:0..0    end
+5     0:24..29  flush
+6     0:30..34  wend
+7     0:41..42  push var A
+8     0:44..45  push var B
+9     0:41..45  num Ne
+10    0:35..45  start while loop, cond start addr: 7, end addr: 21
+11    0:46..49  cls
+12    0:56..57  push var A
+13    0:58..59  push number 2
+14    0:56..59  num Lt
+15    0:50..59  start while loop, cond start addr: 12, end addr: 18
+16    0:60..63  cls
+17    0:64..68  wend
+18    1:3..6    cls
+19    1:7..14   goto 18
+20    1:15..19  wend
+21    1:0..0    end
 

@@ -166,6 +166,24 @@ pub enum StmtKind {
     data: NonEmptyVec<[WriteElement; 1]>,
   },
   Sleep(ExprId),
+  Fputc {
+    filenum: ExprId,
+    value: ExprId,
+  },
+  Fread {
+    filenum: ExprId,
+    addr: ExprId,
+    size: ExprId,
+  },
+  Fwrite {
+    filenum: ExprId,
+    addr: ExprId,
+    size: ExprId,
+  },
+  Fseek {
+    filenum: ExprId,
+    offset: ExprId,
+  },
   NoOp,
 }
 
@@ -198,6 +216,7 @@ pub enum FileMode {
   Output,
   Append,
   Random,
+  Binary,
   Error,
 }
 
@@ -221,6 +240,7 @@ impl Debug for FileMode {
       Self::Output => "OUTPUT",
       Self::Append => "APPEND",
       Self::Random => "RANDOM",
+      Self::Binary => "BINARY",
       Self::Error => "ERROR",
     };
     write!(f, "{}", kind)
@@ -712,6 +732,46 @@ fn print_stmt(
     StmtKind::Sleep(arg) => {
       write!(f, "SLEEP ")?;
       expr_arena[*arg].print(expr_arena, text, f)?;
+      writeln!(f)
+    }
+    StmtKind::Fputc { filenum, value } => {
+      write!(f, "FPUTC # ")?;
+      expr_arena[*filenum].print(expr_arena, text, f)?;
+      write!(f, ", ")?;
+      expr_arena[*value].print(expr_arena, text, f)?;
+      writeln!(f)
+    }
+    StmtKind::Fread {
+      filenum,
+      addr,
+      size,
+    } => {
+      write!(f, "Fread # ")?;
+      expr_arena[*filenum].print(expr_arena, text, f)?;
+      write!(f, ", ")?;
+      expr_arena[*addr].print(expr_arena, text, f)?;
+      write!(f, ", ")?;
+      expr_arena[*size].print(expr_arena, text, f)?;
+      writeln!(f)
+    }
+    StmtKind::Fwrite {
+      filenum,
+      addr,
+      size,
+    } => {
+      write!(f, "Fwrite # ")?;
+      expr_arena[*filenum].print(expr_arena, text, f)?;
+      write!(f, ", ")?;
+      expr_arena[*addr].print(expr_arena, text, f)?;
+      write!(f, ", ")?;
+      expr_arena[*size].print(expr_arena, text, f)?;
+      writeln!(f)
+    }
+    StmtKind::Fseek { filenum, offset } => {
+      write!(f, "Fseek # ")?;
+      expr_arena[*filenum].print(expr_arena, text, f)?;
+      write!(f, ", ")?;
+      expr_arena[*offset].print(expr_arena, text, f)?;
       writeln!(f)
     }
     StmtKind::NoOp => writeln!(f, ":"),

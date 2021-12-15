@@ -1,0 +1,21 @@
+---
+source: gvb_interp/src/compiler.rs
+expression: "compile(r#\"\n10 fseek #1,a/b:fseek k+1, a(3)\n    \"#.trim())"
+
+---
+emoji_version: New
+--------- data ----------
+--------- code ----------
+0     0:10..11  push number 1
+1     0:12..13  push var A
+2     0:14..15  push var B
+3     0:12..15  div
+4     0:3..15   fseek
+5     0:22..23  push var K
+6     0:24..25  push number 1
+7     0:22..25  add
+8     0:29..30  push number 3
+9     0:27..31  push index A, dimensions: 1
+10    0:16..31  fseek
+11    0:0..0    end
+

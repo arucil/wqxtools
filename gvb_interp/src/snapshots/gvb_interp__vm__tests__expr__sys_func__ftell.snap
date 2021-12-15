@@ -1,0 +1,17 @@
+---
+source: gvb_interp/src/vm.rs
+expression: "run_with_file(r#\"\n10 open \"a\" binary as 2\n20 a=fgetc(2)\n30 a=ftell(2)\n40 fseek 2, 5\n50 a=ftell(2)\n60 fread 2, 4000, 3\n70 a=ftell(2)\n    \"#.trim(),\n              vec![(ExecResult :: End, ExecInput :: None)], b\"a.DAT\",\n              File::new(b\"abcdefgh\".to_vec()))"
+
+---
+open file "a.DAT", read: true, write: true, truncate: false
+read from file: [97] 
+get file pos: 1
+seek file: 5
+get file pos: 5
+read from file: [102, 103, 104] 
+poke 4000, 102
+poke 4001, 103
+poke 4002, 104
+get file pos: 8
+close file
+

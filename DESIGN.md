@@ -1,3 +1,28 @@
+# GVBASIC扩展
+
+## 文件模式
+
+- [x] `BINARY` 文件模式：`OPEN expr FOR BINARY AS #n`，和 `RANDOM` 模式类似，区别是如果文件不存在，不会新建文件，要用 `FOPEN()` 函数确认文件是否成功打开。并且不能使用 `OPEN` 语句的 `LEN` 属性。
+
+## 语句
+
+- [x] `SLEEP` 语句：`SLEEP expr` 延时。延时的单位由`machines.yaml`配置文件决定。
+- [x] `FPUTC #n, expr`：`expr`的结果必须是字符串类型。写入字符串的第一个字节。用于 `BINARY`/`RANDOM` 模式。
+- [x] `FREAD #n, addr, size`：从文件中读取 `size` 字节到以地址 `addr` 开始的内存区域。用于 `BINARY` / `RANDOM` 模式。
+- [x] `FWRITE #n, addr, size`：把从地址 `addr` 开始的 `size` 字节内存数据写入到文件。用于 `BINARY` / `RANDOM` 模式。
+- [x] `FSEEK #n, expr`：把文件指针设置为 `expr` 的值。用于 `BINARY`/`RANDOM` 模式。
+
+## 函数
+
+- [x] `FOPEN(expr)`：判断 `expr` 号文件是否打开。
+- [x] `FGETC(expr)`：从 `expr` 号文件读取一个字节，返回字节的数值。用于 `BINARY`/`RANDOM` 模式。
+- [x] `FTELL(expr)`：获取 `expr` 号文件的文件指针。用于 `BINARY`/`RANDOM` 模式。
+- [x] `POINT(x, y)`：判断某坐标的像素点是否为黑。坐标可以超出屏幕范围。如果坐标超出屏幕范围，则始终返回 0。
+- [x] `CHECKKEY(key)`：判断某按键是否按下。
+- [ ] `XHOUR()`：获取当前小时（0~23）。注意该函数没有参数。
+- [ ] `XMINUTE()`：获取当前分钟（0~59）。注意该函数没有参数。
+- [ ] `XSECOND()`：获取当前秒（0~59）。注意该函数没有参数。
+
 # 前端
 - 选型
     + ~~react~~

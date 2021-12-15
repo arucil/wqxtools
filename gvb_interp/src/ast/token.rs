@@ -97,7 +97,6 @@ pub enum Keyword {
   At,
 
   Sleep,
-  Paint,
   Fputc,
   Fread,
   Fwrite,
@@ -201,7 +200,6 @@ impl FromStr for Keyword {
       "not" => Ok(Self::Not),
 
       "sleep" => Ok(Self::Sleep),
-      "paint" => Ok(Self::Paint),
       "fputc" => Ok(Self::Fputc),
       "fread" => Ok(Self::Fread),
       "fwrite" => Ok(Self::Fwrite),
@@ -313,7 +311,6 @@ impl Debug for Keyword {
       At => "AT",
 
       Sleep => "SLEEP",
-      Paint => "PAINT",
       Fputc => "FPUTC",
       Fread => "FREAD",
       Fwrite => "FWRITE",

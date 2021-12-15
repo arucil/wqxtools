@@ -1,0 +1,21 @@
+---
+source: gvb_interp/src/compiler.rs
+expression: "compile(r#\"\n10 fputc #1,a$+b$:fputc k+1, chr$(3)\n    \"#.trim())"
+
+---
+emoji_version: New
+--------- data ----------
+--------- code ----------
+0     0:10..11  push number 1
+1     0:12..14  push var A$
+2     0:15..17  push var B$
+3     0:12..17  concat
+4     0:3..17   fputc
+5     0:24..25  push var K
+6     0:26..27  push number 1
+7     0:24..27  add
+8     0:34..35  push number 3
+9     0:29..36  call sys func CHR$, arity: 1
+10    0:18..36  fputc
+11    0:0..0    end
+

@@ -173,6 +173,10 @@ pub enum InstrKind {
     end: Addr,
   },
   Sleep,
+  Fputc,
+  Fread,
+  Fwrite,
+  Fseek,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -434,6 +438,10 @@ impl InstrKind {
         start.0, end.0
       ),
       Self::Sleep => format!("sleep"),
+      Self::Fputc => format!("fputc"),
+      Self::Fread => format!("fread"),
+      Self::Fwrite => format!("fwrite"),
+      Self::Fseek => format!("fseek"),
     }
   }
 }

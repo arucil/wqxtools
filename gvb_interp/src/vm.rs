@@ -211,6 +211,7 @@ enum FileMode {
     record_len: u8,
     fields: Vec<RecordField>,
   },
+  Binary,
 }
 
 #[derive(Debug, Clone)]
@@ -1192,9 +1193,9 @@ where
         self.device.play_notes(&value);
       }
       InstrKind::Poke => {
-        let value = self.pop_u8(false)?;
+        let byte = self.pop_u8(false)?;
         let addr = self.pop_range(-65535, 65535)? as _;
-        self.device.set_byte(addr, value);
+        self.device.write_byte(addr, byte);
       }
       InstrKind::Swap => {
         let lvalue2 = self.lval_stack.pop().unwrap().1;
@@ -1250,6 +1251,139 @@ where
           let ns = (self.device.sleep_unit().as_nanos() as f64
             * f64::from(value)) as u64;
           self.state.sleep(Duration::from_nanos(ns))?;
+        }
+      }
+      InstrKind::Fputc => {
+        let (value_loc, value) = self.str_stack.pop().unwrap();
+        if value.is_empty() {
+          self
+            .state
+            .error(value_loc, "FPUTC 语句的数据参数不能为空字符串")?;
+        }
+
+        let filenum = self.get_filenum(true)?;
+        if let Some(file) = &mut self.files[filenum as usize] {
+          if matches!(&file.mode, FileMode::Binary | FileMode::Random { .. }) {
+            self.state.io(
+              loc.clone(),
+              "写入文件",
+              file.file.write(&value[..1]),
+            )?;
+          } else {
+            self.state.error(
+              loc,
+              format!(
+                "FPUTC 语句只能用于以 BINARY 或 RANDOM 模式打开的文件，\
+                  但 {} 号文件是以 {} 模式打开的",
+                filenum + 1,
+                file.mode
+              ),
+            )?;
+          }
+        } else {
+          self.state.error(loc, "未打开文件")?;
+        }
+      }
+      InstrKind::Fread => {
+        let size = self.pop_range(1, 65535)? as u16;
+        let mut addr = self.pop_range(0, 65535)? as u16;
+
+        if addr.checked_add(size - 1).is_none() {
+          self
+            .state
+            .error(loc, "试图写入内存的数据超出了内存的地址范围")?;
+        }
+
+        let filenum = self.get_filenum(true)?;
+        if let Some(file) = &mut self.files[filenum as usize] {
+          if matches!(&file.mode, FileMode::Binary | FileMode::Random { .. }) {
+            let mut buf = vec![0; size as usize];
+            let read_len = self.state.io(
+              loc.clone(),
+              "读取文件",
+              file.file.read(&mut buf),
+            )?;
+            if read_len < size as usize {
+              self.state.error(loc, "文件中没有足够的数据可供读取")?;
+            }
+            for b in buf {
+              self.device.write_byte(addr, b);
+              addr += 1;
+            }
+          } else {
+            self.state.error(
+              loc,
+              format!(
+                "FREAD 语句只能用于以 BINARY 或 RANDOM 模式打开的文件，\
+                  但 {} 号文件是以 {} 模式打开的",
+                filenum + 1,
+                file.mode
+              ),
+            )?;
+          }
+        } else {
+          self.state.error(loc, "未打开文件")?;
+        }
+      }
+      InstrKind::Fwrite => {
+        let size = self.pop_range(1, 65535)? as u16;
+        let addr = self.pop_range(0, 65535)? as u16;
+
+        if addr.checked_add(size - 1).is_none() {
+          self
+            .state
+            .error(loc, "试图从内存读取的数据超出了内存的地址范围")?;
+        }
+
+        let filenum = self.get_filenum(true)?;
+        if let Some(file) = &mut self.files[filenum as usize] {
+          if matches!(&file.mode, FileMode::Binary | FileMode::Random { .. }) {
+            let mut buf = vec![0; size as usize];
+            for i in 0..size {
+              buf[i as usize] = self.device.read_byte(addr + i);
+            }
+            self
+              .state
+              .io(loc.clone(), "写入文件", file.file.write(&buf))?;
+          } else {
+            self.state.error(
+              loc,
+              format!(
+                "FWRITE 语句只能用于以 BINARY 或 RANDOM 模式打开的文件，\
+                  但 {} 号文件是以 {} 模式打开的",
+                filenum + 1,
+                file.mode
+              ),
+            )?;
+          }
+        } else {
+          self.state.error(loc, "未打开文件")?;
+        }
+      }
+      InstrKind::Fseek => {
+        let offset = self.pop_range(0, 65535)? as u16;
+
+        let filenum = self.get_filenum(true)?;
+        if let Some(file) = &mut self.files[filenum as usize] {
+          if matches!(&file.mode, FileMode::Binary | FileMode::Random { .. }) {
+            self.state.io(
+              loc.clone(),
+              "设置文件指针",
+              file.file.seek(offset as u64),
+            )?;
+          } else {
+            self.state.error(
+              loc,
+              format!(
+                "FSEEK 语句只能用于以 BINARY 或 RANDOM 模式打开的文件，\
+                  但 {} 号文件是以 {} 模式打开的",
+                filenum + 1,
+                file.mode
+              ),
+            )?;
+          }
+        } else {
+          self.state.error(loc, "未打开文件")?;
         }
       }
     }
@@ -1462,8 +1596,8 @@ where
       }
       SysFuncKind::Peek => {
         let addr = self.pop_range(-65535, 65535)? as _;
-        let value = self.device.get_byte(addr);
-        self.num_stack.push((loc, Mbf5::from(value)));
+        let byte = self.device.read_byte(addr);
+        self.num_stack.push((loc, Mbf5::from(byte)));
         Ok(())
       }
       SysFuncKind::Pos => {
@@ -1567,6 +1701,78 @@ where
         Ok(())
       }
       SysFuncKind::Tab | SysFuncKind::Spc => unreachable!(),
+      SysFuncKind::Point => {
+        let y = self.pop_range(-32768, 32767)?;
+        let x = self.pop_range(-32768, 32767)?;
+        let p = Mbf5::from(self.device.check_point((x, y)));
+        self.num_stack.push((loc, p));
+        Ok(())
+      }
+      SysFuncKind::CheckKey => {
+        let key = self.pop_u8(false)?;
+        let p = Mbf5::from(self.device.check_key(key));
+        self.num_stack.push((loc, p));
+        Ok(())
+      }
+      SysFuncKind::Fopen => {
+        let filenum = self.get_filenum(true)?;
+        self
+          .num_stack
+          .push((loc, Mbf5::from(self.files[filenum as usize].is_some())));
+        Ok(())
+      }
+      SysFuncKind::Fgetc => {
+        let filenum = self.get_filenum(true)?;
+        if let Some(file) = &mut self.files[filenum as usize] {
+          if !matches!(&file.mode, FileMode::Binary | FileMode::Random { .. }) {
+            self.state.error(
+              loc,
+              format!(
+                "FGETC 函数只能用于以 BINARY 或 RANDOM 模式打开的文件，\
+                但 {} 号文件是以 {} 模式打开的",
+                filenum + 1,
+                file.mode
+              ),
+            )?;
+          }
+          let mut buf = [0];
+          let read_len =
+            self
+              .state
+              .io(loc.clone(), "读取文件", file.file.read(&mut buf))?;
+          if read_len == 0 {
+            self.state.error(loc, "不能在文件末尾读取数据")?;
+          }
+          self.num_stack.push((loc, Mbf5::from(buf[0])));
+          Ok(())
+        } else {
+          self.state.error(loc, "未打开文件")?;
+        }
+      }
+      SysFuncKind::Ftell => {
+        let filenum = self.get_filenum(true)?;
+        if let Some(file) = &self.files[filenum as usize] {
+          if !matches!(&file.mode, FileMode::Binary | FileMode::Random { .. }) {
+            self.state.error(
+              loc,
+              format!(
+                "FTELL 函数只能用于以 BINARY 或 RANDOM 模式打开的文件，\
+                但 {} 号文件是以 {} 模式打开的",
+                filenum + 1,
+                file.mode
+              ),
+            )?;
+          }
+          let pos =
+            self
+              .state
+              .io(loc.clone(), "获取文件指针", file.file.pos())?;
+          self.num_stack.push((loc, Mbf5::from(pos)));
+          Ok(())
+        } else {
+          self.state.error(loc, "未打开文件")?;
+        }
+      }
     }
   }
 
@@ -1623,21 +1829,27 @@ where
         true,
         false,
       ),
-      _ => unreachable!(),
+      ast::FileMode::Binary => (FileMode::Binary, true, true, false),
+      ast::FileMode::Error => unreachable!(),
     };
 
-    let mut file = self.state.io(
-      loc.clone(),
-      "打开文件",
-      self.device.open_file(&filename, read, write, truncate),
-    )?;
+    match self.device.open_file(&filename, read, write, truncate) {
+      Ok(mut file) => {
+        if let FileMode::Append = &mode {
+          let len = self.state.io(loc.clone(), "获取文件大小", file.len())?;
+          self.state.io(loc, "设置文件指针", file.seek(len))?;
+        }
 
-    if let FileMode::Append = &mode {
-      let len = self.state.io(loc.clone(), "获取文件大小", file.len())?;
-      self.state.io(loc, "设置文件指针", file.seek(len))?;
-    }
-
-    self.files[filenum as usize] = Some(OpenFile { file, mode });
+        self.files[filenum as usize] = Some(OpenFile { file, mode });
+      }
+      Err(err) => {
+        if matches!(&mode, FileMode::Binary) {
+          return Ok(());
+        } else {
+          self.state.io(loc.clone(), "打开文件", Err(err))?;
+        }
+      }
+    };
 
     Ok(())
   }
@@ -2437,6 +2649,7 @@ impl Display for FileMode {
       Self::Output => write!(f, "OUTPUT"),
       Self::Append => write!(f, "APPEND"),
       Self::Random { .. } => write!(f, "RANDOM"),
+      Self::Binary => write!(f, "BINARY"),
     }
   }
 }
@@ -2766,7 +2979,7 @@ mod tests {
 
     fn clear_cursor(&mut self) {}
 
-    fn get_byte(&self, addr: u16) -> u8 {
+    fn read_byte(&self, addr: u16) -> u8 {
       add_log(
         self.log.clone(),
         format!("peek {}: {}", addr, self.mem[addr as usize]),
@@ -2774,9 +2987,19 @@ mod tests {
       self.mem[addr as usize]
     }
 
-    fn set_byte(&mut self, addr: u16, value: u8) {
-      add_log(self.log.clone(), format!("poke {}, {}", addr, value));
-      self.mem[addr as usize] = value;
+    fn write_byte(&mut self, addr: u16, byte: u8) {
+      add_log(self.log.clone(), format!("poke {}, {}", addr, byte));
+      self.mem[addr as usize] = byte;
+    }
+
+    fn check_point(&self, (x, y): (i32, i32)) -> bool {
+      add_log(self.log.clone(), format!("check point ({}, {})", x, y));
+      false
+    }
+
+    fn check_key(&self, key: u8) -> bool {
+      add_log(self.log.clone(), format!("check key {}", key));
+      false
     }
 
     fn user_quit(&self) -> bool {
@@ -2804,7 +3027,11 @@ mod tests {
           truncate
         ),
       );
-      let file = self.files[name].clone();
+      let file = if let Some(file) = self.files.get(name) {
+        file.clone()
+      } else {
+        return Err(io::Error::new(io::ErrorKind::NotFound, "no such file"));
+      };
       if truncate {
         file.data.borrow_mut().clear();
       }
@@ -3895,6 +4122,94 @@ mod tests {
         ]
       ));
     }
+
+    #[test]
+    fn open_binary_file() {
+      assert_snapshot!(run_with_file(
+        r#"
+10 open "b" for binary as 1
+20 open "a" for binary as 1
+    "#
+        .trim(),
+        vec![(ExecResult::End, ExecInput::None)],
+        b"a.DAT",
+        File::new(b"abcdefgh".to_vec()),
+      ));
+    }
+
+    #[test]
+    fn fputc() {
+      assert_snapshot!(run_with_files(
+        r#"
+10 open "a" for binary as 1
+20 fputc 1, " "
+30 fputc 1, chr$(37)+"a"
+    "#
+        .trim(),
+        vec![(ExecResult::End, ExecInput::None)],
+        vec![(
+          b"a.DAT",
+          File::new(b"abcdefgh".to_vec()),
+          b" %cdefgh".to_vec()
+        )]
+      ));
+    }
+
+    #[test]
+    fn fread() {
+      assert_snapshot!(run_with_file(
+        r#"
+10 open "a" for binary as 1
+20 fread 1, 4000, 3
+40 fread 1, 5000, 6
+    "#
+        .trim(),
+        vec![(
+          exec_error(2, 3, 19, "文件中没有足够的数据可供读取",),
+          ExecInput::None
+        )],
+        b"a.DAT",
+        File::new(b"abcdefgh".to_vec()),
+      ));
+    }
+
+    #[test]
+    fn fwrite() {
+      assert_snapshot!(run_with_files(
+        r#"
+10 open "a" for binary as 2
+15 poke 4000, 65: poke 4001, 66: poke 4002, 67
+20 fwrite 2, 4000, 3
+    "#
+        .trim(),
+        vec![(ExecResult::End, ExecInput::None)],
+        vec![(b"a.DAT", File::new(b"a".to_vec()), b"ABC".to_vec())]
+      ));
+    }
+
+    #[test]
+    fn fseek() {
+      assert_snapshot!(run_with_files(
+        r#"
+10 open "a" for binary as 2
+15 fseek 2, 4
+20 fread 2, 4000, 3
+30 fseek 2, 8
+40 fwrite 2, 4000, 3
+50 fseek 2, 0
+60 fputc 2, "123"
+70 fwrite 2, 4002, 2
+80 print ftell(2);
+    "#
+        .trim(),
+        vec![(ExecResult::End, ExecInput::None)],
+        vec![(
+          b"a.DAT",
+          File::new(b"abcdefgh".to_vec()),
+          b"1g\x00defghefg".to_vec()
+        )]
+      ));
+    }
   }
 
   mod expr {
@@ -4578,6 +4893,83 @@ mod tests {
             ExecResult::End,
             ExecInput::None
           )]
+        ));
+      }
+
+      #[test]
+      fn fopen() {
+        assert_snapshot!(run_with_file(
+          r#"
+10 print fopen(3);
+20 open "b" binary as 2
+30 print fopen(2);
+40 open "a" binary as 2
+50 print fopen(2);
+    "#
+          .trim(),
+          vec![(ExecResult::End, ExecInput::None)],
+          b"a.DAT",
+          File::new(b"".to_vec())
+        ));
+      }
+
+      #[test]
+      fn ftell() {
+        assert_snapshot!(run_with_file(
+          r#"
+10 open "a" binary as 2
+20 a=fgetc(2)
+30 a=ftell(2)
+40 fseek 2, 5
+50 a=ftell(2)
+60 fread 2, 4000, 3
+70 a=ftell(2)
+    "#
+          .trim(),
+          vec![(ExecResult::End, ExecInput::None)],
+          b"a.DAT",
+          File::new(b"abcdefgh".to_vec())
+        ));
+      }
+
+      #[test]
+      fn fgetc() {
+        assert_snapshot!(run_with_file(
+          r#"
+10 open "a" binary as 2
+20 a=fgetc(2)
+30 a=fgetc(2)
+40 fseek 2, 5
+50 a=fgetc(2)
+    "#
+          .trim(),
+          vec![(ExecResult::End, ExecInput::None)],
+          b"a.DAT",
+          File::new(b"abcdefgh".to_vec())
+        ));
+      }
+
+      #[test]
+      fn point() {
+        assert_snapshot!(run(
+          r#"
+10 a=point(17, 2)
+20 a=point(-17, 500)
+    "#
+          .trim(),
+          vec![(ExecResult::End, ExecInput::None)]
+        ));
+      }
+
+      #[test]
+      fn checkkey() {
+        assert_snapshot!(run(
+          r#"
+10 a=checkkey(27)
+20 a=checkkey(95+2)
+    "#
+          .trim(),
+          vec![(ExecResult::End, ExecInput::None)]
         ));
       }
     }

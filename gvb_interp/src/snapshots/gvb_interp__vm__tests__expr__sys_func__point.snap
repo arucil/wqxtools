@@ -1,0 +1,8 @@
+---
+source: gvb_interp/src/vm.rs
+expression: "run(r#\"\n10 a=point(17, 2)\n20 a=point(-17, 500)\n    \"#.trim(),\n    vec![(ExecResult :: End, ExecInput :: None)])"
+
+---
+check point (17, 2)
+check point (-17, 500)
+

@@ -1,0 +1,10 @@
+---
+source: gvb_interp/src/vm.rs
+expression: "run_with_files(r#\"\n10 open \"a\" for binary as 1\n20 fputc 1, \" \"\n30 fputc 1, chr$(37)+\"a\"\n    \"#.trim(),\n               vec![(ExecResult :: End, ExecInput :: None)],\n               vec![(b\"a.DAT\", File :: new(b\"abcdefgh\".to_vec()),\n                     b\" %cdefgh\".to_vec())])"
+
+---
+open file "a.DAT", read: true, write: true, truncate: false
+write to file: [32] 
+write to file: [37] 
+close file
+

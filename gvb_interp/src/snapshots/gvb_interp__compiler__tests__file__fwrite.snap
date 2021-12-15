@@ -1,0 +1,21 @@
+---
+source: gvb_interp/src/compiler.rs
+expression: "compile(r#\"\n10 fwrite #k, 1234+a(3), k%:fwrite 99,i,j\n    \"#.trim())"
+
+---
+emoji_version: New
+--------- data ----------
+--------- code ----------
+0     0:11..12  push var K
+1     0:14..18  push number 1234
+2     0:21..22  push number 3
+3     0:19..23  push index A, dimensions: 1
+4     0:14..23  add
+5     0:25..27  push var K%
+6     0:3..27   fwrite
+7     0:35..37  push number 99
+8     0:38..39  push var I
+9     0:40..41  push var J
+10    0:28..41  fwrite
+11    0:0..0    end
+

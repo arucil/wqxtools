@@ -1,0 +1,12 @@
+---
+source: gvb_interp/src/vm.rs
+expression: "run_with_file(r#\"\n10 open \"a\" binary as 2\n20 a=fgetc(2)\n30 a=fgetc(2)\n40 fseek 2, 5\n50 a=fgetc(2)\n    \"#.trim(),\n              vec![(ExecResult :: End, ExecInput :: None)], b\"a.DAT\",\n              File::new(b\"abcdefgh\".to_vec()))"
+
+---
+open file "a.DAT", read: true, write: true, truncate: false
+read from file: [97] 
+read from file: [98] 
+seek file: 5
+read from file: [102] 
+close file
+

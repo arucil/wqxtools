@@ -1,0 +1,15 @@
+---
+source: gvb_interp/src/vm.rs
+expression: "run_with_files(r#\"\n10 open \"a\" for binary as 2\n15 poke 4000, 65: poke 4001, 66: poke 4002, 67\n20 fwrite 2, 4000, 3\n    \"#.trim(),\n               vec![(ExecResult :: End, ExecInput :: None)],\n               vec![(b\"a.DAT\", File :: new(b\"a\".to_vec()), b\"ABC\".to_vec())])"
+
+---
+open file "a.DAT", read: true, write: true, truncate: false
+poke 4000, 65
+poke 4001, 66
+poke 4002, 67
+peek 4000: 65
+peek 4001: 66
+peek 4002: 67
+write to file: [65, 66, 67] 
+close file
+

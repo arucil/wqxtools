@@ -1,0 +1,21 @@
+---
+source: gvb_interp/src/compiler.rs
+expression: "compile(r#\"\n10 fread #k, 1234+a(3), k%:fread 99,i,j\n    \"#.trim())"
+
+---
+emoji_version: New
+--------- data ----------
+--------- code ----------
+0     0:10..11  push var K
+1     0:13..17  push number 1234
+2     0:20..21  push number 3
+3     0:18..22  push index A, dimensions: 1
+4     0:13..22  add
+5     0:24..26  push var K%
+6     0:3..26   fread
+7     0:33..35  push number 99
+8     0:36..37  push var I
+9     0:38..39  push var J
+10    0:27..39  fread
+11    0:0..0    end
+

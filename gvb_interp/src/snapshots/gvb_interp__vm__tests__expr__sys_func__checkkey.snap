@@ -1,0 +1,8 @@
+---
+source: gvb_interp/src/vm.rs
+expression: "run(r#\"\n10 a=checkkey(27)\n20 a=checkkey(95+2)\n    \"#.trim(),\n    vec![(ExecResult :: End, ExecInput :: None)])"
+
+---
+check key 27
+check key 97
+

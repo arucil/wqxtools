@@ -1,0 +1,13 @@
+---
+source: gvb_interp/src/vm.rs
+expression: "run_with_file(r#\"\n10 open \"a\" for binary as 1\n20 fread 1, 4000, 3\n40 fread 1, 5000, 6\n    \"#.trim(),\n              vec![(exec_error(2, 3, 19,\n                               \"文件中没有足够的数据可供读取\",),\n                    ExecInput :: None)], b\"a.DAT\",\n              File::new(b\"abcdefgh\".to_vec()))"
+
+---
+open file "a.DAT", read: true, write: true, truncate: false
+read from file: [97, 98, 99] 
+poke 4000, 97
+poke 4001, 98
+poke 4002, 99
+read from file: [100, 101, 102, 103, 104, 0] 
+close file
+

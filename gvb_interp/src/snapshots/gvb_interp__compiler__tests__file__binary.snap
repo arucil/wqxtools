@@ -1,0 +1,13 @@
+---
+source: gvb_interp/src/compiler.rs
+expression: "compile(r#\"\n10 open a$ for binary as i\n    \"#.trim())"
+
+---
+emoji_version: New
+--------- data ----------
+--------- code ----------
+0     0:8..10   push var A$
+1     0:25..26  push var I
+2     0:3..26   open file, mode: BINARY, has_len: false
+3     0:0..0    end
+

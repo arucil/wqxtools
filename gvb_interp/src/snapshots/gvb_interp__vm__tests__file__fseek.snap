@@ -1,0 +1,26 @@
+---
+source: gvb_interp/src/vm.rs
+expression: "run_with_files(r#\"\n10 open \"a\" for binary as 2\n15 fseek 2, 4\n20 fread 2, 4000, 3\n30 fseek 2, 8\n40 fwrite 2, 4000, 3\n50 fseek 2, 0\n60 fputc 2, \"123\"\n70 fwrite 2, 4002, 2\n80 print ftell(2);\n    \"#.trim(),\n               vec![(ExecResult :: End, ExecInput :: None)],\n               vec![(b\"a.DAT\", File :: new(b\"abcdefgh\".to_vec()),\n                     b\"1g\\x00defghefg\".to_vec())])"
+
+---
+open file "a.DAT", read: true, write: true, truncate: false
+seek file: 4
+read from file: [101, 102, 103] 
+poke 4000, 101
+poke 4001, 102
+poke 4002, 103
+seek file: 8
+peek 4000: 101
+peek 4001: 102
+peek 4002: 103
+write to file: [101, 102, 103] 
+seek file: 0
+write to file: [49] 
+peek 4002: 103
+peek 4003: 0
+write to file: [103, 0] 
+get file pos: 3
+print "3"
+flush
+close file
+

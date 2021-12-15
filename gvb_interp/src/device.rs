@@ -48,9 +48,13 @@ pub trait Device {
     mode: DrawMode,
   );
 
-  fn get_byte(&self, addr: u16) -> u8;
+  fn check_point(&self, coord: (i32, i32)) -> bool;
 
-  fn set_byte(&mut self, addr: u16, value: u8);
+  fn check_key(&self, key: u8) -> bool;
+
+  fn read_byte(&self, addr: u16) -> u8;
+
+  fn write_byte(&mut self, addr: u16, byte: u8);
 
   /// Returns true if user is pressing ESC.
   fn user_quit(&self) -> bool;

@@ -1,0 +1,9 @@
+---
+source: gvb_interp/src/vm.rs
+expression: "run_with_file(r#\"\n10 open \"b\" for binary as 1\n20 open \"a\" for binary as 1\n    \"#.trim(),\n              vec![(ExecResult :: End, ExecInput :: None)], b\"a.DAT\",\n              File::new(b\"abcdefgh\".to_vec()))"
+
+---
+open file "b.DAT", read: true, write: true, truncate: false
+open file "a.DAT", read: true, write: true, truncate: false
+close file
+

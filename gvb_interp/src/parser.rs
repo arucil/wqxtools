@@ -642,6 +642,10 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
       Keyword(Kw::While) => self.parse_unary_cmd(StmtKind::While),
       Keyword(Kw::Write) => self.parse_write_stmt(),
       Keyword(Kw::Sleep) => self.parse_unary_cmd(StmtKind::Sleep),
+      Keyword(Kw::Fputc) => self.parse_fputc_stmt(),
+      Keyword(Kw::Fread) => self.parse_fread_fwrite_stmt(false),
+      Keyword(Kw::Fwrite) => self.parse_fread_fwrite_stmt(true),
+      Keyword(Kw::Fseek) => self.parse_fseek_stmt(),
       Label => match self.label_value.take().unwrap() {
         Ok(label) => {
           let range = self.token.0.clone();
@@ -1466,12 +1470,15 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
           } else if m.eq_ignore_ascii_case(b"random") {
             self.advance(6);
             break FileMode::Random;
+          } else if m.eq_ignore_ascii_case(b"binary") {
+            self.advance(6);
+            break FileMode::Binary;
           }
         }
       }
       self.add_error(
         open_range.clone(),
-        "OPEN 语句缺少文件模式：INPUT，OUTPUT，APPEND 或 RANDOM",
+        "OPEN 语句缺少文件模式：INPUT，OUTPUT，APPEND，RANDOM 或 BINARY",
       );
       setup_follow! { self, old_follow : (punc Hash) (id) }
       self.recover(false);
@@ -1717,6 +1724,151 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
 
     self.node_builder.new_stmt(Stmt {
       kind: StmtKind::Write { filenum, data },
+      range: Range::new(start, self.last_token_end),
+    })
+  }
+
+  fn parse_fputc_stmt(&mut self) -> StmtId {
+    let _first_symbols = self.first_symbols.backup();
+    let old_follow = self.follow_symbols.backup();
+
+    let start = self.token.0.start;
+    self.read_token(false);
+
+    if self.token.1 == TokenKind::Punc(Punc::Hash) {
+      self.read_token(false);
+    }
+
+    setup_first! { self : }
+    setup_follow! { self, old_follow : (punc Comma) }
+    let filenum = self.parse_expr();
+
+    setup_first! { self : (punc Comma) }
+    setup_follow! { self, old_follow : (t Expr) }
+    if self
+      .match_token(TokenKind::Punc(Punc::Comma), false, false)
+      .is_err()
+    {
+      let filenum = self.node_builder.expr_node(filenum);
+      if !matches!(&filenum.kind, ExprKind::Error) {
+        let range = filenum.range.clone();
+        self.add_error(range, "文件号表达式之后缺少逗号");
+      }
+    }
+
+    setup_first! { self : }
+    setup_follow! { self, old_follow : }
+    let value = self.parse_expr();
+
+    self.node_builder.new_stmt(Stmt {
+      kind: StmtKind::Fputc { filenum, value },
+      range: Range::new(start, self.last_token_end),
+    })
+  }
+
+  fn parse_fread_fwrite_stmt(&mut self, is_write: bool) -> StmtId {
+    let _first_symbols = self.first_symbols.backup();
+    let old_follow = self.follow_symbols.backup();
+
+    let start = self.token.0.start;
+    self.read_token(false);
+
+    if self.token.1 == TokenKind::Punc(Punc::Hash) {
+      self.read_token(false);
+    }
+
+    setup_first! { self : }
+    setup_follow! { self, old_follow : (punc Comma) }
+    let filenum = self.parse_expr();
+
+    setup_first! { self : (punc Comma) }
+    setup_follow! { self, old_follow : (t Expr) }
+    if self
+      .match_token(TokenKind::Punc(Punc::Comma), false, false)
+      .is_err()
+    {
+      let filenum = self.node_builder.expr_node(filenum);
+      if !matches!(&filenum.kind, ExprKind::Error) {
+        let range = filenum.range.clone();
+        self.add_error(range, "文件号表达式之后缺少逗号");
+      }
+    }
+
+    setup_first! { self : }
+    setup_follow! { self, old_follow : (punc Comma) }
+    let addr = self.parse_expr();
+
+    setup_first! { self : (punc Comma) }
+    setup_follow! { self, old_follow : (t Expr) }
+    if self
+      .match_token(TokenKind::Punc(Punc::Comma), false, false)
+      .is_err()
+    {
+      let addr = self.node_builder.expr_node(addr);
+      if !matches!(&addr.kind, ExprKind::Error) {
+        let range = addr.range.clone();
+        self.add_error(range, "地址表达式之后缺少逗号");
+      }
+    }
+
+    setup_first! { self : }
+    setup_follow! { self, old_follow : }
+    let size = self.parse_expr();
+
+    let kind = if is_write {
+      StmtKind::Fwrite {
+        filenum,
+        addr,
+        size,
+      }
+    } else {
+      StmtKind::Fread {
+        filenum,
+        addr,
+        size,
+      }
+    };
+
+    self.node_builder.new_stmt(Stmt {
+      kind,
+      range: Range::new(start, self.last_token_end),
+    })
+  }
+
+  fn parse_fseek_stmt(&mut self) -> StmtId {
+    let _first_symbols = self.first_symbols.backup();
+    let old_follow = self.follow_symbols.backup();
+
+    let start = self.token.0.start;
+    self.read_token(false);
+
+    if self.token.1 == TokenKind::Punc(Punc::Hash) {
+      self.read_token(false);
+    }
+
+    setup_first! { self : }
+    setup_follow! { self, old_follow : (punc Comma) }
+    let filenum = self.parse_expr();
+
+    setup_first! { self : (punc Comma) }
+    setup_follow! { self, old_follow : (t Expr) }
+    if self
+      .match_token(TokenKind::Punc(Punc::Comma), false, false)
+      .is_err()
+    {
+      let filenum = self.node_builder.expr_node(filenum);
+      if !matches!(&filenum.kind, ExprKind::Error) {
+        let range = filenum.range.clone();
+        self.add_error(range, "文件号表达式之后缺少逗号");
+      }
+    }
+
+    setup_first! { self : }
+    setup_follow! { self, old_follow : }
+    let offset = self.parse_expr();
+
+    self.node_builder.new_stmt(Stmt {
+      kind: StmtKind::Fseek { filenum, offset },
       range: Range::new(start, self.last_token_end),
     })
   }

@@ -534,6 +534,30 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E, ProgramLine> {
         "SLEEP",
         "参数",
       ),
+      StmtKind::Fputc { filenum, value } => {
+        self.compile_fputc(range, &stmt.kind, *filenum, *value);
+      }
+      StmtKind::Fread {
+        filenum,
+        addr,
+        size,
+      } => {
+        self.compile_fread_fwrite(
+          range, &stmt.kind, *filenum, *addr, *size, "FREAD",
+        );
+      }
+      StmtKind::Fwrite {
+        filenum,
+        addr,
+        size,
+      } => {
+        self.compile_fread_fwrite(
+          range, &stmt.kind, *filenum, *addr, *size, "FWRITE",
+        );
+      }
+      StmtKind::Fseek { filenum, offset } => {
+        self.compile_fseek(range, &stmt.kind, *filenum, *offset);
+      }
       StmtKind::NoOp => self.code_emitter.emit_no_op(range),
     }
   }
@@ -774,6 +798,132 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E, ProgramLine> {
     self.code_emitter.emit_op(range, kind, 2);
   }
 
+  fn compile_fputc(
+    &mut self,
+    range: Range,
+    kind: &StmtKind,
+    filenum: ExprId,
+    value: ExprId,
+  ) {
+    let ty = self.compile_expr(filenum);
+    if !ty.matches(Type::Real) {
+      let range = &self.expr_node(filenum).range;
+      self.add_error(
+        range.clone(),
+        format!(
+          "表达式类型错误。FPUTC 语句的文件号参数是{}类型，而这个表达式是{}类型",
+          Type::Real,
+          ty
+        ),
+      );
+    }
+
+    let ty = self.compile_expr(value);
+    if !ty.matches(Type::String) {
+      let range = &self.expr_node(value).range;
+      self.add_error(
+        range.clone(),
+        format!(
+          "表达式类型错误。FPUTC 语句的数据参数是{}类型，而这个表达式是{}类型",
+          Type::String,
+          ty
+        ),
+      );
+    }
+
+    self.code_emitter.emit_op(range, kind, 2);
+  }
+
+  fn compile_fread_fwrite(
+    &mut self,
+    range: Range,
+    kind: &StmtKind,
+    filenum: ExprId,
+    addr: ExprId,
+    size: ExprId,
+    name: &str,
+  ) {
+    let ty = self.compile_expr(filenum);
+    if !ty.matches(Type::Real) {
+      let range = &self.expr_node(filenum).range;
+      self.add_error(
+        range.clone(),
+        format!(
+          "表达式类型错误。{} 语句的文件号参数是{}类型，而这个表达式是{}类型",
+          name,
+          Type::Real,
+          ty
+        ),
+      );
+    }
+
+    let ty = self.compile_expr(addr);
+    if !ty.matches(Type::Real) {
+      let range = &self.expr_node(addr).range;
+      self.add_error(
+        range.clone(),
+        format!(
+          "表达式类型错误。{} 语句的数据地址参数是{}类型，而这个表达式是{}类型",
+          name,
+          Type::Real,
+          ty
+        ),
+      );
+    }
+
+    let ty = self.compile_expr(size);
+    if !ty.matches(Type::Real) {
+      let range = &self.expr_node(size).range;
+      self.add_error(
+        range.clone(),
+        format!(
+          "表达式类型错误。{} 语句的数据长度参数是{}类型，而这个表达式是{}类型",
+          name,
+          Type::Real,
+          ty
+        ),
+      );
+    }
+
+    self.code_emitter.emit_op(range, kind, 3);
+  }
+
+  fn compile_fseek(
+    &mut self,
+    range: Range,
+    kind: &StmtKind,
+    filenum: ExprId,
+    offset: ExprId,
+  ) {
+    let ty = self.compile_expr(filenum);
+    if !ty.matches(Type::Real) {
+      let range = &self.expr_node(filenum).range;
+      self.add_error(
+        range.clone(),
+        format!(
+          "表达式类型错误。FSEEK 语句的文件号参数是{}类型，而这个表达式是{}类型",
+          Type::Real,
+          ty
+        ),
+      );
+    }
+
+    let ty = self.compile_expr(offset);
+    if !ty.matches(Type::Real) {
+      let range = &self.expr_node(offset).range;
+      self.add_error(
+        range.clone(),
+        format!(
+          "表达式类型错误。FSEEK 语句的文件指针参数是{}类型，而这个表达式是{}类型",
+          Type::Real,
+          ty
+        ),
+      );
+    }
+
+    self.code_emitter.emit_op(range, kind, 2);
+  }
+
   fn compile_read(&mut self, _range: Range, vars: &NonEmptyVec<[ExprId; 1]>) {
     for &var in vars.iter() {
       let (_, _) = self.compile_lvalue(var);
@@ -868,7 +1018,6 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E, ProgramLine> {
     }
 
     let to_file = filenum.is_some();
-    let mut printed = false;
 
     for (i, datum) in data.iter().enumerate() {
       let ty = self.compile_expr(datum.datum);
@@ -882,7 +1031,6 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E, ProgramLine> {
 
       let range = self.expr_node(datum.datum).range.clone();
       if i == data.len().get() - 1 || datum.comma {
-        printed = true;
         let end = i == data.len().get() - 1;
         if ty.matches(Type::Real) {
           self.code_emitter.emit_write_num(range, to_file, end);
@@ -896,7 +1044,7 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E, ProgramLine> {
       }
     }
 
-    if !to_file && printed {
+    if !to_file {
       self.code_emitter.emit_flush(range);
     }
   }
@@ -1343,8 +1491,6 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E, ProgramLine> {
     range: Range,
     elems: &SmallVec<[PrintElement; 2]>,
   ) {
-    let mut printed = false;
-
     for (i, elem) in elems.iter().enumerate() {
       match elem {
         PrintElement::Semicolon(_) => {
@@ -1396,8 +1542,6 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E, ProgramLine> {
             if i == elems.len() - 1 {
               self.code_emitter.emit_newline(range.clone());
             }
-
-            printed = true;
           }
           _ => {
             let ty = self.compile_expr(*expr);
@@ -1415,8 +1559,6 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E, ProgramLine> {
                 .emit_number(elem_range.clone(), Mbf5::one());
               self.code_emitter.emit_print_spc(elem_range.clone());
             }
-
-            printed = true;
           }
         },
       }
@@ -1424,10 +1566,8 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E, ProgramLine> {
 
     if elems.is_empty() {
       self.code_emitter.emit_newline(range.clone());
-      self.code_emitter.emit_flush(range);
-    } else if printed {
-      self.code_emitter.emit_flush(range);
     }
+    self.code_emitter.emit_flush(range);
   }
 }
 
@@ -1558,7 +1698,8 @@ impl<'a, 'b, E: CodeEmitter, T> CompileState<'a, 'b, E, T> {
     func: &(Range, SysFuncKind),
     args: &NonEmptyVec<[ExprId; 1]>,
   ) -> Type {
-    let (min_arity, max_arity, arg_tys, ret_ty) = match func.1 {
+    let (min_arity, max_arity, arg_tys, ret_ty): (_, _, &[_], _) = match func.1
+    {
       SysFuncKind::Abs
       | SysFuncKind::Atn
       | SysFuncKind::Cos
@@ -1573,34 +1714,33 @@ impl<'a, 'b, E: CodeEmitter, T> CompileState<'a, 'b, E, T> {
       | SysFuncKind::Tan
       | SysFuncKind::Eof
       | SysFuncKind::Lof
-      | SysFuncKind::Pos => {
-        (1, 1, [Type::Real, Type::Error, Type::Error], Type::Real)
-      }
+      | SysFuncKind::Pos
+      | SysFuncKind::CheckKey
+      | SysFuncKind::Fopen
+      | SysFuncKind::Fgetc
+      | SysFuncKind::Ftell => (1, 1, &[Type::Real], Type::Real),
+      SysFuncKind::Point => (2, 2, &[Type::Real, Type::Real], Type::Real),
       SysFuncKind::Asc
       | SysFuncKind::Cvi
       | SysFuncKind::Cvs
       | SysFuncKind::Len
-      | SysFuncKind::Val => {
-        (1, 1, [Type::String, Type::Error, Type::Error], Type::Real)
-      }
+      | SysFuncKind::Val => (1, 1, &[Type::String], Type::Real),
       SysFuncKind::Mki
       | SysFuncKind::Mks
       | SysFuncKind::Chr
-      | SysFuncKind::Str => {
-        (1, 1, [Type::Real, Type::Error, Type::Error], Type::String)
-      }
+      | SysFuncKind::Str => (1, 1, &[Type::Real], Type::String),
       SysFuncKind::Left | SysFuncKind::Right => {
-        (2, 2, [Type::String, Type::Real, Type::Error], Type::String)
+        (2, 2, &[Type::String, Type::Real], Type::String)
       }
       SysFuncKind::Mid => {
-        (2, 3, [Type::String, Type::Real, Type::Real], Type::String)
+        (2, 3, &[Type::String, Type::Real, Type::Real], Type::String)
       }
       SysFuncKind::Tab | SysFuncKind::Spc => {
         self.add_error(
           func.0.clone(),
           format!("{:?} 函数只能作为 PRINT 语句的参数出现", func.1),
         );
-        (1, 1, [Type::Real, Type::Error, Type::Error], Type::Real)
+        (1, 1, &[Type::Real], Type::Real)
       }
     };
     if args.len().get() < min_arity {
@@ -2149,6 +2289,56 @@ mod tests {
       assert_debug_snapshot!(compile(
         r#"
 10 write #k+1, abc$ 12+val(chr$(k)), s%(2),:write #2,a,b(1,2,3),c:
+    "#
+        .trim()
+      ));
+    }
+
+    #[test]
+    fn binary() {
+      assert_debug_snapshot!(compile(
+        r#"
+10 open a$ for binary as i
+    "#
+        .trim()
+      ));
+    }
+
+    #[test]
+    fn fputc() {
+      assert_debug_snapshot!(compile(
+        r#"
+10 fputc #1,a$+b$:fputc k+1, chr$(3)
+    "#
+        .trim()
+      ));
+    }
+
+    #[test]
+    fn fseek() {
+      assert_debug_snapshot!(compile(
+        r#"
+10 fseek #1,a/b:fseek k+1, a(3)
+    "#
+        .trim()
+      ));
+    }
+
+    #[test]
+    fn fread() {
+      assert_debug_snapshot!(compile(
+        r#"
+10 fread #k, 1234+a(3), k%:fread 99,i,j
+    "#
+        .trim()
+      ));
+    }
+
+    #[test]
+    fn fwrite() {
+      assert_debug_snapshot!(compile(
+        r#"
+10 fwrite #k, 1234+a(3), k%:fwrite 99,i,j
     "#
         .trim()
       ));

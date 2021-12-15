@@ -1,0 +1,15 @@
+---
+source: gvb_interp/src/vm.rs
+expression: "run_with_file(r#\"\n10 print fopen(3);\n20 open \"b\" binary as 2\n30 print fopen(2);\n40 open \"a\" binary as 2\n50 print fopen(2);\n    \"#.trim(),\n              vec![(ExecResult :: End, ExecInput :: None)], b\"a.DAT\",\n              File::new(b\"\".to_vec()))"
+
+---
+print "0"
+flush
+open file "b.DAT", read: true, write: true, truncate: false
+print "0"
+flush
+open file "a.DAT", read: true, write: true, truncate: false
+print "1"
+flush
+close file
+

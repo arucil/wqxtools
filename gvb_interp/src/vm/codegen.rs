@@ -140,6 +140,10 @@ impl CodeEmitter for CodeGen {
       StmtKind::Trace => self.push_instr(range, InstrKind::SetTrace(true)),
       StmtKind::Wend => self.push_instr(range, InstrKind::Wend),
       StmtKind::Sleep(_) => self.push_instr(range, InstrKind::Sleep),
+      StmtKind::Fputc { .. } => self.push_instr(range, InstrKind::Fputc),
+      StmtKind::Fread { .. } => self.push_instr(range, InstrKind::Fread),
+      StmtKind::Fwrite { .. } => self.push_instr(range, InstrKind::Fwrite),
+      StmtKind::Fseek { .. } => self.push_instr(range, InstrKind::Fseek),
       _ => unreachable!(),
     }
   }

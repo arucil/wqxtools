@@ -1,9 +1,11 @@
 ---
 source: gvb_interp/src/vm.rs
-expression: device.log.borrow()
+expression: "run(r#\"\n10 print:print;:print \"foo\":locate ,10:print spc(2)tab(13);\n20 a$=\"ABCDEFG\":a=3:print a$tab(3)a\n    \"#.trim(),\n    vec![(ExecResult :: End, ExecInput :: None)])"
 
 ---
 print newline
+flush
+flush
 print "foo"
 print newline
 flush

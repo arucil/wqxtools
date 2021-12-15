@@ -76,6 +76,12 @@ pub enum SysFuncKind {
   Val,
   Tab,
   Spc,
+
+  Point,
+  CheckKey,
+  Fopen,
+  Fgetc,
+  Ftell,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -141,6 +147,12 @@ impl FromStr for SysFuncKind {
       "val" => Ok(Self::Val),
       "spc" => Ok(Self::Spc),
       "tab" => Ok(Self::Tab),
+
+      "fopen" => Ok(Self::Fopen),
+      "fgetc" => Ok(Self::Fgetc),
+      "ftell" => Ok(Self::Ftell),
+      "point" => Ok(Self::Point),
+      "checkkey" => Ok(Self::CheckKey),
       _ => Err(()),
     }
   }
@@ -220,6 +232,11 @@ impl Debug for SysFuncKind {
       Self::Val => "VAL",
       Self::Spc => "SPC",
       Self::Tab => "TAB",
+      Self::Point => "POINT",
+      Self::CheckKey => "CHECKKEY",
+      Self::Fopen => "FOPEN",
+      Self::Fgetc => "FGETC",
+      Self::Ftell => "FTELL",
     };
     write!(f, "{}", kind)
   }

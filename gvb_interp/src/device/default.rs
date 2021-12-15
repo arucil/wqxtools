@@ -633,6 +633,23 @@ impl Device for DefaultDevice {
     self.update_dirty_area(0, 0, screen::WIDTH, screen::HEIGHT);
   }
 
+  fn check_point(&self, (x, y): (i32, i32)) -> bool {
+    if x < 0 || x >= screen::WIDTH as i32 || y < 0 || y >= screen::HEIGHT as i32
+    {
+      return false;
+    }
+
+    let x = x as usize;
+    let y = y as usize;
+    let ptr = unsafe {
+      self
+        .memory
+        .as_ptr()
+        .add(self.props.graphics_base_addr as usize + y * 20 + (x >> 3))
+    };
+    unsafe { *ptr & POINT_BIT_MASK[x & 7] != 0 }
+  }
+
   fn draw_point(&mut self, (x, y): (u8, u8), mode: DrawMode) {
     if x < screen::WIDTH as u8 && y < screen::HEIGHT as u8 {
       unsafe {
@@ -892,12 +909,19 @@ impl Device for DefaultDevice {
     );
   }
 
-  fn get_byte(&self, addr: u16) -> u8 {
+  fn check_key(&self, key: u8) -> bool {
+    if let Some((addr, mask)) = self.props.key_masks[key as usize] {
+      self.memory[addr as usize] & mask == 0
+    } else {
+      false
+    }
+  }
+
+  fn read_byte(&self, addr: u16) -> u8 {
     self.memory[addr as usize]
   }
 
-  fn set_byte(&mut self, addr: u16, value: u8) {
-    self.memory[addr as usize] = value;
+  fn write_byte(&mut self, addr: u16, byte: u8) {
     if addr >= 0xe000 {
       return;
     }
@@ -907,6 +931,8 @@ impl Device for DefaultDevice {
     {
       return;
     }
+
+    self.memory[addr as usize] = byte;
 
     let g = self.props.graphics_base_addr;
     if addr >= g && addr < g + screen::BYTES as u16 {
@@ -1034,11 +1060,11 @@ impl Device for DefaultDevice {
 
 impl Interface6502 for DefaultDevice {
   fn read(&mut self, address: u16) -> u8 {
-    self.get_byte(address)
+    self.read_byte(address)
   }
 
   fn write(&mut self, address: u16, data: u8) {
-    self.set_byte(address, data);
+    self.write_byte(address, data);
   }
 }
 
@@ -1380,8 +1406,8 @@ mod tests {
     str.drop_0x1f();
     device.print(&str);
 
-    device.set_byte((704 + 39) as u16, 176);
-    device.set_byte((704 + 40) as u16, 161);
+    device.write_byte((704 + 39) as u16, 176);
+    device.write_byte((704 + 40) as u16, 161);
 
     device.flush();
 
@@ -1412,7 +1438,7 @@ mod tests {
     let mut device = new_device();
 
     device.print(b"\xf8\x5e\xc7\xff \xae");
-    device.set_byte((704 + 99) as u16, 0xb0);
+    device.write_byte((704 + 99) as u16, 0xb0);
 
     device.flush();
 
@@ -1738,11 +1764,11 @@ mod tests {
 
     assert_eq!(device.key(), None);
 
-    assert_eq!(device.get_byte(196), 0b1111_1111);
+    assert_eq!(device.read_byte(196), 0b1111_1111);
 
     device.fire_key_down(20);
 
-    assert_eq!(device.get_byte(196), 0b1111_0111);
+    assert_eq!(device.read_byte(196), 0b1111_0111);
 
     assert_eq!(device.key(), Some(20));
 
@@ -1750,16 +1776,16 @@ mod tests {
 
     device.fire_key_down(99);
 
-    assert_eq!(device.get_byte(196), 0b1011_0111);
+    assert_eq!(device.read_byte(196), 0b1011_0111);
 
     assert_eq!(device.key(), Some(99));
 
     device.fire_key_up(20);
 
-    assert_eq!(device.get_byte(196), 0b1011_1111);
+    assert_eq!(device.read_byte(196), 0b1011_1111);
 
     device.fire_key_up(99);
 
-    assert_eq!(device.get_byte(196), 0b1111_1111);
+    assert_eq!(device.read_byte(196), 0b1111_1111);
   }
 }
