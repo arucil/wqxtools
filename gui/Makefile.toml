@@ -6,5 +6,5 @@ clear = true
 script_runner = "@shell"
 script = """
 qmake
-make -j2
+make ${PROFILE} -j8
 """

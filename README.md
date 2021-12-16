@@ -15,12 +15,16 @@ clone 项目到本地，然后运行 `git submodule update --init` 下载 git su
 安装编译辅助工具：
 
 ```shell
-cargo install cargo-make
-cargo install cbindgen
+cargo install cargo-make cbindgen
 ```
 
 编译：
 
 ```shell
-cargo make all
+cargo make -p release all
+```
+
+测试：
+```shell
+cargo test --all
 ```

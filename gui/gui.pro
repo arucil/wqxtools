@@ -40,13 +40,16 @@ RESOURCES += wqxtools.qrc
 
 LIBS += $$PWD/scintilla/bin/libScintillaEdit.a \
     $$PWD/../target/release/libapi_cpp_binding.a \
-    -lpthread \
     -ldl
 
+CONFIG(debug, debug|release) {
+    DESTDIR = build/debug
+}
+CONFIG(release, debug|release) {
+    DESTDIR = build/release
+}
 
-release: DESTDIR = build/release
-debug:   DESTDIR = build/debug
-
+PRECOMPILED_DIR = $$DESTDIR
 OBJECTS_DIR = $$DESTDIR/.obj
 MOC_DIR = $$DESTDIR/.moc
 RCC_DIR = $$DESTDIR/.qrc
