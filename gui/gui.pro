@@ -3,7 +3,7 @@
 ######################################################################
 
 TEMPLATE = app
-CONFIG += c++17
+CONFIG += c++17 debug_and_release
 TARGET = wqxtools
 
 INCLUDEPATH += \

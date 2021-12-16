@@ -1,7 +1,12 @@
-[tasks.all]
+[tasks.release]
 workspace = false
 clear = true
-dependencies = ["prepare-gui", "build-gui"]
+dependencies = ["prepare-gui", "build-gui-release"]
+
+[tasks.debug]
+workspace = false
+clear = true
+dependencies = ["prepare-gui", "build-gui-debug"]
 
 [tasks.prepare-gui]
 workspace = false
@@ -20,7 +25,14 @@ dependencies = [
   { name = "build", path = "api_cpp_binding" }
 ]
 
-[tasks.build-gui]
+[tasks.build-gui-debug]
+workspace = false
+dependencies = [
+  { name = "build-api" },
+  { name = "build", path = "gui" }
+]
+
+[tasks.build-gui-release]
 workspace = false
 dependencies = [
   { name = "build-api" },

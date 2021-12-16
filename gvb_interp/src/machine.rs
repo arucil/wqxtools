@@ -1,4 +1,5 @@
 use crate::HashMap;
+use intmap::IntMap;
 use std::io;
 use std::mem::MaybeUninit;
 use std::time::Duration;
@@ -20,6 +21,33 @@ pub(crate) struct MachineProps {
   pub key_mapping_addrs: Vec<u16>,
   pub key_masks: [Option<(u16, u8)>; 256],
   pub key_buffer_quit: bool,
+  pub addrs: IntMap<AddrProp>,
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct AddrProp {
+  pub kind: AddrPropKind,
+  pub op: AddrPropOp,
+}
+
+#[derive(Debug, Clone)]
+pub(crate) enum AddrPropOp {
+  None,
+  Add(i32),
+  Sub(i32),
+  Mul(i32),
+  Div(i32),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AddrPropKind {
+  Year,
+  Month,
+  Day,
+  WeekDay,
+  Hour,
+  Minute,
+  Second,
 }
 
 impl Default for MachineProps {
@@ -34,6 +62,7 @@ impl Default for MachineProps {
       key_mapping_addrs: vec![],
       key_masks: [None; 256],
       key_buffer_quit: false,
+      addrs: IntMap::new(),
     }
   }
 }
@@ -146,25 +175,27 @@ pub fn init_machines() -> Result<(), InitError> {
     );
   }
 
-  for (name, obj) in obj {
-    let name = name
-      .as_str()
-      .ok_or_else(|| format!("key {} is not string", yaml_to_string(&name)))?;
+  for (mach_name, obj) in obj {
+    let mach_name = mach_name.as_str().ok_or_else(|| {
+      format!("key {} is not string", yaml_to_string(&mach_name))
+    })?;
 
     let mut obj = obj
       .into_hash()
-      .ok_or_else(|| format!("'{}' is not object", name,))?;
+      .ok_or_else(|| format!("'{}' is not object", mach_name))?;
 
     let mut props = MachineProps::default();
-    props.name = name.to_owned();
+    props.name = mach_name.to_owned();
 
     // emoji-version
     let emoji_version = obj
       .remove(&Yaml::String("emoji-version".into()))
-      .ok_or_else(|| format!("missing field 'emoji-version' in '{}'", name))?;
+      .ok_or_else(|| {
+        format!("missing field 'emoji-version' in '{}'", mach_name)
+      })?;
     let emoji_version = emoji_version
       .as_str()
-      .ok_or_else(|| format!("{}.emoji-version is not string", name))?;
+      .ok_or_else(|| format!("{}.emoji-version is not string", mach_name))?;
     if emoji_version == "new" {
       props.emoji_version = EmojiVersion::New;
     } else if emoji_version == "old" {
@@ -178,10 +209,12 @@ pub fn init_machines() -> Result<(), InitError> {
     // sleep-unit
     let sleep_unit = obj
       .remove(&Yaml::String("sleep-unit".into()))
-      .ok_or_else(|| format!("missing field 'sleep-unit' in '{}'", name))?;
+      .ok_or_else(|| {
+        format!("missing field 'sleep-unit' in '{}'", mach_name)
+      })?;
     let sleep_unit = sleep_unit
       .as_str()
-      .ok_or_else(|| format!("{}.sleep-unit is not string", name))?;
+      .ok_or_else(|| format!("{}.sleep-unit is not string", mach_name))?;
     let i = sleep_unit
       .rfind(|c: char| !c.is_ascii_alphabetic())
       .ok_or_else(|| format!("invalid sleep unit '{}'", sleep_unit))?;
@@ -208,76 +241,85 @@ pub fn init_machines() -> Result<(), InitError> {
     };
     props.sleep_unit = sleep_unit;
 
+    // graphics-base-addr
     let addr = obj
       .remove(&Yaml::String("graphics-base-addr".to_owned()))
       .ok_or_else(|| {
-        format!("missing field 'graphics-base-addr' in '{}'", name)
+        format!("missing field 'graphics-base-addr' in '{}'", mach_name)
       })?;
-    props.graphics_base_addr = get_addr(name, "graphics-base-addr", addr)?;
+    props.graphics_base_addr = get_addr(mach_name, "graphics-base-addr", addr)?;
 
+    // text-buffer-base-addr
     let addr = obj
       .remove(&Yaml::String("text-buffer-base-addr".to_owned()))
       .ok_or_else(|| {
-        format!("missing field 'text-buffer-base-addr' in '{}'", name)
+        format!("missing field 'text-buffer-base-addr' in '{}'", mach_name)
       })?;
     props.text_buffer_base_addr =
-      get_addr(name, "text-buffer-base-addr", addr)?;
+      get_addr(mach_name, "text-buffer-base-addr", addr)?;
 
+    // key-buffer-base-addr
     let addr = obj
       .remove(&Yaml::String("key-buffer-addr".to_owned()))
       .ok_or_else(|| {
-        format!("missing field 'key-buffer-addr' in '{}'", name)
+        format!("missing field 'key-buffer-addr' in '{}'", mach_name)
       })?;
-    props.key_buffer_addr = get_addr(name, "key-buffer-addr", addr)?;
+    props.key_buffer_addr = get_addr(mach_name, "key-buffer-addr", addr)?;
 
+    // key-mappings
     let key_mappings = obj
       .remove(&Yaml::String("key-mappings".to_owned()))
-      .ok_or_else(|| format!("missing field 'key-mappings' in '{}'", name))?;
+      .ok_or_else(|| {
+        format!("missing field 'key-mappings' in '{}'", mach_name)
+      })?;
     let key_mappings = key_mappings
       .into_hash()
-      .ok_or_else(|| format!("{}.key-mappings is not object", name))?;
+      .ok_or_else(|| format!("{}.key-mappings is not object", mach_name))?;
 
     let mut key_bits = HashMap::<u16, u8>::default();
     for (key, mapping) in key_mappings {
       let key = key.as_i64().ok_or_else(|| {
         format!(
           "key {}.key-mappings.{} is not integer",
-          name,
+          mach_name,
           yaml_to_string(&key)
         )
       })?;
       let key = u8::try_from(key).map_err(|_| {
         format!(
           "key {}.key-mappings.{} is not within the range 0~255",
-          name, key,
+          mach_name, key,
         )
       })?;
 
       let mut mapping = mapping.into_hash().ok_or_else(|| {
-        format!("{}.key-mappings.{} is not object", name, key)
+        format!("{}.key-mappings.{} is not object", mach_name, key)
       })?;
       let addr = mapping
         .remove(&Yaml::String("addr".to_owned()))
         .ok_or_else(|| {
-          format!("missing field 'addr' in {}.key-mappings.{}", name, key)
+          format!("missing field 'addr' in {}.key-mappings.{}", mach_name, key)
         })?;
-      let addr =
-        get_addr(format!("{}.key-mappings", name), format!("{}", key), addr)?;
+      let addr = get_addr(
+        format!("{}.key-mappings", mach_name),
+        format!("{}", key),
+        addr,
+      )?;
 
       let bit =
         mapping
           .remove(&Yaml::String("bit".to_owned()))
           .ok_or_else(|| {
-            format!("missing field 'bit' in {}.key-mappings.{}", name, key)
+            format!("missing field 'bit' in {}.key-mappings.{}", mach_name, key)
           })?;
       let bit = bit.as_i64().ok_or_else(|| {
-        format!("{}.key-mappings.{}.bit is not integer", name, key)
+        format!("{}.key-mappings.{}.bit is not integer", mach_name, key)
       })?;
       if bit < 0 || bit > 7 {
         return Err(
           format!(
             "{}.key-mappings.{}.bit is not within the range 0~7",
-            name, key
+            mach_name, key
           )
           .into(),
         );
@@ -288,7 +330,7 @@ pub fn init_machines() -> Result<(), InitError> {
           format!(
             "superfluous field {} in {}.key-mappings.{}",
             yaml_to_string(&k),
-            name,
+            mach_name,
             key
           )
           .into(),
@@ -310,23 +352,101 @@ pub fn init_machines() -> Result<(), InitError> {
     let key_buffer_quit = obj
       .remove(&Yaml::String("key-buffer-quit".into()))
       .ok_or_else(|| {
-      format!("missing field 'key-buffer-quit' in '{}'", name)
+      format!("missing field 'key-buffer-quit' in '{}'", mach_name)
     })?;
     props.key_buffer_quit = key_buffer_quit
       .as_bool()
-      .ok_or_else(|| format!("{}.key-buffer-quit is not boolean", name))?;
+      .ok_or_else(|| format!("{}.key-buffer-quit is not boolean", mach_name))?;
+
+    // addrs
+    let addrs = obj
+      .remove(&Yaml::String("addrs".to_owned()))
+      .ok_or_else(|| format!("missing field 'addrs' in '{}'", mach_name))?;
+    let addrs = addrs
+      .into_hash()
+      .ok_or_else(|| format!("{}.addrs is not object", mach_name))?;
+
+    for (addr, value) in addrs {
+      let addr = addr.as_i64().ok_or_else(|| {
+        format!(
+          "key {}.addrs.{} is not integer",
+          mach_name,
+          yaml_to_string(&addr)
+        )
+      })?;
+      let addr = u16::try_from(addr).map_err(|_| {
+        format!(
+          "key {}.addrs.{} is not within the range 0~65535",
+          mach_name, addr
+        )
+      })?;
+
+      let value = value
+        .into_string()
+        .ok_or_else(|| format!("{}.addrs.{} is not string", mach_name, addr))?;
+      let value = value.trim();
+      let rest = value.trim_start_matches(char::is_alphanumeric);
+      let kind = if rest.len() == value.len() {
+        return Err(format!("{}.addrs.{} is invalid", mach_name, addr).into());
+      } else {
+        match &value[..value.len() - rest.len()] {
+          "year" => AddrPropKind::Year,
+          "month" => AddrPropKind::Month,
+          "day" => AddrPropKind::Day,
+          "weekday" => AddrPropKind::WeekDay,
+          "hour" => AddrPropKind::Hour,
+          "minute" => AddrPropKind::Minute,
+          "second" => AddrPropKind::Second,
+          s => {
+            return Err(
+              format!(
+                "unrecognized variable {} in {}.addrs.{}",
+                s, mach_name, addr
+              )
+              .into(),
+            )
+          }
+        }
+      };
+      let op = if rest.is_empty() {
+        AddrPropOp::None
+      } else {
+        let value = rest.trim_start();
+        let op_ctor = match value.as_bytes()[0] {
+          b'+' => AddrPropOp::Add,
+          b'-' => AddrPropOp::Sub,
+          b'*' => AddrPropOp::Mul,
+          b'/' => AddrPropOp::Div,
+          _ => {
+            return Err(
+              format!("{}.addrs.{} is invalid", mach_name, addr).into(),
+            );
+          }
+        };
+        let value = value[1..].trim_start();
+        let value = value.parse::<i32>().map_err(|_| {
+          format!("{} is not integer in {}.addrs.{}", value, mach_name, addr)
+        })?;
+        op_ctor(value)
+      };
+      props.addrs.insert(addr as _, AddrProp { kind, op });
+    }
 
     if let Some((key, _)) = obj.pop_front() {
       return Err(
-        format!("superfluous field {} in '{}'", yaml_to_string(&key), name)
-          .into(),
+        format!(
+          "superfluous field {} in '{}'",
+          yaml_to_string(&key),
+          mach_name
+        )
+        .into(),
       );
     }
 
     unsafe {
       MACHINES
         .assume_init_mut()
-        .insert(name.to_ascii_uppercase(), props);
+        .insert(mach_name.to_ascii_uppercase(), props);
     }
   }
 
@@ -375,5 +495,27 @@ fn yaml_to_string(yaml: &Yaml) -> String {
     Yaml::Integer(n) => n.to_string(),
     Yaml::Real(n) => n.to_string(),
     _ => panic!(),
+  }
+}
+
+impl AddrPropOp {
+  pub(crate) fn apply_to_i32(&self, value: i32) -> u8 {
+    match self {
+      Self::Add(n) => (value + *n) as _,
+      Self::Sub(n) => (value - *n) as _,
+      Self::Mul(n) => (value * *n) as _,
+      Self::Div(n) => (value / *n) as _,
+      Self::None => value as _,
+    }
+  }
+
+  pub(crate) fn apply_to_f64(&self, value: f64) -> u8 {
+    match self {
+      Self::Add(n) => (value + *n as f64) as _,
+      Self::Sub(n) => (value - *n as f64) as _,
+      Self::Mul(n) => (value * *n as f64) as _,
+      Self::Div(n) => (value / *n as f64) as _,
+      Self::None => value as _,
+    }
   }
 }

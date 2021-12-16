@@ -2,13 +2,10 @@
 /build/
 /scintilla/
 .qmake.stash
-Makefile
+Makefile*
 /lib/
 /include/
 /*.tgz
 /*.zip
 /*.yaml
-/*.txt
-/*.bas
-/*.BAS
 /3rdparty/*

@@ -37,15 +37,15 @@ tc808:
 
   # 按键的内存映射地址
   key-mappings:
-    24 : { addr: 198, bit: 0 }
+    24 : { addr: 198, bit: 0 } # 关机
 
-    0 : { addr: 198, bit: 1 }
-    2 : { addr: 197, bit: 1 }
-    4 : { addr: 196, bit: 1 }
-    6 : { addr: 195, bit: 1 }
-    8 : { addr: 194, bit: 1 }
-    10: { addr: 193, bit: 1 }
-    12: { addr: 192, bit: 1 }
+    0  : { addr: 198, bit: 1 }
+    2  : { addr: 197, bit: 1 }
+    4  : { addr: 196, bit: 1 }
+    6  : { addr: 195, bit: 1 }
+    8  : { addr: 194, bit: 1 }
+    10 : { addr: 193, bit: 1 }
+    12 : { addr: 192, bit: 1 }
 
     28 : { addr: 198, bit: 2 } # F1
     29 : { addr: 197, bit: 2 } # F2
@@ -82,7 +82,7 @@ tc808:
     107: { addr: 191, bit: 5 } # K
 
     122: { addr: 198, bit: 6 } # Z
-    120: { addr: 197, bit: 6 } # Z
+    120: { addr: 197, bit: 6 } # X
     99 : { addr: 196, bit: 6 } # C
     118: { addr: 195, bit: 6 } # V
     98 : { addr: 194, bit: 6 } # B
@@ -98,6 +98,27 @@ tc808:
     46 : { addr: 193, bit: 7 } # .
     32 : { addr: 192, bit: 7 } # 空格
     23 : { addr: 191, bit: 7 } # 左
+
+  # PEEK/POKE 地址
+  addrs:
+    # 属性值的格式：
+    #   <变量名>   或   <变量名> <运算符> <常数值>
+    # 目前<运算符>只支持加减乘除。
+    # 目前<变量名>支持：
+    # - year：年份
+    # - month: 月份，0~11
+    # - day: 日期，0~30
+    # - weekday: 星期, 0星期日，1~6星期一到星期六
+    # - hour: 小时, 0~23
+    # - minute: 分钟, 0~59
+    # - second: 秒, 0~59
+    1019: year - 1881
+    1020: month
+    1021: day
+    1022: weekday
+    1016: hour
+    1017: minute
+    1018: second * 2
 
 pc1000a:
   emoji-version: old
@@ -156,3 +177,145 @@ pc1000a:
     46 : { addr: 205, bit: 5 } # .
     32 : { addr: 205, bit: 5 } # 空格
     23 : { addr: 205, bit: 6 } # 左
+  addrs:
+    1132: year - 1881
+    1133: month
+    1134: day
+    1135: weekday
+    1129: hour
+    1130: minute
+    1131: second * 2
+
+nc1020:
+  emoji-version: new
+  sleep-unit: 1ms
+  graphics-base-addr: 2496
+  text-buffer-base-addr: 704
+  key-buffer-addr: 199
+  key-buffer-quit: true
+  key-mappings:
+    28 : { addr: 195, bit: 2 } # F1
+    29 : { addr: 194, bit: 2 } # F2
+    30 : { addr: 193, bit: 2 } # F3
+    31 : { addr: 192, bit: 2 } # F4
+
+    111: { addr: 195, bit: 3 } # O
+    108: { addr: 194, bit: 3 } # L
+    20 : { addr: 193, bit: 3 } # 上
+    21 : { addr: 192, bit: 3 } # 下
+    112: { addr: 191, bit: 3 } # P
+    13 : { addr: 190, bit: 3 } # 输入
+    14 : { addr: 189, bit: 3 } # 下翻页
+    22 : { addr: 188, bit: 3 } # 右
+
+    113: { addr: 195, bit: 4 } # Q
+    119: { addr: 194, bit: 4 } # W
+    101: { addr: 193, bit: 4 } # E
+    114: { addr: 192, bit: 4 } # R
+    116: { addr: 191, bit: 4 } # T
+    121: { addr: 190, bit: 4 } # Y
+    117: { addr: 189, bit: 4 } # U
+    105: { addr: 188, bit: 4 } # I
+
+    97 : { addr: 195, bit: 5 } # A
+    115: { addr: 194, bit: 5 } # S
+    100: { addr: 193, bit: 5 } # D
+    102: { addr: 192, bit: 5 } # F
+    103: { addr: 191, bit: 5 } # G
+    104: { addr: 190, bit: 5 } # H
+    106: { addr: 189, bit: 5 } # J
+    107: { addr: 188, bit: 5 } # K
+
+    122: { addr: 195, bit: 6 } # Z
+    120: { addr: 194, bit: 6 } # X
+    99 : { addr: 193, bit: 6 } # C
+    118: { addr: 192, bit: 6 } # V
+    98 : { addr: 191, bit: 6 } # B
+    110: { addr: 190, bit: 6 } # N
+    109: { addr: 189, bit: 6 } # M
+    19 : { addr: 188, bit: 6 } # 上翻页
+
+    25 : { addr: 195, bit: 7 } # 求助
+    26 : { addr: 194, bit: 7 } # 中英数/SHIFT
+    18 : { addr: 193, bit: 7 } # 输入法/CAPS
+    27 : { addr: 192, bit: 7 } # 跳出
+    48 : { addr: 191, bit: 7 } # 符号/0
+    46 : { addr: 190, bit: 7 } # .
+    32 : { addr: 189, bit: 7 } # 空格
+    23 : { addr: 188, bit: 7 } # 左
+  addrs:
+    1138: year - 1881
+    1139: month
+    1140: day
+    1141: weekday
+    1135: hour
+    1136: minute
+    1137: second * 2
+
+nc3000:
+  emoji-version: new
+  sleep-unit: 0.4ms
+  graphics-base-addr: 0x19c0
+  text-buffer-base-addr: 704
+  key-buffer-addr: 199
+  key-buffer-quit: false
+  key-mappings:
+    24 : { addr: 198, bit: 0 } # 关机
+
+    28 : { addr: 198, bit: 2 } # F1
+    29 : { addr: 197, bit: 2 } # F2
+    30 : { addr: 196, bit: 2 } # F3
+    31 : { addr: 195, bit: 2 } # F4
+
+    111: { addr: 198, bit: 3 } # O
+    108: { addr: 197, bit: 3 } # L
+    20 : { addr: 196, bit: 3 } # 上
+    21 : { addr: 195, bit: 3 } # 下
+    112: { addr: 194, bit: 3 } # P
+    13 : { addr: 193, bit: 3 } # 输入
+    14 : { addr: 192, bit: 3 } # 下翻页
+    22 : { addr: 191, bit: 3 } # 右
+
+    113: { addr: 198, bit: 4 } # Q
+    119: { addr: 197, bit: 4 } # W
+    101: { addr: 196, bit: 4 } # E
+    114: { addr: 195, bit: 4 } # R
+    116: { addr: 194, bit: 4 } # T
+    121: { addr: 193, bit: 4 } # Y
+    117: { addr: 192, bit: 4 } # U
+    105: { addr: 191, bit: 4 } # I
+
+    97 : { addr: 198, bit: 5 } # A
+    115: { addr: 197, bit: 5 } # S
+    100: { addr: 196, bit: 5 } # D
+    102: { addr: 195, bit: 5 } # F
+    103: { addr: 194, bit: 5 } # G
+    104: { addr: 193, bit: 5 } # H
+    106: { addr: 192, bit: 5 } # J
+    107: { addr: 191, bit: 5 } # K
+
+    122: { addr: 198, bit: 6 } # Z
+    120: { addr: 197, bit: 6 } # X
+    99 : { addr: 196, bit: 6 } # C
+    118: { addr: 195, bit: 6 } # V
+    98 : { addr: 194, bit: 6 } # B
+    110: { addr: 193, bit: 6 } # N
+    109: { addr: 192, bit: 6 } # M
+    19 : { addr: 191, bit: 6 } # 上翻页
+
+    25 : { addr: 198, bit: 7 } # 求助
+    26 : { addr: 197, bit: 7 } # 中英数/SHIFT
+    18 : { addr: 196, bit: 7 } # 输入法/CAPS
+    27 : { addr: 195, bit: 7 } # 跳出
+    48 : { addr: 194, bit: 7 } # 符号/0
+    46 : { addr: 193, bit: 7 } # .
+    32 : { addr: 192, bit: 7 } # 空格
+    23 : { addr: 191, bit: 7 } # 左
+  addrs:
+    1018: year - 1881
+    1019: month
+    1020: day
+    1021: weekday
+    1015: hour
+    1016: minute
+    1017: second * 2

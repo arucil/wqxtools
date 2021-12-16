@@ -20,6 +20,8 @@ smallvec = "1.7.0"
 string-interner = "0.14.0"
 yaml-rust = "0.4.5"
 util = { path = "../util" }
+intmap = "0.7.1"
+chrono = "0.4.19"
 
 [dev-dependencies]
 insta = "1.8.0"

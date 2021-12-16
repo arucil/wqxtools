@@ -1,6 +1,7 @@
 use super::*;
-use crate::machine::MachineProps;
+use crate::machine::{AddrPropKind, AddrPropOp, MachineProps};
 use crate::ByteString;
+use chrono::prelude::*;
 use emulator_6502::{Interface6502, MOS6502};
 use std::fs::{File, OpenOptions};
 use std::io::{self, prelude::*, SeekFrom};
@@ -918,7 +919,24 @@ impl Device for DefaultDevice {
   }
 
   fn read_byte(&self, addr: u16) -> u8 {
-    self.memory[addr as usize]
+    if let Some(prop) = self.props.addrs.get(addr as _) {
+      let now = Local::now();
+      match prop.kind {
+        AddrPropKind::Year => prop.op.apply_to_i32(now.year()),
+        AddrPropKind::Month => prop.op.apply_to_i32(now.month0() as _),
+        AddrPropKind::Day => prop.op.apply_to_i32(now.day0() as _),
+        AddrPropKind::WeekDay => prop
+          .op
+          .apply_to_i32(now.weekday().num_days_from_sunday() as _),
+        AddrPropKind::Hour => prop.op.apply_to_i32(now.hour() as _),
+        AddrPropKind::Minute => prop.op.apply_to_i32(now.minute() as _),
+        AddrPropKind::Second => prop
+          .op
+          .apply_to_f64(now.second() as f64 + now.nanosecond() as f64 / 1e9),
+      }
+    } else {
+      self.memory[addr as usize]
+    }
   }
 
   fn write_byte(&mut self, addr: u16, byte: u8) {
