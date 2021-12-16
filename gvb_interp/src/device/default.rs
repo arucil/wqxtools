@@ -1763,21 +1763,17 @@ mod tests {
     let mut device = new_device();
 
     assert_eq!(device.key(), None);
-
     assert_eq!(device.read_byte(196), 0b1111_1111);
 
     device.fire_key_down(20);
 
     assert_eq!(device.read_byte(196), 0b1111_0111);
-
     assert_eq!(device.key(), Some(20));
-
     assert_eq!(device.key(), None);
 
     device.fire_key_down(99);
 
     assert_eq!(device.read_byte(196), 0b1011_0111);
-
     assert_eq!(device.key(), Some(99));
 
     device.fire_key_up(20);
@@ -1787,5 +1783,44 @@ mod tests {
     device.fire_key_up(99);
 
     assert_eq!(device.read_byte(196), 0b1111_1111);
+  }
+
+  #[test]
+  fn check_key() {
+    let mut device = new_device();
+
+    assert_eq!(device.check_key(97), false);
+    assert_eq!(device.check_key(20), false);
+
+    device.fire_key_down(20);
+
+    assert_eq!(device.check_key(97), false);
+    assert_eq!(device.check_key(20), true);
+
+    device.fire_key_down(97);
+
+    assert_eq!(device.check_key(97), true);
+    assert_eq!(device.check_key(20), true);
+
+    device.fire_key_up(97);
+    device.fire_key_up(20);
+
+    assert_eq!(device.check_key(97), false);
+    assert_eq!(device.check_key(20), false);
+  }
+
+  #[test]
+  fn check_point() {
+    let mut device = new_device();
+
+    assert_eq!(device.check_point((20, 10)), false);
+    assert_eq!(device.check_point((-20, -10)), false);
+    assert_eq!(device.check_point((180, 10)), false);
+
+    device.draw_point((20, 10), DrawMode::Copy);
+    device.draw_point((180, 10), DrawMode::Copy);
+
+    assert_eq!(device.check_point((20, 10)), true);
+    assert_eq!(device.check_point((180, 10)), false);
   }
 }
