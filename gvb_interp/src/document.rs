@@ -118,7 +118,7 @@ impl Document {
     }
   }
 
-  /// Load a `.BAS` or `.txt` file.
+  /// Load a `.bas` or `.txt` file.
   pub fn load<P>(path: P) -> Result<Self, LoadDocumentError>
   where
     P: AsRef<Path>,
@@ -177,7 +177,7 @@ impl Document {
     })
   }
 
-  /// Save to a `.BAS` or `.txt` file.
+  /// Save to a `.bas` or `.txt` file.
   pub fn save<P>(&self, path: P) -> Result<(), SaveDocumentError>
   where
     P: AsRef<Path>,

@@ -272,13 +272,13 @@ SaveResult GvbEditor::save(const QString &path) {
         auto result = QMessageBox::question(
           getMainWindow(),
           "文件保存失败",
-          tr("发生错误：%1。无法保存为 .BAS 文件，是否保存为 .TXT 文件？")
+          tr("发生错误：%1。无法保存为 .bas 文件，是否保存为 .txt 文件？")
             .arg(err),
           QMessageBox::StandardButton::Yes | QMessageBox::StandardButton::No
             | QMessageBox::StandardButton::Cancel);
         if (result == QMessageBox::StandardButton::Yes) {
           auto info = QFileInfo(saveToPath);
-          saveToPath = info.path() + "/" + info.completeBaseName() + ".TXT";
+          saveToPath = info.path() + "/" + info.completeBaseName() + ".txt";
           continue;
         } else {
           return SaveResult {std::in_place_index<2>, Unit{}};
