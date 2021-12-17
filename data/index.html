@@ -6,6 +6,8 @@
         <input value="ascii8.dat" id="file"/>
       <canvas id="canvas" height=48 style="border: solid 1px green"></canvas>
       <br/>
+      <canvas id="canvas2" height=48 style="border: solid 1px green"></canvas>
+      <br/>
       <input id="offset" style="width: 60px"></input> / <span id="total"></span>
       <br/>
       <button id="sub1">-1</button>
@@ -14,11 +16,29 @@
       <button id="sub16">-16</button>
       <button id="add16">+16</button>
       <br/>
+      <button id="sub18">-18</button>
+      <button id="add18">+18</button>
+      <br/>
       <button id="sub32">-32</button>
       <button id="add32">+32</button>
       <br/>
+      <button id="sub180">-180</button>
+      <button id="add180">+180</button>
+      <br/>
       <button id="sub256">-256</button>
       <button id="add256">+256</button>
+      <br/>
+      <button id="sub1800">-1800</button>
+      <button id="add1800">+1800</button>
+      <br/>
+      <button id="sub4096">-4096</button>
+      <button id="add4096">+4096</button>
+      <br/>
+      <button id="sub18000">-18000</button>
+      <button id="add18000">+18000</button>
+      <br/>
+      <button id="sub5e4">-50000</button>
+      <button id="add5e4">+50000</button>
       <br/>
       <button id="widthadd1">width+1</button>
       <button id="widthsub1">width-1</button>
@@ -42,6 +62,14 @@
         i += 16
         update()
       })
+      document.querySelector('#sub18').addEventListener('click', () => {
+        i -= 18
+        update()
+      })
+      document.querySelector('#add18').addEventListener('click', () => {
+        i += 18
+        update()
+      })
       document.querySelector('#sub32').addEventListener('click', () => {
         i -= 32
         update()
@@ -50,12 +78,52 @@
         i += 32
         update()
       })
+      document.querySelector('#sub180').addEventListener('click', () => {
+        i -= 180
+        update()
+      })
+      document.querySelector('#add180').addEventListener('click', () => {
+        i += 180
+        update()
+      })
       document.querySelector('#sub256').addEventListener('click', () => {
         i -= 256
         update()
       })
       document.querySelector('#add256').addEventListener('click', () => {
         i += 256
+        update()
+      })
+      document.querySelector('#sub1800').addEventListener('click', () => {
+        i -= 1800
+        update()
+      })
+      document.querySelector('#add1800').addEventListener('click', () => {
+        i += 1800
+        update()
+      })
+      document.querySelector('#sub4096').addEventListener('click', () => {
+        i -= 4096
+        update()
+      })
+      document.querySelector('#add4096').addEventListener('click', () => {
+        i += 4096
+        update()
+      })
+      document.querySelector('#sub18000').addEventListener('click', () => {
+        i -= 18000
+        update()
+      })
+      document.querySelector('#add18000').addEventListener('click', () => {
+        i += 18000
+        update()
+      })
+      document.querySelector('#sub5e4').addEventListener('click', () => {
+        i -= 5e4
+        update()
+      })
+      document.querySelector('#add5e4').addEventListener('click', () => {
+        i += 5e4
         update()
       })
       document.querySelector('#widthsub1').addEventListener('click', () => {
@@ -104,18 +172,55 @@
         ctx.lineWidth = 1
         
         for (let y = 0; y < 16; ++y) {
-          
-          for (let x = 0; x < w * 8; ++x) {
-            if (chunk[y * w + (x >>> 3)] & 1 << (7 - (x & 7))) {
-              ctx.fillStyle = 'black'
-            
-            ctx.fillRect(x * C, y * C, C, C)
-            } else {
-                ctx.fillStyle = 'green'
-            
-            ctx.fillRect(x * C + C/2, y * C + C/2, 1, 1)
+          for (let i = 0; i < w; ++i) {
+            let tt = chunk[y * w + i]
+            for (let x = 0; x < 8; ++x) {
+                if (tt & 128) {
+                ctx.fillStyle = 'black'
+
+                ctx.fillRect((x+i*8) * C, y * C, C, C)
+                } else {
+                    ctx.fillStyle = 'green'
+
+                ctx.fillRect((x+i*8) * C + C/2, y * C + C/2, 1, 1)
+                }
+                tt <<= 1
             }
           }
+        }
+
+        {
+            const c = document.querySelector('#canvas2')
+            c.width = 12 * C
+            c.height = 12 * C
+            const ctx = c.getContext('2d')
+            const chunk = new Uint8Array(await data.slice(i, (i + 1) * w * 16).arrayBuffer())
+            ctx.fillStyle = 'white'
+            ctx.fillRect(0, 0, c.width, c.height)
+            ctx.strokeStyle = 'lightgray'
+            ctx.lineWidth = 1
+
+            const rows = []
+            for (let i = 0; i < 18; i+=3) {
+                rows.push(chunk[i] << 4 | chunk[i+1]>>4)
+                rows.push((chunk[i+1]&0xf)<<8|chunk[i+2])
+            }
+
+            for (let y = 0; y < 12; ++y) {
+                let tt = rows[y]
+                for (let x = 0; x < 12; ++x) {
+                        if (tt&0x800) {
+                        ctx.fillStyle = 'black'
+
+                        ctx.fillRect(x* C, y * C, C, C)
+                        } else {
+                            ctx.fillStyle = 'green'
+
+                        ctx.fillRect(x * C + C/2, y * C + C/2, 1, 1)
+                        }
+                        tt <<= 1
+                }
+            }
         }
       }
     </script>
