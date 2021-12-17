@@ -19,6 +19,7 @@ pub struct LoadError<L> {
 
 #[derive(Debug, Clone)]
 pub struct SaveError {
+  /// 0-based
   pub line: usize,
   pub message: String,
   pub bas_specific: bool,
@@ -263,8 +264,6 @@ pub fn save_bas(
       });
     }
 
-    line += 1;
-
     let label_start = i;
     while i < text.len() && text[i].is_ascii_digit() {
       i += 1;
@@ -296,7 +295,7 @@ pub fn save_bas(
       let b = text[i];
       match b {
         128..=255 => {
-          if i < text.len() - 1 && text[i + 1] >= 128 {
+          if i < text.len() - 1 && text[i + 1] >= 64 {
             bytes.push(0x1f);
             bytes.push(b);
             bytes.push(text[i + 1]);
@@ -352,7 +351,7 @@ pub fn save_bas(
               break;
             }
             if b >= 128 {
-              if i < text.len() - 1 && text[i + 1] >= 128 {
+              if i < text.len() - 1 && text[i + 1] >= 64 {
                 bytes.push(0x1f);
                 bytes.push(b);
                 bytes.push(text[i + 1]);
@@ -419,6 +418,8 @@ pub fn save_bas(
     if i == text.len() {
       bytes.push(0);
       bytes.push(0);
+    } else {
+      line += 1;
     }
   }
 
@@ -439,7 +440,7 @@ pub fn save_txt(
 ) -> Result<Vec<u8>, SaveError> {
   let text = text.as_ref();
   let mut bytes = vec![];
-  let mut line = 1;
+  let mut line = 0;
   for c in text.chars() {
     if c == '\n' {
       line += 1;

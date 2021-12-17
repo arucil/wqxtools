@@ -73,7 +73,7 @@ pub extern "C" fn gvb_save_document(
           (format!("文件缺少后缀名"), false)
         }
         gvb::SaveDocumentError::Save(err) => (
-          format!("第 {} 行：{}", err.line, err.message),
+          format!("第 {} 行：{}", err.line + 1, err.message),
           err.bas_specific,
         ),
       };

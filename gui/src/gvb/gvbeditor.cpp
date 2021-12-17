@@ -280,12 +280,8 @@ SaveResult GvbEditor::save(const QString &path) {
           auto info = QFileInfo(saveToPath);
           saveToPath = info.path() + "/" + info.completeBaseName() + ".TXT";
           continue;
-        } else if (result == QMessageBox::StandardButton::No) {
-          return SaveResult {
-            std::in_place_index<1>,
-            std::make_optional<QString>()};
         } else {
-          return {};
+          return SaveResult {std::in_place_index<2>, Unit{}};
         }
       } else {
         return SaveResult {std::in_place_index<1>, err};

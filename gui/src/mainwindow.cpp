@@ -399,10 +399,10 @@ ActionResult MainWindow::saveFileAs(bool save) {
 }
 
 ActionResult MainWindow::handleSaveFileError(const SaveResult &result) {
-  if (auto newPath = std::get_if<QString>(&result)) {
+  if (auto newPath = std::get_if<0>(&result)) {
     m_openFilePath.setValue(*newPath);
     return ActionResult::Succeed;
-  } else if (auto err = std::get_if<std::optional<QString>>(&result)) {
+  } else if (auto err = std::get_if<1>(&result)) {
     if (err->has_value()) {
       QMessageBox::critical(this, "文件保存失败", err->value());
     }

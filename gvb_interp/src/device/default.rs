@@ -1,5 +1,5 @@
 use super::*;
-use crate::machine::{AddrPropKind, AddrPropOp, MachineProps};
+use crate::machine::{AddrPropKind, MachineProps};
 use crate::ByteString;
 use chrono::prelude::*;
 use emulator_6502::{Interface6502, MOS6502};
