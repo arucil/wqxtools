@@ -1,8 +1,11 @@
 # WQX工具箱
 
-- [x] GVBASIC编辑器、模拟器
+功能：
+
+- [x] GVBASIC编辑器、模拟器：编辑 `.BAS`、`.TXT` 格式的 GVBASIC 程序，转换（`.BAS` 转 `.TXT`、`.TXT` 转 `.BAS`），运行 GVBASIC 程序。
 - [ ] GVmaker1.0模拟器
 - [ ] PAC文件解包
+- [ ] EBK阅读器
 
 ## 编译
 
