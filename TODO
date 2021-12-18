@@ -24,7 +24,7 @@
   会把输入的内容末尾后的一个字节变成 NUL，然后再把后续的连续非 NUL 字节变成 NUL
 - [x] LOCATE 5,20:PRINT 0; 会不会换行？
   yes
-- 看看TC808和PC1000A的键值和映射
+- ~~看看TC808和PC1000A的键值和映射~~
 - 检查一下：emoji 的第二个字节小于161也合法，怎么对应字符？pc1000a是否一样支持？校对一下tc808和pc1000a的emoji的编码
 - [x] 按键映射一个地址只能响应一个键？
   NO
@@ -52,10 +52,10 @@
 
 - scintilla 行号宽度实时变动（监测 lines_added）
 - 扩展gvb:
-    + @POINT(x,y)
-    + @checkkey(key-code)
-    + @hour, @minute, @second
-    + text 支持小字模式：text 0（大字）, text 1（小字）。
+    + [x] POINT(x,y)
+    + [x] checkkey(key-code)
+    + ~~@hour, @minute, @second~~
+    + ~~text 支持小字模式：text 0（大字）, text 1（小字）。~~
 
 
 - document:
