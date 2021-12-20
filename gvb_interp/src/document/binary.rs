@@ -445,7 +445,7 @@ pub fn save_txt(
     if c == '\n' {
       line += 1;
     }
-    if (c as u32) < 256 {
+    if (c as u32) < 128 {
       bytes.push(c as u8);
     } else if (c as u32) < 65536 {
       if let Some(&gbcode) = crate::gb2312::UNICODE_TO_GB2312.get(&(c as u16)) {

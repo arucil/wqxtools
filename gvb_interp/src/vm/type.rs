@@ -39,7 +39,7 @@ impl ByteString {
     let mut bytes = vec![];
     for c in str.chars() {
       let b = c as u32;
-      if b < 256 {
+      if b < 128 {
         bytes.push(b as u8);
       } else if let Some(&c) = crate::gb2312::UNICODE_TO_GB2312.get(&(b as u16))
       {
