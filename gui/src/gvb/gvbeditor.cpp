@@ -212,7 +212,7 @@ QToolBar *GvbEditor::initToolBar() {
 
   toolbar->addSeparator();
 
-  m_actCopy = new Action(QPixmap(":/assets/images/Copy.png"), "复制");
+  m_actCopy = new Action(QPixmap(":/assets/images/Copy.svg"), "复制");
   toolbar->addAction(m_actCopy);
   connect(m_actCopy, &QAction::triggered, this, &GvbEditor::copy);
 
@@ -220,7 +220,7 @@ QToolBar *GvbEditor::initToolBar() {
   toolbar->addAction(m_actCut);
   connect(m_actCut, &QAction::triggered, this, &GvbEditor::cut);
 
-  m_actPaste = new Action(QPixmap(":/assets/images/Paste.png"), "粘贴");
+  m_actPaste = new Action(QPixmap(":/assets/images/Paste.svg"), "粘贴");
   toolbar->addAction(m_actPaste);
   connect(m_actPaste, &QAction::triggered, this, &GvbEditor::paste);
 
