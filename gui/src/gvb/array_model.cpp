@@ -168,7 +168,7 @@ void ArrayModel::editValue(const QModelIndex &index) {
   auto result = inputString(
     m_parent,
     m_vm,
-    tr("修改数组元素 %1").arg(arraySubsToString(m_name, subs)),
+    QString("修改数组元素 %1").arg(arraySubsToString(m_name, subs)),
     api::copy_byte_string((*sarr)[index.row()].data[index.column()]));
   if (result.has_value()) {
     auto value = result.value();

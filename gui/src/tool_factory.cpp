@@ -13,8 +13,7 @@ static optional<QString> openFileFilter;
 
 static std::map<QString, QString> saveFileFilters;
 
-optional<std::function<ToolCtor>>
-ToolFactoryRegistry::get(const QString &ext) {
+optional<std::function<ToolCtor>> ToolFactoryRegistry::get(const QString &ext) {
   auto it = toolFactories.find(ext.toLower());
   if (it == toolFactories.end()) {
     return {};

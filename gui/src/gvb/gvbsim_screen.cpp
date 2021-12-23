@@ -3,8 +3,8 @@
 #include <QPaintEvent>
 #include <QPainter>
 
-#include "api.h"
 #include "../config.h"
+#include "api.h"
 
 GvbSimScreen::GvbSimScreen(QWidget *parent) : QWidget(parent) {
   connect(

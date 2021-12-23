@@ -149,8 +149,7 @@ void GvbSimWindow::initToolBar() {
   empty->setMinimumWidth(20);
   toolbar->addWidget(empty);
 
-  m_actStop =
-    toolbar->addAction(QPixmap(":/assets/images/Stop.svg"), "停止");
+  m_actStop = toolbar->addAction(QPixmap(":/assets/images/Stop.svg"), "停止");
   m_actStop->setShortcut(Qt::Key_F7);
   connect(m_actStop, &QAction::triggered, m_editor, &GvbEditor::stop);
 
@@ -164,27 +163,19 @@ void GvbSimWindow::initToolBar() {
     m_state.setValue("运行结束");
   };
 
-  connect(
-    m_editor->m_stStarted,
-    &QState::entered,
-    this,
-    [pauseIcon, this] {
-      m_actStart->setText("暂停");
-      m_actStart->setIcon(pauseIcon);
-      m_actStop->setEnabled(true);
-      m_state.setValue("运行中");
-    });
+  connect(m_editor->m_stStarted, &QState::entered, this, [pauseIcon, this] {
+    m_actStart->setText("暂停");
+    m_actStart->setIcon(pauseIcon);
+    m_actStop->setEnabled(true);
+    m_state.setValue("运行中");
+  });
   connect(m_editor->m_stStopped, &QState::entered, this, stoppedCallback);
-  connect(
-    m_editor->m_stPaused,
-    &QState::entered,
-    this,
-    [startIcon, this] {
-      m_actStart->setText("继续");
-      m_actStart->setIcon(startIcon);
-      m_actStop->setEnabled(true);
-      m_state.setValue("已暂停");
-    });
+  connect(m_editor->m_stPaused, &QState::entered, this, [startIcon, this] {
+    m_actStart->setText("继续");
+    m_actStart->setIcon(startIcon);
+    m_actStop->setEnabled(true);
+    m_state.setValue("已暂停");
+  });
 
   stoppedCallback();
   m_state.setValue("准备就绪");
@@ -240,7 +231,7 @@ void GvbSimWindow::stop() {
     QMessageBox::critical(
       this,
       "错误",
-      tr("运行时错误：%1")
+      QString("运行时错误：%1")
         .arg(QString::fromUtf8(result.left._0.data, result.left._0.len)));
     destroy_string(result.left._0);
   }
@@ -390,5 +381,6 @@ void GvbSimWindow::stopRepaintTimer() {
 }
 
 void GvbSimWindow::updateTitle() {
-  setWindowTitle(tr("GVBASIC 模拟器 - %1 [%2]").arg(m_name).arg(m_state.value()));
+  setWindowTitle(
+    QString("GVBASIC 模拟器 - %1 [%2]").arg(m_name, m_state.value()));
 }

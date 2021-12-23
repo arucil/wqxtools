@@ -252,7 +252,7 @@ QStatusBar *GvbEditor::initStatusBar() {
   connect(&m_curPos, &SizeValue::changed, this, [posLabel, this](size_t pos) {
     auto line = m_edit->lineFromPosition(pos) + 1;
     auto col = m_edit->column(pos) + 1;
-    posLabel->setText(tr("第 %1 行, 第 %2 列").arg(line).arg(col));
+    posLabel->setText(QString("第 %1 行, 第 %2 列").arg(line, col));
   });
 
   return statusbar;
@@ -272,7 +272,7 @@ SaveResult GvbEditor::save(const QString &path) {
         auto result = QMessageBox::question(
           getMainWindow(),
           "文件保存失败",
-          tr("发生错误：%1。无法保存为 .bas 文件，是否保存为 .txt 文件？")
+          QString("发生错误：%1。无法保存为 .bas 文件，是否保存为 .txt 文件？")
             .arg(err),
           QMessageBox::StandardButton::Yes | QMessageBox::StandardButton::No
             | QMessageBox::StandardButton::Cancel);
@@ -281,7 +281,7 @@ SaveResult GvbEditor::save(const QString &path) {
           saveToPath = info.path() + "/" + info.completeBaseName() + ".txt";
           continue;
         } else {
-          return SaveResult {std::in_place_index<2>, Unit{}};
+          return SaveResult {std::in_place_index<2>, Unit {}};
         }
       } else {
         return SaveResult {std::in_place_index<1>, err};

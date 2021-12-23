@@ -1,4 +1,5 @@
 #include "table_editor_delegate.h"
+
 #include "table_editor_model.h"
 
 TableEditorDelegate::TableEditorDelegate(QObject *parent) :
@@ -14,9 +15,11 @@ QWidget *TableEditorDelegate::createEditor(
     ->createEditor(parent, index);
 }
 
-void TableEditorDelegate::setEditorData(QWidget *editor, const QModelIndex &index)
-  const {
-  qobject_cast<const TableEditorModel *>(index.model())->setEditorData(editor, index);
+void TableEditorDelegate::setEditorData(
+  QWidget *editor,
+  const QModelIndex &index) const {
+  qobject_cast<const TableEditorModel *>(index.model())
+    ->setEditorData(editor, index);
 }
 
 void TableEditorDelegate::setModelData(

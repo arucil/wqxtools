@@ -1,6 +1,5 @@
 #include "mainwindow.h"
 
-#include "util.h"
 #include <QApplication>
 #include <QCloseEvent>
 #include <QFileDialog>
@@ -18,6 +17,7 @@
 #include "api.h"
 #include "config.h"
 #include "tool_factory.h"
+#include "util.h"
 #include "value.h"
 
 #define WINDOW_TITLE "WQX 工具箱"
@@ -338,7 +338,7 @@ ActionResult MainWindow::confirmSaveIfDirty(Tool *widget) {
       auto btn = QMessageBox::question(
         this,
         "文件改动",
-        tr("文件 %1 有改动，是否保存？")
+        QString("文件 %1 有改动，是否保存？")
           .arg(QFileInfo(m_openFilePath.value()).fileName()),
         QMessageBox::StandardButton::Yes | QMessageBox::StandardButton::No
           | QMessageBox::StandardButton::Cancel);
@@ -420,7 +420,7 @@ ActionResult MainWindow::loadConfig(QWidget *parent) {
       QMessageBox::critical(
         parent,
         "错误",
-        tr("机型配置文件加载失败：%1")
+        QString("机型配置文件加载失败：%1")
           .arg(QString::fromUtf8(result.left._0.data, result.left._0.len)));
       api::destroy_string(result.left._0);
       return ActionResult::Fail;
@@ -433,7 +433,7 @@ ActionResult MainWindow::loadConfig(QWidget *parent) {
       QMessageBox::critical(
         parent,
         "错误",
-        tr("配置文件加载失败：%1")
+        QString("配置文件加载失败：%1")
           .arg(QString::fromUtf8(result.left._0.data, result.left._0.len)));
       api::destroy_string(result.left._0);
       return ActionResult::Fail;
@@ -449,18 +449,18 @@ void MainWindow::setTitle() {
   if (auto edit = dynamic_cast<EditCapabilities *>(centralWidget())) {
     auto dirty = edit->m_dirty.value();
     if (m_openFilePath.value().isEmpty()) {
-      setWindowTitle(tr(WINDOW_TITLE " - %1").arg(dirty ? "*" : ""));
+      setWindowTitle(QString(WINDOW_TITLE " - %1").arg(dirty ? "*" : ""));
     } else {
       auto name = QFileInfo(m_openFilePath.value()).fileName();
       setWindowTitle(
-        tr(WINDOW_TITLE " - %1%2").arg(name).arg(dirty ? "*" : ""));
+        QString(WINDOW_TITLE " - %1%2").arg(name, dirty ? "*" : ""));
     }
   } else {
     if (m_openFilePath.value().isEmpty()) {
-      setWindowTitle(tr(WINDOW_TITLE));
+      setWindowTitle(QString(WINDOW_TITLE));
     } else {
       auto name = QFileInfo(m_openFilePath.value()).fileName();
-      setWindowTitle(tr(WINDOW_TITLE " - %1").arg(name));
+      setWindowTitle(QString(WINDOW_TITLE " - %1").arg(name));
     }
   }
 }

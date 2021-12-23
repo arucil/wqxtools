@@ -301,7 +301,7 @@ void BindingModel::editValue(const QModelIndex &index) {
     auto result = inputString(
       m_parent,
       m_vm,
-      tr("修改变量 %1")
+      QString("修改变量 %1")
         .arg(QString::fromUtf8(name.data, static_cast<int>(name.len))),
       api::copy_byte_string(binding.var.value.string._0));
     if (result.has_value()) {

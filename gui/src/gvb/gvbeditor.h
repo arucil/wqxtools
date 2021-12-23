@@ -4,14 +4,14 @@
 #include <QStatusBar>
 #include <QWidget>
 #include <algorithm>
+#include <interval-tree/interval_tree.hpp>
 #include <string>
 #include <variant>
 #include <vector>
 
-#include "api.h"
 #include "../capability.h"
-#include <interval-tree/interval_tree.hpp>
 #include "../tool.h"
+#include "api.h"
 
 class QAction;
 class QToolBar;

@@ -58,7 +58,7 @@ void GvbSimInputDialog::initUi(
   auto layout = new QVBoxLayout(this);
 
   if (input.prompt.tag == api::Maybe<api::Utf8String>::Tag::Just) {
-    layout->addWidget(new QLabel(tr("<b>%1</b>")
+    layout->addWidget(new QLabel(QString("<b>%1</b>")
                                    .arg(QString::fromUtf8(
                                      input.prompt.just._0.data,
                                      input.prompt.just._0.len))));
@@ -181,8 +181,8 @@ void GvbSimInputDialog::initUi(
                   break;
                 case api::GvbStringError::Tag::InvalidChar: {
                   auto c = result.left._0.invalid_char._0;
-                  msg->setText(tr("非法字符：%1 (U+%2)")
-                                // TODO check if c is printable
+                  msg->setText(QString("非法字符：%1 (U+%2)")
+                                 // TODO check if c is printable
                                  .arg(QString::fromUcs4(&c, 1))
                                  .arg(
                                    static_cast<unsigned>(c),
@@ -196,8 +196,8 @@ void GvbSimInputDialog::initUi(
               return;
             }
             if (result.right._0.len > 255) {
-              msg->setText(
-                tr("字符串长度为 %1，超出上限 255").arg(result.right._0.len));
+              msg->setText(QString("字符串长度为 %1，超出上限 255")
+                             .arg(result.right._0.len));
               fieldValidated(false);
             } else {
               msg->setText("");
@@ -253,7 +253,7 @@ void GvbSimInputDialog::initUi(
               }
             }
             if (error) {
-              msg->setText(tr("错误(第 %1 列)：%2")
+              msg->setText(QString("错误(第 %1 列)：%2")
                              .arg(firstError.start + 1)
                              .arg(QString::fromUtf8(
                                firstError.message.data,
@@ -271,7 +271,7 @@ void GvbSimInputDialog::initUi(
           },
           Qt::QueuedConnection);
         form->addRow(
-          tr("函数 %1(%2) =")
+          QString("函数 %1(%2) =")
             .arg(QString::fromUtf8(field.func.name.data, field.func.name.len))
             .arg(
               QString::fromUtf8(field.func.param.data, field.func.param.len)),

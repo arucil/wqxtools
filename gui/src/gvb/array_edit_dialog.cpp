@@ -25,7 +25,7 @@ ArrayEditDialog::ArrayEditDialog(
   m_curRowDim(0),
   m_curColDim(0) {
   initUi(array);
-  setWindowTitle(tr("修改数组 %1").arg(arrayBindingName(array)));
+  setWindowTitle(QString("修改数组 %1").arg(arrayBindingName(array)));
   if (m_bounds.len > 1) {
     adjustSize();
     m_curRowDim = 1;
@@ -94,7 +94,8 @@ QGridLayout *ArrayEditDialog::initDimensionSelector(
     grid->addWidget(
       new QLabel(QString::number(array.dimensions.data[i])),
       0,
-      i + 1, Qt::AlignCenter);
+      i + 1,
+      Qt::AlignCenter);
 
     auto spin = new QSpinBox();
     m_spinBoxes[i] = spin;
