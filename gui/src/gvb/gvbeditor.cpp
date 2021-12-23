@@ -1,9 +1,8 @@
 #include "gvbeditor.h"
 
-#include <ScintillaEdit.h>
-
 #include <QApplication>
 #include <QByteArray>
+#include <QCodeEditor>
 #include <QDir>
 #include <QFileInfo>
 #include <QLabel>
@@ -13,10 +12,6 @@
 #include <QTimer>
 #include <QToolBar>
 #include <QVBoxLayout>
-#include <algorithm>
-#include <cmath>
-#include <string>
-#include <utility>
 
 #include "../action.h"
 #include "../util.h"
@@ -52,7 +47,6 @@ GvbEditor::GvbEditor(QWidget *parent) :
     m_actCut->setEnabled(true);
     m_actFind->setEnabled(true);
     m_actReplace->setEnabled(true);
-    m_curPos.setValue(m_edit->currentPos());
 
     m_stateMachine.start();
   });
@@ -125,57 +119,12 @@ void GvbEditor::updateStartAction(QState *state) {
 }
 
 void GvbEditor::initEdit() {
-  m_edit = new ScintillaEdit(this);
+  m_edit = new QCodeEditor(this);
 
-  auto defaultFontFamily = m_edit->styleFont(STYLE_DEFAULT);
-  auto defaultFontSize = m_edit->styleSize(STYLE_DEFAULT);
-
-  m_edit->styleSetFont(STYLE_LINENUMBER, defaultFontFamily.data());
-  // m_edit->styleSetSize(STYLE_LINENUMBER, defaultFontSize);
-  m_edit->styleSetFore(STYLE_LINENUMBER, 0xff'a4'72'62);
-  m_edit->styleSetBack(STYLE_LINENUMBER, 0xff'ef'ef'ef);
-
-  m_edit->styleSetFont(STYLE_CALLTIP, defaultFontFamily.data());
-  m_edit->styleSetSize(STYLE_CALLTIP, defaultFontSize);
-
-  m_edit->styleSetFont(STYLE_DEFAULT, "WenQuXing");
-  m_edit->styleSetSize(STYLE_DEFAULT, 12);
-
-  m_edit->styleSetFont(0, "WenQuXing");
-  m_edit->styleSetSize(0, 12);
-
-  m_edit->setMarginTypeN(2, SC_MARGIN_NUMBER);
-
-  m_edit->setModEventMask(SC_MOD_INSERTTEXT | SC_MOD_DELETETEXT);
-
-  m_edit->setElementColour(SC_ELEMENT_CARET_LINE_BACK, 0xff'f6'ee'e0);
-  m_edit->setCaretLineVisibleAlways(true);
+  m_edit->setFont("WenQuXing");
+  m_edit->setFontPointSize(12);
 
   m_edit->setEOLMode(SC_EOL_CRLF);
-
-  m_edit->indicSetStyle(INDICATOR_WARNING, INDIC_SQUIGGLE);
-  m_edit->indicSetFore(INDICATOR_WARNING, WARNING_COLOR);
-  m_edit->indicSetStrokeWidth(INDICATOR_WARNING, 150);
-  m_edit->indicSetHoverStyle(INDICATOR_WARNING, INDIC_FULLBOX);
-  m_edit->indicSetHoverFore(INDICATOR_WARNING, WARNING_COLOR);
-  m_edit->indicSetOutlineAlpha(INDICATOR_WARNING, 50);
-  m_edit->indicSetAlpha(INDICATOR_WARNING, 50);
-  m_edit->indicSetUnder(INDICATOR_WARNING, true);
-
-  m_edit->indicSetStyle(INDICATOR_ERROR, INDIC_SQUIGGLE);
-  m_edit->indicSetFore(INDICATOR_ERROR, ERROR_COLOR);
-  m_edit->indicSetStrokeWidth(INDICATOR_ERROR, 120);
-  m_edit->indicSetHoverStyle(INDICATOR_ERROR, INDIC_FULLBOX);
-  m_edit->indicSetHoverFore(INDICATOR_ERROR, ERROR_COLOR);
-  m_edit->indicSetOutlineAlpha(INDICATOR_ERROR, 70);
-  m_edit->indicSetAlpha(INDICATOR_ERROR, 70);
-  m_edit->indicSetUnder(INDICATOR_ERROR, true);
-
-  m_edit->callTipUseStyle(0);
-
-  m_edit->setMouseDwellTime(400);
-
-  connect(m_edit, &ScintillaEdit::notify, this, &GvbEditor::notified);
 
   connect(
     m_edit,
@@ -249,9 +198,10 @@ QStatusBar *GvbEditor::initStatusBar() {
   posLabel->setMinimumWidth(120);
   statusbar->addPermanentWidget(posLabel);
 
-  connect(&m_curPos, &SizeValue::changed, this, [posLabel, this](size_t pos) {
-    auto line = m_edit->lineFromPosition(pos) + 1;
-    auto col = m_edit->column(pos) + 1;
+  connect(m_edit, &QTextEdit::cursorPositionChanged, this, [posLabel, this]() {
+    auto cursor = m_edit->textCursor();
+    auto line = cursor.blockNumber() + 1;
+    auto col = cursor.columnNumber() + 1;
     posLabel->setText(QString("第 %1 行, 第 %2 列").arg(line, col));
   });
 
@@ -326,13 +276,6 @@ LoadResult GvbEditor::load(const QString &path) {
     m_edit->setCurrentPos(0);
     m_actUndo->setEnabled(false);
     m_actRedo->setEnabled(false);
-
-    auto digits = std::max(
-      static_cast<size_t>(
-        std::log10(std::count(text.data, text.data + text.len, '\n') + 1)),
-      static_cast<size_t>(1));
-    auto digitWidth = m_edit->textWidth(STYLE_LINENUMBER, "9") * digits;
-    m_edit->setMarginWidthN(2, digitWidth);
 
     computeDiagnostics();
 
@@ -429,35 +372,6 @@ void GvbEditor::notified(Scintilla::NotificationData *data) {
       }
       break;
     }
-    case Scintilla::Notification::DwellStart: {
-      if (data->position < 0 || data->position > m_edit->length()) {
-        break;
-      }
-      auto pos = static_cast<size_t>(data->position);
-      std::string messages;
-      m_diagRanges.overlap_find_all({pos, pos}, [&messages, this](auto it) {
-        if (!messages.empty()) {
-          messages += '\n';
-        }
-        messages += "▸ ";
-        messages += m_diagnostics[it->interval().index].message.c_str();
-        return true;
-      });
-      if (!messages.empty()) {
-        m_edit->callTipShow(data->position, messages.c_str());
-      }
-      break;
-    }
-    case Scintilla::Notification::DwellEnd:
-      m_edit->callTipCancel();
-      break;
-    case Scintilla::Notification::UpdateUI:
-      if (
-        static_cast<int>(data->updated)
-        & (SC_UPDATE_SELECTION | SC_UPDATE_CONTENT)) {
-        m_curPos.setValue(m_edit->currentPos());
-      }
-      break;
     default:
       break;
   }

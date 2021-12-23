@@ -1,0 +1,3 @@
+[submodule "gui/3rdparty/QCodeEditor"]
+	path = gui/3rdparty/QCodeEditor
+	url = git@github.com:arucil/QCodeEditor.git
