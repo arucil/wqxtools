@@ -1,5 +1,5 @@
 use crate::array::Array;
-use crate::string::{destroy_string, Utf8Str, Utf8String};
+use crate::string::{destroy_string, Utf8Str, Utf8String, Utf16Index};
 
 #[repr(C)]
 pub enum GvbSeverity {
@@ -10,8 +10,8 @@ pub enum GvbSeverity {
 #[repr(C)]
 pub struct GvbDiagnostic<M> {
   pub line: usize,
-  pub start: usize,
-  pub end: usize,
+  pub start: Utf16Index,
+  pub end: Utf16Index,
   pub message: M,
   pub severity: GvbSeverity,
 }

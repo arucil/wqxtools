@@ -1,13 +1,16 @@
 use crate::{
-  destroy_byte_string, destroy_string, Array, ArrayMut, Either, GvbDevice,
-  GvbDiagnostic, GvbSeverity, Maybe, Unit, Utf16Str, Utf8Str, Utf8String,
+  destroy_byte_string, destroy_string, utf16_len, Array, ArrayMut, Either,
+  GvbDevice, GvbDiagnostic, GvbSeverity, Maybe, Unit, Utf16Index, Utf16Str,
+  Utf8Str, Utf8String,
 };
 use gvb_interp as gvb;
 use std::convert::TryInto;
 
-pub struct GvbVirtualMachine(
-  pub(crate) gvb::VirtualMachine<'static, gvb::device::default::DefaultDevice>,
-);
+pub struct GvbVirtualMachine {
+  pub(crate) vm:
+    gvb::VirtualMachine<'static, gvb::device::default::DefaultDevice>,
+  pub(crate) doc: *const gvb::Document,
+}
 
 #[repr(C)]
 pub enum GvbExecInput {
@@ -59,8 +62,8 @@ pub enum GvbExecResult {
 #[repr(C)]
 pub struct GvbLocation {
   pub line: usize,
-  pub start_column: usize,
-  pub end_column: usize,
+  pub start_column: Utf16Index,
+  pub end_column: Utf16Index,
 }
 
 #[no_mangle]
@@ -80,14 +83,10 @@ pub extern "C" fn gvb_compile_fn_body(
   vm: *const GvbVirtualMachine,
   input: Utf16Str,
 ) -> GvbCompileFnBodyResult {
-  let (body, diags) = unsafe {
-    (*vm).0.compile_fn(
-      String::from_utf16_lossy(std::slice::from_raw_parts(
-        input.data, input.len,
-      ))
-      .as_str(),
-    )
-  };
+  let input = String::from_utf16_lossy(unsafe {
+    std::slice::from_raw_parts(input.data, input.len)
+  });
+  let (body, diags) = unsafe { (*vm).vm.compile_fn(input.as_str()) };
   let body = if let Some(body) = body {
     Box::into_raw(box body)
   } else {
@@ -95,15 +94,19 @@ pub extern "C" fn gvb_compile_fn_body(
   };
   let diags = diags
     .into_iter()
-    .map(|diag| GvbDiagnostic {
-      line: 0,
-      start: diag.range.start,
-      end: diag.range.end,
-      message: unsafe { Utf8String::new(diag.message) },
-      severity: match diag.severity {
-        gvb::Severity::Warning => GvbSeverity::Warning,
-        gvb::Severity::Error => GvbSeverity::Error,
-      },
+    .map(|diag| {
+      let start = utf16_len(&input[..diag.range.start]);
+      let end = start + utf16_len(&input[diag.range.start..diag.range.end]);
+      GvbDiagnostic {
+        line: 0,
+        start: Utf16Index(start),
+        end: Utf16Index(end),
+        message: unsafe { Utf8String::new(diag.message) },
+        severity: match diag.severity {
+          gvb::Severity::Warning => GvbSeverity::Warning,
+          gvb::Severity::Error => GvbSeverity::Error,
+        },
+      }
     })
     .collect();
   let diagnostics = unsafe { Array::new(diags) };
@@ -146,7 +149,7 @@ pub extern "C" fn gvb_vm_exec(
       gvb::ExecInput::KeyboardInput(input)
     }
   };
-  match unsafe { (*vm).0.exec(input, steps) } {
+  match unsafe { (*vm).vm.exec(input, steps) } {
     gvb::ExecResult::End => GvbExecResult::End,
     gvb::ExecResult::Continue => GvbExecResult::Continue,
     gvb::ExecResult::Sleep(d) => GvbExecResult::Sleep(d.as_nanos() as u64),
@@ -179,14 +182,20 @@ pub extern "C" fn gvb_vm_exec(
       }
     }
     gvb::ExecResult::InKey => GvbExecResult::InKey,
-    gvb::ExecResult::Error { location, message } => GvbExecResult::Error {
-      location: GvbLocation {
-        line: location.line,
-        start_column: location.range.start,
-        end_column: location.range.end,
-      },
-      message: unsafe { Utf8String::new(message) },
-    },
+    gvb::ExecResult::Error { location, message } => {
+      let line_text = unsafe { (*(*vm).doc).line_text(location.line) };
+      let start_column = utf16_len(&line_text[..location.range.start]);
+      let end_column = start_column
+        + utf16_len(&line_text[location.range.start..location.range.end]);
+      GvbExecResult::Error {
+        location: GvbLocation {
+          line: location.line,
+          start_column: Utf16Index(start_column),
+          end_column: Utf16Index(end_column),
+        },
+        message: unsafe { Utf8String::new(message) },
+      }
+    }
   }
 }
 
@@ -194,7 +203,7 @@ pub type GvbStopVmResult = Either<Utf8String, Unit>;
 
 #[no_mangle]
 pub extern "C" fn gvb_vm_stop(vm: *mut GvbVirtualMachine) -> GvbStopVmResult {
-  match unsafe { (*vm).0.stop() } {
+  match unsafe { (*vm).vm.stop() } {
     Ok(()) => Either::Right(Unit::new()),
     Err(gvb::ExecResult::Error {
       location: _,
@@ -207,7 +216,7 @@ pub extern "C" fn gvb_vm_stop(vm: *mut GvbVirtualMachine) -> GvbStopVmResult {
 #[no_mangle]
 pub extern "C" fn gvb_vm_reset(vm: *mut GvbVirtualMachine) {
   unsafe {
-    (*vm).0.start();
+    (*vm).vm.start();
   }
 }
 
@@ -318,7 +327,7 @@ pub extern "C" fn gvb_utf16_to_byte_string(
     Ok(s) => s,
     Err(_) => return Either::Left(GvbStringError::InvalidUtf16),
   };
-  match unsafe { (*vm).0.byte_string_from_str(&s).into() } {
+  match unsafe { (*vm).vm.byte_string_from_str(&s).into() } {
     Ok(s) => Either::Right(unsafe { Array::new(s.into()) }),
     Err(gvb::vm::r#type::StringError::InvalidChar(c)) => {
       Either::Left(GvbStringError::InvalidChar(c as _))
@@ -333,7 +342,7 @@ pub extern "C" fn gvb_byte_string_to_utf8_lossy(
   s: Array<u8>,
 ) -> Utf8String {
   let s = unsafe { s.as_slice() }.into();
-  unsafe { Utf8String::new((*vm).0.string_from_byte_string_lossy(s)) }
+  unsafe { Utf8String::new((*vm).vm.string_from_byte_string_lossy(s)) }
 }
 
 #[repr(C)]
@@ -392,7 +401,7 @@ pub extern "C" fn gvb_destroy_value(value: GvbValue) {
 pub extern "C" fn gvb_vm_bindings(
   vm: *const GvbVirtualMachine,
 ) -> ArrayMut<GvbBinding> {
-  let bindings = unsafe { (*vm).0.bindings() }
+  let bindings = unsafe { (*vm).vm.bindings() }
     .into_iter()
     .map(|(name, b)| match b {
       gvb::Binding::Var { value } => GvbBinding::Var {
@@ -452,7 +461,7 @@ pub extern "C" fn gvb_vm_modify_var(
     ))
   };
   unsafe {
-    (*vm).0.modify_var(name, value.into());
+    (*vm).vm.modify_var(name, value.into());
   }
 }
 
@@ -477,7 +486,7 @@ pub extern "C" fn gvb_vm_arr_dim_values(
     ))
   };
   let subs = unsafe { std::slice::from_raw_parts(subs.data, subs.len) };
-  match unsafe { (*vm).0.arr_dimension_values(name, subs, dim) } {
+  match unsafe { (*vm).vm.arr_dimension_values(name, subs, dim) } {
     gvb::DimensionValues::Integer(vec) => {
       GvbDimensionValues::Integer(unsafe { ArrayMut::new(vec) })
     }
@@ -516,6 +525,6 @@ pub extern "C" fn gvb_vm_modify_arr(
   };
   let subs = unsafe { std::slice::from_raw_parts(subs.data, subs.len) };
   unsafe {
-    (*vm).0.modify_arr(name, subs, value.into());
+    (*vm).vm.modify_arr(name, subs, value.into());
   }
 }

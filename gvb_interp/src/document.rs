@@ -63,8 +63,14 @@ pub enum SaveDocumentError {
 
 #[derive(Debug)]
 pub struct Edit<'a> {
-  pub pos: usize,
+  pub pos: EditPos,
   pub kind: EditKind<'a>,
+}
+
+#[derive(Debug)]
+pub enum EditPos {
+  Position(usize),
+  LineCol { line: usize, col: usize },
 }
 
 #[derive(Debug)]
@@ -267,6 +273,14 @@ impl Document {
     &self.text
   }
 
+  pub fn line_text(&self, line: usize) -> &str {
+    if line < self.lines.len() - 1 {
+      &self.text[self.lines[line].line_start..self.lines[line + 1].line_start]
+    } else {
+      &self.text[self.lines[line].line_start..]
+    }
+  }
+
   pub fn machine_name(&self) -> &str {
     &self.machine_props.name
   }
@@ -355,14 +369,26 @@ fn text_to_doc_lines(text: impl AsRef<str>) -> Vec<DocLine> {
 }
 
 fn apply_edit(text: &mut String, lines: &mut Vec<DocLine>, edit: Edit) {
-  let mut i = 0;
-  while i < lines.len() - 1 && edit.pos >= lines[i + 1].line_start {
-    i += 1;
+  let mut i;
+  let pos;
+  match edit.pos {
+    EditPos::LineCol { line, col } => {
+      i = line;
+      pos = lines[i].line_start + col;
+    }
+    EditPos::Position(p) => {
+      i = 0;
+      pos = p;
+      // TODO binary search
+      while i < lines.len() - 1 && pos >= lines[i + 1].line_start {
+        i += 1;
+      }
+    }
   }
 
   match edit.kind {
     EditKind::Insert(str) => {
-      text.insert_str(edit.pos, &str);
+      text.insert_str(pos, &str);
       lines[i].parsed = None;
 
       if str.contains('\n') {
@@ -389,11 +415,11 @@ fn apply_edit(text: &mut String, lines: &mut Vec<DocLine>, edit: Edit) {
     }
     EditKind::Delete(del_len) => {
       lines[i].parsed = None;
-      let deleted_part = &text[edit.pos..edit.pos + del_len];
+      let deleted_part = &text[pos..pos + del_len];
       if deleted_part.contains('\n') {
         let deleted_lines = deleted_part.matches('\n').count();
         let line_start = lines[i].line_start;
-        if edit.pos == line_start && deleted_part.ends_with('\n') {
+        if pos == line_start && deleted_part.ends_with('\n') {
           lines.drain(i..i + deleted_lines);
           lines[i].line_start = line_start;
         } else {
@@ -403,7 +429,7 @@ fn apply_edit(text: &mut String, lines: &mut Vec<DocLine>, edit: Edit) {
       for line in &mut lines[i + 1..] {
         line.line_start -= del_len;
       }
-      text.replace_range(edit.pos..edit.pos + del_len, "");
+      text.replace_range(pos..pos + del_len, "");
     }
   }
 
@@ -485,7 +511,7 @@ no";
       &mut text,
       &mut lines,
       Edit {
-        pos: 13,
+        pos: EditPos::Position(13),
         kind: EditKind::Delete(3),
       },
     );
@@ -505,7 +531,7 @@ no";
       &mut text,
       &mut lines,
       Edit {
-        pos: 1,
+        pos: EditPos::Position(1),
         kind: EditKind::Delete(3),
       },
     );
@@ -525,7 +551,7 @@ no";
       &mut text,
       &mut lines,
       Edit {
-        pos: 1,
+        pos: EditPos::Position(1),
         kind: EditKind::Delete(5),
       },
     );
@@ -545,7 +571,7 @@ no";
       &mut text,
       &mut lines,
       Edit {
-        pos: 4,
+        pos: EditPos::Position(4),
         kind: EditKind::Delete(2),
       },
     );
@@ -565,7 +591,7 @@ no";
       &mut text,
       &mut lines,
       Edit {
-        pos: 3,
+        pos: EditPos::Position(3),
         kind: EditKind::Delete(4),
       },
     );
@@ -585,7 +611,7 @@ no";
       &mut text,
       &mut lines,
       Edit {
-        pos: 0,
+        pos: EditPos::Position(0),
         kind: EditKind::Delete(6),
       },
     );
@@ -605,7 +631,7 @@ no";
       &mut text,
       &mut lines,
       Edit {
-        pos: 19,
+        pos: EditPos::Position(19),
         kind: EditKind::Delete(2),
       },
     );
@@ -625,7 +651,7 @@ no";
       &mut text,
       &mut lines,
       Edit {
-        pos: 11,
+        pos: EditPos::Position(11),
         kind: EditKind::Delete(8),
       },
     );
@@ -645,7 +671,7 @@ no";
       &mut text,
       &mut lines,
       Edit {
-        pos: 0,
+        pos: EditPos::Position(0),
         kind: EditKind::Delete(19),
       },
     );
@@ -662,7 +688,7 @@ no";
       &mut text,
       &mut lines,
       Edit {
-        pos: 6,
+        pos: EditPos::Position(6),
         kind: EditKind::Delete(15),
       },
     );
@@ -679,7 +705,7 @@ no";
       &mut text,
       &mut lines,
       Edit {
-        pos: 6,
+        pos: EditPos::Position(6),
         kind: EditKind::Delete(13),
       },
     );
@@ -696,7 +722,7 @@ no";
       &mut text,
       &mut lines,
       Edit {
-        pos: 2,
+        pos: EditPos::Position(2),
         kind: EditKind::Delete(11),
       },
     );
@@ -713,7 +739,7 @@ no";
       &mut text,
       &mut lines,
       Edit {
-        pos: 2,
+        pos: EditPos::Position(2),
         kind: EditKind::Delete(15),
       },
     );
@@ -730,7 +756,7 @@ no";
       &mut text,
       &mut lines,
       Edit {
-        pos: 2,
+        pos: EditPos::Position(2),
         kind: EditKind::Delete(17),
       },
     );
@@ -747,7 +773,7 @@ no";
       &mut text,
       &mut lines,
       Edit {
-        pos: 0,
+        pos: EditPos::Position(0),
         kind: EditKind::Delete(21),
       },
     );
@@ -764,7 +790,7 @@ no";
       &mut text,
       &mut lines,
       Edit {
-        pos: 13,
+        pos: EditPos::Position(13),
         kind: EditKind::Insert("123"),
       },
     );
@@ -784,7 +810,7 @@ no";
       &mut text,
       &mut lines,
       Edit {
-        pos: 0,
+        pos: EditPos::Position(0),
         kind: EditKind::Insert("123"),
       },
     );
@@ -801,7 +827,7 @@ no";
       &mut text,
       &mut lines,
       Edit {
-        pos: 11,
+        pos: EditPos::Position(11),
         kind: EditKind::Insert("123"),
       },
     );
@@ -821,7 +847,7 @@ no";
       &mut text,
       &mut lines,
       Edit {
-        pos: 0,
+        pos: EditPos::Position(0),
         kind: EditKind::Insert("123"),
       },
     );
@@ -841,7 +867,7 @@ no";
       &mut text,
       &mut lines,
       Edit {
-        pos: 17,
+        pos: EditPos::Position(17),
         kind: EditKind::Insert("123"),
       },
     );
@@ -861,7 +887,7 @@ no";
       &mut text,
       &mut lines,
       Edit {
-        pos: 19,
+        pos: EditPos::Position(19),
         kind: EditKind::Insert("no"),
       },
     );
@@ -881,7 +907,7 @@ no";
       &mut text,
       &mut lines,
       Edit {
-        pos: 0,
+        pos: EditPos::Position(0),
         kind: EditKind::Insert("123\r\n45\r\n"),
       },
     );
@@ -908,7 +934,7 @@ no";
       &mut text,
       &mut lines,
       Edit {
-        pos: 0,
+        pos: EditPos::Position(0),
         kind: EditKind::Insert("abcd\r\nefg\r\nhijklm\r\nno"),
       },
     );
@@ -933,7 +959,7 @@ no";
       &mut text,
       &mut lines,
       Edit {
-        pos: 0,
+        pos: EditPos::Position(0),
         kind: EditKind::Insert("abcd\r\nefg\r\nhijklm\r\nno\r\n"),
       },
     );
@@ -959,7 +985,7 @@ no";
       &mut text,
       &mut lines,
       Edit {
-        pos: 13,
+        pos: EditPos::Position(13),
         kind: EditKind::Insert("123\r\n45\r\n6789"),
       },
     );
@@ -989,7 +1015,7 @@ no";
       &mut text,
       &mut lines,
       Edit {
-        pos: 11,
+        pos: EditPos::Position(11),
         kind: EditKind::Insert("123\r\n45\r\n6789"),
       },
     );
@@ -1019,7 +1045,7 @@ no";
       &mut text,
       &mut lines,
       Edit {
-        pos: 11,
+        pos: EditPos::Position(11),
         kind: EditKind::Insert("123\r\n45\r\n6789\r\n"),
       },
     );
@@ -1050,7 +1076,7 @@ no";
       &mut text,
       &mut lines,
       Edit {
-        pos: 17,
+        pos: EditPos::Position(17),
         kind: EditKind::Insert("123\r\n45\r\n6789"),
       },
     );
@@ -1081,7 +1107,7 @@ no";
       &mut text,
       &mut lines,
       Edit {
-        pos: 17,
+        pos: EditPos::Position(17),
         kind: EditKind::Insert("123\r\n45\r\n6789\r\n"),
       },
     );
@@ -1112,7 +1138,7 @@ no";
       &mut text,
       &mut lines,
       Edit {
-        pos: 21,
+        pos: EditPos::Position(21),
         kind: EditKind::Insert("123\r\n45\r\n6789"),
       },
     );
@@ -1142,7 +1168,7 @@ no";
       &mut text,
       &mut lines,
       Edit {
-        pos: 21,
+        pos: EditPos::Position(21),
         kind: EditKind::Insert("123\r\n45\r\n6789\r\n"),
       },
     );
@@ -1173,7 +1199,7 @@ no";
       &mut text,
       &mut lines,
       Edit {
-        pos: 20,
+        pos: EditPos::Position(20),
         kind: EditKind::Insert("123\r\n45\r\n6789"),
       },
     );
@@ -1203,7 +1229,7 @@ no";
       &mut text,
       &mut lines,
       Edit {
-        pos: 20,
+        pos: EditPos::Position(20),
         kind: EditKind::Insert("123\r\n45\r\n6789\r\n"),
       },
     );

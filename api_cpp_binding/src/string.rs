@@ -5,6 +5,9 @@ use std::{
 };
 
 #[repr(C)]
+pub struct Utf16Index(pub usize);
+
+#[repr(C)]
 pub struct Utf16Str {
   pub data: *const c_ushort,
   pub len: usize,
@@ -101,4 +104,8 @@ pub extern "C" fn destroy_byte_string_array_mut(arr: ArrayMut<Array<u8>>) {
   for s in unsafe { arr.into_boxed_slice() }.iter() {
     drop(unsafe { (*s).clone().into_boxed_slice() });
   }
+}
+
+pub(crate) fn utf16_len(str: &str) -> usize {
+  str.encode_utf16().count()
 }

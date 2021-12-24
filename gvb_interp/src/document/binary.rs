@@ -121,7 +121,7 @@ pub fn load_bas(
 
   for line in lines {
     if newline {
-      text.push_str("\r\n");
+      text.push('\n');
     }
     newline = true;
 
@@ -201,7 +201,9 @@ pub fn load_txt(
   let mut line_offset = 0;
   let content = content.as_ref();
   while i < content.len() {
-    if content[i] == 0xa {
+    if content[i] == 0xd {
+      i += 1;
+    } else if content[i] == 0xa {
       line += 1;
       line_offset = i + 1;
       text.push('\n');

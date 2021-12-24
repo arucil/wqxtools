@@ -1,22 +1,33 @@
 use crate::{
-  Array, Either, GvbDevice, GvbDiagnostic, GvbSeverity, GvbVirtualMachine,
-  Maybe, Unit, Utf16Str, Utf8Str, Utf8String,
+  utf16_len, Array, Either, GvbDevice, GvbDiagnostic, GvbSeverity,
+  GvbVirtualMachine, Maybe, Unit, Utf16Index, Utf16Str, Utf8Str, Utf8String,
 };
 use gvb_interp as gvb;
 use std::io;
 
-pub struct GvbDocument(gvb::Document);
+pub struct GvbDocument {
+  doc: gvb::Document,
+  line_starts: Vec<Option<usize>>,
+}
 
 #[repr(C)]
 pub struct GvbInsertText {
-  pub pos: usize,
+  pub pos: Utf16Index,
   pub str: Utf8Str,
 }
 
 #[repr(C)]
 pub struct GvbDeleteText {
-  pub pos: usize,
-  pub len: usize,
+  pub pos: Utf16Index,
+  pub len: Utf16Index,
+}
+
+impl GvbDocument {
+  fn line_start(&mut self, line: usize) -> usize {
+    if let Some(line_start) = self.line_starts[line] {
+      return line_start;
+    }
+  }
 }
 
 pub type GvbLoadDocumentResult = Either<Utf8String, *mut GvbDocument>;
@@ -61,7 +72,7 @@ pub extern "C" fn gvb_save_document(
   path: Utf16Str,
 ) -> GvbSaveDocumentResult {
   let path = unsafe { path.to_string() }.unwrap();
-  match unsafe { (*doc).0.save(path) } {
+  match unsafe { (*doc).doc.save(path) } {
     Ok(()) => Either::Right(Unit::new()),
     Err(err) => {
       let (msg, bas_specific) = match err {
@@ -91,7 +102,7 @@ pub extern "C" fn gvb_document_device(
   data_dir: Utf16Str,
 ) -> *mut GvbDevice {
   let data_dir = unsafe { data_dir.to_string() }.unwrap();
-  Box::into_raw(box GvbDevice(unsafe { (*doc).0.create_device(data_dir) }))
+  Box::into_raw(box GvbDevice(unsafe { (*doc).doc.create_device(data_dir) }))
 }
 
 #[no_mangle]
@@ -99,8 +110,11 @@ pub extern "C" fn gvb_document_vm(
   doc: *mut GvbDocument,
   device: *mut GvbDevice,
 ) -> Maybe<*mut GvbVirtualMachine> {
-  match unsafe { (*doc).0.create_vm(&mut (*device).0) } {
-    Ok(vm) => Maybe::Just(Box::into_raw(box GvbVirtualMachine(vm))),
+  match unsafe { (*doc).doc.create_vm(&mut (*device).0) } {
+    Ok(vm) => Maybe::Just(Box::into_raw(box GvbVirtualMachine {
+      vm,
+      doc: unsafe { &(*doc).doc as *const _ },
+    })),
     Err(()) => Maybe::Nothing,
   }
 }
@@ -137,7 +151,7 @@ pub extern "C" fn gvb_document_apply_edit(
     },
   };
   unsafe {
-    (*doc).0.apply_edit(edit);
+    (*doc).doc.apply_edit(edit);
   }
 }
 
@@ -145,21 +159,27 @@ pub extern "C" fn gvb_document_apply_edit(
 pub extern "C" fn gvb_document_diagnostics(
   doc: *mut GvbDocument,
 ) -> Array<GvbDiagnostic<Utf8Str>> {
-  let line_diags = unsafe { (*doc).0.diagnostics() };
+  let line_diags = unsafe { (*doc).doc.diagnostics() };
   let diags = line_diags
     .into_iter()
     .enumerate()
     .flat_map(|(line, line_diag)| {
-      let line_start = line_diag.line_start;
-      line_diag.diagnostics.iter().map(move |diag| GvbDiagnostic {
-        line,
-        start: line_start + diag.range.start,
-        end: line_start + diag.range.end,
-        message: unsafe { Utf8Str::new(&diag.message) },
-        severity: match diag.severity {
-          gvb::Severity::Warning => GvbSeverity::Warning,
-          gvb::Severity::Error => GvbSeverity::Error,
-        },
+      line_diag.diagnostics.iter().map(move |diag| {
+        let line_text = unsafe { (*doc).doc.line_text(line) };
+        let start = unsafe { (*doc).line_start(line) }
+          + utf16_len(&line_text[..diag.range.start]);
+        let end =
+          start + utf16_len(&line_text[diag.range.start..diag.range.end]);
+        GvbDiagnostic {
+          line,
+          start: Utf16Index(start),
+          end: Utf16Index(end),
+          message: unsafe { Utf8Str::new(&diag.message) },
+          severity: match diag.severity {
+            gvb::Severity::Warning => GvbSeverity::Warning,
+            gvb::Severity::Error => GvbSeverity::Error,
+          },
+        }
       })
     })
     .collect();
@@ -174,7 +194,7 @@ pub extern "C" fn gvb_destroy_document(doc: *mut GvbDocument) {
 #[no_mangle]
 pub extern "C" fn gvb_document_text(doc: *mut GvbDocument) -> Utf8Str {
   unsafe {
-    let text = (*doc).0.text();
+    let text = (*doc).doc.text();
     Utf8Str::new(text)
   }
 }
