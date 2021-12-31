@@ -77,6 +77,7 @@ public slots:
 
 private slots:
   void modified();
+  void textChanged(const TextChange &);
 
 private:
   CodeEditor *m_edit;

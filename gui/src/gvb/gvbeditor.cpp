@@ -11,16 +11,13 @@
 #include <QToolBar>
 #include <QVBoxLayout>
 #include <QtMath>
+#include <utility>
 
 #include "../action.h"
 #include "../util.h"
 #include "code_editor.h"
 #include "gvbsim_window.h"
 
-#define INDICATOR_WARNING 0
-#define INDICATOR_ERROR 1
-#define WARNING_COLOR 0x0e'c1'ff
-#define ERROR_COLOR 0x30'2e'd3
 #define DATA_DIR "dat_files"
 
 using std::get_if;
@@ -117,61 +114,11 @@ void GvbEditor::updateStartAction(QState *state) {
 void GvbEditor::initEdit() {
   m_edit = new CodeEditor(this);
 
-  auto defaultFontFamily = m_edit->styleFont(STYLE_DEFAULT);
-  auto defaultFontSize = m_edit->styleSize(STYLE_DEFAULT);
-
-  m_edit->styleSetFont(STYLE_LINENUMBER, defaultFontFamily.data());
-  // m_edit->styleSetSize(STYLE_LINENUMBER, defaultFontSize);
-  m_edit->styleSetFore(STYLE_LINENUMBER, 0xff'a4'72'62);
-  m_edit->styleSetBack(STYLE_LINENUMBER, 0xff'ef'ef'ef);
-
-  m_edit->styleSetFont(STYLE_CALLTIP, defaultFontFamily.data());
-  m_edit->styleSetSize(STYLE_CALLTIP, defaultFontSize);
-
-  m_edit->styleSetFont(STYLE_DEFAULT, "WenQuXing");
-  m_edit->styleSetSize(STYLE_DEFAULT, 12);
-
-  m_edit->styleSetFont(0, "WenQuXing");
-  m_edit->styleSetSize(0, 12);
-
-  m_edit->setMarginTypeN(2, SC_MARGIN_NUMBER);
-
-  m_edit->setModEventMask(SC_MOD_INSERTTEXT | SC_MOD_DELETETEXT);
-
-  m_edit->setElementColour(SC_ELEMENT_CARET_LINE_BACK, 0xff'f6'ee'e0);
   m_edit->setCaretLineVisibleAlways(true);
-
   m_edit->setEOLMode(SC_EOL_CRLF);
 
-  m_edit->indicSetStyle(INDICATOR_WARNING, INDIC_SQUIGGLE);
-  m_edit->indicSetFore(INDICATOR_WARNING, WARNING_COLOR);
-  m_edit->indicSetStrokeWidth(INDICATOR_WARNING, 150);
-  m_edit->indicSetHoverStyle(INDICATOR_WARNING, INDIC_FULLBOX);
-  m_edit->indicSetHoverFore(INDICATOR_WARNING, WARNING_COLOR);
-  m_edit->indicSetOutlineAlpha(INDICATOR_WARNING, 50);
-  m_edit->indicSetAlpha(INDICATOR_WARNING, 50);
-  m_edit->indicSetUnder(INDICATOR_WARNING, true);
-
-  m_edit->indicSetStyle(INDICATOR_ERROR, INDIC_SQUIGGLE);
-  m_edit->indicSetFore(INDICATOR_ERROR, ERROR_COLOR);
-  m_edit->indicSetStrokeWidth(INDICATOR_ERROR, 120);
-  m_edit->indicSetHoverStyle(INDICATOR_ERROR, INDIC_FULLBOX);
-  m_edit->indicSetHoverFore(INDICATOR_ERROR, ERROR_COLOR);
-  m_edit->indicSetOutlineAlpha(INDICATOR_ERROR, 70);
-  m_edit->indicSetAlpha(INDICATOR_ERROR, 70);
-  m_edit->indicSetUnder(INDICATOR_ERROR, true);
-
-  m_edit->callTipUseStyle(0);
-
-  m_edit->setMouseDwellTime(400);
-
-  connect(m_edit, &ScintillaEdit::notify, this, &GvbEditor::notified);
-
-  connect(
-    m_edit,
-    &ScintillaEdit::savePointChanged,
-    &m_dirty,
-    &BoolValue::setValue);
+  connect(m_edit, &CodeEditor::dirtyChanged, &m_dirty, &BoolValue::setValue);
+  connect(m_edit, &CodeEditor::textChanged, this, &GvbEditor::textChanged);
 }
 
 QToolBar *GvbEditor::initToolBar() {
@@ -321,12 +268,6 @@ LoadResult GvbEditor::load(const QString &path) {
     m_actUndo->setEnabled(false);
     m_actRedo->setEnabled(false);
 
-    auto digits = qMax(
-      static_cast<size_t>(qLn(m_edit->lineCount() + 1) / M_LN10),
-      static_cast<size_t>(1));
-    auto digitWidth = m_edit->textWidth(STYLE_LINENUMBER, "9") * digits;
-    m_edit->setMarginWidthN(2, digitWidth);
-
     computeDiagnostics();
 
     return Unit {};
@@ -370,6 +311,46 @@ void GvbEditor::redo() {
   m_edit->redo();
 }
 
+void GvbEditor::textChanged(const TextChange &c) {
+  if (!m_textLoaded) {
+    return;
+  }
+
+  if (!m_timerModify) {
+    QTimer::singleShot(500, this, &GvbEditor::modified);
+    m_timerModify = true;
+  }
+
+  m_actUndo->setEnabled(m_edit->canUndo());
+  m_actRedo->setEnabled(m_edit->canRedo());
+
+  switch (c.kind) {
+    case TextChangeKind::InsertText: {
+      InsertText *insert;
+      if (
+        !m_edits.empty() && (insert = get_if<InsertText>(&m_edits.back()))
+        && insert->pos + insert->str.size() == c.position) {
+        insert->str.append(c.text, c.length);
+      } else {
+        InsertText insert = {c.position, std::string(c.text, c.length)};
+        m_edits.push_back(insert);
+      }
+    }
+    case TextChangeKind::DeleteText: {
+      DeleteText *del;
+      if (
+        !m_edits.empty() && (del = get_if<DeleteText>(&m_edits.back()))
+        && del->pos == c.position + c.length) {
+        del->len += c.length;
+        del->pos -= c.length;
+      } else {
+        DeleteText del = {c.position, c.length};
+        m_edits.push_back(del);
+      }
+    }
+  }
+}
+
 void GvbEditor::modified() {
   for (auto edit : m_edits) {
     if (auto insert = get_if<InsertText>(&edit)) {
@@ -394,42 +375,6 @@ void GvbEditor::modified() {
   m_timerModify = false;
 }
 
-void GvbEditor::diagnosticsUpdated(QVector<Diagnostic> diags) {
-  m_diagnostics = std::move(diags);
-
-  m_diagRanges.clear();
-  for (int i = 0; i < m_diagnostics.size(); i++) {
-    auto &diag = m_diagnostics[i];
-    Range r = {diag.start, diag.end};
-    if (diag.start == diag.end) {
-      r = {diag.start, diag.end + 1};
-    }
-    r.index = static_cast<size_t>(i);
-    m_diagRanges.insert(r);
-  }
-
-  auto len = m_edit->length();
-  m_edit->setIndicatorCurrent(INDICATOR_WARNING);
-  m_edit->indicatorClearRange(0, len);
-  m_edit->setIndicatorCurrent(INDICATOR_ERROR);
-  m_edit->indicatorClearRange(0, len);
-  for (auto &diag : m_diagnostics) {
-    switch (diag.severity) {
-      case api::GvbSeverity::Warning:
-        m_edit->setIndicatorCurrent(INDICATOR_WARNING);
-        break;
-      case api::GvbSeverity::Error:
-        m_edit->setIndicatorCurrent(INDICATOR_ERROR);
-        break;
-    }
-    if (diag.start == diag.end) {
-      m_edit->indicatorFillRange(diag.start, 1);
-    } else {
-      m_edit->indicatorFillRange(diag.start, diag.end - diag.start);
-    }
-  }
-}
-
 void GvbEditor::computeDiagnostics() {
   auto diags = gvb_document_diagnostics(m_doc);
   QVector<Diagnostic> diagVec;
@@ -444,7 +389,7 @@ void GvbEditor::computeDiagnostics() {
     diagVec.push_back(d);
   }
   gvb_destroy_str_diagnostic_array(diags);
-  m_edit->setDiagnostics(diagVec);
+  m_edit->setDiagnostics(std::move(diagVec));
 }
 
 void GvbEditor::tryStartPause(QWidget *sender) {

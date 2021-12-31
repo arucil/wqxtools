@@ -135,22 +135,34 @@ public:
   size_t index;
 };
 
+enum class TextChangeKind {
+  InsertText,
+  DeleteText,
+};
+
+struct TextChange {
+  TextChangeKind kind;
+  size_t position;
+  const char *text;
+  size_t length;
+};
+
 class CodeEditor: public ScintillaEdit {
   Q_OBJECT
 
 public:
   CodeEditor(QWidget *parent = nullptr);
 
-public:
-  void setText(const char *);
+private:
+  void adjustLineNumberMarginWidth();
 
 signals:
   void cursorPositionChanged(size_t);
   void dirtyChanged(bool isDirty);
-  void contentsChanged();
+  void textChanged(const TextChange &);
 
 public slots:
-  void setDiagnostics(const QVector<Diagnostic> &);
+  void setDiagnostics(QVector<Diagnostic>);
 
 private slots:
   void notified(Scintilla::NotificationData *);
