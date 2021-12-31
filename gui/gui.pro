@@ -30,7 +30,8 @@ HEADERS += src/mainwindow.h \
     src/gvb/table_editor_delegate.h \
     src/gvb/array_edit_dialog.h \
     src/gvb/array_model.h \
-    src/gvb/table_editor_model.h
+    src/gvb/table_editor_model.h \
+    src/gvb/code_editor.h
 
 SOURCES += src/*.cpp \
     src/gvb/*.cpp

@@ -1,7 +1,5 @@
 #include "gvbeditor.h"
 
-#include <ScintillaEdit.h>
-
 #include <QApplication>
 #include <QByteArray>
 #include <QDir>
@@ -9,7 +7,6 @@
 #include <QLabel>
 #include <QMessageBox>
 #include <QState>
-#include <QThread>
 #include <QTimer>
 #include <QToolBar>
 #include <QVBoxLayout>
@@ -17,6 +14,7 @@
 
 #include "../action.h"
 #include "../util.h"
+#include "code_editor.h"
 #include "gvbsim_window.h"
 
 #define INDICATOR_WARNING 0
@@ -25,8 +23,8 @@
 #define ERROR_COLOR 0x30'2e'd3
 #define DATA_DIR "dat_files"
 
-using std::in_place_index;
 using std::get_if;
+using std::in_place_index;
 
 GvbEditor::GvbEditor(QWidget *parent) :
   Tool(parent),
@@ -37,13 +35,6 @@ GvbEditor::GvbEditor(QWidget *parent) :
   initUi();
   initStateMachine();
 
-  connect(
-    this,
-    &GvbEditor::updateDiagnostics,
-    this,
-    &GvbEditor::diagnosticsUpdated,
-    Qt::QueuedConnection);
-
   QTimer::singleShot(0, this, [this] {
     m_actPaste->setEnabled(true);
     m_actUndo->setEnabled(false);
@@ -52,7 +43,6 @@ GvbEditor::GvbEditor(QWidget *parent) :
     m_actCut->setEnabled(true);
     m_actFind->setEnabled(true);
     m_actReplace->setEnabled(true);
-    m_curPos.setValue(m_edit->currentPos());
 
     m_stateMachine.start();
   });
@@ -125,7 +115,7 @@ void GvbEditor::updateStartAction(QState *state) {
 }
 
 void GvbEditor::initEdit() {
-  m_edit = new ScintillaEdit(this);
+  m_edit = new CodeEditor(this);
 
   auto defaultFontFamily = m_edit->styleFont(STYLE_DEFAULT);
   auto defaultFontSize = m_edit->styleSize(STYLE_DEFAULT);
@@ -249,11 +239,15 @@ QStatusBar *GvbEditor::initStatusBar() {
   posLabel->setMinimumWidth(120);
   statusbar->addPermanentWidget(posLabel);
 
-  connect(&m_curPos, &SizeValue::changed, this, [posLabel, this](size_t pos) {
-    auto line = m_edit->lineFromPosition(pos) + 1;
-    auto col = m_edit->column(pos) + 1;
-    posLabel->setText(QString("第 %1 行, 第 %2 列").arg(line, col));
-  });
+  connect(
+    m_edit,
+    &CodeEditor::cursorPositionChanged,
+    this,
+    [posLabel, this](size_t pos) {
+      auto line = m_edit->lineFromPosition(pos) + 1;
+      auto col = m_edit->column(pos) + 1;
+      posLabel->setText(QString("第 %1 行, 第 %2 列").arg(line, col));
+    });
 
   return statusbar;
 }
@@ -376,92 +370,6 @@ void GvbEditor::redo() {
   m_edit->redo();
 }
 
-void GvbEditor::notified(Scintilla::NotificationData *data) {
-  switch (data->nmhdr.code) {
-    case Scintilla::Notification::SavePointReached:
-      m_dirty.setValue(false);
-      break;
-    case Scintilla::Notification::SavePointLeft:
-      m_dirty.setValue(true);
-      break;
-    case Scintilla::Notification::Modified: {
-      if (!m_textLoaded) {
-        return;
-      }
-
-      auto bits = static_cast<int>(data->modificationType);
-
-      if (!m_timerModify) {
-        QTimer::singleShot(500, this, &GvbEditor::modified);
-        m_timerModify = true;
-      }
-
-      m_actUndo->setEnabled(m_edit->canUndo());
-      m_actRedo->setEnabled(m_edit->canRedo());
-      if (bits & SC_MOD_INSERTTEXT) {
-        InsertText *insert;
-        if (
-          !m_edits.empty()
-          && (insert = get_if<InsertText>(&m_edits.back()))
-          && insert->pos + insert->str.size()
-            == static_cast<size_t>(data->position)) {
-          insert->str.append(data->text, data->length);
-        } else {
-          InsertText insert = {
-            static_cast<size_t>(data->position),
-            std::string(data->text, data->length)};
-          m_edits.push_back(insert);
-        }
-      } else if (bits & SC_MOD_DELETETEXT) {
-        DeleteText *del;
-        if (
-          !m_edits.empty() && (del = get_if<DeleteText>(&m_edits.back()))
-          && del->pos == static_cast<size_t>(data->position + data->length)) {
-          del->len += static_cast<size_t>(data->length);
-          del->pos -= static_cast<size_t>(data->length);
-        } else {
-          DeleteText del = {
-            static_cast<size_t>(data->position),
-            static_cast<size_t>(data->length)};
-          m_edits.push_back(del);
-        }
-      }
-      break;
-    }
-    case Scintilla::Notification::DwellStart: {
-      if (data->position < 0 || data->position > m_edit->length()) {
-        break;
-      }
-      auto pos = static_cast<size_t>(data->position);
-      std::string messages;
-      m_diagRanges.overlap_find_all({pos, pos}, [&messages, this](auto it) {
-        if (!messages.empty()) {
-          messages += '\n';
-        }
-        messages += "▸ ";
-        messages += m_diagnostics[it->interval().index].message.c_str();
-        return true;
-      });
-      if (!messages.empty()) {
-        m_edit->callTipShow(data->position, messages.c_str());
-      }
-      break;
-    }
-    case Scintilla::Notification::DwellEnd:
-      m_edit->callTipCancel();
-      break;
-    case Scintilla::Notification::UpdateUI:
-      if (
-        static_cast<int>(data->updated)
-        & (SC_UPDATE_SELECTION | SC_UPDATE_CONTENT)) {
-        m_curPos.setValue(m_edit->currentPos());
-      }
-      break;
-    default:
-      break;
-  }
-}
-
 void GvbEditor::modified() {
   for (auto edit : m_edits) {
     if (auto insert = get_if<InsertText>(&edit)) {
@@ -523,24 +431,20 @@ void GvbEditor::diagnosticsUpdated(QVector<Diagnostic> diags) {
 }
 
 void GvbEditor::computeDiagnostics() {
-  auto thread = QThread::create([this] {
-    auto diags = gvb_document_diagnostics(m_doc);
-    QVector<Diagnostic> diagVec;
-    for (auto it = diags.data; it < diags.data + diags.len; it++) {
-      Diagnostic d = {
-        it->line,
-        it->start,
-        it->end,
-        it->severity,
-        std::string(it->message.data, it->message.len),
-      };
-      diagVec.push_back(d);
-    }
-    gvb_destroy_str_diagnostic_array(diags);
-    emit updateDiagnostics(diagVec);
-  });
-  thread->start();
-  connect(thread, &QThread::finished, thread, &QObject::deleteLater);
+  auto diags = gvb_document_diagnostics(m_doc);
+  QVector<Diagnostic> diagVec;
+  for (auto it = diags.data; it < diags.data + diags.len; it++) {
+    Diagnostic d = {
+      it->line,
+      it->start,
+      it->end,
+      it->severity,
+      QString::fromUtf8(it->message.data, static_cast<int>(it->message.len)),
+    };
+    diagVec.push_back(d);
+  }
+  gvb_destroy_str_diagnostic_array(diags);
+  m_edit->setDiagnostics(diagVec);
 }
 
 void GvbEditor::tryStartPause(QWidget *sender) {
