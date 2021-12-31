@@ -1,0 +1,8 @@
+- 从 https://www.scintilla.org/ScintillaDownload.html 下载 scintilla 源码
+- 解压到当前文件夹
+- 进入 scintilla/qt/ScintillaEdit 目录
+- 运行 python WidgetGen.py
+- 运行 qmake CONFIG+=staticlib
+- 运行 make
+- 返回到 scintilla 目录
+- 确保 bin 目录中生成了 libScintillaEdit.a 文件。(在 Windows 下是 libScintillaEdit.lib 文件)

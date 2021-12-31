@@ -37,3 +37,21 @@ public slots:
 private:
   QString m_value;
 };
+
+class SizeValue: public QObject {
+  Q_OBJECT
+
+public:
+  SizeValue();
+
+  size_t value() const;
+
+signals:
+  void changed(size_t);
+
+public slots:
+  void setValue(size_t);
+
+private:
+  size_t m_value;
+};

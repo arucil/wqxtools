@@ -27,3 +27,16 @@ void StrValue::setValue(const QString &newValue) {
     emit changed(newValue);
   }
 }
+
+SizeValue::SizeValue() : m_value(0) {}
+
+size_t SizeValue::value() const {
+  return m_value;
+}
+
+void SizeValue::setValue(size_t newValue) {
+  if (newValue != m_value) {
+    m_value = newValue;
+    emit changed(newValue);
+  }
+}

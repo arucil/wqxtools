@@ -8,7 +8,10 @@ TARGET = wqxtools
 
 INCLUDEPATH += \
     include \
-    3rdparty/QCodeEditor/include \
+    scintilla/qt/ScintillaEdit \
+    scintilla/qt/ScintillaEditBase \
+    scintilla/src \
+    scintilla/include \
     3rdparty
 
 HEADERS += src/mainwindow.h \
@@ -27,22 +30,17 @@ HEADERS += src/mainwindow.h \
     src/gvb/table_editor_delegate.h \
     src/gvb/array_edit_dialog.h \
     src/gvb/array_model.h \
-    src/gvb/table_editor_model.h \
-    3rdparty/QCodeEditor/internal/QCodeEditor.hpp \
-    3rdparty/QCodeEditor/internal/QLanguage.hpp \
-    3rdparty/QCodeEditor/internal/QLineNumberArea.hpp \
-    3rdparty/QCodeEditor/internal/QStyleSyntaxHighlighter.hpp \
-    3rdparty/QCodeEditor/internal/QSyntaxStyle.hpp \
-    3rdparty/QCodeEditor/internal/QtCompat.hpp
+    src/gvb/table_editor_model.h
+
 SOURCES += src/*.cpp \
-    src/gvb/*.cpp \
-    3rdparty/QCodeEditor/src/internal/*.cpp
+    src/gvb/*.cpp
 
 QT += widgets
 
 RESOURCES += wqxtools.qrc
 
-LIBS += $$PWD/../target/release/libapi_cpp_binding.a \
+LIBS += $$PWD/scintilla/bin/libScintillaEdit.a \
+    $$PWD/../target/release/libapi_cpp_binding.a \
     -ldl
 
 CONFIG(debug, debug|release) {
