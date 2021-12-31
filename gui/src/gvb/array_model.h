@@ -8,11 +8,12 @@
 #include "api.h"
 #include "table_editor_model.h"
 
-typedef std::variant<
+using ArrayPlaneData = std::variant<
   QVector<api::ArrayMut<std::int16_t>>,
   QVector<api::ArrayMut<api::GvbReal>>,
-  QVector<api::ArrayMut<api::Array<std::uint8_t>>>>
-  ArrayPlaneData;
+  QVector<api::ArrayMut<api::Array<std::uint8_t>>>>;
+
+using std::uint16_t;
 
 class ArrayModel: public TableEditorModel {
   Q_OBJECT
@@ -23,7 +24,7 @@ public:
     const api::GvbBinding::Array_Body &);
   ~ArrayModel();
 
-  void setSubscript(size_t index, std::uint16_t sub);
+  void setSubscript(size_t index, uint16_t sub);
   void setPlaneDim(size_t rowDim, size_t colDim);
 
 public:
@@ -44,7 +45,7 @@ public slots:
 
 private:
   void loadData(size_t newRowDim, size_t newColDim);
-  QVector<std::uint16_t> getSubs(const QModelIndex &) const;
+  QVector<uint16_t> getSubs(const QModelIndex &) const;
   void destroyData();
 
 private:
@@ -52,8 +53,8 @@ private:
   api::GvbVirtualMachine *m_vm;
   ArrayPlaneData m_data;
   api::Utf8Str m_name;
-  api::Array<std::uint16_t> m_bounds;
-  QVector<std::uint16_t> m_subscripts;
+  api::Array<uint16_t> m_bounds;
+  QVector<uint16_t> m_subscripts;
   size_t m_rowDim, m_colDim;
-  std::uint16_t m_rows, m_cols;
+  uint16_t m_rows, m_cols;
 };

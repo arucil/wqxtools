@@ -1,24 +1,24 @@
 #include "tool_factory.h"
 
 #include <QString>
-#include <map>
+#include <QMap>
 
 using std::optional;
 
-static std::map<QString, std::function<ToolCtor>> toolFactories;
+static QMap<QString, std::function<ToolCtor>> toolFactories;
 
-static std::map<QString, std::set<QString>> extensions;
+static QMap<QString, QSet<QString>> extensions;
 
 static optional<QString> openFileFilter;
 
-static std::map<QString, QString> saveFileFilters;
+static QMap<QString, QString> saveFileFilters;
 
 optional<std::function<ToolCtor>> ToolFactoryRegistry::get(const QString &ext) {
   auto it = toolFactories.find(ext.toLower());
   if (it == toolFactories.end()) {
     return {};
   } else {
-    return it->second;
+    return *it;
   }
 }
 
@@ -41,14 +41,14 @@ const QString &ToolFactoryRegistry::openFileFilter() {
 
   QString filter;
   auto semi = false;
-  for (const auto &i : extensions) {
+  for (const auto &i : extensions.keys()) {
     if (semi) {
       filter += ";;";
     }
     semi = true;
-    filter += i.first;
+    filter += i;
     filter += " (";
-    for (auto &ext : i.second) {
+    for (auto &ext : extensions[i]) {
       filter += "*.";
       filter += ext;
       filter += " ";
@@ -64,19 +64,20 @@ const QString &ToolFactoryRegistry::openFileFilter() {
 QString ToolFactoryRegistry::saveFileFilter(const QString &ext) {
   auto it = saveFileFilters.find(ext);
   if (it != saveFileFilters.end()) {
-    return it->second;
+    return *it;
   }
 
   QString filter;
   auto semi = false;
-  for (const auto &i : extensions) {
-    if (i.second.count(ext)) {
-      for (const auto &ext : i.second) {
+  for (const auto &name : extensions.keys()) {
+    const auto &exts = extensions[name];
+    if (exts.contains(ext)) {
+      for (const auto &ext : exts) {
         if (semi) {
           filter += ";;";
         }
         semi = true;
-        filter += i.first;
+        filter += name;
         filter += " (";
         filter += " *.";
         filter += ext;

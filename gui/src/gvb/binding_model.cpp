@@ -11,6 +11,8 @@
 #include "gvb_util.h"
 #include "gvbsim_input_dialog.h"
 
+using std::logic_error;
+
 BindingModel::BindingModel(QWidget *parent) :
   m_vm(nullptr),
   m_bindings {nullptr, 0},
@@ -164,14 +166,14 @@ BindingModel::createEditor(QWidget *parent, const QModelIndex &index) const {
           return box;
         }
         case api::GvbValue::Tag::String:
-          throw std::logic_error("createEditor: string");
+          throw logic_error("createEditor: string");
       }
       return nullptr;
     }
     case api::GvbBinding::Tag::Array:
       return nullptr;
     default:
-      throw std::logic_error("createEditor: not var or array");
+      throw logic_error("createEditor: not var or array");
   }
 }
 
@@ -195,7 +197,7 @@ void BindingModel::setEditorData(QWidget *editor, const QModelIndex &index)
           break;
         }
         case api::GvbValue::Tag::String: {
-          throw std::logic_error("setEditorData: string");
+          throw logic_error("setEditorData: string");
         }
       }
     }
@@ -229,7 +231,7 @@ void BindingModel::setData(QWidget *editor, const QModelIndex &index) {
           break;
         }
         case api::GvbValue::Tag::String: {
-          throw std::logic_error("setData: string");
+          throw logic_error("setData: string");
         }
       }
       emit dataChanged(index, index, {Qt::DisplayRole, Qt::ToolTipRole});

@@ -50,6 +50,7 @@
     + copy/cut/paste
     + can undo/can redo
 - 自动重排行号，可以设置行号间隔
+- scintilla antialiasing
 
 - scintilla 行号宽度实时变动（监测 lines_added）
 - 扩展gvb:

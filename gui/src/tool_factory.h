@@ -2,16 +2,16 @@
 
 #include <functional>
 #include <optional>
-#include <set>
+#include <QSet>
 
 class Tool;
 class QWidget;
 class QString;
 
-typedef Tool *ToolCtor(QWidget *);
+using ToolCtor = Tool *(QWidget *);
 
 struct ToolFactory {
-  std::set<QString> extensions;
+  QSet<QString> extensions;
   std::function<ToolCtor> ctor;
 };
 

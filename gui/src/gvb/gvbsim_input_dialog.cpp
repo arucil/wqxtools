@@ -18,6 +18,10 @@
 
 #include "gvbsim_window.h"
 
+using std::get_if;
+using std::in_place_index;
+using std::int16_t;
+
 GvbSimInputDialog::GvbSimInputDialog(
   QWidget *parent,
   const api::GvbVirtualMachine *vm,
@@ -37,9 +41,9 @@ GvbSimInputDialog::GvbSimInputDialog(
 GvbSimInputDialog::~GvbSimInputDialog() {
   if (m_rejected) {
     for (const auto &field : m_input) {
-      if (auto s = std::get_if<2>(&field)) {
+      if (auto s = get_if<2>(&field)) {
         api::destroy_byte_string(*s);
-      } else if (auto f = std::get_if<3>(&field)) {
+      } else if (auto f = get_if<3>(&field)) {
         api::gvb_destroy_fn_body(*f);
       }
     }
@@ -83,7 +87,7 @@ void GvbSimInputDialog::initUi(
     // OK check all fields
     switch (field.tag) {
       case api::GvbKeyboardInputType::Tag::Integer: {
-        m_input[i] = InputField {std::in_place_index<0>, 0};
+        m_input[i] = InputField {in_place_index<0>, 0};
         auto input = new QSpinBox();
         fieldInput = input;
         input->setRange(-32768, 32767);
@@ -103,7 +107,7 @@ void GvbSimInputDialog::initUi(
           &QSpinBox::editingFinished,
           this,
           [i, input, this] {
-            m_input[i] = static_cast<std::int16_t>(input->value());
+            m_input[i] = static_cast<int16_t>(input->value());
             fieldValidated(true);
           },
           Qt::QueuedConnection);
@@ -111,7 +115,7 @@ void GvbSimInputDialog::initUi(
         break;
       }
       case api::GvbKeyboardInputType::Tag::Real: {
-        m_input[i] = InputField {std::in_place_index<1>, api::GvbReal {0.0}};
+        m_input[i] = InputField {in_place_index<1>, api::GvbReal {0.0}};
         auto input = new QDoubleSpinBox();
         fieldInput = input;
         input->setRange(-1.7e38, 1.7e38);
@@ -141,7 +145,7 @@ void GvbSimInputDialog::initUi(
       }
       case api::GvbKeyboardInputType::Tag::String: {
         m_input[i] =
-          InputField {std::in_place_index<2>, ByteString {nullptr, 0}};
+          InputField {in_place_index<2>, ByteString {nullptr, 0}};
         auto layout = new QVBoxLayout();
         auto input = new QLineEdit();
         input->setFont(font);
@@ -202,7 +206,7 @@ void GvbSimInputDialog::initUi(
             } else {
               msg->setText("");
               auto old = std::get<2>(m_input[i]);
-              m_input[i] = InputField {std::in_place_index<2>, result.right._0};
+              m_input[i] = InputField {in_place_index<2>, result.right._0};
               result.right._0 = old;
               fieldValidated(true);
             }
@@ -215,7 +219,7 @@ void GvbSimInputDialog::initUi(
         break;
       }
       case api::GvbKeyboardInputType::Tag::Func: {
-        m_input[i] = InputField {std::in_place_index<3>, nullptr};
+        m_input[i] = InputField {in_place_index<3>, nullptr};
         auto layout = new QVBoxLayout();
         auto input = new QLineEdit();
         input->setFont(font);
@@ -262,7 +266,7 @@ void GvbSimInputDialog::initUi(
             } else {
               msg->setText("");
               auto old = std::get<3>(m_input[i]);
-              m_input[i] = InputField {std::in_place_index<3>, result.body};
+              m_input[i] = InputField {in_place_index<3>, result.body};
               result.body = old;
               fieldValidated(true);
             }
@@ -325,19 +329,19 @@ QVector<api::GvbKeyboardInput> GvbSimInputDialog::inputData() {
   QVector<api::GvbKeyboardInput> result;
   for (const auto &field : m_input) {
     api::GvbKeyboardInput i;
-    if (auto n = std::get_if<std::int16_t>(&field)) {
+    if (auto n = get_if<int16_t>(&field)) {
       i.tag = api::GvbKeyboardInput::Tag::Integer;
       i.integer._0 = *n;
       result.push_back(i);
-    } else if (auto n = std::get_if<api::GvbReal>(&field)) {
+    } else if (auto n = get_if<api::GvbReal>(&field)) {
       i.tag = api::GvbKeyboardInput::Tag::Real;
       i.real._0 = *n;
       result.push_back(i);
-    } else if (auto s = std::get_if<2>(&field)) {
+    } else if (auto s = get_if<2>(&field)) {
       i.tag = api::GvbKeyboardInput::Tag::String;
       i.string._0 = *s;
       result.push_back(i);
-    } else if (auto f = std::get_if<3>(&field)) {
+    } else if (auto f = get_if<3>(&field)) {
       i.tag = api::GvbKeyboardInput::Tag::Func;
       i.func._0 = *f;
       result.push_back(i);

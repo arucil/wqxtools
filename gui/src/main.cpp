@@ -1,7 +1,7 @@
 #include <QApplication>
 #include <QFontDatabase>
 #include <QWidget>
-#include <vector>
+#include <QVector>
 
 #include "gvb/gvbeditor.h"
 #include "mainwindow.h"
@@ -23,7 +23,7 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
-  qRegisterMetaType<std::vector<Diagnostic>>();
+  qRegisterMetaType<QVector<Diagnostic>>();
 
   MainWindow window;
   window.show();

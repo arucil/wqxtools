@@ -11,10 +11,11 @@
 class QShowEvent;
 class QKeyEvent;
 
-typedef api::Array<std::uint8_t> ByteString;
-typedef api::GvbInputFuncBody *FuncBody;
-typedef std::variant<std::int16_t, api::GvbReal, ByteString, FuncBody>
-  InputField;
+using std::int16_t;
+using ByteString = api::Array<std::uint8_t>;
+using FuncBody = api::GvbInputFuncBody *;
+using InputField =
+  std::variant<int16_t, api::GvbReal, ByteString, FuncBody>;
 
 class GvbSimInputDialog: public QDialog {
   Q_OBJECT

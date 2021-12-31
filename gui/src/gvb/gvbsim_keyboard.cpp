@@ -7,7 +7,7 @@
 #include <QString>
 #include <QTimer>
 
-static const QHash<int, std::uint8_t> KEY_MAPPINGS {
+static const QHash<int, uint8_t> KEY_MAPPINGS {
   {Qt::Key_F1, 28},        {Qt::Key_F2, 29},       {Qt::Key_F3, 30},
   {Qt::Key_F4, 31},
 
@@ -41,7 +41,7 @@ static const QHash<int, std::uint8_t> KEY_MAPPINGS {
   {Qt::Key_AsciiTilde, 18}  // [~] -> [输入法]
 };
 
-std::uint8_t qtKeyToWqxKey(int key) {
+uint8_t qtKeyToWqxKey(int key) {
   return KEY_MAPPINGS[key];
 }
 
@@ -134,7 +134,7 @@ void GvbSimKeyboard::initUi() {
 QPushButton *GvbSimKeyboard::makeButton(
   const QString &text,
   const QString &tooltip,
-  std::uint8_t key) {
+  uint8_t key) {
   auto btn = new QPushButton(text, this);
   btn->setToolTip(tooltip);
   btn->setFocusPolicy(Qt::NoFocus);

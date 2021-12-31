@@ -7,6 +7,11 @@
 
 #include "gvb_util.h"
 
+using std::uint16_t;
+using std::int16_t;
+using std::get_if;
+using std::logic_error;
+
 ArrayModel::ArrayModel(
   QWidget *parent,
   api::GvbVirtualMachine *vm,
@@ -37,11 +42,11 @@ QVariant ArrayModel::data(const QModelIndex &index, int role) const {
   switch (role) {
     case Qt::ToolTipRole:
     case Qt::DisplayRole:
-      if (auto iarr = std::get_if<0>(&m_data)) {
+      if (auto iarr = get_if<0>(&m_data)) {
         return (*iarr)[index.row()].data[index.column()];
-      } else if (auto farr = std::get_if<1>(&m_data)) {
+      } else if (auto farr = get_if<1>(&m_data)) {
         return (*farr)[index.row()].data[index.column()]._0;
-      } else if (auto sarr = std::get_if<2>(&m_data)) {
+      } else if (auto sarr = get_if<2>(&m_data)) {
         const auto &bs = (*sarr)[index.row()].data[index.column()];
         auto us = api::gvb_byte_string_to_utf8_lossy(m_vm, bs);
         auto s = QString::fromUtf8(us.data, us.len);
@@ -76,7 +81,7 @@ QWidget *ArrayModel::createEditor(QWidget *parent, const QModelIndex &) const {
       return box;
     }
     case 2: {
-      throw std::logic_error("createEditor: string");
+      throw logic_error("createEditor: string");
     }
   }
   return nullptr;
@@ -84,14 +89,14 @@ QWidget *ArrayModel::createEditor(QWidget *parent, const QModelIndex &) const {
 
 void ArrayModel::setEditorData(QWidget *editor, const QModelIndex &index)
   const {
-  if (auto iarr = std::get_if<0>(&m_data)) {
+  if (auto iarr = get_if<0>(&m_data)) {
     qobject_cast<QSpinBox *>(editor)->setValue(
       (*iarr)[index.row()].data[index.column()]);
-  } else if (auto farr = std::get_if<1>(&m_data)) {
+  } else if (auto farr = get_if<1>(&m_data)) {
     qobject_cast<QDoubleSpinBox *>(editor)->setValue(
       (*farr)[index.row()].data[index.column()]._0);
-  } else if (std::get_if<2>(&m_data)) {
-    throw std::logic_error("setEditorData: string");
+  } else if (get_if<2>(&m_data)) {
+    throw logic_error("setEditorData: string");
   }
 }
 
@@ -122,30 +127,30 @@ Qt::ItemFlags ArrayModel::flags(const QModelIndex &index) const {
 void ArrayModel::setData(QWidget *editor, const QModelIndex &index) {
   api::GvbValue value;
   const auto subVec = getSubs(index);
-  const api::Array<std::uint16_t> subs {
+  const api::Array<uint16_t> subs {
     subVec.data(),
     static_cast<size_t>(subVec.size())};
-  if (auto iarr = std::get_if<0>(&m_data)) {
+  if (auto iarr = get_if<0>(&m_data)) {
     auto n =
-      static_cast<std::int16_t>(qobject_cast<QSpinBox *>(editor)->value());
+      static_cast<int16_t>(qobject_cast<QSpinBox *>(editor)->value());
     value.tag = api::GvbValue::Tag::Integer;
     value.integer._0 = n;
     (*iarr)[index.row()].data[index.column()] = n;
     api::gvb_vm_modify_arr(m_vm, m_name, subs, value);
-  } else if (auto farr = std::get_if<1>(&m_data)) {
+  } else if (auto farr = get_if<1>(&m_data)) {
     auto n = qobject_cast<QDoubleSpinBox *>(editor)->value();
     value.tag = api::GvbValue::Tag::Real;
     value.real._0._0 = n;
     (*farr)[index.row()].data[index.column()]._0 = n;
     api::gvb_vm_modify_arr(m_vm, m_name, subs, value);
   } else {
-    throw std::logic_error("setData: string");
+    throw logic_error("setData: string");
   }
   api::gvb_destroy_value(value);
   emit dataChanged(index, index, {Qt::DisplayRole, Qt::ToolTipRole});
 }
 
-QVector<std::uint16_t> ArrayModel::getSubs(const QModelIndex &index) const {
+QVector<uint16_t> ArrayModel::getSubs(const QModelIndex &index) const {
   QVector subs(m_subscripts);
   subs[m_colDim] = index.column();
   if (m_bounds.len > 1) {
@@ -155,14 +160,14 @@ QVector<std::uint16_t> ArrayModel::getSubs(const QModelIndex &index) const {
 }
 
 void ArrayModel::editValue(const QModelIndex &index) {
-  auto sarr = std::get_if<2>(&m_data);
+  auto sarr = get_if<2>(&m_data);
   if (!sarr) {
     return;
   }
 
   // edit string
   auto subVec = getSubs(index);
-  const api::Array<std::uint16_t> subs {
+  const api::Array<uint16_t> subs {
     subVec.data(),
     static_cast<size_t>(subVec.size())};
   auto result = inputString(
@@ -180,7 +185,7 @@ void ArrayModel::editValue(const QModelIndex &index) {
   }
 }
 
-void ArrayModel::setSubscript(size_t index, std::uint16_t sub) {
+void ArrayModel::setSubscript(size_t index, uint16_t sub) {
   m_subscripts[index] = sub;
   loadData(m_rowDim, m_colDim);
 }
@@ -195,8 +200,8 @@ void ArrayModel::loadData(size_t newRowDim, size_t newColDim) {
   destroyData();
   auto subVec = m_subscripts;
   auto fontChanged = false;
-  std::uint16_t bound = m_bounds.len == 1 ? 0 : m_bounds.data[newRowDim];
-  for (std::uint16_t i = 0; i <= bound; i++) {
+  uint16_t bound = m_bounds.len == 1 ? 0 : m_bounds.data[newRowDim];
+  for (uint16_t i = 0; i <= bound; i++) {
     subVec[newRowDim] = i;
     auto values = api::gvb_vm_arr_dim_values(
       m_vm,
@@ -205,7 +210,7 @@ void ArrayModel::loadData(size_t newRowDim, size_t newColDim) {
       newColDim);
     switch (values.tag) {
       case api::GvbDimensionValues::Tag::Integer: {
-        if (auto iarr = std::get_if<0>(&m_data)) {
+        if (auto iarr = get_if<0>(&m_data)) {
           iarr->push_back(values.integer._0);
         } else {
           m_data = QVector {values.integer._0};
@@ -213,7 +218,7 @@ void ArrayModel::loadData(size_t newRowDim, size_t newColDim) {
         break;
       }
       case api::GvbDimensionValues::Tag::Real: {
-        if (auto iarr = std::get_if<1>(&m_data)) {
+        if (auto iarr = get_if<1>(&m_data)) {
           iarr->push_back(values.real._0);
         } else {
           m_data = QVector {values.real._0};
@@ -221,7 +226,7 @@ void ArrayModel::loadData(size_t newRowDim, size_t newColDim) {
         break;
       }
       case api::GvbDimensionValues::Tag::String: {
-        if (auto iarr = std::get_if<2>(&m_data)) {
+        if (auto iarr = get_if<2>(&m_data)) {
           iarr->push_back(values.string._0);
         } else {
           fontChanged = true;
@@ -274,17 +279,17 @@ void ArrayModel::loadData(size_t newRowDim, size_t newColDim) {
 }
 
 void ArrayModel::destroyData() {
-  if (auto iarr = std::get_if<0>(&m_data)) {
+  if (auto iarr = get_if<0>(&m_data)) {
     for (const auto &arr : *iarr) {
       api::destroy_i16_array_mut(arr);
     }
     iarr->clear();
-  } else if (auto farr = std::get_if<1>(&m_data)) {
+  } else if (auto farr = get_if<1>(&m_data)) {
     for (const auto &arr : *farr) {
       api::gvb_destroy_real_array_mut(arr);
     }
     farr->clear();
-  } else if (auto sarr = std::get_if<2>(&m_data)) {
+  } else if (auto sarr = get_if<2>(&m_data)) {
     for (const auto &arr : *sarr) {
       api::destroy_byte_string_array_mut(arr);
     }

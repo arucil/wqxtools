@@ -6,6 +6,8 @@
 class QPushButton;
 class QString;
 
+using std::uint8_t;
+
 class GvbSimKeyboard: public QWidget {
   Q_OBJECT
 
@@ -14,12 +16,12 @@ public:
   ~GvbSimKeyboard();
 
 signals:
-  void keyDown(std::uint8_t);
-  void keyUp(std::uint8_t);
+  void keyDown(uint8_t);
+  void keyUp(uint8_t);
 
 private:
   void initUi();
-  QPushButton *makeButton(const QString &, const QString &, std::uint8_t);
+  QPushButton *makeButton(const QString &, const QString &, uint8_t);
 };
 
-std::uint8_t qtKeyToWqxKey(int key);
+uint8_t qtKeyToWqxKey(int key);

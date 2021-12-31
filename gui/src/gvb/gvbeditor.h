@@ -7,7 +7,7 @@
 #include <interval-tree/interval_tree.hpp>
 #include <string>
 #include <variant>
-#include <vector>
+#include <QVector>
 
 #include "../capability.h"
 #include "../tool.h"
@@ -153,7 +153,7 @@ public:
    * and whatever is between.
    */
   Range join(Range const &other) const {
-    return {std::min(low_, other.low_), std::max(high_, other.high_)};
+    return {qMin(low_, other.low_), qMax(high_, other.high_)};
   }
 
 private:
@@ -186,7 +186,7 @@ private:
   void updateStartAction(QState *);
 
 signals:
-  void updateDiagnostics(std::vector<Diagnostic>);
+  void updateDiagnostics(QVector<Diagnostic>);
   void start();
   void pause();
   void cont();
@@ -209,7 +209,7 @@ public slots:
 
 private slots:
   void notified(Scintilla::NotificationData *);
-  void diagnosticsUpdated(std::vector<Diagnostic>);
+  void diagnosticsUpdated(QVector<Diagnostic>);
   void modified();
 
 private:
@@ -217,8 +217,8 @@ private:
   api::GvbDocument *m_doc;
   bool m_textLoaded;
   bool m_timerModify;
-  std::vector<std::variant<InsertText, DeleteText>> m_edits;
-  std::vector<Diagnostic> m_diagnostics;
+  QVector<std::variant<InsertText, DeleteText>> m_edits;
+  QVector<Diagnostic> m_diagnostics;
   lib_interval_tree::interval_tree<Range> m_diagRanges;
   SizeValue m_curPos;
   QStateMachine m_stateMachine;
@@ -226,4 +226,4 @@ private:
   QString m_filePath;
 };
 
-Q_DECLARE_METATYPE(std::vector<Diagnostic>);
+Q_DECLARE_METATYPE(QVector<Diagnostic>);

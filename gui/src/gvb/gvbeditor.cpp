@@ -25,6 +25,9 @@
 #define ERROR_COLOR 0x30'2e'd3
 #define DATA_DIR "dat_files"
 
+using std::in_place_index;
+using std::get_if;
+
 GvbEditor::GvbEditor(QWidget *parent) :
   Tool(parent),
   m_doc(nullptr),
@@ -278,14 +281,14 @@ SaveResult GvbEditor::save(const QString &path) {
           saveToPath = info.path() + "/" + info.completeBaseName() + ".txt";
           continue;
         } else {
-          return SaveResult {std::in_place_index<2>, Unit {}};
+          return SaveResult {in_place_index<2>, Unit {}};
         }
       } else {
-        return SaveResult {std::in_place_index<1>, err};
+        return SaveResult {in_place_index<1>, err};
       }
     } else {
       m_edit->setSavePoint();
-      return SaveResult {std::in_place_index<0>, path};
+      return SaveResult {in_place_index<0>, path};
     }
   }
 }
@@ -325,8 +328,7 @@ LoadResult GvbEditor::load(const QString &path) {
     m_actRedo->setEnabled(false);
 
     auto digits = qMax(
-      static_cast<size_t>(
-        qLn(std::count(text.data, text.data + text.len, '\n') + 1) / M_LN10),
+      static_cast<size_t>(qLn(m_edit->lineCount() + 1) / M_LN10),
       static_cast<size_t>(1));
     auto digitWidth = m_edit->textWidth(STYLE_LINENUMBER, "9") * digits;
     m_edit->setMarginWidthN(2, digitWidth);
@@ -400,7 +402,7 @@ void GvbEditor::notified(Scintilla::NotificationData *data) {
         InsertText *insert;
         if (
           !m_edits.empty()
-          && (insert = std::get_if<InsertText>(&m_edits.back()))
+          && (insert = get_if<InsertText>(&m_edits.back()))
           && insert->pos + insert->str.size()
             == static_cast<size_t>(data->position)) {
           insert->str.append(data->text, data->length);
@@ -413,7 +415,7 @@ void GvbEditor::notified(Scintilla::NotificationData *data) {
       } else if (bits & SC_MOD_DELETETEXT) {
         DeleteText *del;
         if (
-          !m_edits.empty() && (del = std::get_if<DeleteText>(&m_edits.back()))
+          !m_edits.empty() && (del = get_if<DeleteText>(&m_edits.back()))
           && del->pos == static_cast<size_t>(data->position + data->length)) {
           del->len += static_cast<size_t>(data->length);
           del->pos -= static_cast<size_t>(data->length);
@@ -462,7 +464,7 @@ void GvbEditor::notified(Scintilla::NotificationData *data) {
 
 void GvbEditor::modified() {
   for (auto edit : m_edits) {
-    if (auto insert = std::get_if<InsertText>(&edit)) {
+    if (auto insert = get_if<InsertText>(&edit)) {
       api::GvbModification ins = {
         api::GvbModification::Tag::Left,
         {insert->pos, {insert->str.c_str(), insert->str.size()}}};
@@ -484,17 +486,17 @@ void GvbEditor::modified() {
   m_timerModify = false;
 }
 
-void GvbEditor::diagnosticsUpdated(std::vector<Diagnostic> diags) {
+void GvbEditor::diagnosticsUpdated(QVector<Diagnostic> diags) {
   m_diagnostics = std::move(diags);
 
   m_diagRanges.clear();
-  for (size_t i = 0; i < m_diagnostics.size(); i++) {
+  for (int i = 0; i < m_diagnostics.size(); i++) {
     auto &diag = m_diagnostics[i];
     Range r = {diag.start, diag.end};
     if (diag.start == diag.end) {
       r = {diag.start, diag.end + 1};
     }
-    r.index = i;
+    r.index = static_cast<size_t>(i);
     m_diagRanges.insert(r);
   }
 
@@ -523,7 +525,7 @@ void GvbEditor::diagnosticsUpdated(std::vector<Diagnostic> diags) {
 void GvbEditor::computeDiagnostics() {
   auto thread = QThread::create([this] {
     auto diags = gvb_document_diagnostics(m_doc);
-    std::vector<Diagnostic> diagVec;
+    QVector<Diagnostic> diagVec;
     for (auto it = diags.data; it < diags.data + diags.len; it++) {
       Diagnostic d = {
         it->line,
