@@ -25,7 +25,7 @@
 - [x] LOCATE 5,20:PRINT 0; 会不会换行？
   yes
 - ~~看看TC808和PC1000A的键值和映射~~
-- 检查一下：emoji 的第二个字节小于161也合法，怎么对应字符？pc1000a是否一样支持？校对一下tc808和pc1000a的emoji的编码
+- [ ] 检查一下：emoji 的第二个字节小于161也合法，怎么对应字符？pc1000a是否一样支持？校对一下tc808和pc1000a的emoji的编码
 - [x] 按键映射一个地址只能响应一个键？
   NO
 
@@ -34,12 +34,12 @@
 - [x] 在运行模拟器时不能加载其他文件
 - 检查内存泄漏
     + [x] gvb
-- 改成GBK（有些汉字会和emoji重叠，优先使用emoji）
+- ~~改成GBK（有些汉字会和emoji重叠，优先使用emoji）~~
 - drag and drop (初始界面支持所有文件，gvbeditor界面支持bas/txt文件)
 - [x] 初始界面显示功能列表
 - 如果打开gvbsim后打开其他类型文件，gvbsim窗口是否能正常关闭？
 - 搜索变量内容
-- 移除 scintilla 依赖。替代物要有以下api：
+- ~~移除 scintilla 依赖。替代物要有以下api：~~
     + get cursor pos, cursor line, cursor position
     + set font, font size
     + line number
@@ -49,9 +49,10 @@
     + undo/redo
     + copy/cut/paste
     + can undo/can redo
-- 自动重排行号，可以设置行号间隔
+- 自动重排行号，可以设置行号间隔和起始行号
 - scintilla antialiasing
-- 移除 QThread
+- [x] 移除 QThread
+- [x] if goto 后面只能跟上行号（默认是0）
 
 - scintilla 行号宽度实时变动（监测 lines_added）
 - 扩展gvb:

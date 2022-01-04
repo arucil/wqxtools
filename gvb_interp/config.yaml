@@ -1,7 +1,10 @@
 gvbasic:
   editor:
     font-size: 13
+    # 编辑器高亮样式文件在 styles 文件夹中
+    style: light
   simulator:
+    # 文曲星屏幕的一个像素对应几个电脑屏幕像素
     pixel-scale: 2
     foreground: "#313132"
     background: "#7a8870"

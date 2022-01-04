@@ -1,4 +1,4 @@
-use crate::{Either, Unit, Utf8String};
+use crate::{Either, Maybe, Unit, Utf8String};
 use std::mem::MaybeUninit;
 
 #[repr(C)]
@@ -15,6 +15,7 @@ pub struct GvbConfig {
 #[repr(C)]
 pub struct GvbEditorConfig {
   pub font_size: u32,
+  pub style: Maybe<Utf8String>,
 }
 
 #[repr(C)]
@@ -43,6 +44,9 @@ impl From<::config::GvbEditorConfig> for GvbEditorConfig {
   fn from(c: ::config::GvbEditorConfig) -> Self {
     Self {
       font_size: c.font_size,
+      style: c.style.map_or(Maybe::Nothing, |s| {
+        Maybe::Just(unsafe { Utf8String::new(s) })
+      }),
     }
   }
 }
@@ -60,6 +64,9 @@ impl From<::config::GvbSimulatorConfig> for GvbSimulatorConfig {
 /// cbindgen:ignore
 static mut CONFIG: MaybeUninit<Config> = MaybeUninit::uninit();
 
+/// cbindgen:ignore
+static mut CONFIG_INITED: bool = false;
+
 pub type LoadConfigResult = Either<Utf8String, Unit>;
 
 #[no_mangle]
@@ -68,6 +75,9 @@ pub extern "C" fn load_config() -> LoadConfigResult {
   match config::load_config() {
     Ok(config) => {
       unsafe {
+        if CONFIG_INITED {
+          CONFIG.assume_init_drop();
+        }
         CONFIG.write(config.into());
       }
       Either::Right(Unit::new())

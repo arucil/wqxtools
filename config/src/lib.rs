@@ -17,6 +17,7 @@ pub struct GvbConfig {
 #[derive(Clone)]
 pub struct GvbEditorConfig {
   pub font_size: u32,
+  pub style: Option<String>,
 }
 
 #[derive(Clone)]
@@ -28,7 +29,7 @@ pub struct GvbSimulatorConfig {
 
 const DEFAULT_CONFIG: Config = Config {
   gvb: GvbConfig {
-    editor: GvbEditorConfig { font_size: 12 },
+    editor: GvbEditorConfig { font_size: 12, style: None },
     simulator: GvbSimulatorConfig {
       pixel_scale: 2,
       foreground: 0x31_31_32,
@@ -110,6 +111,7 @@ fn load_gvb_config(
         .into_hash()
         .ok_or_else(|| "gvbasic.editor is not object")?;
 
+      // gvb.editor.font-size
       if let Some(font_size) = editor.remove(&Yaml::String("font-size".into()))
       {
         let font_size = font_size
@@ -119,6 +121,15 @@ fn load_gvb_config(
           return Err("gvbasic.editor.font-size must be positive".into());
         }
         gvb_config.editor.font_size = font_size as u32;
+      }
+
+      // gvb.editor.style
+      if let Some(style) = editor.remove(&Yaml::String("style".into()))
+      {
+        let style = style
+          .into_string()
+          .ok_or_else(|| "gvbasic.editor.style is not string")?;
+        gvb_config.editor.style = Some(style);
       }
 
       if let Some((key, _)) = editor.pop_front() {
