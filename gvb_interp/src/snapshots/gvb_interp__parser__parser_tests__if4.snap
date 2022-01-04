@@ -1,0 +1,19 @@
+---
+source: gvb_interp/src/parser.rs
+expression: parse_line(line).0.to_string(line)
+
+---
+label: Some((0..2, Label(10)))
+len: 37
+eol: None
+diagnostics: 
+  Error<36..37>: IF 语句的分支中不能出现多余的冒号
+  Error<31..35>: ELSE 之后缺少语句
+-----------------
+3..37     IF <ID: K> THEN
+8..15         [GOTO] 30
+          ELSE      
+21..37        IF <ID: j> THEN
+26..30            [GOTO]
+              ELSE          
+

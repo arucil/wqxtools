@@ -3358,7 +3358,7 @@ mod tests {
 10 a=1:b=2:if a>=b then print "a";:30 else print "b";:40
 20 print "come";:end
 30 graph:end
-40 if a<>b goto print "GO";:gosub 20:text:else print "go";:gosub 20:inverse
+40 if a<>b then print "GO";:gosub 20:text:else print "go";:gosub 20:inverse
     "#
       .trim(),
       vec![(ExecResult::End, ExecInput::None)]

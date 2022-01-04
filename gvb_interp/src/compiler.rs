@@ -2122,9 +2122,10 @@ mod tests {
   fn r#if() {
     assert_debug_snapshot!(compile(
       r#"
-10 if a+b goto print:30:
-20 if f(x)>3 then cont:else graph:cls:gosub 10
-30 if a< >b goto x=x+1:20:30:if x>10 then play "abc" else 50:t(i)=int(x/2):else 10
+0  if a+b then print:20:
+10 if f(x)>3 then cont:else graph:cls:gosub 00
+20 if a< >b then x=x+1:10:20:if x>10 then play "abc" else 30:t(i)=int(x/2):else 00
+30 if 37 goto else 20:if 0 goto 50
 50 rem x
     "#
       .trim()

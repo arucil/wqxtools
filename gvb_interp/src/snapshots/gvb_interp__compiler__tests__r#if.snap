@@ -1,6 +1,6 @@
 ---
 source: gvb_interp/src/compiler.rs
-expression: "compile(r#\"\n10 if a+b goto print:30:\n20 if f(x)>3 then cont:else graph:cls:gosub 10\n30 if a< >b goto x=x+1:20:30:if x>10 then play \"abc\" else 50:t(i)=int(x/2):else 10\n50 rem x\n    \"#.trim())"
+expression: "compile(r#\"\n0  if a+b then print:20:\n10 if f(x)>3 then cont:else graph:cls:gosub 00\n20 if a< >b then x=x+1:10:20:if x>10 then play \"abc\" else 30:t(i)=int(x/2):else 00\n30 if 37 goto else 20:if 0 goto 50\n50 rem x\n    \"#.trim())"
 
 ---
 emoji_version: New
@@ -51,5 +51,13 @@ emoji_version: New
 42    2:61..74  assign num
 43    2:3..82   goto 45
 44    2:80..82  goto 0
-45    3:0..0    end
+45    3:6..8    push number 37
+46    3:3..34   if zero goto 49
+47    3:9..13   goto 0
+48    3:3..34   goto 53
+49    3:19..21  goto 17
+50    3:25..26  push number 0
+51    3:22..34  if zero goto 53
+52    3:27..34  goto 53
+53    4:0..0    end
 

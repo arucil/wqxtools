@@ -1075,35 +1075,45 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
     setup_follow! { self, old_follow : (t Stmt) (kw Then Goto Else) }
     let cond = self.parse_expr();
 
-    let then;
-    setup_first! { self : (kw Then Goto) }
-    setup_follow! { self, old_follow : (t Stmt) (kw Else) }
-    if let TokenKind::Keyword(kw @ (Keyword::Then | Keyword::Goto)) =
-      self.token.1
-    {
-      then = Some((self.token.0.clone(), kw));
-      self.read_token(true);
+    let conseq = if let TokenKind::Keyword(Keyword::Goto) = self.token.1 {
+      let stmt = self.parse_go_stmt(|label| StmtKind::GoTo {
+        has_goto_keyword: false,
+        label,
+      });
+      if let TokenKind::Punc(Punc::Colon) = self.token.1 {
+        self.read_token(true);
+      }
+      smallvec![stmt]
     } else {
-      if self.token.1 == TokenKind::Eof {
-        self.set_expected_symbols_at_eof();
+      let then;
+      setup_first! { self : (kw Then Goto) }
+      setup_follow! { self, old_follow : (t Stmt) (kw Else) }
+      if let TokenKind::Keyword(Keyword::Then) = self.token.1 {
+        then = Some(self.token.0.clone());
+        self.read_token(true);
+      } else {
+        if self.token.1 == TokenKind::Eof {
+          self.set_expected_symbols_at_eof();
+        }
+
+        let cond = self.node_builder.expr_node(cond);
+        if !matches!(&cond.kind, ExprKind::Error) {
+          let range = cond.range.clone();
+          self.add_error(range, "条件表达式之后缺少 THEN 或 GOTO");
+        }
+        then = None;
       }
 
-      let cond = self.node_builder.expr_node(cond);
-      if !matches!(&cond.kind, ExprKind::Error) {
-        let range = cond.range.clone();
-        self.add_error(range, "条件表达式之后缺少 THEN 或 GOTO");
+      setup_first! { self : }
+      setup_follow! { self, old_follow : (kw Else) }
+      let conseq = self.parse_stmts(true);
+      if conseq.is_empty() {
+        if let Some(range) = then {
+          self.add_error(range, "THEN 之后缺少语句")
+        }
       }
-      then = None;
-    }
-
-    setup_first! { self : }
-    setup_follow! { self, old_follow : (kw Else) }
-    let conseq = self.parse_stmts(true);
-    if conseq.is_empty() {
-      if let Some((range, kw)) = then {
-        self.add_error(range, format!("{:?} 之后缺少语句", kw))
-      }
-    }
+      conseq
+    };
 
     let mut alt = None;
     if let TokenKind::Keyword(Keyword::Else) = self.token.1 {
@@ -1120,11 +1130,7 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
     }
 
     self.node_builder.new_stmt(Stmt {
-      kind: StmtKind::If {
-        cond,
-        conseq: conseq.into(),
-        alt,
-      },
+      kind: StmtKind::If { cond, conseq, alt },
       range: Range::new(start, self.last_token_end),
     })
   }
@@ -2756,19 +2762,25 @@ mod parser_tests {
 
   #[test]
   fn r#if1() {
-    let line = r#"10 If A>2 then:if not 1 goto print "a":else"#;
+    let line = r#"10 If A>2 then:if not 1 then print "a":else"#;
     assert_snapshot!(parse_line(line).0.to_string(line));
   }
 
   #[test]
   fn r#if2() {
-    let line = r#"10 IF 1 THEN 10:ELSE S=S+1:NEXT:IF S> =10 GOTO"#;
+    let line = r#"10 IF 1 THEN 10:ELSE S=S+1:NEXT:IF S> =10 THEN"#;
     assert_snapshot!(parse_line(line).0.to_string(line));
   }
 
   #[test]
   fn r#if3() {
-    let line = r#"10 IF K GOTO ELSE 2:13:7:"#;
+    let line = r#"10 IF K THEN ELSE 2:13:7:"#;
+    assert_snapshot!(parse_line(line).0.to_string(line));
+  }
+
+  #[test]
+  fn r#if4() {
+    let line = r#"10 IF K GOTO 30:else if j goto else :"#;
     assert_snapshot!(parse_line(line).0.to_string(line));
   }
 
