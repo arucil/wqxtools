@@ -9,6 +9,7 @@
 #include <QMenu>
 #include <QMenuBar>
 #include <QMessageBox>
+#include <QPushButton>
 #include <QScreen>
 #include <QTimer>
 
@@ -21,6 +22,7 @@
 #include "value.h"
 
 #define WINDOW_TITLE "WQX 工具箱"
+#define STYLE_DIR "styles"
 
 MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
   initUi();
@@ -437,6 +439,36 @@ ActionResult MainWindow::loadConfig(QWidget *parent) {
           .arg(QString::fromUtf8(result.left._0.data, result.left._0.len)));
       api::destroy_string(result.left._0);
       return ActionResult::Fail;
+    }
+
+    auto styleDirPath = getSystemDir(STYLE_DIR);
+    QDir styleDir(styleDirPath);
+    if (styleDir.exists()) {
+      for (auto &fileName : styleDir.entryList(
+             QDir::Files | QDir::Readable | QDir::NoDotAndDotDot)) {
+        if (QFileInfo(fileName).suffix() != "xml") {
+          continue;
+        }
+        QFile styleFile(styleDirPath + QDir::separator() + fileName);
+        if (!styleFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
+          QMessageBox::critical(
+            parent,
+            "错误",
+            QString("加载 style XML 文件失败：%1\n错误信息：%2")
+              .arg(styleFile.fileName(), styleFile.errorString()));
+          return ActionResult::Fail;
+        }
+        SyntaxStyle::load()
+      }
+    }
+    if (
+      api::config()->gvb.editor.style.tag
+      == api::Maybe<api::Utf8String>::Tag::Just) {
+      auto s = api::config()->gvb.editor.style.just._0;
+      auto style = QString::fromUtf8(s.data, s.len);
+      QFile styleFile(styleDir + QDir::separator() + style + ".xml");
+
+      //Config::instance().addStyle(style, );
     }
   }
 

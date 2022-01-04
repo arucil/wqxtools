@@ -10,6 +10,7 @@
 #include "../capability.h"
 #include "../tool.h"
 
+class TextChange;
 class CodeEditor;
 class QAction;
 class QToolBar;

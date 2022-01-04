@@ -21,46 +21,35 @@ CodeEditor::CodeEditor(QWidget *parent) :
 
   setModEventMask(SC_MOD_INSERTTEXT | SC_MOD_DELETETEXT);
 
-  auto defaultFontFamily = m_edit->styleFont(STYLE_DEFAULT);
-  auto defaultFontSize = m_edit->styleSize(STYLE_DEFAULT);
+  auto defaultFontFamily = styleFont(STYLE_DEFAULT);
+  auto defaultFontSize = styleSize(STYLE_DEFAULT);
 
-  m_edit->styleSetFont(STYLE_LINENUMBER, defaultFontFamily.data());
+  styleSetFont(STYLE_LINENUMBER, defaultFontFamily.data());
   // m_edit->styleSetSize(STYLE_LINENUMBER, defaultFontSize);
-  m_edit->styleSetFore(STYLE_LINENUMBER, 0xff'a4'72'62);
-  m_edit->styleSetBack(STYLE_LINENUMBER, 0xff'ef'ef'ef);
+  styleSetFore(STYLE_LINENUMBER, 0xff'a4'72'62);
+  styleSetBack(STYLE_LINENUMBER, 0xff'ef'ef'ef);
 
-  m_edit->styleSetFont(STYLE_CALLTIP, defaultFontFamily.data());
-  m_edit->styleSetSize(STYLE_CALLTIP, defaultFontSize);
+  styleSetFont(STYLE_DEFAULT, "WenQuXing");
+  styleSetSize(STYLE_DEFAULT, 12);
 
-  m_edit->styleSetFont(STYLE_DEFAULT, "WenQuXing");
-  m_edit->styleSetSize(STYLE_DEFAULT, 12);
+  styleSetFont(0, "WenQuXing");
+  styleSetSize(0, 12);
 
-  m_edit->styleSetFont(0, "WenQuXing");
-  m_edit->styleSetSize(0, 12);
+  setMarginTypeN(2, SC_MARGIN_NUMBER);
 
-  m_edit->setMarginTypeN(2, SC_MARGIN_NUMBER);
+  setElementColour(SC_ELEMENT_CARET_LINE_BACK, 0xff'f6'ee'e0);
 
-  m_edit->setElementColour(SC_ELEMENT_CARET_LINE_BACK, 0xff'f6'ee'e0);
+  indicSetStyle(INDICATOR_WARNING, INDIC_SQUIGGLE);
+  indicSetFore(INDICATOR_WARNING, WARNING_COLOR);
+  indicSetStrokeWidth(INDICATOR_WARNING, 150);
+  indicSetUnder(INDICATOR_WARNING, true);
 
-  m_edit->indicSetStyle(INDICATOR_WARNING, INDIC_SQUIGGLE);
-  m_edit->indicSetFore(INDICATOR_WARNING, WARNING_COLOR);
-  m_edit->indicSetStrokeWidth(INDICATOR_WARNING, 150);
-  m_edit->indicSetHoverStyle(INDICATOR_WARNING, INDIC_FULLBOX);
-  m_edit->indicSetHoverFore(INDICATOR_WARNING, WARNING_COLOR);
-  m_edit->indicSetOutlineAlpha(INDICATOR_WARNING, 50);
-  m_edit->indicSetAlpha(INDICATOR_WARNING, 50);
-  m_edit->indicSetUnder(INDICATOR_WARNING, true);
+  indicSetStyle(INDICATOR_ERROR, INDIC_SQUIGGLE);
+  indicSetFore(INDICATOR_ERROR, ERROR_COLOR);
+  indicSetStrokeWidth(INDICATOR_ERROR, 150);
+  indicSetUnder(INDICATOR_ERROR, true);
 
-  m_edit->indicSetStyle(INDICATOR_ERROR, INDIC_SQUIGGLE);
-  m_edit->indicSetFore(INDICATOR_ERROR, ERROR_COLOR);
-  m_edit->indicSetStrokeWidth(INDICATOR_ERROR, 120);
-  m_edit->indicSetHoverStyle(INDICATOR_ERROR, INDIC_FULLBOX);
-  m_edit->indicSetHoverFore(INDICATOR_ERROR, ERROR_COLOR);
-  m_edit->indicSetOutlineAlpha(INDICATOR_ERROR, 70);
-  m_edit->indicSetAlpha(INDICATOR_ERROR, 70);
-  m_edit->indicSetUnder(INDICATOR_ERROR, true);
-
-  m_edit->setMouseDwellTime(400);
+  setMouseDwellTime(400);
 }
 
 void CodeEditor::notified(Scintilla::NotificationData *data) {
@@ -107,18 +96,24 @@ void CodeEditor::notified(Scintilla::NotificationData *data) {
         break;
       }
       auto pos = static_cast<size_t>(data->position);
-      std::string messages;
-      m_diagRanges.overlap_find_all({pos, pos}, [&messages, this](auto it) {
-        if (!messages.empty()) {
-          messages += '\n';
+      QString text;
+      m_diagRanges.overlap_find_all({pos, pos}, [&text, this](auto it) {
+        const auto &diag = m_diagnostics[it->interval().index];
+        if (!text.isEmpty()) {
+          text += "<hr>";
         }
-        messages += "▸ ";
-        messages += m_diagnostics[it->interval().index].message.c_str();
+        // NOTE <nobr> does not work in QToolTip. See
+        // https://doc.qt.io/qt-5/qtooltip.html#details
+        text += "<p style=\"margin: 0; white-space:pre\">";
+        text += diag.message.toHtmlEscaped();
+        text += "</p>";
         return true;
       });
-      if (!messages.empty()) {
-        m_edit->callTipShow(data->position, messages.c_str());
-      }
+
+      if (text.isEmpty())
+        QToolTip::hideText();
+      else
+        QToolTip::showText(mapToGlobal({data->x, data->y}), text);
       break;
     }
     case Scintilla::Notification::DwellEnd:
@@ -135,6 +130,8 @@ void CodeEditor::notified(Scintilla::NotificationData *data) {
       break;
   }
 }
+
+void CodeEditor::setStyle(const SyntaxStyle *style) {}
 
 void CodeEditor::adjustLineNumberMarginWidth() {
   auto digits = qMax(
@@ -158,24 +155,24 @@ void CodeEditor::setDiagnostics(QVector<Diagnostic> diags) {
     m_diagRanges.insert(r);
   }
 
-  auto len = m_edit->length();
-  m_edit->setIndicatorCurrent(INDICATOR_WARNING);
-  m_edit->indicatorClearRange(0, len);
-  m_edit->setIndicatorCurrent(INDICATOR_ERROR);
-  m_edit->indicatorClearRange(0, len);
+  auto len = length();
+  setIndicatorCurrent(INDICATOR_WARNING);
+  indicatorClearRange(0, len);
+  setIndicatorCurrent(INDICATOR_ERROR);
+  indicatorClearRange(0, len);
   for (auto &diag : m_diagnostics) {
     switch (diag.severity) {
       case api::GvbSeverity::Warning:
-        m_edit->setIndicatorCurrent(INDICATOR_WARNING);
+        setIndicatorCurrent(INDICATOR_WARNING);
         break;
       case api::GvbSeverity::Error:
-        m_edit->setIndicatorCurrent(INDICATOR_ERROR);
+        setIndicatorCurrent(INDICATOR_ERROR);
         break;
     }
     if (diag.start == diag.end) {
-      m_edit->indicatorFillRange(diag.start, 1);
+      indicatorFillRange(diag.start, 1);
     } else {
-      m_edit->indicatorFillRange(diag.start, diag.end - diag.start);
+      indicatorFillRange(diag.start, diag.end - diag.start);
     }
   }
 }

@@ -5,13 +5,10 @@
 #include <QSpinBox>
 #include <QTextStream>
 #include <cstdint>
-#include <stdexcept>
 
 #include "array_edit_dialog.h"
 #include "gvb_util.h"
 #include "gvbsim_input_dialog.h"
-
-using std::logic_error;
 
 BindingModel::BindingModel(QWidget *parent) :
   m_vm(nullptr),
@@ -166,14 +163,14 @@ BindingModel::createEditor(QWidget *parent, const QModelIndex &index) const {
           return box;
         }
         case api::GvbValue::Tag::String:
-          throw logic_error("createEditor: string");
+          qFatal("createEditor: string");
       }
       return nullptr;
     }
     case api::GvbBinding::Tag::Array:
       return nullptr;
     default:
-      throw logic_error("createEditor: not var or array");
+      qFatal("createEditor: not var or array");
   }
 }
 
@@ -197,7 +194,7 @@ void BindingModel::setEditorData(QWidget *editor, const QModelIndex &index)
           break;
         }
         case api::GvbValue::Tag::String: {
-          throw logic_error("setEditorData: string");
+          qFatal("setEditorData: string");
         }
       }
     }
@@ -231,7 +228,7 @@ void BindingModel::setData(QWidget *editor, const QModelIndex &index) {
           break;
         }
         case api::GvbValue::Tag::String: {
-          throw logic_error("setData: string");
+          qFatal("setData: string");
         }
       }
       emit dataChanged(index, index, {Qt::DisplayRole, Qt::ToolTipRole});

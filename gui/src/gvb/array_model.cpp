@@ -3,14 +3,12 @@
 #include <QDoubleSpinBox>
 #include <QFont>
 #include <QSpinBox>
-#include <stdexcept>
 
 #include "gvb_util.h"
 
 using std::uint16_t;
 using std::int16_t;
 using std::get_if;
-using std::logic_error;
 
 ArrayModel::ArrayModel(
   QWidget *parent,
@@ -81,7 +79,7 @@ QWidget *ArrayModel::createEditor(QWidget *parent, const QModelIndex &) const {
       return box;
     }
     case 2: {
-      throw logic_error("createEditor: string");
+      qFatal("createEditor: string");
     }
   }
   return nullptr;
@@ -96,7 +94,7 @@ void ArrayModel::setEditorData(QWidget *editor, const QModelIndex &index)
     qobject_cast<QDoubleSpinBox *>(editor)->setValue(
       (*farr)[index.row()].data[index.column()]._0);
   } else if (get_if<2>(&m_data)) {
-    throw logic_error("setEditorData: string");
+    qFatal("setEditorData: string");
   }
 }
 
@@ -144,7 +142,7 @@ void ArrayModel::setData(QWidget *editor, const QModelIndex &index) {
     (*farr)[index.row()].data[index.column()]._0 = n;
     api::gvb_vm_modify_arr(m_vm, m_name, subs, value);
   } else {
-    throw logic_error("setData: string");
+    qFatal("setData: string");
   }
   api::gvb_destroy_value(value);
   emit dataChanged(index, index, {Qt::DisplayRole, Qt::ToolTipRole});

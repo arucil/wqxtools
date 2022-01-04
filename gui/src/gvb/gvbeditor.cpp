@@ -335,6 +335,7 @@ void GvbEditor::textChanged(const TextChange &c) {
         InsertText insert = {c.position, std::string(c.text, c.length)};
         m_edits.push_back(insert);
       }
+      break;
     }
     case TextChangeKind::DeleteText: {
       DeleteText *del;
@@ -347,6 +348,7 @@ void GvbEditor::textChanged(const TextChange &c) {
         DeleteText del = {c.position, c.length};
         m_edits.push_back(del);
       }
+      break;
     }
   }
 }
@@ -396,12 +398,7 @@ void GvbEditor::tryStartPause(QWidget *sender) {
   auto curState = *m_stateMachine.configuration().begin();
   if (curState == m_stStopped) {
     if (sender == this) {
-      auto exeDir = QDir(QCoreApplication::applicationDirPath());
-      if (!exeDir.exists(DATA_DIR)) {
-        exeDir.mkdir(DATA_DIR);
-      }
-      auto dataDir =
-        QDir::cleanPath(exeDir.path() + QDir::separator() + DATA_DIR);
+      auto dataDir = getSystemDir(DATA_DIR);
       auto device = gvb_document_device(
         m_doc,
         {dataDir.utf16(), static_cast<size_t>(dataDir.size())});

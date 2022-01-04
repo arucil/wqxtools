@@ -285,7 +285,7 @@ void GvbSimInputDialog::initUi(
         break;
       }
       default:
-        throw std::logic_error("invalid keyboard input type");
+        qFatal("invalid keyboard input type: %d", field.tag);
     }
 
     if (lastField) {

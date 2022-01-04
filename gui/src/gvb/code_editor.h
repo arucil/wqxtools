@@ -7,6 +7,8 @@
 #include <QVector>
 #include <interval-tree/interval_tree.hpp>
 
+class SyntaxStyle;
+
 struct Diagnostic {
   size_t line;
   size_t start;
@@ -152,6 +154,8 @@ class CodeEditor: public ScintillaEdit {
 
 public:
   CodeEditor(QWidget *parent = nullptr);
+
+  void setStyle(const SyntaxStyle *);
 
 private:
   void adjustLineNumberMarginWidth();

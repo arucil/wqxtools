@@ -7,6 +7,8 @@ class QScreen;
 
 QMainWindow *getMainWindow();
 
+QString getSystemDir(const char *name);
+
 void centerWindow(QMainWindow *, QScreen *);
 
 enum class ActionResult {

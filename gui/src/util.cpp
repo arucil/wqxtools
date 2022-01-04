@@ -1,6 +1,7 @@
 #include "util.h"
 
 #include <QApplication>
+#include <QDir>
 #include <QScreen>
 
 QMainWindow *getMainWindow() {
@@ -14,4 +15,18 @@ void centerWindow(QMainWindow *window, QScreen *screen) {
   auto size = window->frameGeometry().size();
   window->move(
     screen->geometry().center() - QPoint(size.width() / 2, size.height() / 2));
+}
+
+QString getSystemDir(const char *name) {
+  QDir workDir(QDir::currentPath());
+  if (workDir.cd(name)) {
+    return workDir.absolutePath();
+  }
+  auto path = QDir::cleanPath(
+    QCoreApplication::applicationDirPath() + QDir::separator() + name);
+  QDir dir(path);
+  if (!dir.exists()) {
+    dir.mkdir(".");
+  }
+  return path;
 }
