@@ -30,7 +30,7 @@ std::variant<QString, SyntaxStyle> SyntaxStyle::load(QFile &xml) {
 
         auto name = attributes.value("name");
 
-        CharFormat format;
+        CharFormat format{};
 
         if (attributes.hasAttribute("background")) {
           format.background = QColor(attributes.value("background").toString());

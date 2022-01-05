@@ -149,12 +149,12 @@ void GvbSimWindow::initToolBar() {
   empty->setMinimumWidth(20);
   toolbar->addWidget(empty);
 
-  m_actStop = toolbar->addAction(QPixmap(":/assets/images/Stop.svg"), "停止");
+  m_actStop = toolbar->addAction(QPixmap(":/images/Stop.svg"), "停止");
   m_actStop->setShortcut(Qt::Key_F7);
   connect(m_actStop, &QAction::triggered, m_editor, &GvbEditor::stop);
 
-  auto startIcon = QPixmap(":/assets/images/Run.svg");
-  auto pauseIcon = QPixmap(":/assets/images/Pause.svg");
+  auto startIcon = QPixmap(":/images/Run.svg");
+  auto pauseIcon = QPixmap(":/images/Pause.svg");
 
   auto stoppedCallback = [startIcon, this] {
     m_actStart->setText("运行");
@@ -279,19 +279,17 @@ void GvbSimWindow::execLater() {
         stopCursorTimer();
         break;
       }
-      case api::GvbExecResult::Tag::Error:
-        printf(
-          "%lu %s\n",
-          m_execResult.error.location.line,
-          QString::fromUtf8(
-            m_execResult.error.message.data,
-            m_execResult.error.message.len)
-            .toStdString()
-            .c_str());
+      case api::GvbExecResult::Tag::Error: {
+        auto msg = QString::fromUtf8(
+          m_execResult.error.message.data,
+          m_execResult.error.message.len);
         m_execResult.tag = api::GvbExecResult::Tag::End;
+        // TODO 程序运行时源码可能经过改动，报错的位置要更新
+        m_message.setValue("程序运行出错，请在编辑器中查看错误信息");
+        m_editor->showRuntimeError(m_execResult.error);
         emit m_editor->stop();
-        // TODO show error message in editor
         return;
+      }
     }
 
     api::gvb_reset_exec_result(&m_execResult);

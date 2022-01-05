@@ -441,34 +441,35 @@ ActionResult MainWindow::loadConfig(QWidget *parent) {
       return ActionResult::Fail;
     }
 
-    auto styleDirPath = getSystemDir(STYLE_DIR);
-    QDir styleDir(styleDirPath);
-    if (styleDir.exists()) {
-      for (auto &fileName : styleDir.entryList(
-             QDir::Files | QDir::Readable | QDir::NoDotAndDotDot)) {
-        if (QFileInfo(fileName).suffix() != "xml") {
-          continue;
-        }
-        QFile styleFile(styleDirPath + QDir::separator() + fileName);
-        if (!styleFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
-          QMessageBox::critical(
-            parent,
-            "错误",
-            QString("加载 style XML 文件失败：%1\n错误信息：%2")
-              .arg(styleFile.fileName(), styleFile.errorString()));
-          return ActionResult::Fail;
-        }
-        SyntaxStyle::load()
-      }
-    }
     if (
       api::config()->gvb.editor.style.tag
       == api::Maybe<api::Utf8String>::Tag::Just) {
       auto s = api::config()->gvb.editor.style.just._0;
       auto style = QString::fromUtf8(s.data, s.len);
+      auto styleDir = getSystemDir(STYLE_DIR);
       QFile styleFile(styleDir + QDir::separator() + style + ".xml");
+      if (!styleFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        QMessageBox::critical(
+          parent,
+          "错误",
+          QString("加载 style XML 文件失败：%1\n错误信息：%2")
+            .arg(styleFile.fileName(), styleFile.errorString()));
+        return ActionResult::Fail;
+      }
 
-      //Config::instance().addStyle(style, );
+      auto result = SyntaxStyle::load(styleFile);
+      if (auto err = std::get_if<0>(&result)) {
+        QMessageBox::critical(
+          parent,
+          "错误",
+          QString("加载 style XML 文件失败：%1\n错误信息：%2")
+            .arg(styleFile.fileName(), *err));
+        return ActionResult::Fail;
+      }
+
+      Config::instance().setStyle(std::get<1>(result));
+    } else {
+      Config::instance().setStyle({});
     }
   }
 

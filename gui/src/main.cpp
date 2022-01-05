@@ -33,7 +33,7 @@ int main(int argc, char *argv[]) {
 }
 
 void loadResources() {
-  QFontDatabase::addApplicationFont(":/assets/fonts/WenQuXing.ttf");
+  QFontDatabase::addApplicationFont(":/fonts/WenQuXing.ttf");
 }
 
 void initTools() {

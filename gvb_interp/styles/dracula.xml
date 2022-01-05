@@ -2,13 +2,13 @@
 <style-scheme version="1.0" name="Dracula">
     <style name="Text" foreground="#f8f8f2" background="#282a36"/>
     <style name="Link" foreground="#8be9fd" underlineStyle="SingleUnderline"/>
-    <style name="Selection" background="#44475a"/>
+    <style name="Selection" background="#4c505e"/>
     <style name="WordOccurrence" background="#3e404c"/>
     <style name="LineNumber" foreground="#6272a4" background="#20232e"/>
     <style name="SearchResult" foreground="#d57544" bold="true"/>
     <style name="SearchScope" foreground="#000000" background="#f8f8f2"/>
-    <style name="Parentheses" background="#54576a"/>
-    <style name="ParenthesesMismatch" foreground="#f8f8f2"/>
+    <style name="Parentheses" foreground="#12d204" background="#54576a"/>
+    <style name="ParenthesesMismatch" foreground="#e51010"/>
     <style name="AutoComplete" foreground="#f8f8f2"/>
     <style name="CurrentLine" foreground="#000000" background="#383b4c"/>
     <style name="CurrentLineNumber" foreground="#e0e0e0"/>

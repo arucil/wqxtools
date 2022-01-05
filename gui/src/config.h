@@ -1,8 +1,7 @@
 #pragma once
 
 #include <QObject>
-#include <QString>
-#include <QHash>
+#include <optional>
 #include "syntax_style.h"
 
 class Config: public QObject {
@@ -10,14 +9,15 @@ class Config: public QObject {
 
 signals:
   void configChanged();
+  void styleChanged(const SyntaxStyle *);
 
 public:
-  const SyntaxStyle *getStyle(const QString &) const;
-  void addStyle(const QString &name, const SyntaxStyle &style);
+  const SyntaxStyle *getStyle() const;
+  void setStyle(std::optional<SyntaxStyle>);
 
 public:
   static Config &instance();
 
 private:
-  QHash<QString, SyntaxStyle> m_styles;
+  std::optional<SyntaxStyle> m_style;
 };

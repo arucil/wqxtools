@@ -1,20 +1,22 @@
 #include "config.h"
 
+#include <utility>
+
 static Config config;
 
 Config &Config::instance() {
   return config;
 }
 
-const SyntaxStyle *Config::getStyle(const QString &name) const {
-  auto it = m_styles.constFind(name);
-  if (it == m_styles.constEnd()) {
-    return nullptr;
+const SyntaxStyle *Config::getStyle() const {
+  if (m_style.has_value()) {
+    return &m_style.value();
   } else {
-    return &*it;
+    return nullptr;
   }
 }
 
-void Config::addStyle(const QString &name, const SyntaxStyle &style) {
-  m_styles.insert(name, style);
+void Config::setStyle(std::optional<SyntaxStyle> style) {
+  m_style = std::move(style);
+  emit styleChanged(getStyle());
 }

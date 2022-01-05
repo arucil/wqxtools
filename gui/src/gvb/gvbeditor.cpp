@@ -6,14 +6,18 @@
 #include <QFileInfo>
 #include <QLabel>
 #include <QMessageBox>
+#include <QPalette>
 #include <QState>
 #include <QTimer>
 #include <QToolBar>
+#include <QToolTip>
 #include <QVBoxLayout>
 #include <QtMath>
+#include <optional>
 #include <utility>
 
 #include "../action.h"
+#include "../config.h"
 #include "../util.h"
 #include "code_editor.h"
 #include "gvbsim_window.h"
@@ -27,7 +31,8 @@ GvbEditor::GvbEditor(QWidget *parent) :
   Tool(parent),
   m_doc(nullptr),
   m_textLoaded(false),
-  m_timerModify(false),
+  m_timerModify(0),
+  m_timerError(0),
   m_gvbsim(nullptr) {
   initUi();
   initStateMachine();
@@ -54,11 +59,11 @@ GvbEditor::~GvbEditor() {
 
 void GvbEditor::initUi() {
   auto layout = new QVBoxLayout(this);
-  auto toolbar = initToolBar();
+  initToolBar();
   initEdit();
   auto statusbar = initStatusBar();
 
-  layout->addWidget(toolbar);
+  layout->addWidget(m_toolbar);
   layout->addWidget(m_edit, 1);
   layout->addWidget(statusbar);
   layout->setContentsMargins(0, 0, 0, 0);
@@ -82,6 +87,7 @@ void GvbEditor::initStateMachine() {
   connect(m_stStarted, &QState::entered, this, [this] {
     updateStartAction(m_stStarted);
     m_actStop->setEnabled(true);
+    m_edit->clearRuntimeError();
   });
   connect(m_stStopped, &QState::entered, this, [this] {
     updateStartAction(m_stStopped);
@@ -97,17 +103,17 @@ void GvbEditor::updateStartAction(QState *state) {
   if (state == m_stStopped) {
     if (m_gvbsim) {
       m_actStart->setText("运行");
-      m_actStart->setIcon(QPixmap(":/assets/images/Run.svg"));
+      m_actStart->setIcon(QPixmap(":/images/Run.svg"));
     } else {
       m_actStart->setText("启动模拟器");
-      m_actStart->setIcon(QPixmap(":/assets/images/Simulator.svg"));
+      m_actStart->setIcon(QPixmap(":/images/Simulator.svg"));
     }
   } else if (state == m_stPaused) {
     m_actStart->setText("继续");
-    m_actStart->setIcon(QPixmap(":/assets/images/Run.svg"));
+    m_actStart->setIcon(QPixmap(":/images/Run.svg"));
   } else if (state == m_stStarted) {
     m_actStart->setText("暂停");
-    m_actStart->setIcon(QPixmap(":/assets/images/Pause.svg"));
+    m_actStart->setIcon(QPixmap(":/images/Pause.svg"));
   }
 }
 
@@ -117,67 +123,77 @@ void GvbEditor::initEdit() {
   m_edit->setCaretLineVisibleAlways(true);
   m_edit->setEOLMode(SC_EOL_CRLF);
 
+  m_edit->setFontSize(12);
+
   connect(m_edit, &CodeEditor::dirtyChanged, &m_dirty, &BoolValue::setValue);
   connect(m_edit, &CodeEditor::textChanged, this, &GvbEditor::textChanged);
+  connect(
+    &Config::instance(),
+    &Config::styleChanged,
+    m_edit,
+    &CodeEditor::setStyle);
+  connect(&Config::instance(), &Config::configChanged, m_edit, [this]() {
+    m_edit->setFontSize(api::config()->gvb.editor.font_size);
+  });
+
+  m_edit->setStyle(Config::instance().getStyle());
 }
 
-QToolBar *GvbEditor::initToolBar() {
-  auto toolbar = new QToolBar;
-  toolbar->setContextMenuPolicy(Qt::PreventContextMenu);
+void GvbEditor::initToolBar() {
+  m_toolbar = new QToolBar;
+  m_toolbar->setContextMenuPolicy(Qt::PreventContextMenu);
 
-  m_actSave = toolbar->addAction(QPixmap(":/assets/images/Save.svg"), "保存");
+  m_actSave = m_toolbar->addAction(QPixmap(":/images/Save.svg"), "保存");
 
-  toolbar->addSeparator();
+  m_toolbar->addSeparator();
 
-  m_actFind = new Action(QPixmap(":/assets/images/Find.svg"), "查找");
-  toolbar->addAction(m_actFind);
+  m_actFind = new Action(QPixmap(":/images/Find.svg"), "查找");
+  m_toolbar->addAction(m_actFind);
   connect(m_actFind, &QAction::triggered, this, &GvbEditor::find);
 
-  m_actReplace = new Action(QPixmap(":/assets/images/Replace.svg"), "替换");
-  toolbar->addAction(m_actReplace);
+  m_actReplace = new Action(QPixmap(":/images/Replace.svg"), "替换");
+  m_toolbar->addAction(m_actReplace);
   connect(m_actReplace, &QAction::triggered, this, &GvbEditor::replace);
 
-  toolbar->addSeparator();
+  m_toolbar->addSeparator();
 
-  m_actUndo = new Action(QPixmap(":/assets/images/Undo.svg"), "撤销");
-  toolbar->addAction(m_actUndo);
+  m_actUndo = new Action(QPixmap(":/images/Undo.svg"), "撤销");
+  m_toolbar->addAction(m_actUndo);
   connect(m_actUndo, &QAction::triggered, this, &GvbEditor::undo);
 
-  m_actRedo = new Action(QPixmap(":/assets/images/Redo.svg"), "重做");
-  toolbar->addAction(m_actRedo);
+  m_actRedo = new Action(QPixmap(":/images/Redo.svg"), "重做");
+  m_toolbar->addAction(m_actRedo);
   connect(m_actRedo, &QAction::triggered, this, &GvbEditor::redo);
 
-  toolbar->addSeparator();
+  m_toolbar->addSeparator();
 
-  m_actCopy = new Action(QPixmap(":/assets/images/Copy.svg"), "复制");
-  toolbar->addAction(m_actCopy);
+  m_actCopy = new Action(QPixmap(":/images/Copy.svg"), "复制");
+  m_toolbar->addAction(m_actCopy);
   connect(m_actCopy, &QAction::triggered, this, &GvbEditor::copy);
 
-  m_actCut = new Action(QPixmap(":/assets/images/Cut.svg"), "剪切");
-  toolbar->addAction(m_actCut);
+  m_actCut = new Action(QPixmap(":/images/Cut.svg"), "剪切");
+  m_toolbar->addAction(m_actCut);
   connect(m_actCut, &QAction::triggered, this, &GvbEditor::cut);
 
-  m_actPaste = new Action(QPixmap(":/assets/images/Paste.svg"), "粘贴");
-  toolbar->addAction(m_actPaste);
+  m_actPaste = new Action(QPixmap(":/images/Paste.svg"), "粘贴");
+  m_toolbar->addAction(m_actPaste);
   connect(m_actPaste, &QAction::triggered, this, &GvbEditor::paste);
 
-  toolbar->addSeparator();
+  m_toolbar->addSeparator();
 
   m_actStart = new Action;
-  toolbar->addAction(m_actStart);
+  m_toolbar->addAction(m_actStart);
   connect(m_actStart, &QAction::triggered, this, [this] {
     tryStartPause(this);
   });
 
   auto empty = new QWidget();
   empty->setMinimumWidth(20);
-  toolbar->addWidget(empty);
+  m_toolbar->addWidget(empty);
 
-  m_actStop = new Action(QPixmap(":/assets/images/Stop.svg"), "停止");
-  toolbar->addAction(m_actStop);
+  m_actStop = new Action(QPixmap(":/images/Stop.svg"), "停止");
+  m_toolbar->addAction(m_actStop);
   connect(m_actStop, &QAction::triggered, this, &GvbEditor::stop);
-
-  return toolbar;
 }
 
 QStatusBar *GvbEditor::initStatusBar() {
@@ -193,7 +209,7 @@ QStatusBar *GvbEditor::initStatusBar() {
     [posLabel, this](size_t pos) {
       auto line = m_edit->lineFromPosition(pos) + 1;
       auto col = m_edit->column(pos) + 1;
-      posLabel->setText(QString("第 %1 行, 第 %2 列").arg(line, col));
+      posLabel->setText(QString("第 %1 行, 第 %2 列").arg(line).arg(col));
     });
 
   return statusbar;
@@ -317,8 +333,7 @@ void GvbEditor::textChanged(const TextChange &c) {
   }
 
   if (!m_timerModify) {
-    QTimer::singleShot(500, this, &GvbEditor::modified);
-    m_timerModify = true;
+    m_timerModify = startTimer(500);
   }
 
   m_actUndo->setEnabled(m_edit->canUndo());
@@ -404,8 +419,11 @@ void GvbEditor::tryStartPause(QWidget *sender) {
         {dataDir.utf16(), static_cast<size_t>(dataDir.size())});
       auto result = gvb_document_vm(m_doc, device);
       if (result.tag == api::Maybe<api::GvbVirtualMachine *>::Tag::Nothing) {
-        // TODO toast
-        QMessageBox::critical(getMainWindow(), "错误", "文件有错误，无法运行");
+        auto btn = m_toolbar->widgetForAction(m_actStart);
+        auto btnCenter = btn->size() / 2;
+        showErrorToolTip(
+          btn->mapToGlobal(QPoint(btnCenter.width(), btnCenter.height())),
+          "文件有错误，无法运行");
         return;
       }
       auto vm = result.just._0;
@@ -438,4 +456,50 @@ void GvbEditor::tryStartPause(QWidget *sender) {
   } else if (curState == m_stStarted) {
     emit pause();
   }
+}
+
+static std::optional<QPalette> orgPalette;
+
+void GvbEditor::showErrorToolTip(const QPoint &pos, const QString &text) {
+  if (!orgPalette.has_value()) {
+    orgPalette = QToolTip::palette();
+  }
+  auto pal = orgPalette.value();
+  pal.setColor(
+    QPalette::ColorGroup::Inactive,
+    QPalette::ColorRole::ToolTipText,
+    QColor::fromRgb(0xff0000));
+  pal.setBrush(
+    QPalette::ColorGroup::Inactive,
+    QPalette::ColorRole::ToolTipText,
+    QColor::fromRgb(0xff0000));
+  QToolTip::setPalette(pal);
+  QToolTip::showText(pos, text, nullptr, QRect(), 1000);
+  if (m_timerError) {
+    killTimer(m_timerError);
+  }
+  m_timerError = startTimer(1000);
+}
+
+void GvbEditor::timerEvent(QTimerEvent *ev) {
+  if (ev->timerId() == m_timerModify) {
+    killTimer(m_timerModify);
+    m_timerModify = 0;
+    modified();
+  } else if (ev->timerId() == m_timerError) {
+    killTimer(m_timerError);
+    m_timerError = 0;
+    QToolTip::setPalette(orgPalette.value());
+  }
+}
+
+void GvbEditor::showRuntimeError(const api::GvbExecResult::Error_Body &error) {
+  auto lineStart = m_edit->positionFromLine(error.location.line);
+  Diagnostic diag {
+    error.location.line,
+    lineStart + error.location.start_column,
+    lineStart + error.location.end_column,
+    api::GvbSeverity::Error,
+    QString::fromUtf8(error.message.data, error.message.len)};
+  m_edit->setRuntimeError(diag);
 }

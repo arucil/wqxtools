@@ -38,7 +38,7 @@ SOURCES += src/*.cpp \
 
 QT += widgets
 
-RESOURCES += wqxtools.qrc
+RESOURCES += resources/wqxtools.qrc
 
 LIBS += $$PWD/scintilla/bin/libScintillaEdit.a \
     $$PWD/../target/release/libapi_cpp_binding.a \

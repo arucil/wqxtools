@@ -6,8 +6,10 @@
 #include <QString>
 #include <QVector>
 #include <interval-tree/interval_tree.hpp>
+#include <optional>
 
 class SyntaxStyle;
+class QPoint;
 
 struct Diagnostic {
   size_t line;
@@ -155,10 +157,9 @@ class CodeEditor: public ScintillaEdit {
 public:
   CodeEditor(QWidget *parent = nullptr);
 
-  void setStyle(const SyntaxStyle *);
-
 private:
   void adjustLineNumberMarginWidth();
+  void showDiagnostics(size_t pos, const QPoint &);
 
 signals:
   void cursorPositionChanged(size_t);
@@ -167,14 +168,20 @@ signals:
 
 public slots:
   void setDiagnostics(QVector<Diagnostic>);
+  void setRuntimeError(const Diagnostic &);
+  void clearRuntimeError();
+  void setStyle(const SyntaxStyle *);
+  void setFontSize(unsigned);
 
 private slots:
   void notified(Scintilla::NotificationData *);
 
 private:
   QVector<Diagnostic> m_diagnostics;
+  std::optional<Diagnostic> m_runtimeError;
   lib_interval_tree::interval_tree<Range> m_diagRanges;
   bool m_dirty;
+  bool m_braceHilit;
 };
 
 Q_DECLARE_METATYPE(QVector<Diagnostic>);

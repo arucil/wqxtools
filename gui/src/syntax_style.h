@@ -4,6 +4,9 @@
 #include <QHash>
 #include <QString>
 #include <variant>
+#include <optional>
+
+using std::optional;
 
 class QFile;
 
@@ -24,10 +27,10 @@ enum class UnderlineStyle {
 struct CharFormat {
   bool bold;
   bool italic;
-  QColor background;
-  QColor foreground;
-  QColor underlineColor;
-  UnderlineStyle underlineStyle;
+  optional<QColor> background;
+  optional<QColor> foreground;
+  optional<QColor> underlineColor;
+  optional<UnderlineStyle> underlineStyle;
 };
 
 class SyntaxStyle {
