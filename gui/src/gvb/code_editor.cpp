@@ -142,6 +142,7 @@ void CodeEditor::notified(Scintilla::NotificationData *data) {
       }
       break;
     case Scintilla::Notification::Key: {
+      // TODO handle esc in gvbeditor
         printf("%d\n", data->ch);
       if (data->ch == 27 && data->modifiers == Scintilla::KeyMod::Norm) {
         emit cancelSearch();
