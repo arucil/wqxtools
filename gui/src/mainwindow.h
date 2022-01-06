@@ -11,6 +11,7 @@ class QCloseEvent;
 class QString;
 class QAction;
 class QString;
+class ToolWidget;
 class Tool;
 
 class MainWindow: public QMainWindow {
@@ -24,11 +25,11 @@ public:
 private:
   void initUi();
   void initMenu();
-  ActionResult confirmSaveIfDirty(Tool *);
+  ActionResult confirmSaveIfDirty(ToolWidget *);
 
 private slots:
   void openFile();
-  void createFile();
+  void createFile(const Tool &);
   ActionResult saveFile();
   ActionResult saveFileAs(bool save = false);
   void setTitle();
@@ -36,6 +37,7 @@ private slots:
 private:
   void openFileByPath(const QString &);
   ActionResult handleSaveFileError(const SaveResult &);
+  void setupTool(ToolWidget *);
 
 protected:
   void closeEvent(QCloseEvent *) override;

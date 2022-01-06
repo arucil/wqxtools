@@ -9,14 +9,15 @@
 // failed: error message
 using LoadResult = std::variant<Unit, QString>;
 
-struct Tool: public QWidget {
+struct ToolWidget: public QWidget {
   Q_OBJECT
 
 public:
-  Tool(QWidget *parent = nullptr) : QWidget(parent) {}
+  ToolWidget(QWidget *parent = nullptr) : QWidget(parent) {}
 
   virtual LoadResult load(const QString &) = 0;
   virtual bool canLoad(const QString &) const = 0;
+  virtual const char *type() const = 0;
 
   virtual QSize preferredWindowSize() const = 0;
 };

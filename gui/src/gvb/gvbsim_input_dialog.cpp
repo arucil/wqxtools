@@ -1,7 +1,6 @@
 #include "gvbsim_input_dialog.h"
 
 #include <QDialogButtonBox>
-#include <QDoubleSpinBox>
 #include <QFormLayout>
 #include <QFrame>
 #include <QKeyEvent>
@@ -16,6 +15,7 @@
 #include <limits>
 #include <stdexcept>
 
+#include "double_spinbox.h"
 #include "gvbsim_window.h"
 
 using std::get_if;
@@ -116,7 +116,7 @@ void GvbSimInputDialog::initUi(
       }
       case api::GvbKeyboardInputType::Tag::Real: {
         m_input[i] = InputField {in_place_index<1>, api::GvbReal {0.0}};
-        auto input = new QDoubleSpinBox();
+        auto input = new DoubleSpinBox();
         fieldInput = input;
         input->setRange(-1.7e38, 1.7e38);
         input->setDecimals(6);
@@ -144,8 +144,7 @@ void GvbSimInputDialog::initUi(
         break;
       }
       case api::GvbKeyboardInputType::Tag::String: {
-        m_input[i] =
-          InputField {in_place_index<2>, ByteString {nullptr, 0}};
+        m_input[i] = InputField {in_place_index<2>, ByteString {nullptr, 0}};
         auto layout = new QVBoxLayout();
         auto input = new QLineEdit();
         input->setFont(font);

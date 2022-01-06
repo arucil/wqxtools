@@ -17,11 +17,12 @@
 #include "action.h"
 #include "api.h"
 #include "config.h"
-#include "tool_factory.h"
-#include "util.h"
+#include "tool.h"
+#include "tool_registry.h"
 #include "value.h"
 
 #define WINDOW_TITLE "WQX 工具箱"
+#define UNNAMED "未命名"
 #define STYLE_DIR "styles"
 
 MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
@@ -70,9 +71,16 @@ void MainWindow::initMenu() {
   m_actOpen->setShortcut(Qt::CTRL | Qt::Key_O);
   connect(m_actOpen, &QAction::triggered, this, &MainWindow::openFile);
 
-  auto actNew = mnuFile->addAction("新建(&N)");
-  actNew->setShortcut(Qt::CTRL | Qt::Key_N);
-  connect(actNew, &QAction::triggered, this, &MainWindow::createFile);
+  auto mnuNew = mnuFile->addMenu("新建(&N)");
+  const auto &tools = ToolRegistry::createFileTools();
+  for (auto it = tools.constKeyValueBegin(); it != tools.constKeyValueEnd();
+       it++) {
+    auto actNew = mnuNew->addAction(it->first);
+    auto tool = it->second;
+    connect(actNew, &QAction::triggered, this, [tool, this] {
+      createFile(tool);
+    });
+  }
 
   mnuFile->addSeparator();
 
@@ -146,7 +154,7 @@ void MainWindow::initMenu() {
 }
 
 void MainWindow::closeEvent(QCloseEvent *event) {
-  auto widget = qobject_cast<Tool *>(centralWidget());
+  auto widget = qobject_cast<ToolWidget *>(centralWidget());
   if (widget && confirmSaveIfDirty(widget) == ActionResult::Fail) {
     event->ignore();
   }
@@ -157,7 +165,7 @@ void MainWindow::openFile() {
     this,
     "",
     "",
-    ToolFactoryRegistry::openFileFilter(),
+    ToolRegistry::openFileFilter(),
     nullptr,
     QFileDialog::Option::DontResolveSymlinks
       | QFileDialog::Option::DontUseNativeDialog);
@@ -169,7 +177,7 @@ void MainWindow::openFileByPath(const QString &path) {
     return;
   }
 
-  auto widget = qobject_cast<Tool *>(centralWidget());
+  auto widget = qobject_cast<ToolWidget *>(centralWidget());
   if (confirmSaveIfDirty(widget) == ActionResult::Fail) {
     return;
   }
@@ -186,14 +194,14 @@ void MainWindow::openFileByPath(const QString &path) {
 
   auto isNew = false;
   if (!widget || !widget->canLoad(path)) {
-    auto ctor = ToolFactoryRegistry::get(ext.toLower());
-    if (!ctor.has_value()) {
+    auto ctor = ToolRegistry::getCtorByExt(ext.toLower());
+    if (!ctor) {
       QMessageBox::critical(this, "文件打开失败", "无法识别该文件类型");
       return;
     }
 
     isNew = true;
-    widget = ctor.value()(this);
+    widget = ctor(this);
     setCentralWidget(widget);
 
     resize(widget->preferredWindowSize());
@@ -214,10 +222,12 @@ void MainWindow::openFileByPath(const QString &path) {
 
   m_openFilePath.setValue(fileinfo.absoluteFilePath());
 
-  if (!isNew) {
-    return;
+  if (isNew) {
+    setupTool(widget);
   }
+}
 
+void MainWindow::setupTool(ToolWidget *widget) {
   auto fileCap = dynamic_cast<FileCapabilities *>(widget);
   m_actSave->setEnabled(fileCap != nullptr);
   m_actSaveAs->setEnabled(fileCap != nullptr);
@@ -334,7 +344,7 @@ void MainWindow::openFileByPath(const QString &path) {
   }
 }
 
-ActionResult MainWindow::confirmSaveIfDirty(Tool *widget) {
+ActionResult MainWindow::confirmSaveIfDirty(ToolWidget *widget) {
   if (auto oldWidget = dynamic_cast<EditCapabilities *>(widget)) {
     if (oldWidget->m_dirty.value()) {
       auto btn = QMessageBox::question(
@@ -357,8 +367,31 @@ ActionResult MainWindow::confirmSaveIfDirty(Tool *widget) {
   return ActionResult::Succeed;
 }
 
-void MainWindow::createFile() {
-  // TODO
+void MainWindow::createFile(const Tool &tool) {
+  auto widget = qobject_cast<ToolWidget *>(centralWidget());
+  if (confirmSaveIfDirty(widget) == ActionResult::Fail) {
+    return;
+  }
+
+  auto isNew = false;
+  if (!(tool.test)(widget)) {
+    isNew = true;
+    widget = (tool.ctor)(this);
+    setCentralWidget(widget);
+
+    resize(widget->preferredWindowSize());
+    centerWindow(this, screen());
+  }
+
+  QTimer::singleShot(0, widget, [widget, this] {
+    dynamic_cast<FileCapabilities *>(widget)->create();
+  });
+
+  m_openFilePath.setValue(QString());
+
+  if (isNew) {
+    setupTool(widget);
+  }
 }
 
 ActionResult MainWindow::saveFile() {
@@ -373,12 +406,16 @@ ActionResult MainWindow::saveFile() {
 
 ActionResult MainWindow::saveFileAs(bool save) {
   if (auto edit = dynamic_cast<FileCapabilities *>(centralWidget())) {
-    auto ext = QFileInfo(m_openFilePath.value()).suffix().toLower();
+    const auto &lastPath = m_openFilePath.value();
+    auto ext = QFileInfo(lastPath).suffix().toLower();
+    if (ext.isEmpty()) {
+      ext = edit->defaultExt();
+    }
     auto path = QFileDialog::getSaveFileName(
       this,
       save ? "保存文件" : "另存为",
-      "",
-      ToolFactoryRegistry::saveFileFilter(ext),
+      lastPath.isEmpty() ? QString(UNNAMED) + "." + ext : lastPath,
+      ToolRegistry::saveFileFilter(ext),
       nullptr,
       QFileDialog::Option::DontResolveSymlinks
         | QFileDialog::Option::DontUseNativeDialog);
@@ -386,11 +423,13 @@ ActionResult MainWindow::saveFileAs(bool save) {
       return ActionResult::Fail;
     }
 
-    if (
-      QFileInfo(path).suffix().isEmpty() && !m_openFilePath.value().isEmpty()) {
-      auto ext = QFileInfo(m_openFilePath.value()).suffix();
+    if (QFileInfo(path).suffix().isEmpty()) {
       path += '.';
-      path += ext;
+      if (lastPath.isEmpty()) {
+        path += edit->defaultExt();
+      } else {
+        path = QFileInfo(lastPath).suffix();
+      }
     }
 
     m_openFilePath.setValue(path);
@@ -479,20 +518,22 @@ ActionResult MainWindow::loadConfig(QWidget *parent) {
 }
 
 void MainWindow::setTitle() {
+  auto &path = m_openFilePath.value();
   if (auto edit = dynamic_cast<EditCapabilities *>(centralWidget())) {
     auto dirty = edit->m_dirty.value();
-    if (m_openFilePath.value().isEmpty()) {
-      setWindowTitle(QString(WINDOW_TITLE " - %1").arg(dirty ? "*" : ""));
+    if (path.isEmpty()) {
+      setWindowTitle(
+        QString(WINDOW_TITLE " - " UNNAMED "%1").arg(dirty ? "*" : ""));
     } else {
-      auto name = QFileInfo(m_openFilePath.value()).fileName();
+      auto name = QFileInfo(path).fileName();
       setWindowTitle(
         QString(WINDOW_TITLE " - %1%2").arg(name, dirty ? "*" : ""));
     }
   } else {
-    if (m_openFilePath.value().isEmpty()) {
+    if (path.isEmpty()) {
       setWindowTitle(QString(WINDOW_TITLE));
     } else {
-      auto name = QFileInfo(m_openFilePath.value()).fileName();
+      auto name = QFileInfo(path).fileName();
       setWindowTitle(QString(WINDOW_TITLE " - %1").arg(name));
     }
   }

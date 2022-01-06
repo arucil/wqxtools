@@ -1,19 +1,21 @@
-#include "tool_factory.h"
+#include "tool_registry.h"
 
 #include <QString>
-#include <QMap>
+#include <optional>
 
 using std::optional;
 
-static QMap<QString, std::function<ToolCtor>> toolFactories;
+static QMap<QString, ToolCtor *> toolFactories;
 
 static QMap<QString, QSet<QString>> extensions;
+
+static QMap<QString, Tool> createFactories;
 
 static optional<QString> openFileFilter;
 
 static QMap<QString, QString> saveFileFilters;
 
-optional<std::function<ToolCtor>> ToolFactoryRegistry::get(const QString &ext) {
+ToolCtor *ToolRegistry::getCtorByExt(const QString &ext) {
   auto it = toolFactories.find(ext.toLower());
   if (it == toolFactories.end()) {
     return {};
@@ -22,19 +24,27 @@ optional<std::function<ToolCtor>> ToolFactoryRegistry::get(const QString &ext) {
   }
 }
 
-void ToolFactoryRegistry::registerFactory(
+void ToolRegistry::registerTool(
   const QString &name,
-  const ToolFactory &factory) {
-  for (const auto &ext : factory.extensions) {
-    toolFactories[ext] = factory.ctor;
+  const ToolConfig &config) {
+  for (const auto &ext : config.extensions) {
+    toolFactories.insert(ext, *config.ctor);
   }
 
-  for (const auto &ext : factory.extensions) {
+  for (const auto &ext : config.extensions) {
     extensions[name].insert(ext.toLower());
+  }
+
+  if (config.canCreate) {
+    createFactories.insert(name, {*config.ctor,*config.test});
   }
 }
 
-const QString &ToolFactoryRegistry::openFileFilter() {
+const QMap<QString, Tool> &ToolRegistry::createFileTools() {
+  return createFactories;
+}
+
+const QString &ToolRegistry::openFileFilter() {
   if (::openFileFilter.has_value()) {
     return ::openFileFilter.value();
   }
@@ -61,7 +71,7 @@ const QString &ToolFactoryRegistry::openFileFilter() {
   return ::openFileFilter.value();
 }
 
-QString ToolFactoryRegistry::saveFileFilter(const QString &ext) {
+QString ToolRegistry::saveFileFilter(const QString &ext) {
   auto it = saveFileFilters.find(ext);
   if (it != saveFileFilters.end()) {
     return *it;

@@ -30,7 +30,7 @@ struct DeleteText {
 };
 
 struct GvbEditor:
-  Tool,
+  ToolWidget,
   EditCapabilities,
   FileCapabilities,
   ProgramCapabilities {
@@ -64,7 +64,8 @@ signals:
 
 public slots:
   SaveResult save(const QString &) override;
-  void create();
+  void create() override;
+  const char *defaultExt() const;
   void find();
   void replace();
   void cut();
@@ -74,6 +75,7 @@ public slots:
   void redo();
   LoadResult load(const QString &) override;
   bool canLoad(const QString &) const override;
+  const char *type() const override;
   QSize preferredWindowSize() const override;
   void tryStartPause(QWidget *sender);
 

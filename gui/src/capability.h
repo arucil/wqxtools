@@ -30,6 +30,7 @@ using SaveResult = std::variant<QString, std::optional<QString>, Unit>;
 struct FileCapabilities {
   virtual SaveResult save(const QString &) = 0;
   virtual void create() = 0;
+  virtual const char *defaultExt() const = 0;
 
 public:
   QAction *m_actSave;

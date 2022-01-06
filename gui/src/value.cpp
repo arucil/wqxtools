@@ -17,10 +17,6 @@ const QString &StrValue::value() const {
   return m_value;
 }
 
-QString &StrValue::value() {
-  return m_value;
-}
-
 void StrValue::setValue(const QString &newValue) {
   if (newValue != m_value) {
     m_value = newValue;

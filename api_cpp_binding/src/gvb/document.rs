@@ -47,6 +47,11 @@ pub extern "C" fn gvb_load_document(path: Utf16Str) -> GvbLoadDocumentResult {
   }
 }
 
+#[no_mangle]
+pub extern "C" fn gvb_create_document() -> *mut GvbDocument {
+  Box::into_raw(box GvbDocument(gvb::Document::new()))
+}
+
 #[repr(C)]
 pub struct GvbSaveError {
   message: Utf8String,
@@ -112,11 +117,6 @@ fn io_error_to_string(err: io::Error) -> String {
     io::ErrorKind::IsADirectory => format!("是文件夹"),
     _ => err.to_string(),
   }
-}
-
-#[no_mangle]
-pub extern "C" fn gvb_create_document() -> *mut GvbDocument {
-  Box::into_raw(box GvbDocument(gvb::Document::new()))
 }
 
 pub type GvbModification = Either<GvbInsertText, GvbDeleteText>;

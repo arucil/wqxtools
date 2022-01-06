@@ -50,11 +50,11 @@
     + copy/cut/paste
     + can undo/can redo
 - 自动重排行号，可以设置行号间隔和起始行号
-- scintilla antialiasing
+- ~~scintilla antialiasing~~
 - [x] 移除 QThread
 - [x] if goto 后面只能跟上行号（默认是0）
 
-- scintilla 行号宽度实时变动（监测 lines_added）
+- [x] scintilla 行号宽度实时变动（监测 lines_added）
 - 扩展gvb:
     + [x] POINT(x,y)
     + [x] checkkey(key-code)
@@ -63,7 +63,7 @@
 
 
 - document:
-    + create new: () => (document, string)
+    + [x] create new: () => (document, string)
     + ~~get path: () => option<path>~~
     + [x] load bas/txt: path -> (document, string)
     + [x] save: option<path> -> ()

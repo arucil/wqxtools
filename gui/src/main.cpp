@@ -1,10 +1,10 @@
 #include <QApplication>
 #include <QFontDatabase>
-#include <QWidget>
 #include <QVector>
+#include <QWidget>
 
 #include "mainwindow.h"
-#include "tool_factory.h"
+#include "tool_registry.h"
 
 void loadResources();
 void initTools();
@@ -33,8 +33,12 @@ void loadResources() {
 }
 
 void initTools() {
-  ToolFactory bas = {{"bas", "txt"}, [](auto parent) {
-                       return new GvbEditor(parent);
-                     }};
-  ToolFactoryRegistry::registerFactory("GVBASIC文件", bas);
+  ToolRegistry::registerTool(
+    "GVBASIC文件",
+    {{"bas", "txt"},
+     [](QWidget *parent) -> ToolWidget * { return new GvbEditor(parent); },
+     [](ToolWidget *widget) {
+       return qobject_cast<GvbEditor *>(widget) != nullptr;
+     },
+     true});
 }

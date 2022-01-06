@@ -28,7 +28,7 @@ using std::get_if;
 using std::in_place_index;
 
 GvbEditor::GvbEditor(QWidget *parent) :
-  Tool(parent),
+  ToolWidget(parent),
   m_doc(nullptr),
   m_textLoaded(false),
   m_timerModify(0),
@@ -250,8 +250,32 @@ SaveResult GvbEditor::save(const QString &path) {
   }
 }
 
+const char *GvbEditor::defaultExt() const {
+  return "bas";
+}
+
 void GvbEditor::create() {
-  // TODO
+  m_filePath.clear();
+
+  if (m_doc) {
+    api::gvb_destroy_document(m_doc);
+  }
+
+  m_doc = api::gvb_create_document();
+
+  auto text = api::gvb_document_text(m_doc);
+
+  m_textLoaded = false;
+  m_edit->setText(std::string(text.data, text.len).c_str());
+  m_textLoaded = true;
+  m_edit->setSavePoint();
+  m_edit->emptyUndoBuffer();
+  m_edit->gotoPos(m_edit->length());
+  m_edit->grabFocus();
+  m_actUndo->setEnabled(false);
+  m_actRedo->setEnabled(false);
+
+  computeDiagnostics();
 }
 
 LoadResult GvbEditor::load(const QString &path) {
@@ -280,7 +304,8 @@ LoadResult GvbEditor::load(const QString &path) {
     m_textLoaded = true;
     m_edit->setSavePoint();
     m_edit->emptyUndoBuffer();
-    m_edit->setCurrentPos(0);
+    m_edit->gotoPos(0);
+    m_edit->grabFocus();
     m_actUndo->setEnabled(false);
     m_actRedo->setEnabled(false);
 
@@ -293,6 +318,10 @@ LoadResult GvbEditor::load(const QString &path) {
 bool GvbEditor::canLoad(const QString &path) const {
   auto ext = QFileInfo(path).suffix().toLower();
   return ext == "bas" || ext == "txt";
+}
+
+const char *GvbEditor::type() const {
+  return "GVBASIC";
 }
 
 QSize GvbEditor::preferredWindowSize() const {

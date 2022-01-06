@@ -26,7 +26,6 @@ class StrValue: public QObject {
 
 public:
   const QString &value() const;
-  QString &value();
 
 signals:
   void changed(const QString &);

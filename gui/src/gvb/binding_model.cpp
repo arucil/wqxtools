@@ -1,12 +1,12 @@
 #include "binding_model.h"
 
-#include <QDoubleSpinBox>
 #include <QFont>
 #include <QSpinBox>
 #include <QTextStream>
 #include <cstdint>
 
 #include "array_edit_dialog.h"
+#include "double_spinbox.h"
 #include "gvb_util.h"
 #include "gvbsim_input_dialog.h"
 
@@ -156,7 +156,7 @@ BindingModel::createEditor(QWidget *parent, const QModelIndex &index) const {
           return box;
         }
         case api::GvbValue::Tag::Real: {
-          auto box = new QDoubleSpinBox(parent);
+          auto box = new DoubleSpinBox(parent);
           box->setRange(-1.7e38, 1.7e38);
           box->setDecimals(6);
           box->setToolTip("范围：-1.7E+38 ~ +1.7E+38");

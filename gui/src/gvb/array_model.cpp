@@ -1,10 +1,10 @@
 #include "array_model.h"
 
-#include <QDoubleSpinBox>
 #include <QFont>
 #include <QSpinBox>
 
 #include "gvb_util.h"
+#include "double_spinbox.h"
 
 using std::uint16_t;
 using std::int16_t;
@@ -72,7 +72,7 @@ QWidget *ArrayModel::createEditor(QWidget *parent, const QModelIndex &) const {
       return box;
     }
     case 1: {
-      auto box = new QDoubleSpinBox(parent);
+      auto box = new DoubleSpinBox(parent);
       box->setRange(-1.7e38, 1.7e38);
       box->setDecimals(6);
       box->setToolTip("范围：-1.7E+38 ~ +1.7E+38");
