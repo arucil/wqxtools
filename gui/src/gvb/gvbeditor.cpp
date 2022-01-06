@@ -495,11 +495,14 @@ void GvbEditor::timerEvent(QTimerEvent *ev) {
 
 void GvbEditor::showRuntimeError(const api::GvbExecResult::Error_Body &error) {
   auto lineStart = m_edit->positionFromLine(error.location.line);
+  auto start = lineStart + error.location.start_column;
+  auto end = lineStart + error.location.end_column;
   Diagnostic diag {
     error.location.line,
-    lineStart + error.location.start_column,
-    lineStart + error.location.end_column,
+    start,
+    end,
     api::GvbSeverity::Error,
     QString::fromUtf8(error.message.data, error.message.len)};
   m_edit->setRuntimeError(diag);
+  m_edit->gotoPos(start);
 }

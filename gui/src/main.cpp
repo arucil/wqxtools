@@ -3,8 +3,6 @@
 #include <QWidget>
 #include <QVector>
 
-#include "gvb/code_editor.h"
-#include "gvb/gvbeditor.h"
 #include "mainwindow.h"
 #include "tool_factory.h"
 
@@ -23,8 +21,6 @@ int main(int argc, char *argv[]) {
   if (MainWindow::loadConfig(nullptr) == ActionResult::Fail) {
     return 1;
   }
-
-  qRegisterMetaType<QVector<Diagnostic>>();
 
   MainWindow window;
   window.show();

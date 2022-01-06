@@ -60,25 +60,51 @@ void CodeEditor::notified(Scintilla::NotificationData *data) {
       break;
     case Scintilla::Notification::Modified: {
       auto bits = static_cast<int>(data->modificationType);
+      int charsAdded = 0;
+      size_t pos = static_cast<size_t>(data->position);
 
       if (bits & SC_MOD_INSERTTEXT) {
         TextChange change;
         change.kind = TextChangeKind::InsertText;
-        change.position = static_cast<size_t>(data->position);
+        change.position = pos;
         change.text = data->text;
+        charsAdded = data->length;
         change.length = static_cast<size_t>(data->length);
         emit textChanged(change);
+
       } else if (bits & SC_MOD_DELETETEXT) {
         TextChange change;
         change.kind = TextChangeKind::DeleteText;
-        change.position = static_cast<size_t>(data->position);
+        change.position = pos;
         change.text = data->text;
+        charsAdded = -data->length;
         change.length = static_cast<size_t>(data->length);
         emit textChanged(change);
       }
 
       if (data->linesAdded != 0) {
         adjustLineNumberMarginWidth();
+      }
+
+      if (m_runtimeError.has_value()) {
+        auto &error = m_runtimeError.value();
+        if (pos <= error.start) {
+          error.start += charsAdded;
+          error.end += charsAdded;
+          if (data->linesAdded != 0) {
+            error.line += data->linesAdded;
+            if (annotationLines(error.line) == 0) {
+              annotationClearAll();
+              annotationSetText(
+                error.line,
+                error.message.toStdString().c_str());
+              annotationSetStyle(error.line, STYLE_RUNTIME_ERROR);
+              annotationSetVisible(ANNOTATION_BOXED);
+            }
+          }
+        } else if (pos < error.end) {
+          clearRuntimeError();
+        }
       }
 
       break;

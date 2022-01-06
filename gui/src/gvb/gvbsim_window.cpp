@@ -1,13 +1,12 @@
 #include "gvbsim_window.h"
 
-#include <QDateTime>
 #include <QHeaderView>
+#include <QStatusBar>
 #include <QKeyEvent>
 #include <QMessageBox>
 #include <QTableView>
 #include <QTimer>
 #include <QToolBar>
-#include <QToolTip>
 #include <QVBoxLayout>
 
 #include "gvbeditor.h"
@@ -100,6 +99,9 @@ void GvbSimWindow::initUi() {
   auto leftLayout = new QVBoxLayout();
   centralLayout->addLayout(leftLayout);
 
+  initToolBar();
+  leftLayout->addWidget(m_toolbar);
+
   m_screen = new GvbSimScreen(this);
   m_screen->setContentsMargins(4, 4, 4, 4);
   leftLayout->addWidget(m_screen, 0, Qt::AlignHCenter);
@@ -124,34 +126,44 @@ void GvbSimWindow::initUi() {
 
   setCentralWidget(central);
 
-  auto sb = statusBar();
+  auto sb = new QStatusBar();
   connect(&m_message, &StrValue::changed, sb, [sb](const auto &msg) {
     sb->showMessage(msg);
   });
-
-  initToolBar();
+  leftLayout->addWidget(sb);
 
   connect(&m_state, &StrValue::changed, this, &GvbSimWindow::updateTitle);
+
+  m_state.setValue("准备就绪");
 }
 
 void GvbSimWindow::initToolBar() {
-  auto toolbar = addToolBar("");
-  toolbar->setContextMenuPolicy(Qt::PreventContextMenu);
-  toolbar->setMovable(false);
+  m_toolbar = new QToolBar();
 
-  m_actStart = toolbar->addAction("");
+  auto empty = new QWidget();
+  empty->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+  m_toolbar->addWidget(empty);
+
+  m_toolbar->setContextMenuPolicy(Qt::PreventContextMenu);
+  m_toolbar->setMovable(false);
+
+  m_actStart = m_toolbar->addAction("");
   m_actStart->setShortcut(Qt::Key_F5);
   connect(m_actStart, &QAction::triggered, this, [this] {
     m_editor->tryStartPause(this);
   });
 
-  auto empty = new QWidget();
-  empty->setMinimumWidth(20);
-  toolbar->addWidget(empty);
+  empty = new QWidget();
+  empty->setMinimumWidth(30);
+  m_toolbar->addWidget(empty);
 
-  m_actStop = toolbar->addAction(QPixmap(":/images/Stop.svg"), "停止");
+  m_actStop = m_toolbar->addAction(QPixmap(":/images/Stop.svg"), "停止");
   m_actStop->setShortcut(Qt::Key_F7);
   connect(m_actStop, &QAction::triggered, m_editor, &GvbEditor::stop);
+
+  empty = new QWidget();
+  empty->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+  m_toolbar->addWidget(empty);
 
   auto startIcon = QPixmap(":/images/Run.svg");
   auto pauseIcon = QPixmap(":/images/Pause.svg");
@@ -178,7 +190,6 @@ void GvbSimWindow::initToolBar() {
   });
 
   stoppedCallback();
-  m_state.setValue("准备就绪");
 }
 
 void GvbSimWindow::closeEvent(QCloseEvent *) {

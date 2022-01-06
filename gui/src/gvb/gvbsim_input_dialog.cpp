@@ -285,7 +285,7 @@ void GvbSimInputDialog::initUi(
         break;
       }
       default:
-        qFatal("invalid keyboard input type: %d", field.tag);
+        qFatal("invalid keyboard input type: %d", static_cast<int>(field.tag));
     }
 
     if (lastField) {

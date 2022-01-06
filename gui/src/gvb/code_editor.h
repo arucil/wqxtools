@@ -183,5 +183,3 @@ private:
   bool m_dirty;
   bool m_braceHilit;
 };
-
-Q_DECLARE_METATYPE(QVector<Diagnostic>);

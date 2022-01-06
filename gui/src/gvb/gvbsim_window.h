@@ -12,9 +12,9 @@
 class GvbEditor;
 class GvbSimScreen;
 class QCloseEvent;
+class QToolBar;
 class QKeyEvent;
 class QTimerEvent;
-class QShowEvent;
 class QTableView;
 class QAction;
 
@@ -72,4 +72,5 @@ private:
   QTableView *m_bindingView;
   BindingModel m_bindingModel;
   TableEditorDelegate m_bindingDelegate;
+  QToolBar *m_toolbar;
 };
