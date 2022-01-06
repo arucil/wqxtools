@@ -15,9 +15,9 @@
 class QTimerEvent;
 class TextChange;
 class CodeEditor;
-class QAction;
 class QToolBar;
 class GvbSimWindow;
+class SearchBar;
 
 struct InsertText {
   size_t pos;
@@ -94,4 +94,5 @@ private:
   GvbSimWindow *m_gvbsim;
   QString m_filePath;
   QToolBar *m_toolbar;
+  SearchBar *m_searchBar;
 };

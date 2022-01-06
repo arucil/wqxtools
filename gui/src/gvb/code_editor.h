@@ -165,6 +165,7 @@ signals:
   void cursorPositionChanged(size_t);
   void dirtyChanged(bool isDirty);
   void textChanged(const TextChange &);
+  void cancelSearch();
 
 public slots:
   void setDiagnostics(QVector<Diagnostic>);

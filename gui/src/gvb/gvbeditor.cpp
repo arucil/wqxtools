@@ -21,6 +21,7 @@
 #include "../util.h"
 #include "code_editor.h"
 #include "gvbsim_window.h"
+#include "search_bar.h"
 
 #define DATA_DIR "dat_files"
 
@@ -63,8 +64,12 @@ void GvbEditor::initUi() {
   initEdit();
   auto statusbar = initStatusBar();
 
+  m_searchBar = new SearchBar(m_edit, this);
+  m_searchBar->hide();
+
   layout->addWidget(m_toolbar);
   layout->addWidget(m_edit, 1);
+  layout->addWidget(m_searchBar);
   layout->addWidget(statusbar);
   layout->setContentsMargins(0, 0, 0, 0);
   layout->setSpacing(0);
@@ -325,15 +330,25 @@ const char *GvbEditor::type() const {
 }
 
 QSize GvbEditor::preferredWindowSize() const {
-  return QSize(800, 540);
+  return QSize(800, 600);
 }
 
 void GvbEditor::find() {
-  // TODO
+  if (m_searchBar->isVisible() && !m_searchBar->isReplaceEnabled()) {
+    m_searchBar->hide();
+  } else {
+    m_searchBar->show(false);
+    m_searchBar->focus();
+  }
 }
 
 void GvbEditor::replace() {
-  // TODO
+  if (m_searchBar->isVisible() && m_searchBar->isReplaceEnabled()) {
+    m_searchBar->hide();
+  } else {
+    m_searchBar->show(true);
+    m_searchBar->focus();
+  }
 }
 
 void GvbEditor::cut() {

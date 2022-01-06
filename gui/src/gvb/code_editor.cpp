@@ -141,6 +141,12 @@ void CodeEditor::notified(Scintilla::NotificationData *data) {
         }
       }
       break;
+    case Scintilla::Notification::Key: {
+        printf("%d\n", data->ch);
+      if (data->ch == 27 && data->modifiers == Scintilla::KeyMod::Norm) {
+        emit cancelSearch();
+      }
+    }
     default:
       break;
   }
@@ -389,7 +395,6 @@ void CodeEditor::setDiagnostics(QVector<Diagnostic> diags) {
 }
 
 void CodeEditor::setRuntimeError(const Diagnostic &error) {
-  // TODO edit text update runtime error
   clearRuntimeError();
   m_runtimeError = error;
   setIndicatorCurrent(INDICATOR_RUNTIME_ERROR);
