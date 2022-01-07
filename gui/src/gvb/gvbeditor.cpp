@@ -62,11 +62,7 @@ void GvbEditor::initUi() {
   // initStatusBar() must goes after initEdit()
   initStatusBar();
 
-  connect(
-    m_edit,
-    &CodeEditor::showStatus,
-    m_statusBar,
-    &QStatusBar::showMessage);
+  connect(m_edit, &CodeEditor::showStatus, this, &GvbEditor::showMessage);
 
   m_searchBar = new SearchBar(this);
   m_searchBar->hide();
@@ -244,6 +240,9 @@ void GvbEditor::initStatusBar() {
   auto posLabel = new QLabel;
   posLabel->setMinimumWidth(120);
   m_statusBar->addPermanentWidget(posLabel);
+
+  m_errorLabel = new QLabel;
+  m_statusBar->addWidget(m_errorLabel);
 
   connect(
     m_edit,
@@ -499,12 +498,7 @@ void GvbEditor::tryStartPause(QWidget *sender) {
         {dataDir.utf16(), static_cast<size_t>(dataDir.size())});
       auto result = gvb_document_vm(m_doc, device);
       if (result.tag == api::Maybe<api::GvbVirtualMachine *>::Tag::Nothing) {
-        m_statusBar->setStyleSheet("color: red");
-        m_statusBar->showMessage("文件有错误，无法运行", 1000);
-        if (m_timerError) {
-          killTimer(m_timerError);
-        }
-        m_timerError = startTimer(1000);
+        showMessage("<font color=\"red\">文件有错误，无法运行</font>", 1000);
         return;
       }
       auto vm = result.just._0;
@@ -547,7 +541,7 @@ void GvbEditor::timerEvent(QTimerEvent *ev) {
   } else if (ev->timerId() == m_timerError) {
     killTimer(m_timerError);
     m_timerError = 0;
-    m_statusBar->setStyleSheet("");
+    m_errorLabel->setText("");
   }
 }
 
@@ -571,4 +565,15 @@ void GvbEditor::showRuntimeError(const api::GvbExecResult::Error_Body &error) {
     QString::fromUtf8(error.message.data, error.message.len)};
   m_edit->setRuntimeError(diag);
   m_edit->gotoPos(start);
+}
+
+void GvbEditor::showMessage(const QString &text, int ms) {
+  m_errorLabel->setText(text);
+  if (m_timerError) {
+    killTimer(m_timerError);
+    m_timerError = 0;
+  }
+  if (ms > 0) {
+    m_timerError = startTimer(ms);
+  }
 }

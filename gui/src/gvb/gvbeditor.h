@@ -10,6 +10,7 @@
 #include "../capability.h"
 #include "../tool.h"
 
+class QLabel;
 class QWidget;
 class QStatusBar;
 class QTimerEvent;
@@ -83,6 +84,7 @@ public slots:
 private slots:
   void modified();
   void textChanged(const TextChange &);
+  void showMessage(const QString &, int ms);
 
 private:
   CodeEditor *m_edit;
@@ -97,4 +99,5 @@ private:
   QToolBar *m_toolBar;
   QStatusBar *m_statusBar;
   SearchBar *m_searchBar;
+  QLabel *m_errorLabel;
 };

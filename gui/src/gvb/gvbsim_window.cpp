@@ -127,6 +127,7 @@ void GvbSimWindow::initUi() {
   setCentralWidget(central);
 
   auto sb = new QStatusBar();
+  sb->setSizeGripEnabled(false);
   connect(&m_message, &StrValue::changed, sb, [sb](const auto &msg) {
     sb->showMessage(msg);
   });

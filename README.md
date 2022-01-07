@@ -13,7 +13,7 @@
 
 clone 项目到本地，然后运行 `git submodule update --init --recursive` 下载 git submodule。
 
-按照 `gui/BUILDING` 中的指引，编译 `Scintilla` 组件。
+按照 `gui/BUILD_SCINTILLA` 中的指引，编译 `Scintilla` 组件。
 
 安装编译辅助工具：
 
