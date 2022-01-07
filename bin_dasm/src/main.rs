@@ -11,14 +11,14 @@ fn main() -> Result<(), Box<dyn Error>> {
     .version(crate_version!())
     .about("Disassemble 6502")
     .arg(
-      Arg::with_name("bin")
-        .short("b")
+      Arg::new("bin")
+        .short('b')
         .long("bin")
         .help("Disassemble .BIN file"),
     )
     .arg(
-      Arg::with_name("origin")
-        .short("g")
+      Arg::new("origin")
+        .short('g')
         .long("origin")
         .help(
           "the starting address of the .BIN program, in hexadecimal notation",
@@ -27,15 +27,15 @@ fn main() -> Result<(), Box<dyn Error>> {
         .validator(validate_hex),
     )
     .arg(
-      Arg::with_name("output")
-        .short("o")
+      Arg::new("output")
+        .short('o')
         .long("output")
         .value_name("OUTPUT")
         .help("file for dumping assembly")
         .takes_value(true),
     )
     .arg(
-      Arg::with_name("FILE")
+      Arg::new("FILE")
         .help("source .BIN file")
         .required(true),
     )
@@ -70,7 +70,7 @@ fn main() -> Result<(), Box<dyn Error>> {
   Ok(())
 }
 
-fn validate_hex(s: String) -> Result<(), String> {
+fn validate_hex(s: &str) -> Result<(), String> {
   match u16::from_str_radix(&s, 16) {
     Ok(_) => Ok(()),
     Err(err) => match err.kind() {

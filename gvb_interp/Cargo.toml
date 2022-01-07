@@ -14,7 +14,7 @@ id-arena = "2.2.1"
 nanorand = "0.6.1"
 num-derive = "0.3.3"
 num-traits = "0.2.14"
-phf = { version = "0.10.0", features = ["macros"] }
+phf = { version = "0.10.1", features = ["macros"] }
 rand = "0.8.4"
 smallvec = "1.7.0"
 string-interner = "0.14.0"
@@ -24,7 +24,7 @@ intmap = "0.7.1"
 chrono = "0.4.19"
 
 [dev-dependencies]
-insta = "1.8.0"
+insta = "1.10.0"
 pretty_assertions = "1.0.0"
 quickcheck = "1.0.3"
 quickcheck_macros = "1.0.0"
