@@ -14,6 +14,7 @@
     <file>images/Simulator.svg</file>
     <file>images/Warning.svg</file>
     <file>images/Error.svg</file>
+    <file>images/Emoji.svg</file>
     <file>fonts/WenQuXing.ttf</file>
 </qresource>
 </RCC>

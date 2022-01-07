@@ -12,6 +12,7 @@
 #include <QVBoxLayout>
 #include <QtMath>
 #include <utility>
+#include <QToolButton>
 
 #include "../action.h"
 #include "../config.h"
@@ -234,6 +235,15 @@ void GvbEditor::initToolBar() {
   m_actStop = new Action(QPixmap(":/images/Stop.svg"), "停止");
   m_toolBar->addAction(m_actStop);
   connect(m_actStop, &QAction::triggered, this, &GvbEditor::stop);
+
+  empty = new QWidget();
+  empty->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+  m_toolBar->addWidget(empty);
+
+  auto btnEmoji = new QToolButton();
+  btnEmoji->setIcon(QPixmap(":/images/Emoji.svg"));
+  btnEmoji->setToolTip("文曲星图形符号");
+  m_toolBar->addWidget(btnEmoji);
 }
 
 void GvbEditor::initStatusBar() {
