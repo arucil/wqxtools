@@ -101,7 +101,7 @@ QGridLayout *ArrayEditDialog::initDimensionSelector(
     m_spinBoxes[i] = spin;
     connect(
       spin,
-      QOverload<int>::of(&QSpinBox::valueChanged),
+      qOverload<int>(&QSpinBox::valueChanged),
       this,
       [i, this](int sub) { m_arrayModel.setSubscript(i, sub); });
     spin->setRange(0, array.dimensions.data[i]);

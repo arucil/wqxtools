@@ -13,6 +13,9 @@ class QAction;
 class QString;
 class ToolWidget;
 class Tool;
+class QScreen;
+class QDragEnterEvent;
+class QDropEvent;
 
 class MainWindow: public QMainWindow {
   Q_OBJECT
@@ -35,12 +38,15 @@ private slots:
   void setTitle();
 
 private:
+  void openFileByPath(const QString &, QScreen *);
   void openFileByPath(const QString &);
   ActionResult handleSaveFileError(const SaveResult &);
   void setupTool(ToolWidget *);
 
 protected:
   void closeEvent(QCloseEvent *) override;
+  void dragEnterEvent(QDragEnterEvent *) override;
+  void dropEvent(QDropEvent *) override;
 
 private:
   QAction *m_actOpen;

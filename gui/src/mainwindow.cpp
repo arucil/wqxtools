@@ -2,6 +2,8 @@
 
 #include <QApplication>
 #include <QCloseEvent>
+#include <QDragEnterEvent>
+#include <QDropEvent>
 #include <QFileDialog>
 #include <QFileInfo>
 #include <QFrame>
@@ -9,6 +11,7 @@
 #include <QMenu>
 #include <QMenuBar>
 #include <QMessageBox>
+#include <QMimeData>
 #include <QPushButton>
 #include <QScreen>
 #include <QTimer>
@@ -46,10 +49,19 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     m_actStop->setEnabled(false);
 
     centerWindow(this, qApp->primaryScreen());
+
+    auto args = QCoreApplication::arguments();
+    if (args.length() > 2) {
+      QMessageBox::critical(this, "运行参数错误", "运行参数过多");
+    } else if (args.length() == 2) {
+      openFileByPath(args.at(1), qApp->primaryScreen());
+    }
   });
 }
 
 void MainWindow::initUi() {
+  setAcceptDrops(true);
+
   initMenu();
 
   auto help = new QLabel(
@@ -169,10 +181,14 @@ void MainWindow::openFile() {
     nullptr,
     QFileDialog::Option::DontResolveSymlinks
       | QFileDialog::Option::DontUseNativeDialog);
-  openFileByPath(path);
+  openFileByPath(path, screen());
 }
 
 void MainWindow::openFileByPath(const QString &path) {
+  openFileByPath(path, screen());
+}
+
+void MainWindow::openFileByPath(const QString &path, QScreen *screen) {
   if (path.isEmpty()) {
     return;
   }
@@ -183,6 +199,14 @@ void MainWindow::openFileByPath(const QString &path) {
   }
 
   auto fileinfo = QFileInfo(path);
+  if (!fileinfo.exists()) {
+    QMessageBox::critical(
+      this,
+      "文件打开失败",
+      QString("文件不存在：%1").arg(path));
+    return;
+  }
+
   auto ext = fileinfo.suffix();
   if (ext.isEmpty()) {
     QMessageBox::critical(
@@ -196,7 +220,10 @@ void MainWindow::openFileByPath(const QString &path) {
   if (!widget || !widget->canLoad(path)) {
     auto ctor = ToolRegistry::getCtorByExt(ext.toLower());
     if (!ctor) {
-      QMessageBox::critical(this, "文件打开失败", "无法识别该文件类型");
+      QMessageBox::critical(
+        this,
+        "文件打开失败",
+        QString("不支持的文件类型：") + ext.toLower());
       return;
     }
 
@@ -205,7 +232,7 @@ void MainWindow::openFileByPath(const QString &path) {
     setCentralWidget(widget);
 
     resize(widget->preferredWindowSize());
-    centerWindow(this, screen());
+    centerWindow(this, screen);
   }
 
   QTimer::singleShot(0, widget, [widget, path, this] {
@@ -228,6 +255,12 @@ void MainWindow::openFileByPath(const QString &path) {
 }
 
 void MainWindow::setupTool(ToolWidget *widget) {
+  connect(
+    widget,
+    &ToolWidget::fileDropped,
+    this,
+    qOverload<const QString &>(&MainWindow::openFileByPath));
+
   auto fileCap = dynamic_cast<FileCapabilities *>(widget);
   m_actSave->setEnabled(fileCap != nullptr);
   m_actSaveAs->setEnabled(fileCap != nullptr);
@@ -537,4 +570,15 @@ void MainWindow::setTitle() {
       setWindowTitle(QString(WINDOW_TITLE " - %1").arg(name));
     }
   }
+}
+
+void MainWindow::dragEnterEvent(QDragEnterEvent *ev) {
+  if (ev->mimeData()->hasUrls()) {
+    ev->acceptProposedAction();
+  }
+}
+
+void MainWindow::dropEvent(QDropEvent *ev) {
+  auto path = ev->mimeData()->urls().first().toLocalFile();
+  openFileByPath(path, screen());
 }

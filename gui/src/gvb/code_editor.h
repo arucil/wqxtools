@@ -167,6 +167,7 @@ signals:
   void dirtyChanged(bool isDirty);
   void textChanged(const TextChange &);
   void showStatus(const QString &, int ms);
+  void fileDropped(const QString &path);
 
 public slots:
   void setDiagnostics(QVector<Diagnostic>);

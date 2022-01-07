@@ -165,6 +165,7 @@ void GvbEditor::initEdit() {
 
   connect(m_edit, &CodeEditor::dirtyChanged, &m_dirty, &BoolValue::setValue);
   connect(m_edit, &CodeEditor::textChanged, this, &GvbEditor::textChanged);
+  connect(m_edit, &CodeEditor::fileDropped, this, &GvbEditor::fileDropped);
 
   connect(
     &Config::instance(),

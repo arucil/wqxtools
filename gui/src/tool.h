@@ -20,4 +20,7 @@ public:
   virtual const char *type() const = 0;
 
   virtual QSize preferredWindowSize() const = 0;
+
+signals:
+  void fileDropped(const QString &path);
 };

@@ -1,6 +1,7 @@
 #include "code_editor.h"
 
 #include <QToolTip>
+#include <QUrl>
 #include <QtMath>
 #include <utility>
 
@@ -145,6 +146,11 @@ void CodeEditor::notified(Scintilla::NotificationData *data) {
         }
       }
       break;
+    case Scintilla::Notification::URIDropped: {
+      QUrl path(QString::fromUtf8(data->text));
+      emit fileDropped(path.toLocalFile());
+      break;
+    }
     default:
       break;
   }
