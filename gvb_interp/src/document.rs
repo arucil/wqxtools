@@ -320,9 +320,9 @@ impl LineDiagnosis {
 fn detect_machine_props(
   text: impl AsRef<str>,
 ) -> Option<Result<MachineProps, ()>> {
-  let last_line = text.as_ref().lines().last().unwrap();
-  if let Some(start) = last_line.rfind('{') {
-    let first_line = &last_line[start + 1..];
+  let first_line = text.as_ref().lines().next().unwrap();
+  if let Some(start) = first_line.rfind("{mach:") {
+    let first_line = &first_line[start + "{mach:".len()..];
     if let Some(end) = first_line.find('}') {
       let name = first_line[..end].trim().to_ascii_uppercase();
       if !name.is_empty() {
