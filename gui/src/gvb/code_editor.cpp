@@ -17,8 +17,8 @@
 
 CodeEditor::CodeEditor(QWidget *parent) :
   ScintillaEdit(parent),
-  m_dirty(false),
-  m_braceHilit(false) {
+  m_dirty(),
+  m_braceHilit() {
   connect(this, &ScintillaEdit::notify, this, &CodeEditor::notified);
   connect(
     this,
@@ -42,6 +42,9 @@ CodeEditor::CodeEditor(QWidget *parent) :
   markerDefine(MARKER_ERROR, SC_MARK_FULLRECT);
 
   indicSetStyle(INDICATOR_RUNTIME_ERROR, INDIC_STRAIGHTBOX);
+
+  setWordChars(
+    "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789");
 }
 
 void CodeEditor::notified(Scintilla::NotificationData *data) {
@@ -125,6 +128,7 @@ void CodeEditor::notified(Scintilla::NotificationData *data) {
         static_cast<int>(data->updated)
         & (SC_UPDATE_SELECTION | SC_UPDATE_CONTENT)) {
         auto pos = currentPos();
+        setTargetRange(selectionStart(), selectionEnd());
         emit cursorPositionChanged(pos);
         auto ch = charAt(pos);
         if (ch == '(' || ch == ')') {
@@ -141,13 +145,6 @@ void CodeEditor::notified(Scintilla::NotificationData *data) {
         }
       }
       break;
-    case Scintilla::Notification::Key: {
-      // TODO handle esc in gvbeditor
-        printf("%d\n", data->ch);
-      if (data->ch == 27 && data->modifiers == Scintilla::KeyMod::Norm) {
-        emit cancelSearch();
-      }
-    }
     default:
       break;
   }
@@ -410,4 +407,114 @@ void CodeEditor::clearRuntimeError() {
   setIndicatorCurrent(INDICATOR_RUNTIME_ERROR);
   indicatorClearRange(0, length());
   annotationClearAll();
+}
+
+void CodeEditor::setSearchMatchCase(bool b) {
+  auto f = searchFlags();
+  if (b) {
+    f |= SCFIND_MATCHCASE;
+  } else {
+    f &= ~SCFIND_MATCHCASE;
+  }
+  setSearchFlags(f);
+}
+
+void CodeEditor::setSearchWholeWord(bool b) {
+  auto f = searchFlags();
+  if (b) {
+    f |= SCFIND_WHOLEWORD;
+  } else {
+    f &= ~SCFIND_WHOLEWORD;
+  }
+  setSearchFlags(f);
+}
+
+void CodeEditor::setSearchRegExp(bool b) {
+  auto f = searchFlags();
+  if (b) {
+    f |= SCFIND_REGEXP;
+  } else {
+    f &= ~SCFIND_REGEXP;
+  }
+  setSearchFlags(f);
+}
+
+void CodeEditor::setSearchText(const QString &text) {
+  m_searchText = text.toStdString();
+}
+
+void CodeEditor::setReplaceText(const QString &text) {
+  m_replaceText = text.toStdString();
+}
+
+bool CodeEditor::findNext() {
+  setTargetRange(currentPos(), length());
+  auto pos = searchInTarget(m_searchText.size(), m_searchText.data());
+  if (pos < 0) {
+    emit showStatus("从头开始查找", 600);
+    targetWholeDocument();
+    pos = searchInTarget(m_searchText.size(), m_searchText.data());
+    if (pos < 0) {
+      emit showStatus("没有找到", 600);
+      return false;
+    }
+  }
+  gotoPos(pos);
+  setCurrentPos(targetEnd());
+  return true;
+}
+
+void CodeEditor::findPrevious() {
+  setTargetRange(currentPos() - 1, 0);
+  auto pos = searchInTarget(m_searchText.size(), m_searchText.data());
+  if (pos < 0) {
+    emit showStatus("从末尾开始查找", 600);
+    setTargetRange(length() - 1, 0);
+    pos = searchInTarget(m_searchText.size(), m_searchText.data());
+    if (pos < 0) {
+      emit showStatus("没有找到", 600);
+      return;
+    }
+  }
+  gotoPos(pos);
+  setCurrentPos(targetEnd());
+}
+
+void CodeEditor::replace() {
+  if (targetStart() == targetEnd()) {
+    if (!findNext()) {
+      return;
+    }
+  }
+  if (searchFlags() & SCFIND_REGEXP) {
+    replaceTargetRE(m_replaceText.size(), m_replaceText.data());
+  } else {
+    replaceTarget(m_replaceText.size(), m_replaceText.data());
+  }
+  findNext();
+}
+
+void CodeEditor::replaceAll() {
+  targetWholeDocument();
+  beginUndoAction();
+  if (searchFlags() & SCFIND_REGEXP) {
+    for (;;) {
+      auto pos = searchInTarget(m_searchText.size(), m_searchText.data());
+      if (pos < 0) {
+        break;
+      }
+      auto len = replaceTargetRE(m_replaceText.size(), m_replaceText.data());
+      setTargetRange(targetStart() + len, length());
+    }
+  } else {
+    for (;;) {
+      auto pos = searchInTarget(m_searchText.size(), m_searchText.data());
+      if (pos < 0) {
+        break;
+      }
+      auto len = replaceTarget(m_replaceText.size(), m_replaceText.data());
+      setTargetRange(targetStart() + len, length());
+    }
+  }
+  endUndoAction();
 }

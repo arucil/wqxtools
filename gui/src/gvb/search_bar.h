@@ -2,39 +2,40 @@
 
 #include <QWidget>
 
-class CodeEditor;
 class QLineEdit;
+class QString;
 
 class SearchBar: public QWidget {
   Q_OBJECT
 public:
-  SearchBar(CodeEditor *, QWidget * = nullptr);
+  SearchBar(QWidget * = nullptr);
 
 public:
   void show(bool replace);
   void focus();
   bool isReplaceEnabled() const {
-    return m_replaceBar->isVisible();
+    return m_replace;
   }
 
 private:
   void initUi();
 
-private slots:
+signals:
   void findPrevious();
   void findNext();
   void replace();
   void replaceAll();
-  void setMatchCase(bool);
-  void setWholeWord(bool);
-  void setRegExp(bool);
+  void matchCaseChanged(bool);
+  void wholeWordChanged(bool);
+  void regExpChanged(bool);
+  void searchTextChanged(const QString &);
+  void replaceTextChanged(const QString &);
 
 private:
-  CodeEditor *m_editor;
   QWidget *m_replaceBar;
   QLineEdit *m_searchEdit;
   QLineEdit *m_replaceEdit;
-  bool m_matchCase;
-  bool m_wholeWord;
-  bool m_regexp;
+  bool m_replace;
+  bool m_searchTextChanged;
+  bool m_replaceTextChanged;
 };

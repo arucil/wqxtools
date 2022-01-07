@@ -1,19 +1,16 @@
 #include "gvbeditor.h"
 
 #include <QApplication>
-#include <QByteArray>
-#include <QDir>
 #include <QFileInfo>
+#include <QKeyEvent>
 #include <QLabel>
 #include <QMessageBox>
-#include <QPalette>
 #include <QState>
+#include <QStatusBar>
 #include <QTimer>
 #include <QToolBar>
-#include <QToolTip>
 #include <QVBoxLayout>
 #include <QtMath>
-#include <optional>
 #include <utility>
 
 #include "../action.h"
@@ -62,15 +59,55 @@ void GvbEditor::initUi() {
   auto layout = new QVBoxLayout(this);
   initToolBar();
   initEdit();
-  auto statusbar = initStatusBar();
+  // initStatusBar() must goes after initEdit()
+  initStatusBar();
 
-  m_searchBar = new SearchBar(m_edit, this);
+  connect(
+    m_edit,
+    &CodeEditor::showStatus,
+    m_statusBar,
+    &QStatusBar::showMessage);
+
+  m_searchBar = new SearchBar(this);
   m_searchBar->hide();
+  connect(
+    m_searchBar,
+    &SearchBar::matchCaseChanged,
+    m_edit,
+    &CodeEditor::setSearchMatchCase);
+  connect(
+    m_searchBar,
+    &SearchBar::wholeWordChanged,
+    m_edit,
+    &CodeEditor::setSearchWholeWord);
+  connect(
+    m_searchBar,
+    &SearchBar::regExpChanged,
+    m_edit,
+    &CodeEditor::setSearchRegExp);
+  connect(
+    m_searchBar,
+    &SearchBar::searchTextChanged,
+    m_edit,
+    &CodeEditor::setSearchText);
+  connect(
+    m_searchBar,
+    &SearchBar::replaceTextChanged,
+    m_edit,
+    &CodeEditor::setReplaceText);
+  connect(m_searchBar, &SearchBar::findNext, m_edit, &CodeEditor::findNext);
+  connect(
+    m_searchBar,
+    &SearchBar::findPrevious,
+    m_edit,
+    &CodeEditor::findPrevious);
+  connect(m_searchBar, &SearchBar::replace, m_edit, &CodeEditor::replace);
+  connect(m_searchBar, &SearchBar::replaceAll, m_edit, &CodeEditor::replaceAll);
 
-  layout->addWidget(m_toolbar);
+  layout->addWidget(m_toolBar);
   layout->addWidget(m_edit, 1);
   layout->addWidget(m_searchBar);
-  layout->addWidget(statusbar);
+  layout->addWidget(m_statusBar);
   layout->setContentsMargins(0, 0, 0, 0);
   layout->setSpacing(0);
 }
@@ -132,6 +169,7 @@ void GvbEditor::initEdit() {
 
   connect(m_edit, &CodeEditor::dirtyChanged, &m_dirty, &BoolValue::setValue);
   connect(m_edit, &CodeEditor::textChanged, this, &GvbEditor::textChanged);
+
   connect(
     &Config::instance(),
     &Config::styleChanged,
@@ -145,67 +183,67 @@ void GvbEditor::initEdit() {
 }
 
 void GvbEditor::initToolBar() {
-  m_toolbar = new QToolBar;
-  m_toolbar->setContextMenuPolicy(Qt::PreventContextMenu);
+  m_toolBar = new QToolBar;
+  m_toolBar->setContextMenuPolicy(Qt::PreventContextMenu);
 
-  m_actSave = m_toolbar->addAction(QPixmap(":/images/Save.svg"), "保存");
+  m_actSave = m_toolBar->addAction(QPixmap(":/images/Save.svg"), "保存");
 
-  m_toolbar->addSeparator();
+  m_toolBar->addSeparator();
 
   m_actFind = new Action(QPixmap(":/images/Find.svg"), "查找");
-  m_toolbar->addAction(m_actFind);
+  m_toolBar->addAction(m_actFind);
   connect(m_actFind, &QAction::triggered, this, &GvbEditor::find);
 
   m_actReplace = new Action(QPixmap(":/images/Replace.svg"), "替换");
-  m_toolbar->addAction(m_actReplace);
+  m_toolBar->addAction(m_actReplace);
   connect(m_actReplace, &QAction::triggered, this, &GvbEditor::replace);
 
-  m_toolbar->addSeparator();
+  m_toolBar->addSeparator();
 
   m_actUndo = new Action(QPixmap(":/images/Undo.svg"), "撤销");
-  m_toolbar->addAction(m_actUndo);
+  m_toolBar->addAction(m_actUndo);
   connect(m_actUndo, &QAction::triggered, this, &GvbEditor::undo);
 
   m_actRedo = new Action(QPixmap(":/images/Redo.svg"), "重做");
-  m_toolbar->addAction(m_actRedo);
+  m_toolBar->addAction(m_actRedo);
   connect(m_actRedo, &QAction::triggered, this, &GvbEditor::redo);
 
-  m_toolbar->addSeparator();
+  m_toolBar->addSeparator();
 
   m_actCopy = new Action(QPixmap(":/images/Copy.svg"), "复制");
-  m_toolbar->addAction(m_actCopy);
+  m_toolBar->addAction(m_actCopy);
   connect(m_actCopy, &QAction::triggered, this, &GvbEditor::copy);
 
   m_actCut = new Action(QPixmap(":/images/Cut.svg"), "剪切");
-  m_toolbar->addAction(m_actCut);
+  m_toolBar->addAction(m_actCut);
   connect(m_actCut, &QAction::triggered, this, &GvbEditor::cut);
 
   m_actPaste = new Action(QPixmap(":/images/Paste.svg"), "粘贴");
-  m_toolbar->addAction(m_actPaste);
+  m_toolBar->addAction(m_actPaste);
   connect(m_actPaste, &QAction::triggered, this, &GvbEditor::paste);
 
-  m_toolbar->addSeparator();
+  m_toolBar->addSeparator();
 
   m_actStart = new Action;
-  m_toolbar->addAction(m_actStart);
+  m_toolBar->addAction(m_actStart);
   connect(m_actStart, &QAction::triggered, this, [this] {
     tryStartPause(this);
   });
 
   auto empty = new QWidget();
   empty->setMinimumWidth(20);
-  m_toolbar->addWidget(empty);
+  m_toolBar->addWidget(empty);
 
   m_actStop = new Action(QPixmap(":/images/Stop.svg"), "停止");
-  m_toolbar->addAction(m_actStop);
+  m_toolBar->addAction(m_actStop);
   connect(m_actStop, &QAction::triggered, this, &GvbEditor::stop);
 }
 
-QStatusBar *GvbEditor::initStatusBar() {
-  auto statusbar = new QStatusBar;
+void GvbEditor::initStatusBar() {
+  m_statusBar = new QStatusBar;
   auto posLabel = new QLabel;
   posLabel->setMinimumWidth(120);
-  statusbar->addPermanentWidget(posLabel);
+  m_statusBar->addPermanentWidget(posLabel);
 
   connect(
     m_edit,
@@ -216,8 +254,6 @@ QStatusBar *GvbEditor::initStatusBar() {
       auto col = m_edit->column(pos) + 1;
       posLabel->setText(QString("第 %1 行, 第 %2 列").arg(line).arg(col));
     });
-
-  return statusbar;
 }
 
 SaveResult GvbEditor::save(const QString &path) {
@@ -463,11 +499,12 @@ void GvbEditor::tryStartPause(QWidget *sender) {
         {dataDir.utf16(), static_cast<size_t>(dataDir.size())});
       auto result = gvb_document_vm(m_doc, device);
       if (result.tag == api::Maybe<api::GvbVirtualMachine *>::Tag::Nothing) {
-        auto btn = m_toolbar->widgetForAction(m_actStart);
-        auto btnCenter = btn->size() / 2;
-        showErrorToolTip(
-          btn->mapToGlobal(QPoint(btnCenter.width(), btnCenter.height())),
-          "文件有错误，无法运行");
+        m_statusBar->setStyleSheet("color: red");
+        m_statusBar->showMessage("文件有错误，无法运行", 1000);
+        if (m_timerError) {
+          killTimer(m_timerError);
+        }
+        m_timerError = startTimer(1000);
         return;
       }
       auto vm = result.just._0;
@@ -502,29 +539,6 @@ void GvbEditor::tryStartPause(QWidget *sender) {
   }
 }
 
-static std::optional<QPalette> orgPalette;
-
-void GvbEditor::showErrorToolTip(const QPoint &pos, const QString &text) {
-  if (!orgPalette.has_value()) {
-    orgPalette = QToolTip::palette();
-  }
-  auto pal = orgPalette.value();
-  pal.setColor(
-    QPalette::ColorGroup::Inactive,
-    QPalette::ColorRole::ToolTipText,
-    QColor::fromRgb(0xff0000));
-  pal.setBrush(
-    QPalette::ColorGroup::Inactive,
-    QPalette::ColorRole::ToolTipText,
-    QColor::fromRgb(0xff0000));
-  QToolTip::setPalette(pal);
-  QToolTip::showText(pos, text, nullptr, QRect(), 1000);
-  if (m_timerError) {
-    killTimer(m_timerError);
-  }
-  m_timerError = startTimer(1000);
-}
-
 void GvbEditor::timerEvent(QTimerEvent *ev) {
   if (ev->timerId() == m_timerModify) {
     killTimer(m_timerModify);
@@ -533,7 +547,15 @@ void GvbEditor::timerEvent(QTimerEvent *ev) {
   } else if (ev->timerId() == m_timerError) {
     killTimer(m_timerError);
     m_timerError = 0;
-    QToolTip::setPalette(orgPalette.value());
+    m_statusBar->setStyleSheet("");
+  }
+}
+
+void GvbEditor::keyPressEvent(QKeyEvent *ev) {
+  if (ev->key() == Qt::Key_Escape && ev->modifiers() == Qt::NoModifier) {
+    if (m_searchBar->isVisible()) {
+      m_searchBar->hide();
+    }
   }
 }
 

@@ -7,12 +7,11 @@
 #include <QPushButton>
 #include <QVBoxLayout>
 
-SearchBar::SearchBar(CodeEditor *editor, QWidget *parent) :
+SearchBar::SearchBar(QWidget *parent) :
   QWidget(parent),
-  m_editor(editor),
-  m_matchCase(),
-  m_wholeWord(),
-  m_regexp() {
+  m_replace(),
+  m_searchTextChanged(),
+  m_replaceTextChanged() {
   initUi();
 }
 
@@ -25,25 +24,44 @@ void SearchBar::initUi() {
 
   searchLayout->addWidget(new QLabel("查找", this));
   m_searchEdit = new QLineEdit(this);
+  connect(m_searchEdit, &QLineEdit::textChanged, this, [this] {
+    m_searchTextChanged = true;
+  });
+  connect(m_searchEdit, &QLineEdit::editingFinished, this, [this] {
+    if (m_searchTextChanged) {
+      emit searchTextChanged(m_searchEdit->text());
+      m_searchTextChanged = false;
+    }
+    if (m_searchEdit->hasFocus()) {
+      emit findNext();
+    }
+  });
   searchLayout->addWidget(m_searchEdit, 1);
-
-  auto btnPrev = new QPushButton("上一个", this);
-  searchLayout->addWidget(btnPrev);
-  connect(btnPrev, &QPushButton::clicked, this, &SearchBar::findPrevious);
 
   auto btnNext = new QPushButton("下一个", this);
   searchLayout->addWidget(btnNext);
   connect(btnNext, &QPushButton::clicked, this, &SearchBar::findNext);
 
+  auto btnPrev = new QPushButton("上一个", this);
+  searchLayout->addWidget(btnPrev);
+  connect(btnPrev, &QPushButton::clicked, this, &SearchBar::findPrevious);
+
   m_replaceBar = new QWidget(this);
   layout->addWidget(m_replaceBar);
-  m_replaceBar->hide();
 
   auto replaceLayout = new QHBoxLayout(m_replaceBar);
   replaceLayout->setContentsMargins(0, 0, 0, 0);
   replaceLayout->addWidget(new QLabel("替换", m_replaceBar));
 
   m_replaceEdit = new QLineEdit(m_replaceBar);
+  connect(m_replaceEdit, &QLineEdit::textChanged, this, [this] {
+    m_replaceTextChanged = true;
+  });
+  connect(m_replaceEdit, &QLineEdit::editingFinished, this, [this] {
+    if (m_replaceTextChanged) {
+      emit replaceTextChanged(m_replaceEdit->text());
+    }
+  });
   replaceLayout->addWidget(m_replaceEdit, 1);
 
   auto btnRep = new QPushButton("替换", this);
@@ -61,61 +79,33 @@ void SearchBar::initUi() {
 
   auto matchCase = new QCheckBox("匹配大小写", flags);
   flagLayout->addWidget(matchCase);
-  connect(matchCase, &QCheckBox::clicked, this, &SearchBar::setMatchCase);
+  connect(matchCase, &QCheckBox::clicked, this, &SearchBar::matchCaseChanged);
 
   auto wholeWord = new QCheckBox("全词匹配", flags);
   flagLayout->addWidget(wholeWord);
-  connect(wholeWord, &QCheckBox::clicked, this, &SearchBar::setWholeWord);
+  connect(wholeWord, &QCheckBox::clicked, this, &SearchBar::wholeWordChanged);
 
   auto regexp = new QCheckBox("正则表达式", flags);
   flagLayout->addWidget(regexp);
-  connect(regexp, &QCheckBox::clicked, this, &SearchBar::setRegExp);
+  connect(regexp, &QCheckBox::clicked, this, &SearchBar::regExpChanged);
 
   flagLayout->addStretch();
 }
 
 void SearchBar::show(bool replace) {
   QWidget::show();
-  auto v = m_replaceBar->isVisible();
-  // TODO margin？
-  auto h = m_replaceBar->geometry().height();
+  auto h = m_replaceBar->height();
   m_replaceBar->setVisible(replace);
-  if (v) {
-    setFixedHeight(height() - h);
+  if (m_replace && !replace) {
+    setFixedHeight(height() - h - layout()->spacing());
   } else {
+    // unset fixed height
     setMinimumHeight(0);
     setMaximumHeight(QWIDGETSIZE_MAX);
   }
+  m_replace = replace;
 }
 
 void SearchBar::focus() {
   m_searchEdit->setFocus();
-}
-
-void SearchBar::setMatchCase(bool b) {
-  m_matchCase = b;
-}
-
-void SearchBar::setWholeWord(bool b) {
-  m_wholeWord = b;
-}
-
-void SearchBar::setRegExp(bool b) {
-  m_regexp = b;
-}
-
-void SearchBar::findPrevious() {
-  // TODO
-}
-
-void SearchBar::findNext() {
-  // TODO
-}
-
-void SearchBar::replace() {
-  // TODO
-}
-
-void SearchBar::replaceAll() {
-  // TODO
 }

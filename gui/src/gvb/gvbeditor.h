@@ -3,16 +3,17 @@
 #include <api.h>
 
 #include <QStateMachine>
-#include <QStatusBar>
 #include <QVector>
-#include <QWidget>
 #include <string>
 #include <variant>
 
 #include "../capability.h"
 #include "../tool.h"
 
+class QWidget;
+class QStatusBar;
 class QTimerEvent;
+class QKeyEvent;
 class TextChange;
 class CodeEditor;
 class QToolBar;
@@ -48,13 +49,13 @@ private:
   void initEdit();
   void initStateMachine();
   void initToolBar();
-  QStatusBar *initStatusBar();
+  void initStatusBar();
   void computeDiagnostics();
   void updateStartAction(QState *);
-  void showErrorToolTip(const QPoint &, const QString &);
 
 protected:
   void timerEvent(QTimerEvent *) override;
+  void keyPressEvent(QKeyEvent *) override;
 
 signals:
   void start();
@@ -93,6 +94,7 @@ private:
   QStateMachine m_stateMachine;
   GvbSimWindow *m_gvbsim;
   QString m_filePath;
-  QToolBar *m_toolbar;
+  QToolBar *m_toolBar;
+  QStatusBar *m_statusBar;
   SearchBar *m_searchBar;
 };

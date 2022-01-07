@@ -3,6 +3,7 @@
 #include <ScintillaEdit.h>
 #include <api.h>
 
+#include <string>
 #include <QString>
 #include <QVector>
 #include <interval-tree/interval_tree.hpp>
@@ -165,7 +166,7 @@ signals:
   void cursorPositionChanged(size_t);
   void dirtyChanged(bool isDirty);
   void textChanged(const TextChange &);
-  void cancelSearch();
+  void showStatus(const QString &, int ms);
 
 public slots:
   void setDiagnostics(QVector<Diagnostic>);
@@ -173,6 +174,15 @@ public slots:
   void clearRuntimeError();
   void setStyle(const SyntaxStyle *);
   void setFontSize(unsigned);
+  void setSearchMatchCase(bool);
+  void setSearchWholeWord(bool);
+  void setSearchRegExp(bool);
+  bool findNext();
+  void findPrevious();
+  void replace();
+  void replaceAll();
+  void setSearchText(const QString &);
+  void setReplaceText(const QString &);
 
 private slots:
   void notified(Scintilla::NotificationData *);
@@ -183,4 +193,6 @@ private:
   lib_interval_tree::interval_tree<Range> m_diagRanges;
   bool m_dirty;
   bool m_braceHilit;
+  std::string m_searchText;
+  std::string m_replaceText;
 };
