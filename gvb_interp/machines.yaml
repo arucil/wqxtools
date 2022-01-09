@@ -105,20 +105,20 @@ tc808:
     #   <变量名>   或   <变量名> <运算符> <常数值>
     # 目前<运算符>只支持加减乘除。
     # 目前<变量名>支持：
-    # - year：年份
+    # - year：年份-1881, 0~255
     # - month: 月份，0~11
     # - day: 日期，0~30
     # - weekday: 星期, 0星期日，1~6星期一到星期六
     # - hour: 小时, 0~23
     # - minute: 分钟, 0~59
-    # - second: 秒, 0~59
-    1019: year - 1881
+    # - halfsecond: 半秒, 0~119
+    1019: year
     1020: month
     1021: day
     1022: weekday
     1016: hour
     1017: minute
-    1018: second * 2
+    1018: halfsecond
 
 pc1000a:
   emoji-version: old
@@ -178,13 +178,13 @@ pc1000a:
     32 : { addr: 205, bit: 5 } # 空格
     23 : { addr: 205, bit: 6 } # 左
   addrs:
-    1132: year - 1881
+    1132: year
     1133: month
     1134: day
     1135: weekday
     1129: hour
     1130: minute
-    1131: second * 2
+    1131: halfsecond
 
 nc1020:
   emoji-version: new
@@ -244,13 +244,13 @@ nc1020:
     32 : { addr: 189, bit: 7 } # 空格
     23 : { addr: 188, bit: 7 } # 左
   addrs:
-    1138: year - 1881
+    1138: year
     1139: month
     1140: day
     1141: weekday
     1135: hour
     1136: minute
-    1137: second * 2
+    1137: halfsecond
 
 nc3000:
   emoji-version: new
@@ -312,10 +312,10 @@ nc3000:
     32 : { addr: 192, bit: 7 } # 空格
     23 : { addr: 191, bit: 7 } # 左
   addrs:
-    1018: year - 1881
+    1018: year
     1019: month
     1020: day
     1021: weekday
     1015: hour
     1016: minute
-    1017: second * 2
+    1017: halfsecond

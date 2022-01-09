@@ -24,30 +24,15 @@ pub(crate) struct MachineProps {
   pub addrs: IntMap<AddrProp>,
 }
 
-#[derive(Debug, Clone)]
-pub(crate) struct AddrProp {
-  pub kind: AddrPropKind,
-  pub op: AddrPropOp,
-}
-
-#[derive(Debug, Clone)]
-pub(crate) enum AddrPropOp {
-  None,
-  Add(i32),
-  Sub(i32),
-  Mul(i32),
-  Div(i32),
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum AddrPropKind {
+pub enum AddrProp {
   Year,
   Month,
   Day,
   WeekDay,
   Hour,
   Minute,
-  Second,
+  HalfSecond,
 }
 
 impl Default for MachineProps {
@@ -67,14 +52,8 @@ impl Default for MachineProps {
   }
 }
 
-pub fn names() -> Vec<&'static str> {
-  unsafe {
-    MACHINES
-      .assume_init_ref()
-      .keys()
-      .map(|s| s.as_str())
-      .collect()
-  }
+pub fn names() -> impl Iterator<Item = &'static str> {
+  unsafe { MACHINES.assume_init_ref().keys().map(|s| s.as_str()) }
 }
 
 pub(crate) fn machines() -> &'static HashMap<String, MachineProps> {
@@ -384,52 +363,25 @@ pub fn init_machines() -> Result<(), InitError> {
       let value = value
         .into_string()
         .ok_or_else(|| format!("{}.addrs.{} is not string", mach_name, addr))?;
-      let value = value.trim();
-      let rest = value.trim_start_matches(char::is_alphanumeric);
-      let kind = if rest.len() == value.len() {
-        return Err(format!("{}.addrs.{} is invalid", mach_name, addr).into());
-      } else {
-        match &value[..value.len() - rest.len()] {
-          "year" => AddrPropKind::Year,
-          "month" => AddrPropKind::Month,
-          "day" => AddrPropKind::Day,
-          "weekday" => AddrPropKind::WeekDay,
-          "hour" => AddrPropKind::Hour,
-          "minute" => AddrPropKind::Minute,
-          "second" => AddrPropKind::Second,
-          s => {
-            return Err(
-              format!(
-                "unrecognized variable {} in {}.addrs.{}",
-                s, mach_name, addr
-              )
-              .into(),
+      let prop = match value.as_str() {
+        "year" => AddrProp::Year,
+        "month" => AddrProp::Month,
+        "day" => AddrProp::Day,
+        "weekday" => AddrProp::WeekDay,
+        "hour" => AddrProp::Hour,
+        "minute" => AddrProp::Minute,
+        "halfsecond" => AddrProp::HalfSecond,
+        s => {
+          return Err(
+            format!(
+              "unrecognized variable {} in {}.addrs.{}",
+              s, mach_name, addr
             )
-          }
+            .into(),
+          )
         }
       };
-      let op = if rest.is_empty() {
-        AddrPropOp::None
-      } else {
-        let value = rest.trim_start();
-        let op_ctor = match value.as_bytes()[0] {
-          b'+' => AddrPropOp::Add,
-          b'-' => AddrPropOp::Sub,
-          b'*' => AddrPropOp::Mul,
-          b'/' => AddrPropOp::Div,
-          _ => {
-            return Err(
-              format!("{}.addrs.{} is invalid", mach_name, addr).into(),
-            );
-          }
-        };
-        let value = value[1..].trim_start();
-        let value = value.parse::<i32>().map_err(|_| {
-          format!("{} is not integer in {}.addrs.{}", value, mach_name, addr)
-        })?;
-        op_ctor(value)
-      };
-      props.addrs.insert(addr as _, AddrProp { kind, op });
+      props.addrs.insert(addr as _, prop);
     }
 
     if let Some((key, _)) = obj.pop_front() {
@@ -495,27 +447,5 @@ fn yaml_to_string(yaml: &Yaml) -> String {
     Yaml::Integer(n) => n.to_string(),
     Yaml::Real(n) => n.to_string(),
     _ => panic!(),
-  }
-}
-
-impl AddrPropOp {
-  pub(crate) fn apply_to_i32(&self, value: i32) -> u8 {
-    match self {
-      Self::Add(n) => (value + *n) as _,
-      Self::Sub(n) => (value - *n) as _,
-      Self::Mul(n) => (value * *n) as _,
-      Self::Div(n) => (value / *n) as _,
-      Self::None => value as _,
-    }
-  }
-
-  pub(crate) fn apply_to_f64(&self, value: f64) -> u8 {
-    match self {
-      Self::Add(n) => (value + *n as f64) as _,
-      Self::Sub(n) => (value - *n as f64) as _,
-      Self::Mul(n) => (value * *n as f64) as _,
-      Self::Div(n) => (value / *n as f64) as _,
-      Self::None => value as _,
-    }
   }
 }

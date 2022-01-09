@@ -103,6 +103,25 @@ impl From<binary::SaveError> for SaveDocumentError {
   }
 }
 
+#[derive(Debug)]
+pub enum MachinePropError {
+  NotFound(String),
+  Save(binary::SaveError),
+  Load(binary::LoadError<(usize, usize)>),
+}
+
+impl From<binary::SaveError> for MachinePropError {
+  fn from(err: binary::SaveError) -> Self {
+    Self::Save(err)
+  }
+}
+
+impl From<binary::LoadError<(usize, usize)>> for MachinePropError {
+  fn from(err: binary::LoadError<(usize, usize)>) -> Self {
+    Self::Load(err)
+  }
+}
+
 impl Document {
   pub fn new() -> Self {
     Self {
@@ -271,15 +290,29 @@ impl Document {
     &self.machine_props.name
   }
 
-  pub fn sync_machine(&mut self) {
-    if let Some(Ok(props)) = detect_machine_props(&self.text) {
-      self.machine_props = props;
-    } else {
-      self.machine_props = crate::machine::machines()
-        [self.emoji_version.default_machine_name()]
-      .clone();
+  pub fn sync_machine(&mut self) -> Result<(), MachinePropError> {
+    match detect_machine_props(&self.text) {
+      Some(Ok(props)) => {
+        let saved = binary::save_txt(&self.text, self.emoji_version)?;
+        let text = binary::load_txt(saved, Some(props.emoji_version))?.text;
+        self.emoji_version = props.emoji_version;
+        self.machine_props = props;
+        self.lines = text_to_doc_lines(&text);
+        self.text = text;
+        self.version.0 += 1;
+
+        Ok(())
+      }
+      Some(Err(name)) => {
+        return Err(MachinePropError::NotFound(name));
+      }
+      None => {
+        self.machine_props = crate::machine::machines()
+          [self.emoji_version.default_machine_name()]
+        .clone();
+        Ok(())
+      }
     }
-    todo!("set emoji_version, reload text")
   }
 
   pub fn set_machine_name(&self, name: &str) -> bool {
@@ -319,16 +352,16 @@ impl LineDiagnosis {
 
 fn detect_machine_props(
   text: impl AsRef<str>,
-) -> Option<Result<MachineProps, ()>> {
+) -> Option<Result<MachineProps, String>> {
   let first_line = text.as_ref().lines().next().unwrap();
-  if let Some(start) = first_line.rfind("{mach:") {
-    let first_line = &first_line[start + "{mach:".len()..];
+  if let Some(start) = first_line.rfind("{type:") {
+    let first_line = &first_line[start + "{type:".len()..];
     if let Some(end) = first_line.find('}') {
       let name = first_line[..end].trim().to_ascii_uppercase();
       if !name.is_empty() {
         match crate::machine::machines().get(&name) {
           Some(props) => return Some(Ok(props.clone())),
-          None => return Some(Err(())),
+          None => return Some(Err(name)),
         }
       }
     }

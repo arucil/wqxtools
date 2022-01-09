@@ -178,3 +178,59 @@ pub extern "C" fn gvb_document_text(doc: *mut GvbDocument) -> Utf8Str {
     Utf8Str::new(text)
   }
 }
+
+#[no_mangle]
+pub extern "C" fn gvb_machine_names() -> Array<Utf8Str> {
+  unsafe {
+    Array::new(
+      gvb::machine::names()
+        .map(|name| Utf8Str::new(name))
+        .collect(),
+    )
+  }
+}
+
+#[no_mangle]
+pub extern "C" fn gvb_document_machine_name(doc: *mut GvbDocument) -> Utf8Str {
+  unsafe { Utf8Str::new((*doc).0.machine_name()) }
+}
+
+#[repr(C)]
+pub enum GvbDocSyncMachError {
+  NotFound(Utf8String),
+  Translate(Utf8String),
+}
+
+pub type GvbDocSyncMachResult = Either<GvbDocSyncMachError, Unit>;
+
+#[no_mangle]
+pub extern "C" fn gvb_document_sync_mach_name(
+  doc: *mut GvbDocument,
+) -> GvbDocSyncMachResult {
+  match unsafe { (*doc).0.sync_machine() } {
+    Ok(()) => Either::Right(Unit::new()),
+    Err(gvb::MachinePropError::NotFound(name)) => {
+      Either::Left(GvbDocSyncMachError::NotFound(unsafe {
+        Utf8String::new(format!("不存在机型 {} 的配置信息", name))
+      }))
+    }
+    Err(gvb::MachinePropError::Save(err)) => {
+      Either::Left(GvbDocSyncMachError::Translate(unsafe {
+        Utf8String::new(format!(
+          "转换源码时发生错误：第 {} 行：{}",
+          err.line + 1,
+          err.message
+        ))
+      }))
+    }
+    Err(gvb::MachinePropError::Load(err)) => {
+      Either::Left(GvbDocSyncMachError::Translate(unsafe {
+        Utf8String::new(format!(
+          "转换源码时发生错误：第 {} 行，错误信息: {}",
+          err.location.0 + 1,
+          err.message
+        ))
+      }))
+    }
+  }
+}
