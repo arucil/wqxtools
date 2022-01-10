@@ -1,6 +1,6 @@
 use crate::{
-  Array, Either, GvbDevice, GvbDiagnostic, GvbSeverity, GvbVirtualMachine,
-  Maybe, Unit, Utf16Str, Utf8Str, Utf8String,
+  destroy_string, Array, Either, GvbDevice, GvbDiagnostic, GvbSeverity,
+  GvbVirtualMachine, Maybe, Unit, Utf16Str, Utf8Str, Utf8String,
 };
 use gvb_interp as gvb;
 use std::io;
@@ -8,9 +8,9 @@ use std::io;
 pub struct GvbDocument(gvb::Document);
 
 #[repr(C)]
-pub struct GvbInsertText {
+pub struct GvbInsertText<S> {
   pub pos: usize,
-  pub str: Utf8Str,
+  pub str: S,
 }
 
 #[repr(C)]
@@ -119,17 +119,17 @@ fn io_error_to_string(err: io::Error) -> String {
   }
 }
 
-pub type GvbModification = Either<GvbInsertText, GvbDeleteText>;
+pub type GvbEdit = Either<GvbInsertText<Utf8Str>, GvbDeleteText>;
 
 #[no_mangle]
 pub extern "C" fn gvb_document_apply_edit(
   doc: *mut GvbDocument,
-  edit: GvbModification,
+  edit: GvbEdit,
 ) {
   let edit = match edit {
     Either::Left(insert) => gvb::Edit {
       pos: insert.pos,
-      kind: gvb::EditKind::Insert(unsafe { insert.str.as_str() }),
+      kind: gvb::EditKind::Insert(unsafe { insert.str.as_str().into() }),
     },
     Either::Right(delete) => gvb::Edit {
       pos: delete.pos,
@@ -180,57 +180,94 @@ pub extern "C" fn gvb_document_text(doc: *mut GvbDocument) -> Utf8Str {
 }
 
 #[no_mangle]
-pub extern "C" fn gvb_machine_names() -> Array<Utf8Str> {
-  unsafe {
-    Array::new(
-      gvb::machine::names()
-        .map(|name| Utf8Str::new(name))
-        .collect(),
-    )
-  }
-}
-
-#[no_mangle]
 pub extern "C" fn gvb_document_machine_name(doc: *mut GvbDocument) -> Utf8Str {
   unsafe { Utf8Str::new((*doc).0.machine_name()) }
 }
 
 #[repr(C)]
-pub enum GvbDocSyncMachError {
-  NotFound(Utf8String),
-  Translate(Utf8String),
+pub struct ReplaceChar {
+  pub pos: usize,
+  pub old_len: usize,
+  pub ch: char,
 }
 
-pub type GvbDocSyncMachResult = Either<GvbDocSyncMachError, Unit>;
-
-#[no_mangle]
-pub extern "C" fn gvb_document_sync_mach_name(
-  doc: *mut GvbDocument,
-) -> GvbDocSyncMachResult {
-  match unsafe { (*doc).0.sync_machine() } {
-    Ok(()) => Either::Right(Unit::new()),
-    Err(gvb::MachinePropError::NotFound(name)) => {
-      Either::Left(GvbDocSyncMachError::NotFound(unsafe {
-        Utf8String::new(format!("不存在机型 {} 的配置信息", name))
-      }))
-    }
-    Err(gvb::MachinePropError::Save(err)) => {
-      Either::Left(GvbDocSyncMachError::Translate(unsafe {
-        Utf8String::new(format!(
-          "转换源码时发生错误：第 {} 行：{}",
-          err.line + 1,
-          err.message
-        ))
-      }))
-    }
-    Err(gvb::MachinePropError::Load(err)) => {
-      Either::Left(GvbDocSyncMachError::Translate(unsafe {
-        Utf8String::new(format!(
-          "转换源码时发生错误：第 {} 行，错误信息: {}",
-          err.location.0 + 1,
-          err.message
-        ))
-      }))
+impl From<gvb::ReplaceChar> for ReplaceChar {
+  fn from(r: gvb::ReplaceChar) -> Self {
+    Self {
+      pos: r.pos,
+      old_len: r.old_len,
+      ch: r.ch,
     }
   }
+}
+
+pub type GvbDocSyncMachResult = Either<Utf8String, Array<ReplaceChar>>;
+
+#[no_mangle]
+pub extern "C" fn gvb_document_sync_machine_name(
+  doc: *mut GvbDocument,
+) -> GvbDocSyncMachResult {
+  match unsafe { (*doc).0.sync_machine_name() } {
+    Ok(edits) => Either::Right(unsafe {
+      Array::new(edits.into_iter().map(From::from).collect())
+    }),
+    Err(err) => Either::Left(mach_prop_error_to_string(err)),
+  }
+}
+
+fn mach_prop_error_to_string(err: gvb::MachinePropError) -> Utf8String {
+  match err {
+    gvb::MachinePropError::NotFound(name) => unsafe {
+      Utf8String::new(format!("不存在机型 {} 的配置信息", name))
+    },
+    gvb::MachinePropError::Save(err) => unsafe {
+      Utf8String::new(format!(
+        "转换源码时发生错误：第 {} 行：{}",
+        err.line + 1,
+        err.message
+      ))
+    },
+    gvb::MachinePropError::Load(err) => unsafe {
+      Utf8String::new(format!(
+        "转换源码时发生错误：第 {} 行，错误信息: {}",
+        err.location.0 + 1,
+        err.message
+      ))
+    },
+  }
+}
+
+#[repr(C)]
+pub struct ReplaceText {
+  pub pos: usize,
+  pub old_len: usize,
+  pub str: Utf8String,
+}
+
+pub type GvbDocMachEditResult = Either<Utf8String, ReplaceText>;
+
+#[no_mangle]
+pub extern "C" fn gvb_document_machine_name_edit(
+  doc: *mut GvbDocument,
+  name: Utf8Str,
+) -> GvbDocMachEditResult {
+  let name = unsafe { name.as_str() };
+  match unsafe { (*doc).0.get_machine_name_edit(name) } {
+    Ok(edit) => Either::Right(ReplaceText {
+      pos: edit.pos,
+      old_len: edit.old_len,
+      str: unsafe { Utf8String::new(edit.str) },
+    }),
+    Err(err) => Either::Left(mach_prop_error_to_string(err)),
+  }
+}
+
+#[no_mangle]
+pub extern "C" fn gvb_destroy_replace_text(rep: ReplaceText) {
+  destroy_string(rep.str);
+}
+
+#[no_mangle]
+pub extern "C" fn gvb_destroy_replace_char_array(reps: Array<ReplaceChar>) {
+  drop(unsafe { reps.into_boxed_slice() });
 }

@@ -102,3 +102,11 @@ pub extern "C" fn destroy_byte_string_array_mut(arr: ArrayMut<Array<u8>>) {
     drop(unsafe { (*s).clone().into_boxed_slice() });
   }
 }
+
+#[no_mangle]
+pub extern "C" fn destroy_str_array(arr: Array<Utf8Str>) {
+  if arr.data.is_null() {
+    return;
+  }
+  drop(unsafe { arr.into_boxed_slice() });
+}

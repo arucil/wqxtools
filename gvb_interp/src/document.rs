@@ -73,6 +73,20 @@ pub enum EditKind<'a> {
   Delete(usize),
 }
 
+#[derive(Debug)]
+pub struct ReplaceText {
+  pub pos: usize,
+  pub old_len: usize,
+  pub str: String,
+}
+
+#[derive(Debug)]
+pub struct ReplaceChar {
+  pub pos: usize,
+  pub old_len: usize,
+  pub ch: char,
+}
+
 impl From<io::Error> for LoadDocumentError {
   fn from(err: io::Error) -> Self {
     Self::Io(err)
@@ -169,7 +183,8 @@ impl Document {
     let mut emoji_version = doc.guessed_emoji_version;
 
     let machine_props;
-    if let Some(props) = detect_machine_props(&doc.text).and_then(|p| p.ok()) {
+    if let Some(props) = detect_machine_props(&doc.text).and_then(|p| p.1.ok())
+    {
       emoji_version = props.emoji_version;
       doc = if is_bas {
         binary::load_bas(&data, Some(emoji_version))?
@@ -290,33 +305,73 @@ impl Document {
     &self.machine_props.name
   }
 
-  pub fn sync_machine(&mut self) -> Result<(), MachinePropError> {
-    match detect_machine_props(&self.text) {
-      Some(Ok(props)) => {
-        let saved = binary::save_txt(&self.text, self.emoji_version)?;
-        let text = binary::load_txt(saved, Some(props.emoji_version))?.text;
-        self.emoji_version = props.emoji_version;
-        self.machine_props = props;
-        self.lines = text_to_doc_lines(&text);
-        self.text = text;
-        self.version.0 += 1;
-
-        Ok(())
-      }
-      Some(Err(name)) => {
+  pub fn sync_machine_name(
+    &mut self,
+  ) -> Result<Vec<ReplaceChar>, MachinePropError> {
+    let props = match detect_machine_props(&self.text) {
+      Some((_, Ok(props))) => props,
+      Some((_, Err(name))) => {
         return Err(MachinePropError::NotFound(name));
       }
-      None => {
-        self.machine_props = crate::machine::machines()
-          [self.emoji_version.default_machine_name()]
-        .clone();
-        Ok(())
+      None => crate::machine::machines()
+        [self.emoji_version.default_machine_name()]
+      .clone(),
+    };
+
+    let saved = binary::save_txt(&self.text, self.emoji_version)?;
+    let text = binary::load_txt(saved, Some(props.emoji_version))?.text;
+
+    let mut edits = vec![];
+    for ((i, c1), c2) in self.text.char_indices().zip(text.chars()) {
+      if c1 != c2 {
+        edits.push(ReplaceChar {
+          pos: i,
+          old_len: c1.len_utf8(),
+          ch: c2,
+        });
       }
     }
+
+    self.emoji_version = props.emoji_version;
+    self.machine_props = props;
+    self.lines = text_to_doc_lines(&text);
+    self.text = text;
+
+    Ok(edits)
   }
 
-  pub fn set_machine_name(&self, name: &str) -> bool {
-    todo!("set emoji_version, reload text, set machine_props")
+  pub fn get_machine_name_edit(
+    &self,
+    name: &str,
+  ) -> Result<ReplaceText, MachinePropError> {
+    let name = name.to_ascii_uppercase();
+    if let Some(props) = crate::machine::machines().get(&name) {
+      let saved = binary::save_txt(&self.text, self.emoji_version)?;
+      binary::load_txt(saved, Some(props.emoji_version))?;
+    } else {
+      return Err(MachinePropError::NotFound(name));
+    }
+    match detect_machine_props(&self.text) {
+      Some(((start, end), _)) => Ok(ReplaceText {
+        pos: start,
+        old_len: end - start,
+        str: name,
+      }),
+      None => {
+        let first_line = self.text.lines().next().unwrap();
+        let quotes =
+          first_line.as_bytes().iter().filter(|&&c| c == b'"').count();
+        Ok(ReplaceText {
+          pos: first_line.len(),
+          old_len: 0,
+          str: if quotes % 2 != 0 {
+            format!("\":REM {{type:{}}}", name)
+          } else {
+            format!(":REM {{type:{}}}", name)
+          },
+        })
+      }
+    }
   }
 
   pub fn create_device<P>(&self, data_dir: P) -> DefaultDevice
@@ -352,16 +407,19 @@ impl LineDiagnosis {
 
 fn detect_machine_props(
   text: impl AsRef<str>,
-) -> Option<Result<MachineProps, String>> {
+) -> Option<((usize, usize), Result<MachineProps, String>)> {
   let first_line = text.as_ref().lines().next().unwrap();
   if let Some(start) = first_line.rfind("{type:") {
-    let first_line = &first_line[start + "{type:".len()..];
+    let start = start + "{type:".len();
+    let first_line = &first_line[start..];
     if let Some(end) = first_line.find('}') {
       let name = first_line[..end].trim().to_ascii_uppercase();
       if !name.is_empty() {
         match crate::machine::machines().get(&name) {
-          Some(props) => return Some(Ok(props.clone())),
-          None => return Some(Err(name)),
+          Some(props) => {
+            return Some(((start, start + end), Ok(props.clone())))
+          }
+          None => return Some(((start, start + end), Err(name))),
         }
       }
     }
@@ -798,7 +856,7 @@ no";
       &mut lines,
       Edit {
         pos: 13,
-        kind: EditKind::Insert("123"),
+        kind: EditKind::Insert("123".into()),
       },
     );
 
@@ -818,7 +876,7 @@ no";
       &mut lines,
       Edit {
         pos: 0,
-        kind: EditKind::Insert("123"),
+        kind: EditKind::Insert("123".into()),
       },
     );
 
@@ -835,7 +893,7 @@ no";
       &mut lines,
       Edit {
         pos: 11,
-        kind: EditKind::Insert("123"),
+        kind: EditKind::Insert("123".into()),
       },
     );
 
@@ -855,7 +913,7 @@ no";
       &mut lines,
       Edit {
         pos: 0,
-        kind: EditKind::Insert("123"),
+        kind: EditKind::Insert("123".into()),
       },
     );
 
@@ -875,7 +933,7 @@ no";
       &mut lines,
       Edit {
         pos: 17,
-        kind: EditKind::Insert("123"),
+        kind: EditKind::Insert("123".into()),
       },
     );
 
@@ -895,7 +953,7 @@ no";
       &mut lines,
       Edit {
         pos: 19,
-        kind: EditKind::Insert("no"),
+        kind: EditKind::Insert("no".into()),
       },
     );
 
@@ -915,7 +973,7 @@ no";
       &mut lines,
       Edit {
         pos: 0,
-        kind: EditKind::Insert("123\r\n45\r\n"),
+        kind: EditKind::Insert("123\r\n45\r\n".into()),
       },
     );
 
@@ -942,7 +1000,7 @@ no";
       &mut lines,
       Edit {
         pos: 0,
-        kind: EditKind::Insert("abcd\r\nefg\r\nhijklm\r\nno"),
+        kind: EditKind::Insert("abcd\r\nefg\r\nhijklm\r\nno".into()),
       },
     );
 
@@ -967,7 +1025,7 @@ no";
       &mut lines,
       Edit {
         pos: 0,
-        kind: EditKind::Insert("abcd\r\nefg\r\nhijklm\r\nno\r\n"),
+        kind: EditKind::Insert("abcd\r\nefg\r\nhijklm\r\nno\r\n".into()),
       },
     );
 
@@ -993,7 +1051,7 @@ no";
       &mut lines,
       Edit {
         pos: 13,
-        kind: EditKind::Insert("123\r\n45\r\n6789"),
+        kind: EditKind::Insert("123\r\n45\r\n6789".into()),
       },
     );
 
@@ -1023,7 +1081,7 @@ no";
       &mut lines,
       Edit {
         pos: 11,
-        kind: EditKind::Insert("123\r\n45\r\n6789"),
+        kind: EditKind::Insert("123\r\n45\r\n6789".into()),
       },
     );
 
@@ -1053,7 +1111,7 @@ no";
       &mut lines,
       Edit {
         pos: 11,
-        kind: EditKind::Insert("123\r\n45\r\n6789\r\n"),
+        kind: EditKind::Insert("123\r\n45\r\n6789\r\n".into()),
       },
     );
 
@@ -1084,7 +1142,7 @@ no";
       &mut lines,
       Edit {
         pos: 17,
-        kind: EditKind::Insert("123\r\n45\r\n6789"),
+        kind: EditKind::Insert("123\r\n45\r\n6789".into()),
       },
     );
 
@@ -1115,7 +1173,7 @@ no";
       &mut lines,
       Edit {
         pos: 17,
-        kind: EditKind::Insert("123\r\n45\r\n6789\r\n"),
+        kind: EditKind::Insert("123\r\n45\r\n6789\r\n".into()),
       },
     );
 
@@ -1146,7 +1204,7 @@ no";
       &mut lines,
       Edit {
         pos: 21,
-        kind: EditKind::Insert("123\r\n45\r\n6789"),
+        kind: EditKind::Insert("123\r\n45\r\n6789".into()),
       },
     );
 
@@ -1176,7 +1234,7 @@ no";
       &mut lines,
       Edit {
         pos: 21,
-        kind: EditKind::Insert("123\r\n45\r\n6789\r\n"),
+        kind: EditKind::Insert("123\r\n45\r\n6789\r\n".into()),
       },
     );
 
@@ -1207,7 +1265,7 @@ no";
       &mut lines,
       Edit {
         pos: 20,
-        kind: EditKind::Insert("123\r\n45\r\n6789"),
+        kind: EditKind::Insert("123\r\n45\r\n6789".into()),
       },
     );
 
@@ -1237,7 +1295,7 @@ no";
       &mut lines,
       Edit {
         pos: 20,
-        kind: EditKind::Insert("123\r\n45\r\n6789\r\n"),
+        kind: EditKind::Insert("123\r\n45\r\n6789\r\n".into()),
       },
     );
 

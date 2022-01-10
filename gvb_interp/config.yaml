@@ -1,6 +1,6 @@
 gvbasic:
   editor:
-    font-size: 13
+    font-size: 12
     # 编辑器高亮样式文件在 styles 文件夹中
     style: light
   simulator:

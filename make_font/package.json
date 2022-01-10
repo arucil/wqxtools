@@ -17,7 +17,7 @@
     "typescript": "^3.9.6"
   },
   "devDependencies": {
-    "@types/node": "^14.0.20",
+    "@types/node": "^14.18.5",
     "@types/opentype.js": "^0.7.2"
   }
 }

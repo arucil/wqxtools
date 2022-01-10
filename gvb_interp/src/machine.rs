@@ -164,7 +164,7 @@ pub fn init_machines() -> Result<(), InitError> {
       .ok_or_else(|| format!("'{}' is not object", mach_name))?;
 
     let mut props = MachineProps::default();
-    props.name = mach_name.to_owned();
+    props.name = mach_name.to_ascii_uppercase();
 
     // emoji-version
     let emoji_version = obj

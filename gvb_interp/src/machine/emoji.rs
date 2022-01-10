@@ -37,12 +37,12 @@ impl EmojiVersion {
       Self::New => {
         let c = match hi {
           248..=252 => match lo {
-            0..=93 => (hi - 0xf8) * 94 + lo,
+            0..=93 => 1000 + (hi - 0xf8) * 94 + lo,
             161..=254 => (hi - 0xf8) * 94 + (lo - 161),
             _ => return None,
           },
           253 => match lo {
-            0..=56 => 94 * 5 + lo,
+            0..=56 => 1000 + 94 * 5 + lo,
             161..=217 => 94 * 5 + (lo - 161),
             _ => return None,
           },
@@ -61,23 +61,37 @@ impl EmojiVersion {
 
   pub fn char_to_code(&self, c: char) -> Option<u16> {
     let c = c as u32;
-    if c < 0xe000 || c >= 0xe000 + 527 {
+    if (c < 0xe000 || c >= 0xe000 + 527)
+      && (c < 0xe000 + 1000 || c >= 0xe000 + 1000 + 527)
+    {
       return None;
     }
 
-    let c = (c - 0xe000) as u16;
+    let mut c = (c - 0xe000) as u16;
     match self {
-      Self::Old => match c {
-        0..57 => Some(0xfa46 + c),
-        57..151 => Some(0xfaa1 + c - 57),
-        151..214 => Some(0xfb40 + c - 151),
-        214..308 => Some(0xfba1 + c - 214),
-        308..371 => Some(0xfc40 + c - 308),
-        371..465 => Some(0xfca1 + c - 371),
-        465..527 => Some(0xfd40 + c - 465),
-        _ => unreachable!(),
-      },
-      Self::New => Some(0xf8a1 + ((c / 94) << 8) + c % 94),
+      Self::Old => {
+        if c >= 1000 {
+          c -= 1000;
+        }
+        match c {
+          0..57 => Some(0xfa46 + c),
+          57..151 => Some(0xfaa1 + c - 57),
+          151..214 => Some(0xfb40 + c - 151),
+          214..308 => Some(0xfba1 + c - 214),
+          308..371 => Some(0xfc40 + c - 308),
+          371..465 => Some(0xfca1 + c - 371),
+          465..527 => Some(0xfd40 + c - 465),
+          _ => unreachable!(),
+        }
+      }
+      Self::New => {
+        if c >= 1000 {
+          c -= 1000;
+          Some(0xf800 + ((c / 94) << 8) + c % 94)
+        } else {
+          Some(0xf8a1 + ((c / 94) << 8) + c % 94)
+        }
+      }
     }
   }
 
@@ -104,7 +118,7 @@ mod tests {
     fn arbitrary(g: &mut Gen) -> Gb {
       Gb(
         (g.choose(&[247, 248, 249, 250, 251, 252, 253, 254]).unwrap() << 8)
-          + u8::arbitrary(g).checked_add(94).unwrap_or(255) as u16,
+          + u8::arbitrary(g) as u16,
       )
     }
   }

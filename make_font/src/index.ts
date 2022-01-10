@@ -138,6 +138,7 @@ function makeIconGlyphs(): opentype.Glyph[] {
   for (let i = 0; i < 527; ++i) {
     const cp = 0xe000 + i
     glyphs.push(makeGlyph(cp, data.slice(i * 32, i * 32 + 32), 16, 16))
+    glyphs.push(makeGlyph(cp + 1000, data.slice(i * 32, i * 32 + 32), 16, 16))
   }
 
   return glyphs

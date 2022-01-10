@@ -26,14 +26,7 @@ pub extern "C" fn gvb_init_machines() -> GvbInitMachineResult {
 
 #[no_mangle]
 pub extern "C" fn gvb_machine_names() -> Array<Utf8Str> {
-  unsafe {
-    Array::new(
-      machine::names()
-        .into_iter()
-        .map(|s| Utf8Str::new(s))
-        .collect(),
-    )
-  }
+  unsafe { Array::new(machine::names().map(|s| Utf8Str::new(s)).collect()) }
 }
 
 #[no_mangle]

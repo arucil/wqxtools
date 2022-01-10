@@ -10,6 +10,7 @@
 #include "../capability.h"
 #include "../tool.h"
 
+class QComboBox;
 class QLabel;
 class QWidget;
 class QStatusBar;
@@ -53,6 +54,9 @@ private:
   void initStatusBar();
   void computeDiagnostics();
   void updateStartAction(QState *);
+  void loadMachNames();
+  void syncMachName(bool skipSelection);
+  void syncMachNameSelection();
 
 protected:
   void timerEvent(QTimerEvent *) override;
@@ -85,11 +89,14 @@ private slots:
   void modified();
   void textChanged(const TextChange &);
   void showMessage(const QString &, int ms);
+  void showErrorMessage(const QString &, int ms);
+  void setMachineName(int index);
 
 private:
   CodeEditor *m_edit;
   api::GvbDocument *m_doc;
   bool m_textLoaded;
+  bool m_needSyncMach;
   int m_timerModify;
   int m_timerError;
   QVector<std::variant<InsertText, DeleteText>> m_edits;
@@ -100,4 +107,5 @@ private:
   QStatusBar *m_statusBar;
   SearchBar *m_searchBar;
   QLabel *m_errorLabel;
+  QComboBox *m_machNames;
 };

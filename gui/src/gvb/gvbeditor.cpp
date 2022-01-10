@@ -1,6 +1,7 @@
 #include "gvbeditor.h"
 
 #include <QApplication>
+#include <QComboBox>
 #include <QFileInfo>
 #include <QKeyEvent>
 #include <QLabel>
@@ -9,10 +10,11 @@
 #include <QStatusBar>
 #include <QTimer>
 #include <QToolBar>
+#include <QToolButton>
 #include <QVBoxLayout>
 #include <QtMath>
+#include <cstring>
 #include <utility>
-#include <QToolButton>
 
 #include "../action.h"
 #include "../config.h"
@@ -30,6 +32,7 @@ GvbEditor::GvbEditor(QWidget *parent) :
   ToolWidget(parent),
   m_doc(nullptr),
   m_textLoaded(false),
+  m_needSyncMach(false),
   m_timerModify(0),
   m_timerError(0),
   m_gvbsim(nullptr) {
@@ -162,7 +165,7 @@ void GvbEditor::initEdit() {
   m_edit->setCaretLineVisibleAlways(true);
   m_edit->setEOLMode(SC_EOL_CRLF);
 
-  m_edit->setFontSize(12);
+  m_edit->setFontSize(api::config()->gvb.editor.font_size);
 
   connect(m_edit, &CodeEditor::dirtyChanged, &m_dirty, &BoolValue::setValue);
   connect(m_edit, &CodeEditor::textChanged, this, &GvbEditor::textChanged);
@@ -175,6 +178,8 @@ void GvbEditor::initEdit() {
     &CodeEditor::setStyle);
   connect(&Config::instance(), &Config::configChanged, m_edit, [this]() {
     m_edit->setFontSize(api::config()->gvb.editor.font_size);
+    loadMachNames();
+    syncMachName(false);
   });
 
   m_edit->setStyle(Config::instance().getStyle());
@@ -244,6 +249,87 @@ void GvbEditor::initToolBar() {
   btnEmoji->setIcon(QPixmap(":/images/Emoji.svg"));
   btnEmoji->setToolTip("文曲星图形符号");
   m_toolBar->addWidget(btnEmoji);
+
+  m_toolBar->addSeparator();
+
+  m_machNames = new QComboBox();
+  m_toolBar->addWidget(m_machNames);
+  connect(
+    m_machNames,
+    qOverload<int>(&QComboBox::activated),
+    this,
+    &GvbEditor::setMachineName);
+  loadMachNames();
+
+  auto btnSync = new QToolButton();
+  btnSync->setIcon(QPixmap(":/images/Refresh.svg"));
+  btnSync->setToolTip("同步源码中的机型设置");
+  m_toolBar->addWidget(btnSync);
+  connect(btnSync, &QToolButton::clicked, this, &GvbEditor::syncMachName);
+}
+
+void GvbEditor::loadMachNames() {
+  auto names = api::gvb_machine_names();
+  m_machNames->clear();
+  for (auto p = names.data; p != names.data + names.len; p++) {
+    m_machNames->addItem(QString::fromUtf8(p->data, p->len));
+  }
+  api::destroy_str_array(names);
+}
+
+void GvbEditor::syncMachName(bool skipSelection) {
+  auto result = api::gvb_document_sync_machine_name(m_doc);
+  if (result.tag == api::GvbDocSyncMachResult::Tag::Left) {
+    showErrorMessage(
+      QString::fromUtf8(result.left._0.data, result.left._0.len),
+      2000);
+    api::destroy_string(result.left._0);
+  } else {
+    auto edits = result.right._0;
+    // TODO test: delete emoji, change machine, undo
+    m_edit->setUndoCollection(false);
+    for (auto p = edits.data; p != edits.data + edits.len; p++) {
+      m_edit->setTargetRange(p->pos, p->pos + p->old_len);
+      auto s = QString::fromUcs4(&p->ch, 1).toUtf8();
+      m_edit->replaceTarget(s.size(), s.data());
+    }
+    m_edit->setUndoCollection(true);
+    api::gvb_destroy_replace_char_array(edits);
+  }
+  if (!skipSelection) {
+    syncMachNameSelection();
+  }
+}
+
+void GvbEditor::syncMachNameSelection() {
+  auto n = api::gvb_document_machine_name(m_doc);
+  auto name = QString::fromUtf8(n.data, n.len);
+  auto i = m_machNames->findText(name);
+  m_machNames->setCurrentIndex(i);
+}
+
+void GvbEditor::setMachineName(int i) {
+  auto name = m_machNames->itemText(i).toUtf8();
+  api::Utf8Str n = {name.data(), static_cast<size_t>(name.size())};
+  auto lastName = api::gvb_document_machine_name(m_doc);
+  if (lastName.len == n.len && !std::memcmp(lastName.data, n.data, n.len)) {
+    return;
+  }
+  auto result = api::gvb_document_machine_name_edit(
+    m_doc, n);
+  if (result.tag == api::GvbDocMachEditResult::Tag::Left) {
+    showErrorMessage(
+      QString::fromUtf8(result.left._0.data, result.left._0.len),
+      2000);
+    api::destroy_string(result.left._0);
+    syncMachName(false);
+  } else {
+    m_needSyncMach = true;
+    auto edit = result.right._0;
+    m_edit->setTargetRange(edit.pos, edit.pos + edit.old_len);
+    m_edit->replaceTarget(edit.str.len, edit.str.data);
+    api::gvb_destroy_replace_text(edit);
+  }
 }
 
 void GvbEditor::initStatusBar() {
@@ -269,13 +355,13 @@ void GvbEditor::initStatusBar() {
 SaveResult GvbEditor::save(const QString &path) {
   auto saveToPath = path;
   while (true) {
-    auto result = gvb_save_document(
+    auto result = api::gvb_save_document(
       m_doc,
       {saveToPath.utf16(), static_cast<size_t>(saveToPath.size())});
     if (result.tag == api::Either<api::GvbSaveError, api::Unit>::Tag::Left) {
       auto msg = result.left._0.message;
       auto err = QString::fromUtf8(msg.data, msg.len);
-      destroy_string(msg);
+      api::destroy_string(msg);
       if (result.left._0.bas_specific) {
         auto result = QMessageBox::question(
           getMainWindow(),
@@ -326,6 +412,8 @@ void GvbEditor::create() {
   m_actUndo->setEnabled(false);
   m_actRedo->setEnabled(false);
 
+  syncMachName(false);
+
   computeDiagnostics();
 }
 
@@ -359,6 +447,8 @@ LoadResult GvbEditor::load(const QString &path) {
     m_edit->grabFocus();
     m_actUndo->setEnabled(false);
     m_actRedo->setEnabled(false);
+
+    syncMachName(false);
 
     computeDiagnostics();
 
@@ -423,7 +513,11 @@ void GvbEditor::textChanged(const TextChange &c) {
   }
 
   if (!m_timerModify) {
-    m_timerModify = startTimer(500);
+    if (m_needSyncMach) {
+      m_timerModify = startTimer(20);
+    } else {
+      m_timerModify = startTimer(300);
+    }
   }
 
   m_actUndo->setEnabled(m_edit->canUndo());
@@ -461,14 +555,14 @@ void GvbEditor::textChanged(const TextChange &c) {
 void GvbEditor::modified() {
   for (auto edit : m_edits) {
     if (auto insert = get_if<InsertText>(&edit)) {
-      api::GvbModification ins = {
-        api::GvbModification::Tag::Left,
+      api::GvbEdit ins = {
+        api::GvbEdit::Tag::Left,
         {insert->pos, {insert->str.c_str(), insert->str.size()}}};
       api::gvb_document_apply_edit(m_doc, ins);
     } else {
       auto del = std::get<DeleteText>(edit);
-      api::GvbModification d = {
-        api::GvbModification::Tag::Right,
+      api::GvbEdit d = {
+        api::GvbEdit::Tag::Right,
       };
       d.right._0.pos = del.pos;
       d.right._0.len = del.len;
@@ -479,7 +573,7 @@ void GvbEditor::modified() {
 
   computeDiagnostics();
 
-  m_timerModify = false;
+  m_timerModify = 0;
 }
 
 void GvbEditor::computeDiagnostics() {
@@ -509,7 +603,7 @@ void GvbEditor::tryStartPause(QWidget *sender) {
         {dataDir.utf16(), static_cast<size_t>(dataDir.size())});
       auto result = gvb_document_vm(m_doc, device);
       if (result.tag == api::Maybe<api::GvbVirtualMachine *>::Tag::Nothing) {
-        showMessage("<font color=\"red\">文件有错误，无法运行</font>", 1000);
+        showErrorMessage("文件有错误，无法运行", 1000);
         return;
       }
       auto vm = result.just._0;
@@ -549,6 +643,10 @@ void GvbEditor::timerEvent(QTimerEvent *ev) {
     killTimer(m_timerModify);
     m_timerModify = 0;
     modified();
+    if (m_needSyncMach) {
+      m_needSyncMach = false;
+      syncMachName(true);
+    }
   } else if (ev->timerId() == m_timerError) {
     killTimer(m_timerError);
     m_timerError = 0;
@@ -587,4 +685,10 @@ void GvbEditor::showMessage(const QString &text, int ms) {
   if (ms > 0) {
     m_timerError = startTimer(ms);
   }
+}
+
+void GvbEditor::showErrorMessage(const QString &text, int ms) {
+  showMessage(
+    QString("<font color=\"red\">%1</font>").arg(text.toHtmlEscaped()),
+    ms);
 }

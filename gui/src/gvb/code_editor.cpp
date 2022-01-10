@@ -75,7 +75,6 @@ void CodeEditor::notified(Scintilla::NotificationData *data) {
         charsAdded = data->length;
         change.length = static_cast<size_t>(data->length);
         emit textChanged(change);
-
       } else if (bits & SC_MOD_DELETETEXT) {
         TextChange change;
         change.kind = TextChangeKind::DeleteText;
