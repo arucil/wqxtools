@@ -527,7 +527,7 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E, ProgramLine> {
         let (_, ty2) = self.compile_lvalue(*right);
         if !ty1.exact_matches(ty2) {
           self
-            .add_error(range.clone(), "SWAP 语句的两个变量/数组的类型必须相等");
+            .add_error(range.clone(), "SWAP 语句的两个变量/数组的类型必须相同");
         }
         self.code_emitter.emit_op(range, &stmt.kind, 2);
       }
