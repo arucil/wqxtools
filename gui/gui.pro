@@ -33,7 +33,9 @@ HEADERS += src/mainwindow.h \
     src/gvb/table_editor_model.h \
     src/gvb/code_editor.h \
     src/gvb/double_spinbox.h \
-    src/gvb/search_bar.h
+    src/gvb/search_bar.h \
+    src/gvb/emoji_selector.h \
+    src/gvb/emoji_label.h
 
 SOURCES += src/*.cpp \
     src/gvb/*.cpp

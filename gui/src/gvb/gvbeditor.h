@@ -11,6 +11,7 @@
 #include "../tool.h"
 
 class QComboBox;
+class EmojiSelector;
 class QLabel;
 class QWidget;
 class QStatusBar;
@@ -108,4 +109,5 @@ private:
   SearchBar *m_searchBar;
   QLabel *m_errorLabel;
   QComboBox *m_machNames;
+  EmojiSelector *m_emojiSelector;
 };

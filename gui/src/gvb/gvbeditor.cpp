@@ -20,6 +20,7 @@
 #include "../config.h"
 #include "../util.h"
 #include "code_editor.h"
+#include "emoji_selector.h"
 #include "gvbsim_window.h"
 #include "search_bar.h"
 
@@ -35,7 +36,8 @@ GvbEditor::GvbEditor(QWidget *parent) :
   m_needSyncMach(false),
   m_timerModify(0),
   m_timerError(0),
-  m_gvbsim(nullptr) {
+  m_gvbsim(nullptr),
+  m_emojiSelector(nullptr) {
   initUi();
   initStateMachine();
 
@@ -249,6 +251,16 @@ void GvbEditor::initToolBar() {
   btnEmoji->setIcon(QPixmap(":/images/Emoji.svg"));
   btnEmoji->setToolTip("文曲星图形符号");
   m_toolBar->addWidget(btnEmoji);
+  connect(btnEmoji, &QToolButton::clicked, this, [this, btnEmoji] {
+    if (!m_emojiSelector) {
+      m_emojiSelector = new EmojiSelector(this);
+      connect(m_emojiSelector, &EmojiSelector::shown, [this, btnEmoji] {
+        m_emojiSelector->moveBeneath(btnEmoji);
+      });
+    }
+    m_emojiSelector->show();
+    m_emojiSelector->activateWindow();
+  });
 
   m_toolBar->addSeparator();
 
@@ -315,8 +327,7 @@ void GvbEditor::setMachineName(int i) {
   if (lastName.len == n.len && !std::memcmp(lastName.data, n.data, n.len)) {
     return;
   }
-  auto result = api::gvb_document_machine_name_edit(
-    m_doc, n);
+  auto result = api::gvb_document_machine_name_edit(m_doc, n);
   if (result.tag == api::GvbDocMachEditResult::Tag::Left) {
     showErrorMessage(
       QString::fromUtf8(result.left._0.data, result.left._0.len),
