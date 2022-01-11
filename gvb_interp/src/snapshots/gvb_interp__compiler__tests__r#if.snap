@@ -1,5 +1,6 @@
 ---
 source: gvb_interp/src/compiler.rs
+assertion_line: 2141
 expression: "compile(r#\"\n0  if a+b then print:20:\n10 if f(x)>3 then cont:else graph:cls:gosub 00\n20 if a< >b then x=x+1:10:20:if x>10 then play \"abc\" else 30:t(i)=int(x/2):else 00\n30 if 37 goto else 20:if 0 goto 50\n50 rem x\n    \"#.trim())"
 
 ---
@@ -31,7 +32,7 @@ emoji_version: New
 22    2:19..20  push var X
 23    2:21..22  push number 1
 24    2:19..22  add
-25    2:17..22  assign num
+25    2:17..22  assign real
 26    2:23..25  goto 7
 27    2:26..28  goto 17
 28    2:32..33  push var X
@@ -48,7 +49,7 @@ emoji_version: New
 39    2:72..73  push number 2
 40    2:70..73  div
 41    2:66..74  call sys func INT, arity: 1
-42    2:61..74  assign num
+42    2:61..74  assign real
 43    2:3..82   goto 45
 44    2:80..82  goto 0
 45    3:6..8    push number 37

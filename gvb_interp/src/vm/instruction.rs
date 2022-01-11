@@ -154,7 +154,8 @@ pub enum InstrKind {
   End,
   ReadRecord,
   WriteRecord,
-  AssignNum,
+  AssignInt,
+  AssignReal,
   AssignStr,
   DrawLine {
     has_mode: bool,
@@ -417,7 +418,8 @@ impl InstrKind {
       Self::End => format!("end"),
       Self::ReadRecord => format!("read record"),
       Self::WriteRecord => format!("write record"),
-      Self::AssignNum => format!("assign num"),
+      Self::AssignInt => format!("assign int"),
+      Self::AssignReal => format!("assign real"),
       Self::AssignStr => format!("assign str"),
       Self::DrawLine { has_mode } => {
         format!("draw line, has_mode: {}", has_mode)

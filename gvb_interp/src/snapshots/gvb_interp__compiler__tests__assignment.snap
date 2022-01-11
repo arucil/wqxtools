@@ -1,6 +1,7 @@
 ---
 source: gvb_interp/src/compiler.rs
-expression: "compile(r#\"10 a=a*b+coo%/2^len(a$+\"xx和\")\"#)"
+assertion_line: 2056
+expression: "compile(r#\"\n10 a=a*b+coo%/2^len(a$+\"xx和\")\n20 b%=1+3:c$(2)=\"a\"+chr$(2):\n\"#.trim())"
 
 ---
 emoji_version: New
@@ -19,6 +20,18 @@ emoji_version: New
 10    0:14..31  pow
 11    0:9..31   div
 12    0:5..31   add
-13    0:3..31   assign num
-14    0:0..0    end
+13    0:3..31   assign real
+14    1:3..5    push var lvalue B%
+15    1:6..7    push number 1
+16    1:8..9    push number 3
+17    1:6..9    add
+18    1:3..9    assign int
+19    1:13..14  push number 2
+20    1:10..12  push index lvalue C$, dimensions: 1
+21    1:16..19  push string "a"
+22    1:25..26  push number 2
+23    1:20..27  call sys func CHR$, arity: 1
+24    1:16..27  concat
+25    1:10..27  assign str
+26    1:0..0    end
 

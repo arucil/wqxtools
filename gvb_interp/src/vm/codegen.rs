@@ -246,8 +246,12 @@ impl CodeEmitter for CodeGen {
     self.push_instr(range, InstrKind::NextFor { name: var });
   }
 
-  fn emit_assign_num(&mut self, range: Range) {
-    self.push_instr(range, InstrKind::AssignNum);
+  fn emit_assign_int(&mut self, range: Range) {
+    self.push_instr(range, InstrKind::AssignInt);
+  }
+
+  fn emit_assign_real(&mut self, range: Range) {
+    self.push_instr(range, InstrKind::AssignReal);
   }
 
   fn emit_assign_str(&mut self, range: Range) {

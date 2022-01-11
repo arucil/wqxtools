@@ -640,7 +640,7 @@ where
       }
       InstrKind::CallFn(func) => {
         if let Some(func) = self.bindings.user_funcs.get(&func).cloned() {
-          let arg = self.num_stack.pop().unwrap();
+          let arg = self.num_stack.pop().unwrap().1;
           let param_org_value = self
             .bindings
             .load_value(&self.interner, LValue::Var { name: func.param });
@@ -649,7 +649,7 @@ where
             param_org_value,
             next_addr: Addr(self.pc + 1),
           });
-          self.store_num(LValue::Var { name: func.param }, arg)?;
+          self.store_real(LValue::Var { name: func.param }, arg)?;
           self.pc = func.body_addr.0;
         } else {
           self.state.error(loc, "自定义函数不存在")?;
@@ -1163,10 +1163,15 @@ where
           self.state.io(loc.clone(), "写入文件", file.write(&buf))?;
         });
       }
-      InstrKind::AssignNum => {
+      InstrKind::AssignInt => {
         let (_, lvalue) = self.lval_stack.pop().unwrap();
         let num = self.num_stack.pop().unwrap();
-        self.store_num(lvalue, num)?;
+        self.store_int(lvalue, num)?;
+      }
+      InstrKind::AssignReal => {
+        let (_, lvalue) = self.lval_stack.pop().unwrap();
+        let num = self.num_stack.pop().unwrap().1;
+        self.store_real(lvalue, num)?;
       }
       InstrKind::AssignStr => {
         let (_, lvalue) = self.lval_stack.pop().unwrap();
@@ -2010,7 +2015,7 @@ where
       Mbf5::one()
     };
     let end = self.num_stack.pop().unwrap().1;
-    let start = self.num_stack.pop().unwrap();
+    let start = self.num_stack.pop().unwrap().1;
 
     let mut prev_loop = None;
     for (i, item) in self.control_stack.iter().enumerate().rev() {
@@ -2035,7 +2040,7 @@ where
         step,
       }));
 
-    self.store_num(LValue::Var { name }, start)?;
+    self.store_real(LValue::Var { name }, start)?;
 
     Ok(())
   }
@@ -2069,15 +2074,14 @@ where
       let new_value = match value + record.step {
         Ok(new_value) => new_value,
         Err(RealError::Infinite) => {
-          self.state.error(
-            loc.clone(),
-            format!("计数器数值过大，超出了实数的表示范围。"),
-          )?;
+          self
+            .state
+            .error(loc, format!("计数器数值过大，超出了实数的表示范围。"))?;
         }
         Err(_) => unreachable!(),
       };
 
-      self.store_num(LValue::Var { name: record.var }, (loc, new_value))?;
+      self.store_real(LValue::Var { name: record.var }, new_value)?;
 
       let end_loop = if record.step.is_positive() {
         new_value > record.target
@@ -2321,30 +2325,30 @@ where
     }
   }
 
-  fn store_num(
+  fn store_int(
     &mut self,
     lvalue: LValue,
     (loc, num): (Location, Mbf5),
   ) -> Result<()> {
-    let value = match lvalue.get_type(&self.interner) {
-      Type::Integer => {
-        let int = f64::from(num.truncate());
-        if int <= -32769.0 || int >= 32768.0 {
-          self.state.error(
-            loc,
-            format!(
-              "运算结果数值过大，超出了整数的表示范围（-32768~32767），\
+    assert_eq!(lvalue.get_type(&self.interner), Type::Integer);
+    let int = f64::from(num.truncate());
+    if int <= -32769.0 || int >= 32768.0 {
+      self.state.error(
+        loc,
+        format!(
+          "运算结果数值过大，超出了整数的表示范围（-32768~32767），\
               无法赋值给整数变量。运算结果为：{}",
-              f64::from(num),
-            ),
-          )?;
-        }
-        Value::Integer(int as _)
-      }
-      Type::Real => Value::Real(num),
-      _ => unreachable!(),
-    };
-    self.bindings.store_value(lvalue, value);
+          f64::from(num),
+        ),
+      )?;
+    }
+    self.bindings.store_value(lvalue, Value::Integer(int as _));
+    Ok(())
+  }
+
+  fn store_real(&mut self, lvalue: LValue, num: Mbf5) -> Result<()> {
+    assert_eq!(lvalue.get_type(&self.interner), Type::Real);
+    self.bindings.store_value(lvalue, Value::Real(num));
     Ok(())
   }
 
@@ -3290,7 +3294,7 @@ mod tests {
   fn dim() {
     assert_snapshot!(run(
       r#"
-10 dim a,a,a$(3):a$(4)=a
+10 dim a,a,a$(3):a$(4)=a$
     "#
       .trim(),
       vec![(

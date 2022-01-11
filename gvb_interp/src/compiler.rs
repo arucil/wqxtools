@@ -60,7 +60,8 @@ pub trait CodeEmitter {
 
   fn emit_next(&mut self, range: Range, var: Option<Self::Symbol>);
 
-  fn emit_assign_num(&mut self, range: Range);
+  fn emit_assign_int(&mut self, range: Range);
+  fn emit_assign_real(&mut self, range: Range);
   fn emit_assign_str(&mut self, range: Range);
 
   fn make_symbol(&mut self, name: String) -> Self::Symbol;
@@ -442,12 +443,26 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E, ProgramLine> {
       StmtKind::Inverse => self.code_emitter.emit_op(range, &stmt.kind, 0),
       StmtKind::Kill(_) => self.code_emitter.emit_no_op(range),
       StmtKind::Let { var, value } => {
-        let (_, _) = self.compile_lvalue(*var);
-        let ty = self.compile_expr(*value);
-        if ty.matches(Type::Real) {
-          self.code_emitter.emit_assign_num(range);
-        } else {
-          self.code_emitter.emit_assign_str(range);
+        let (is_array, lhs_ty) = self.compile_lvalue(*var);
+        let rhs_ty = self.compile_expr(*value);
+        if !lhs_ty.matches(rhs_ty) {
+          self.add_error(
+            range.clone(),
+            format!(
+              "赋值语句类型错误。等号左边的{}是{:#}类型，而等号右边的表达式是{}类型",
+              if is_array {"数组"}else{"变量"},
+              lhs_ty,
+              rhs_ty,
+            ),
+          );
+        }
+        match lhs_ty {
+          Type::Integer => self.code_emitter.emit_assign_int(range),
+          Type::Real => self.code_emitter.emit_assign_real(range),
+          Type::String => self.code_emitter.emit_assign_str(range),
+          Type::Error => {
+            // do nothing
+          }
         }
       }
       StmtKind::Line(args) => compile_draw_stmt!(&stmt, args, LINE, 4, 5),
@@ -1869,6 +1884,7 @@ impl<'a, 'b, E: CodeEmitter, T> CompileState<'a, 'b, E, T> {
     }
   }
 
+  /// Returns (is subscript, type)
   #[must_use]
   fn compile_lvalue(&mut self, lvalue: ExprId) -> (bool, Type) {
     let lvalue = &self.expr_node(lvalue);
@@ -1997,6 +2013,7 @@ impl Display for Type {
 #[cfg(test)]
 mod tests {
   use super::*;
+  use crate::diagnostic::Diagnostic;
   use crate::machine::EmojiVersion;
   use crate::parser::{parse_expr, parse_prog};
   use crate::vm::codegen::CodeGen;
@@ -2019,9 +2036,47 @@ mod tests {
     codegen
   }
 
+  fn compile_error(text: &str, errors: Vec<Vec<Diagnostic>>) {
+    let mut prog = parse_prog(text);
+    let mut codegen = CodeGen::new(EmojiVersion::New);
+    compile_prog(text, &mut prog, &mut codegen);
+    for (i, line) in prog.lines.iter().enumerate() {
+      let diags: Vec<_> = line
+        .diagnostics
+        .iter()
+        .filter(|d| d.severity == Severity::Error)
+        .cloned()
+        .collect();
+      assert_eq!(&diags, &errors[i], "line {}", i);
+    }
+  }
+
   #[test]
   fn assignment() {
-    assert_debug_snapshot!(compile(r#"10 a=a*b+coo%/2^len(a$+"xx和")"#));
+    assert_debug_snapshot!(compile(
+      r#"
+10 a=a*b+coo%/2^len(a$+"xx和")
+20 b%=1+3:c$(2)="a"+chr$(2):
+"#
+      .trim()
+    ));
+  }
+
+  #[test]
+  fn assignment_error() {
+    compile_error(
+      r#"30 a$=1:c%(2)="""#,
+      vec![vec![
+        Diagnostic::new_error(
+          Range::new(3, 7),
+          "赋值语句类型错误。等号左边的变量是字符串类型，而等号右边的表达式是数值类型",
+        ),
+        Diagnostic::new_error(
+          Range::new(8, 16),
+          "赋值语句类型错误。等号左边的数组是整数类型，而等号右边的表达式是字符串类型",
+        ),
+      ]],
+    );
   }
 
   #[test]
