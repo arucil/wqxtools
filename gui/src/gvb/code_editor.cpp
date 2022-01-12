@@ -146,8 +146,10 @@ void CodeEditor::notified(Scintilla::NotificationData *data) {
       }
       break;
     case Scintilla::Notification::URIDropped: {
-      QUrl path(QString::fromUtf8(data->text));
-      emit fileDropped(path.toLocalFile());
+      QUrl url(QString::fromUtf8(data->text));
+      if (url.isLocalFile()) {
+        emit fileDropped(url.toLocalFile());
+      }
       break;
     }
     default:

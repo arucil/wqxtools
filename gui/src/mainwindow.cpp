@@ -579,6 +579,10 @@ void MainWindow::dragEnterEvent(QDragEnterEvent *ev) {
 }
 
 void MainWindow::dropEvent(QDropEvent *ev) {
-  auto path = ev->mimeData()->urls().first().toLocalFile();
-  openFileByPath(path, screen());
+  const auto urls = ev->mimeData()->urls();
+  for (auto &url : urls) {
+    if (url.isLocalFile()) {
+      openFileByPath(url.toLocalFile(), screen());
+    }
+  }
 }
