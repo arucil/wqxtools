@@ -111,32 +111,32 @@ void MainWindow::initMenu() {
   actExit->setShortcut(Qt::ALT | Qt::Key_F4);
   connect(actExit, &QAction::triggered, qApp, &QApplication::quit);
 
-  auto mnuEdit = menuBar()->addMenu("编辑(&E)");
+  m_mnuEdit = menuBar()->addMenu("编辑(&E)");
 
-  m_actUndo = mnuEdit->addAction("撤销");
+  m_actUndo = m_mnuEdit->addAction("撤销");
   m_actUndo->setShortcut(Qt::CTRL | Qt::Key_Z);
 
-  m_actRedo = mnuEdit->addAction("重做");
+  m_actRedo = m_mnuEdit->addAction("重做");
   m_actRedo->setShortcut(Qt::CTRL | Qt::Key_Y);
 
-  mnuEdit->addSeparator();
+  m_mnuEdit->addSeparator();
 
-  m_actCopy = mnuEdit->addAction("复制");
+  m_actCopy = m_mnuEdit->addAction("复制");
   m_actCopy->setShortcut(Qt::CTRL | Qt::Key_C);
 
-  m_actCut = mnuEdit->addAction("剪切");
+  m_actCut = m_mnuEdit->addAction("剪切");
   m_actCut->setShortcut(Qt::CTRL | Qt::Key_X);
 
-  m_actPaste = mnuEdit->addAction("粘贴");
+  m_actPaste = m_mnuEdit->addAction("粘贴");
   m_actPaste->setShortcut(Qt::CTRL | Qt::Key_V);
 
-  mnuEdit->addSeparator();
+  m_mnuEdit->addSeparator();
 
-  m_actFind = mnuEdit->addAction("查找");
+  m_actFind = m_mnuEdit->addAction("查找");
   m_actFind->setShortcut(Qt::CTRL | Qt::Key_F);
 
-  m_actReplace = mnuEdit->addAction("替换");
-  m_actReplace->setShortcut(Qt::CTRL | Qt::Key_H);
+  m_actReplace = m_mnuEdit->addAction("替换");
+  m_actReplace->setShortcut(Qt::CTRL | Qt::Key_R);
 
   auto mnuProg = menuBar()->addMenu("程序(&P)");
 
@@ -229,7 +229,7 @@ void MainWindow::openFileByPath(const QString &path, QScreen *screen) {
 
     isNew = true;
     widget = ctor(this);
-    setCentralWidget(widget);
+    replaceTool(widget);
 
     resize(widget->preferredWindowSize());
     centerWindow(this, screen);
@@ -239,7 +239,7 @@ void MainWindow::openFileByPath(const QString &path, QScreen *screen) {
     auto result = widget->load(path);
     if (auto err = std::get_if<QString>(&result)) {
       QMessageBox::critical(this, "文件打开失败", *err);
-      setCentralWidget(nullptr);
+      replaceTool(nullptr);
       m_openFilePath.setValue(QString());
       m_loaded.setValue(false);
     } else {
@@ -331,6 +331,12 @@ void MainWindow::setupTool(ToolWidget *widget) {
       &QAction::trigger);
 
     connect(&editor->m_dirty, &BoolValue::changed, this, &MainWindow::setTitle);
+
+    auto extraActions = editor->extraActions();
+    if (!extraActions.isEmpty()) {
+      m_extraEditActions.push_back(m_mnuEdit->addSeparator());
+      m_mnuEdit->addActions(extraActions);
+    }
   } else {
     m_actCopy->setEnabled(false);
     m_actCut->setEnabled(false);
@@ -377,6 +383,15 @@ void MainWindow::setupTool(ToolWidget *widget) {
   }
 }
 
+void MainWindow::replaceTool(ToolWidget *tool) {
+  for (auto act : m_extraEditActions) {
+    m_mnuEdit->removeAction(act);
+    delete act;
+  }
+  m_extraEditActions.clear();
+  setCentralWidget(tool);
+}
+
 ActionResult MainWindow::confirmSaveIfDirty(ToolWidget *widget) {
   if (auto oldWidget = dynamic_cast<EditCapabilities *>(widget)) {
     if (oldWidget->m_dirty.value()) {
@@ -410,7 +425,7 @@ void MainWindow::createFile(const Tool &tool) {
   if (!(tool.test)(widget)) {
     isNew = true;
     widget = (tool.ctor)(this);
-    setCentralWidget(widget);
+    replaceTool(widget);
 
     resize(widget->preferredWindowSize());
     centerWindow(this, screen());

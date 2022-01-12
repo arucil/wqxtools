@@ -1,11 +1,13 @@
 #pragma once
 
 #include <QMainWindow>
+#include <QVector>
 
 #include "capability.h"
 #include "gvb/gvbeditor.h"
 #include "util.h"
 
+class QMenu;
 class QWidget;
 class QCloseEvent;
 class QString;
@@ -42,6 +44,7 @@ private:
   void openFileByPath(const QString &);
   ActionResult handleSaveFileError(const SaveResult &);
   void setupTool(ToolWidget *);
+  void replaceTool(ToolWidget *);
 
 protected:
   void closeEvent(QCloseEvent *) override;
@@ -49,6 +52,8 @@ protected:
   void dropEvent(QDropEvent *) override;
 
 private:
+  QMenu *m_mnuEdit;
+
   QAction *m_actOpen;
   QAction *m_actSave;
   QAction *m_actSaveAs;
@@ -66,4 +71,6 @@ private:
 
   StrValue m_openFilePath;
   BoolValue m_loaded;
+
+  QVector<QAction *> m_extraEditActions;
 };

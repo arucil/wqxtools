@@ -45,6 +45,8 @@ public:
   GvbEditor(QWidget *parent = nullptr);
   ~GvbEditor();
 
+  QList<QAction *> extraActions() const;
+
   void showRuntimeError(const api::GvbExecResult::Error_Body &);
 
 private:

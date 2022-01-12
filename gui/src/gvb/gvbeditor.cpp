@@ -703,3 +703,13 @@ void GvbEditor::showErrorMessage(const QString &text, int ms) {
     QString("<font color=\"red\">%1</font>").arg(text.toHtmlEscaped()),
     ms);
 }
+
+QList<QAction *> GvbEditor::extraActions() const {
+  auto actNextLn = new QAction("在下一行插入行号");
+  actNextLn->setShortcut(Qt::CTRL | Qt::Key_J);
+  auto actPrevLn = new QAction("在上一行插入行号");
+  actPrevLn->setShortcut(Qt::CTRL | Qt::Key_K);
+  auto actCurLn = new QAction("为当前行加上行号");
+  actCurLn->setShortcut(Qt::CTRL | Qt::Key_H);
+  return {actNextLn, actPrevLn, actCurLn};
+}

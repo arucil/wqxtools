@@ -1,5 +1,6 @@
 #pragma once
 
+#include <QList>
 #include <optional>
 
 #include "util.h"
@@ -20,6 +21,8 @@ struct EditCapabilities {
   Action *m_actFind;
   Action *m_actReplace;
   BoolValue m_dirty;
+
+  virtual QList<QAction *> extraActions() const = 0;
 };
 
 // succeeded: new path
