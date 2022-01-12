@@ -44,6 +44,8 @@ QT += widgets
 
 RESOURCES += resources/wqxtools.qrc
 
+RC_ICONS = resources/images/Icon.ico
+
 LIBS += $$PWD/scintilla/bin/libScintillaEdit.a \
     $$PWD/../target/release/libapi_cpp_binding.a \
     -ldl
