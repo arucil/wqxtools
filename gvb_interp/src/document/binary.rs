@@ -11,13 +11,13 @@ pub struct BasTextDocument {
   pub text: String,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LoadError<L> {
   pub location: L,
   pub message: String,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SaveError {
   /// 0-based
   pub line: usize,

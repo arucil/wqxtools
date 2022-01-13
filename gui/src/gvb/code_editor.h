@@ -11,6 +11,7 @@
 
 class SyntaxStyle;
 class QPoint;
+class QContextMenuEvent;
 
 struct Diagnostic {
   size_t line;
@@ -158,6 +159,9 @@ class CodeEditor: public ScintillaEdit {
 public:
   CodeEditor(QWidget *parent = nullptr);
 
+protected:
+  void contextMenuEvent(QContextMenuEvent *) override;
+
 private:
   void adjustLineNumberMarginWidth();
   void showDiagnostics(size_t pos, const QPoint &);
@@ -166,8 +170,10 @@ signals:
   void cursorPositionChanged(size_t);
   void dirtyChanged(bool isDirty);
   void textChanged(const TextChange &);
+  void selectionChanged(bool nonempty);
   void showStatus(const QString &, int ms);
   void fileDropped(const QString &path);
+  void contextMenu(const QPoint &localPos);
 
 public slots:
   void setDiagnostics(QVector<Diagnostic>);

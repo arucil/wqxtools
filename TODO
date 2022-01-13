@@ -31,12 +31,12 @@
 
 
 - 关联 .bas  .lav  .pac 文件
-- [x] 在运行模拟器时不能加载其他文件
+- [ ] 在运行模拟器时不能加载其他文件
 - 检查内存泄漏
     + [x] gvb
     + [x] sync & set machine name
 - ~~改成GBK（有些汉字会和emoji重叠，优先使用emoji）~~
-- drag and drop (初始界面支持所有文件，gvbeditor界面支持bas/txt文件)
+- [x] drag and drop (初始界面支持所有文件，gvbeditor界面支持bas/txt文件)
 - [x] 初始界面显示功能列表
 - 如果打开gvbsim后打开其他类型文件，gvbsim窗口是否能正常关闭？
 - 搜索变量内容
@@ -54,7 +54,7 @@
 - ~~scintilla antialiasing~~
 - [x] 移除 QThread
 - [x] if goto 后面只能跟上行号（默认是0）
-- C-h 当前行插入行号，C-j 下一行插入行号并跳转，C-k 上一行插入行号并跳转
+- [x] C-h 当前行插入行号，C-j 下一行插入行号并跳转，C-k 上一行插入行号并跳转
 
 - [x] scintilla 行号宽度实时变动（监测 lines_added）
 - 扩展gvb:
@@ -72,8 +72,8 @@
     + [x] diagnostics: () -> vec
     + auto completion: () -> completion list
     + [x] compile to vm: device -> vm
-    + set machine name: string -> ()
-    + get machine name: () -> string
+    + [x] set machine name: string -> ()
+    + [x] get machine name: () -> string
     + [x] edit: edit list -> ()
     + get semantic token: () -> vec
     + symbol highlight: () -> vec

@@ -107,9 +107,3 @@ void EmojiSelector::releasedEmoji(QLabel *label) {
     label->mapToGlobal(QPoint(label->width() / 2, label->height() / 2));
   QToolTip::showText(pos, "已复制", label, QRect(), 500);
 }
-
-void EmojiSelector::moveBeneath(QWidget *w) {
-  auto globalPos = w->mapToGlobal(QPoint())
-    + QPoint((w->width() - width()) / 2, w->height() + 5);
-  move(globalPos);
-}

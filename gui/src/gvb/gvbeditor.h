@@ -10,10 +10,10 @@
 #include "../capability.h"
 #include "../tool.h"
 
+class QToolButton;
 class QComboBox;
 class EmojiSelector;
 class QLabel;
-class QWidget;
 class QStatusBar;
 class QTimerEvent;
 class QKeyEvent;
@@ -46,6 +46,7 @@ public:
   ~GvbEditor();
 
   QList<QAction *> extraActions() const;
+  void setContextMenuActions(const QList<QAction *> &) override;
 
   void showRuntimeError(const api::GvbExecResult::Error_Body &);
 
@@ -60,6 +61,7 @@ private:
   void loadMachNames();
   void syncMachName(bool skipSelection);
   void syncMachNameSelection();
+  void addLabel(api::GvbLabelTarget);
 
 protected:
   void timerEvent(QTimerEvent *) override;
@@ -82,6 +84,9 @@ public slots:
   void paste();
   void undo();
   void redo();
+  void addLabelCurLine();
+  void addLabelPrevLine();
+  void addLabelNextLine();
   LoadResult load(const QString &) override;
   bool canLoad(const QString &) const override;
   const char *type() const override;
@@ -94,6 +99,8 @@ private slots:
   void showMessage(const QString &, int ms);
   void showErrorMessage(const QString &, int ms);
   void setMachineName(int index);
+  void contextMenu(const QPoint &localPos);
+  void showEmojiSelector();
 
 private:
   CodeEditor *m_edit;
@@ -111,5 +118,10 @@ private:
   SearchBar *m_searchBar;
   QLabel *m_errorLabel;
   QComboBox *m_machNames;
+  QToolButton *m_btnEmoji;
   EmojiSelector *m_emojiSelector;
+  QAction *m_actAddLabelCurLine;
+  QAction *m_actAddLabelPrevLine;
+  QAction *m_actAddLabelNextLine;
+  QList<QAction *> m_ctxMenuActions;
 };

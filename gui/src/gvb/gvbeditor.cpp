@@ -5,6 +5,7 @@
 #include <QFileInfo>
 #include <QKeyEvent>
 #include <QLabel>
+#include <QMenu>
 #include <QMessageBox>
 #include <QState>
 #include <QStatusBar>
@@ -45,8 +46,9 @@ GvbEditor::GvbEditor(QWidget *parent) :
     m_actPaste->setEnabled(true);
     m_actUndo->setEnabled(false);
     m_actRedo->setEnabled(false);
-    m_actCopy->setEnabled(true);
-    m_actCut->setEnabled(true);
+    //m_actCopy->setEnabled(true);
+    //m_actCut->setEnabled(true);
+    m_actSelectAll->setEnabled(true);
     m_actFind->setEnabled(true);
     m_actReplace->setEnabled(true);
 
@@ -69,6 +71,16 @@ void GvbEditor::initUi() {
   initStatusBar();
 
   connect(m_edit, &CodeEditor::showStatus, this, &GvbEditor::showMessage);
+  connect(
+    m_edit,
+    &CodeEditor::selectionChanged,
+    m_actCopy,
+    &QAction::setEnabled);
+  connect(
+    m_edit,
+    &CodeEditor::selectionChanged,
+    m_actCut,
+    &QAction::setEnabled);
 
   m_searchBar = new SearchBar(this);
   m_searchBar->hide();
@@ -112,6 +124,35 @@ void GvbEditor::initUi() {
   layout->addWidget(m_statusBar);
   layout->setContentsMargins(0, 0, 0, 0);
   layout->setSpacing(0);
+
+  m_actAddLabelNextLine = new QAction("在下一行插入行号", this);
+  m_actAddLabelNextLine->setShortcut(Qt::CTRL | Qt::Key_J);
+  connect(
+    m_actAddLabelNextLine,
+    &QAction::triggered,
+    this,
+    &GvbEditor::addLabelNextLine);
+  m_actAddLabelPrevLine = new QAction("在上一行插入行号", this);
+  m_actAddLabelPrevLine->setShortcut(Qt::CTRL | Qt::Key_K);
+  connect(
+    m_actAddLabelPrevLine,
+    &QAction::triggered,
+    this,
+    &GvbEditor::addLabelPrevLine);
+  m_actAddLabelCurLine = new QAction("为当前行加上行号", this);
+  m_actAddLabelCurLine->setShortcut(Qt::CTRL | Qt::Key_H);
+  connect(
+    m_actAddLabelCurLine,
+    &QAction::triggered,
+    this,
+    &GvbEditor::addLabelCurLine);
+
+  m_actSelectAll = new Action("全选", this);
+  connect(
+    m_actSelectAll,
+    &QAction::triggered,
+    m_edit,
+    &ScintillaEdit::selectAll);
 }
 
 void GvbEditor::initStateMachine() {
@@ -172,6 +213,7 @@ void GvbEditor::initEdit() {
   connect(m_edit, &CodeEditor::dirtyChanged, &m_dirty, &BoolValue::setValue);
   connect(m_edit, &CodeEditor::textChanged, this, &GvbEditor::textChanged);
   connect(m_edit, &CodeEditor::fileDropped, this, &GvbEditor::fileDropped);
+  connect(m_edit, &CodeEditor::contextMenu, this, &GvbEditor::contextMenu);
 
   connect(
     &Config::instance(),
@@ -195,41 +237,41 @@ void GvbEditor::initToolBar() {
 
   m_toolBar->addSeparator();
 
-  m_actFind = new Action(QPixmap(":/images/Find.svg"), "查找");
+  m_actFind = new Action(QPixmap(":/images/Find.svg"), "查找", m_toolBar);
   m_toolBar->addAction(m_actFind);
   connect(m_actFind, &QAction::triggered, this, &GvbEditor::find);
 
-  m_actReplace = new Action(QPixmap(":/images/Replace.svg"), "替换");
+  m_actReplace = new Action(QPixmap(":/images/Replace.svg"), "替换", m_toolBar);
   m_toolBar->addAction(m_actReplace);
   connect(m_actReplace, &QAction::triggered, this, &GvbEditor::replace);
 
   m_toolBar->addSeparator();
 
-  m_actUndo = new Action(QPixmap(":/images/Undo.svg"), "撤销");
+  m_actUndo = new Action(QPixmap(":/images/Undo.svg"), "撤销", m_toolBar);
   m_toolBar->addAction(m_actUndo);
   connect(m_actUndo, &QAction::triggered, this, &GvbEditor::undo);
 
-  m_actRedo = new Action(QPixmap(":/images/Redo.svg"), "重做");
+  m_actRedo = new Action(QPixmap(":/images/Redo.svg"), "重做", m_toolBar);
   m_toolBar->addAction(m_actRedo);
   connect(m_actRedo, &QAction::triggered, this, &GvbEditor::redo);
 
   m_toolBar->addSeparator();
 
-  m_actCopy = new Action(QPixmap(":/images/Copy.svg"), "复制");
-  m_toolBar->addAction(m_actCopy);
-  connect(m_actCopy, &QAction::triggered, this, &GvbEditor::copy);
-
-  m_actCut = new Action(QPixmap(":/images/Cut.svg"), "剪切");
+  m_actCut = new Action(QPixmap(":/images/Cut.svg"), "剪切", m_toolBar);
   m_toolBar->addAction(m_actCut);
   connect(m_actCut, &QAction::triggered, this, &GvbEditor::cut);
 
-  m_actPaste = new Action(QPixmap(":/images/Paste.svg"), "粘贴");
+  m_actCopy = new Action(QPixmap(":/images/Copy.svg"), "复制", m_toolBar);
+  m_toolBar->addAction(m_actCopy);
+  connect(m_actCopy, &QAction::triggered, this, &GvbEditor::copy);
+
+  m_actPaste = new Action(QPixmap(":/images/Paste.svg"), "粘贴", m_toolBar);
   m_toolBar->addAction(m_actPaste);
   connect(m_actPaste, &QAction::triggered, this, &GvbEditor::paste);
 
   m_toolBar->addSeparator();
 
-  m_actStart = new Action;
+  m_actStart = new Action(m_toolBar);
   m_toolBar->addAction(m_actStart);
   connect(m_actStart, &QAction::triggered, this, [this] {
     tryStartPause(this);
@@ -239,7 +281,7 @@ void GvbEditor::initToolBar() {
   empty->setMinimumWidth(20);
   m_toolBar->addWidget(empty);
 
-  m_actStop = new Action(QPixmap(":/images/Stop.svg"), "停止");
+  m_actStop = new Action(QPixmap(":/images/Stop.svg"), "停止", m_toolBar);
   m_toolBar->addAction(m_actStop);
   connect(m_actStop, &QAction::triggered, this, &GvbEditor::stop);
 
@@ -247,20 +289,15 @@ void GvbEditor::initToolBar() {
   empty->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
   m_toolBar->addWidget(empty);
 
-  auto btnEmoji = new QToolButton();
-  btnEmoji->setIcon(QPixmap(":/images/Emoji.svg"));
-  btnEmoji->setToolTip("文曲星图形符号");
-  m_toolBar->addWidget(btnEmoji);
-  connect(btnEmoji, &QToolButton::clicked, this, [this, btnEmoji] {
-    if (!m_emojiSelector) {
-      m_emojiSelector = new EmojiSelector(this);
-      connect(m_emojiSelector, &EmojiSelector::shown, [this, btnEmoji] {
-        m_emojiSelector->moveBeneath(btnEmoji);
-      });
-    }
-    m_emojiSelector->show();
-    m_emojiSelector->activateWindow();
-  });
+  m_btnEmoji = new QToolButton();
+  m_btnEmoji->setIcon(QPixmap(":/images/Emoji.svg"));
+  m_btnEmoji->setToolTip("文曲星图形符号");
+  m_toolBar->addWidget(m_btnEmoji);
+  connect(
+    m_btnEmoji,
+    &QToolButton::clicked,
+    this,
+    &GvbEditor::showEmojiSelector);
 
   m_toolBar->addSeparator();
 
@@ -278,6 +315,20 @@ void GvbEditor::initToolBar() {
   btnSync->setToolTip("同步源码中的机型设置");
   m_toolBar->addWidget(btnSync);
   connect(btnSync, &QToolButton::clicked, this, &GvbEditor::syncMachName);
+}
+
+void GvbEditor::showEmojiSelector() {
+  if (!m_emojiSelector) {
+    m_emojiSelector = new EmojiSelector(this);
+    connect(m_emojiSelector, &EmojiSelector::shown, [this] {
+      auto globalPos = m_btnEmoji->mapToGlobal(QPoint())
+        + QPoint((m_btnEmoji->width() - m_emojiSelector->width()) / 2,
+                 m_btnEmoji->height() + m_toolBar->contentsMargins().bottom());
+      m_emojiSelector->move(globalPos);
+    });
+  }
+  m_emojiSelector->show();
+  m_emojiSelector->activateWindow();
 }
 
 void GvbEditor::loadMachNames() {
@@ -527,7 +578,7 @@ void GvbEditor::textChanged(const TextChange &c) {
     if (m_needSyncMach) {
       m_timerModify = startTimer(20);
     } else {
-      m_timerModify = startTimer(300);
+      m_timerModify = startTimer(200);
     }
   }
 
@@ -705,11 +756,49 @@ void GvbEditor::showErrorMessage(const QString &text, int ms) {
 }
 
 QList<QAction *> GvbEditor::extraActions() const {
-  auto actNextLn = new QAction("在下一行插入行号");
-  actNextLn->setShortcut(Qt::CTRL | Qt::Key_J);
-  auto actPrevLn = new QAction("在上一行插入行号");
-  actPrevLn->setShortcut(Qt::CTRL | Qt::Key_K);
-  auto actCurLn = new QAction("为当前行加上行号");
-  actCurLn->setShortcut(Qt::CTRL | Qt::Key_H);
-  return {actNextLn, actPrevLn, actCurLn};
+  return {m_actAddLabelNextLine, m_actAddLabelCurLine, m_actAddLabelPrevLine};
+}
+
+void GvbEditor::setContextMenuActions(const QList<QAction *> &actions) {
+  m_ctxMenuActions = actions;
+}
+
+void GvbEditor::contextMenu(const QPoint &localPos) {
+  auto pos = m_edit->mapToGlobal(localPos);
+
+  QMenu popup(this);
+  popup.addActions(m_ctxMenuActions);
+  m_actPaste->setEnabled(m_edit->canPaste());
+  popup.exec(pos);
+  m_actPaste->setEnabled(true);
+}
+
+void GvbEditor::addLabelCurLine() {
+  addLabel(api::GvbLabelTarget::CurLine);
+}
+
+void GvbEditor::addLabelPrevLine() {
+  addLabel(api::GvbLabelTarget::PrevLine);
+}
+
+void GvbEditor::addLabelNextLine() {
+  addLabel(api::GvbLabelTarget::NextLine);
+}
+
+void GvbEditor::addLabel(api::GvbLabelTarget target) {
+  auto result =
+    api::gvb_document_add_label_edit(m_doc, target, m_edit->currentPos());
+  if (result.tag == api::GvbDocLabelEditResult::Tag::Left) {
+    auto msg = QString::fromUtf8(result.left._0.data, result.left._0.len);
+    api::destroy_string(result.left._0);
+    showErrorMessage(msg, 1000);
+  } else {
+    auto edit = result.right._0.edit;
+    m_edit->setTargetRange(edit.pos, edit.pos + edit.old_len);
+    m_edit->replaceTarget(edit.str.len, edit.str.data);
+    api::gvb_destroy_replace_text(edit);
+    if (result.right._0.goto_.tag == api::Maybe<size_t>::Tag::Just) {
+      m_edit->gotoPos(result.right._0.goto_.just._0);
+    }
+  }
 }

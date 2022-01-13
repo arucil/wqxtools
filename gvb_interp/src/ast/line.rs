@@ -1,6 +1,6 @@
 use super::{Label, Range, StmtId};
 use smallvec::SmallVec;
-use std::fmt::Debug;
+use std::fmt::{self, Formatter, Debug, Display};
 #[cfg(test)]
 use std::fmt::Write;
 
@@ -39,5 +39,25 @@ impl crate::parser::ParseResult<ProgramLine> {
         .unwrap();
     }
     f
+  }
+}
+
+impl Display for Eol {
+  fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+    match self {
+      Self::None => Ok(()),
+      Self::Lf => write!(f, "\n"),
+      Self::CrLf => write!(f, "\r\n"),
+    }
+  }
+}
+
+impl Eol {
+  pub fn byte_len(&self) -> usize {
+    match self {
+      Self::None => 0,
+      Self::Lf => 1,
+      Self::CrLf => 2,
+    }
   }
 }

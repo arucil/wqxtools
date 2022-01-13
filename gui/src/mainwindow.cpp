@@ -132,6 +132,11 @@ void MainWindow::initMenu() {
 
   m_mnuEdit->addSeparator();
 
+  m_actSelectAll = m_mnuEdit->addAction("全选");
+  m_actSelectAll->setShortcut(Qt::CTRL | Qt::Key_A);
+
+  m_mnuEdit->addSeparator();
+
   m_actFind = m_mnuEdit->addAction("查找");
   m_actFind->setShortcut(Qt::CTRL | Qt::Key_F);
 
@@ -284,6 +289,12 @@ void MainWindow::setupTool(ToolWidget *widget) {
       &Action::enabledChanged,
       m_actPaste,
       &QAction::setEnabled);
+    m_actSelectAll->setEnabled(editor->m_actSelectAll);
+    connect(
+      editor->m_actSelectAll,
+      &Action::enabledChanged,
+      m_actSelectAll,
+      &QAction::setEnabled);
     m_actUndo->setEnabled(editor->m_actUndo);
     connect(
       editor->m_actUndo,
@@ -298,6 +309,7 @@ void MainWindow::setupTool(ToolWidget *widget) {
       &QAction::setEnabled);
     m_actFind->setEnabled(true);
     m_actReplace->setEnabled(true);
+
     connect(
       m_actCopy,
       &QAction::triggered,
@@ -320,6 +332,11 @@ void MainWindow::setupTool(ToolWidget *widget) {
       editor->m_actRedo,
       &QAction::trigger);
     connect(
+      m_actSelectAll,
+      &QAction::triggered,
+      editor->m_actSelectAll,
+      &QAction::trigger);
+    connect(
       m_actFind,
       &QAction::triggered,
       editor->m_actFind,
@@ -337,6 +354,8 @@ void MainWindow::setupTool(ToolWidget *widget) {
       m_extraEditActions.push_back(m_mnuEdit->addSeparator());
       m_mnuEdit->addActions(extraActions);
     }
+
+    editor->setContextMenuActions(m_mnuEdit->actions());
   } else {
     m_actCopy->setEnabled(false);
     m_actCut->setEnabled(false);
@@ -386,7 +405,6 @@ void MainWindow::setupTool(ToolWidget *widget) {
 void MainWindow::replaceTool(ToolWidget *tool) {
   for (auto act : m_extraEditActions) {
     m_mnuEdit->removeAction(act);
-    delete act;
   }
   m_extraEditActions.clear();
   setCentralWidget(tool);

@@ -2,7 +2,7 @@ use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
 
-use crate::ast::{Program, ProgramLine};
+use crate::ast::{Eol, Label, Program, ProgramLine};
 use crate::compiler::compile_prog;
 use crate::device::default::DefaultDevice;
 use crate::device::Device;
@@ -73,11 +73,30 @@ pub enum EditKind<'a> {
   Delete(usize),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ReplaceText {
   pub pos: usize,
   pub old_len: usize,
   pub str: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LabelTarget {
+  PrevLine,
+  CurLine,
+  NextLine,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AddLabelResult {
+  pub edit: ReplaceText,
+  pub goto: Option<usize>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AddLabelError {
+  AlreadyHasLabel,
+  CannotInferLabel,
 }
 
 #[derive(Debug)]
@@ -117,7 +136,7 @@ impl From<binary::SaveError> for SaveDocumentError {
   }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum MachinePropError {
   NotFound(String),
   Save(binary::SaveError),
@@ -151,29 +170,10 @@ impl Document {
     }
   }
 
-  /// Load a `.bas` or `.txt` file.
-  pub fn load<P>(path: P) -> Result<Self, LoadDocumentError>
+  pub fn load<D>(data: D, is_bas: bool) -> Result<Self, LoadDocumentError>
   where
-    P: AsRef<Path>,
+    D: AsRef<[u8]>,
   {
-    let path = path.as_ref();
-    let ext = path.extension().map(|ext| ext.to_ascii_lowercase());
-    let is_bas = if let Some(ext) = ext {
-      match ext.to_str() {
-        Some("bas") => true,
-        Some("txt") => false,
-        ext => {
-          return Err(LoadDocumentError::UnknownExt(
-            ext.map(|ext| ext.to_owned()),
-          ))
-        }
-      }
-    } else {
-      return Err(LoadDocumentError::UnknownExt(None));
-    };
-
-    let data = fs::read(path)?;
-
     let mut doc = if is_bas {
       binary::load_bas(&data, None)?
     } else {
@@ -209,6 +209,31 @@ impl Document {
       version: DocVer(0),
       compile_cache: None,
     })
+  }
+
+  /// Load a `.bas` or `.txt` file.
+  pub fn load_file<P>(path: P) -> Result<Self, LoadDocumentError>
+  where
+    P: AsRef<Path>,
+  {
+    let path = path.as_ref();
+    let ext = path.extension().map(|ext| ext.to_ascii_lowercase());
+    let is_bas = if let Some(ext) = ext {
+      match ext.to_str() {
+        Some("bas") => true,
+        Some("txt") => false,
+        ext => {
+          return Err(LoadDocumentError::UnknownExt(
+            ext.map(|ext| ext.to_owned()),
+          ))
+        }
+      }
+    } else {
+      return Err(LoadDocumentError::UnknownExt(None));
+    };
+
+    let data = fs::read(path)?;
+    Self::load(data, is_bas)
   }
 
   /// Save to a `.bas` or `.txt` file.
@@ -257,18 +282,7 @@ impl Document {
       lines: Vec::with_capacity(self.lines.len()),
     };
     for i in 0..self.lines.len() {
-      if let Some(p) = self.lines[i].parsed.as_ref().cloned() {
-        prog.lines.push(p);
-      } else {
-        let start = self.lines[i].line_start;
-        let end = self
-          .lines
-          .get(i + 1)
-          .map_or(self.text.len(), |line| line.line_start);
-        let p = parse_line(&self.text[start..end]).0;
-        self.lines[i].parsed = Some(p.clone());
-        prog.lines.push(p);
-      }
+      prog.lines.push(self.ensure_line_parsed(i).clone());
     }
     let mut codegen = CodeGen::new(self.emoji_version);
     compile_prog(&self.text, &mut prog, &mut codegen);
@@ -290,6 +304,21 @@ impl Document {
     });
 
     &self.compile_cache.as_ref().unwrap().diagnostics
+  }
+
+  fn ensure_line_parsed(&mut self, i: usize) -> &ParseResult<ProgramLine> {
+    if let Some(p) = self.lines[i].parsed.as_ref() {
+      // TODO remove unsafe after Polonius is done
+      return unsafe { &*(p as *const _) };
+    }
+    let start = self.lines[i].line_start;
+    let end = self
+      .lines
+      .get(i + 1)
+      .map_or(self.text.len(), |line| line.line_start);
+    let p = parse_line(&self.text[start..end]).0;
+    self.lines[i].parsed = Some(p.clone());
+    self.lines[i].parsed.as_ref().unwrap()
   }
 
   pub fn apply_edit(&mut self, edit: Edit) {
@@ -374,6 +403,167 @@ impl Document {
     }
   }
 
+  pub fn get_add_label_edit(
+    &mut self,
+    target: LabelTarget,
+    pos: usize,
+  ) -> Result<AddLabelResult, AddLabelError> {
+    fn infer_label(
+      lb: Option<u16>,
+      ub: Option<u16>,
+      lower: bool,
+    ) -> Option<u16> {
+      match (lb, ub) {
+        (None, Some(ub)) => {
+          if ub >= 10 {
+            let r = ub % 10;
+            if r == 0 {
+              Some(ub - 10)
+            } else {
+              Some(ub - r)
+            }
+          } else if ub > 0 {
+            Some(ub - 1)
+          } else {
+            None
+          }
+        }
+        (Some(lb), None) => {
+          if lb <= 9989 {
+            Some(lb + 10 - lb % 10)
+          } else if lb < 9999 {
+            Some(lb + 1)
+          } else {
+            None
+          }
+        }
+        (Some(lb), Some(ub)) => {
+          if ub - lb > 10 {
+            if lower {
+              Some(lb + 10 - lb % 10)
+            } else {
+              let r = ub % 10;
+              if r == 0 {
+                Some(ub - 10)
+              } else {
+                Some(ub - r)
+              }
+            }
+          } else if ub - lb > 1 {
+            if lower {
+              Some(lb + 1)
+            } else {
+              Some(ub - 1)
+            }
+          } else {
+            None
+          }
+        }
+        (None, None) => None,
+      }
+    }
+
+    let i = find_line_by_position(&self.lines, pos);
+    match target {
+      LabelTarget::CurLine => {
+        if self.ensure_line_parsed(i).content.label.is_some() {
+          return Err(AddLabelError::AlreadyHasLabel);
+        }
+        let lb = if i > 0 {
+          Some(self.get_line_label(i - 1)?)
+        } else {
+          None
+        };
+        let ub = if i < self.lines.len() - 1 {
+          Some(self.get_line_label(i + 1)?)
+        } else {
+          None
+        };
+        let label = if self.lines.len() == 1 {
+          10
+        } else {
+          infer_label(lb, ub, true).ok_or(AddLabelError::CannotInferLabel)?
+        };
+        let pos = self.lines[i].line_start;
+        let str = if !self.text.is_empty() && self.text.as_bytes()[pos] == b' '
+        {
+          label.to_string()
+        } else {
+          format!("{} ", label)
+        };
+        Ok(AddLabelResult {
+          edit: ReplaceText {
+            pos,
+            old_len: 0,
+            str,
+          },
+          goto: None,
+        })
+      }
+      LabelTarget::PrevLine => {
+        let lb = if i > 0 {
+          Some(self.get_line_label(i - 1)?)
+        } else {
+          None
+        };
+        let ub = Some(self.get_line_label(i)?);
+        let label =
+          infer_label(lb, ub, false).ok_or(AddLabelError::CannotInferLabel)?;
+        let pos = self.lines[i].line_start;
+        let str = format!("{} {}", label, Eol::CrLf);
+        let goto = pos + str.len() - Eol::CrLf.byte_len();
+        Ok(AddLabelResult {
+          goto: Some(goto),
+          edit: ReplaceText {
+            pos,
+            old_len: 0,
+            str,
+          },
+        })
+      }
+      LabelTarget::NextLine => {
+        let lb = Some(self.get_line_label(i)?);
+        let ub = if i < self.lines.len() - 1 {
+          Some(self.get_line_label(i + 1)?)
+        } else {
+          None
+        };
+        let label =
+          infer_label(lb, ub, true).ok_or(AddLabelError::CannotInferLabel)?;
+        let str;
+        let pos;
+        let goto;
+        if i == self.lines.len() - 1 {
+          str = format!("{}{} ", Eol::CrLf, label);
+          pos = self.text.len();
+          goto = pos + str.len();
+        } else {
+          str = format!("{} {}", label, Eol::CrLf);
+          pos = self.lines[i + 1].line_start;
+          goto = pos + str.len() - Eol::CrLf.byte_len();
+        }
+        Ok(AddLabelResult {
+          goto: Some(goto),
+          edit: ReplaceText {
+            pos,
+            old_len: 0,
+            str,
+          },
+        })
+      }
+    }
+  }
+
+  fn get_line_label(&mut self, i: usize) -> Result<u16, AddLabelError> {
+    self
+      .ensure_line_parsed(i)
+      .content
+      .label
+      .as_ref()
+      .map(|(_, Label(label))| *label)
+      .ok_or(AddLabelError::CannotInferLabel)
+  }
+
   pub fn create_device<P>(&self, data_dir: P) -> DefaultDevice
   where
     P: Into<PathBuf>,
@@ -445,11 +635,22 @@ fn text_to_doc_lines(text: impl AsRef<str>) -> Vec<DocLine> {
   lines
 }
 
-fn apply_edit(text: &mut String, lines: &mut Vec<DocLine>, edit: Edit) {
-  let mut i = 0;
-  while i < lines.len() - 1 && edit.pos >= lines[i + 1].line_start {
-    i += 1;
+fn find_line_by_position(lines: &[DocLine], pos: usize) -> usize {
+  let mut lo = 0;
+  let mut hi = lines.len();
+  while lo < hi {
+    let mid = (lo + hi) / 2;
+    if pos >= lines[mid].line_start {
+      lo = mid + 1;
+    } else {
+      hi = mid;
+    }
   }
+  lo - 1
+}
+
+fn apply_edit(text: &mut String, lines: &mut Vec<DocLine>, edit: Edit) {
+  let mut i = find_line_by_position(lines, edit.pos);
 
   match edit.kind {
     EditKind::Insert(str) => {
@@ -561,6 +762,11 @@ mod tests {
       line.parsed = Some(dummy_parsed());
     }
     (text, lines)
+  }
+
+  fn make_doc(text: &str) -> Document {
+    let text = text.replace('\n', "\r\n");
+    Document::load(text, false).unwrap()
   }
 
   const INPUT: &str = "\
@@ -1316,5 +1522,568 @@ no";
         dirty_doc_line(35),
       ]
     );
+  }
+
+  #[test]
+  fn add_machine_name() {
+    let doc = make_doc(
+      r#"
+10 cls
+20 :::
+"#
+      .trim(),
+    );
+    assert_eq!(
+      doc.get_machine_name_edit("PC1000A"),
+      Ok(ReplaceText {
+        pos: 6,
+        old_len: 0,
+        str: ":REM {type:PC1000A}".to_owned(),
+      })
+    );
+  }
+
+  #[test]
+  fn add_machine_name_quote() {
+    let doc = make_doc(
+      r#"
+10 cls:print "foo
+20 :::
+"#
+      .trim(),
+    );
+    assert_eq!(
+      doc.get_machine_name_edit("pc1000a"),
+      Ok(ReplaceText {
+        pos: 17,
+        old_len: 0,
+        str: "\":REM {type:PC1000A}".to_owned(),
+      })
+    );
+  }
+
+  #[test]
+  fn modify_machine_name() {
+    let doc = make_doc(
+      r#"
+10 cls:rem {type:pc1000a}
+20 :::
+"#
+      .trim(),
+    );
+    assert_eq!(
+      doc.get_machine_name_edit("tc808"),
+      Ok(ReplaceText {
+        pos: 17,
+        old_len: 7,
+        str: "TC808".to_owned(),
+      })
+    );
+  }
+
+  mod add_label {
+    use super::*;
+    use pretty_assertions::assert_eq;
+
+    #[test]
+    fn cur_line_has_label() {
+      let mut doc = make_doc(
+        r#"
+10 cls
+:::
+23 text
+"#
+        .trim(),
+      );
+      assert_eq!(
+        doc.get_add_label_edit(LabelTarget::CurLine, 4),
+        Err(AddLabelError::AlreadyHasLabel)
+      );
+    }
+
+    #[test]
+    fn cur_line_has_space() {
+      let mut doc = make_doc(
+        r#"
+10 cls
+ :::
+23 text
+"#
+        .trim(),
+      );
+      assert_eq!(
+        doc.get_add_label_edit(LabelTarget::CurLine, 9),
+        Ok(AddLabelResult {
+          edit: ReplaceText {
+            pos: 8,
+            old_len: 0,
+            str: format!("20"),
+          },
+          goto: None
+        })
+      );
+    }
+
+    #[test]
+    fn lb_ub_10() {
+      let mut doc = make_doc(
+        r#"
+09 cls
+:::
+23 text
+34 graph
+"#
+        .trim(),
+      );
+      assert_eq!(
+        doc.get_add_label_edit(LabelTarget::CurLine, 9),
+        Ok(AddLabelResult {
+          edit: ReplaceText {
+            pos: 8,
+            old_len: 0,
+            str: format!("10 "),
+          },
+          goto: None
+        })
+      );
+      assert_eq!(
+        doc.get_add_label_edit(LabelTarget::PrevLine, 22),
+        Ok(AddLabelResult {
+          edit: ReplaceText {
+            pos: 22,
+            old_len: 0,
+            str: format!("30 \r\n"),
+          },
+          goto: Some(25)
+        })
+      );
+      assert_eq!(
+        doc.get_add_label_edit(LabelTarget::NextLine, 14),
+        Ok(AddLabelResult {
+          edit: ReplaceText {
+            pos: 22,
+            old_len: 0,
+            str: format!("30 \r\n"),
+          },
+          goto: Some(25)
+        })
+      );
+    }
+
+    #[test]
+    fn lb_ub_1() {
+      let mut doc = make_doc(
+        r#"
+10 cls
+:::
+16 text
+26 graph
+"#
+        .trim(),
+      );
+      assert_eq!(
+        doc.get_add_label_edit(LabelTarget::CurLine, 9),
+        Ok(AddLabelResult {
+          edit: ReplaceText {
+            pos: 8,
+            old_len: 0,
+            str: format!("11 "),
+          },
+          goto: None
+        })
+      );
+      assert_eq!(
+        doc.get_add_label_edit(LabelTarget::PrevLine, 22),
+        Ok(AddLabelResult {
+          edit: ReplaceText {
+            pos: 22,
+            old_len: 0,
+            str: format!("25 \r\n"),
+          },
+          goto: Some(25)
+        })
+      );
+      assert_eq!(
+        doc.get_add_label_edit(LabelTarget::NextLine, 14),
+        Ok(AddLabelResult {
+          edit: ReplaceText {
+            pos: 22,
+            old_len: 0,
+            str: format!("17 \r\n"),
+          },
+          goto: Some(25)
+        })
+      );
+    }
+
+    #[test]
+    fn lb_ub_0() {
+      let mut doc = make_doc(
+        r#"
+10 cls
+:::
+11 text
+12 graph
+"#
+        .trim(),
+      );
+      assert_eq!(
+        doc.get_add_label_edit(LabelTarget::CurLine, 9),
+        Err(AddLabelError::CannotInferLabel),
+      );
+      assert_eq!(
+        doc.get_add_label_edit(LabelTarget::PrevLine, 22),
+        Err(AddLabelError::CannotInferLabel),
+      );
+      assert_eq!(
+        doc.get_add_label_edit(LabelTarget::NextLine, 14),
+        Err(AddLabelError::CannotInferLabel),
+      );
+    }
+
+    #[test]
+    fn cur_line_one_line() {
+      let mut doc = make_doc(
+        r#"
+:::
+"#
+        .trim(),
+      );
+      assert_eq!(
+        doc.get_add_label_edit(LabelTarget::CurLine, 2),
+        Ok(AddLabelResult {
+          edit: ReplaceText {
+            pos: 0,
+            old_len: 0,
+            str: format!("10 "),
+          },
+          goto: None
+        })
+      );
+    }
+
+    #[test]
+    fn lb_no_ub() {
+      let mut doc = make_doc(
+        r#"
+10 :::
+:::
+:::
+30 graph
+:::
+"#
+        .trim(),
+      );
+      assert_eq!(
+        doc.get_add_label_edit(LabelTarget::CurLine, 9),
+        Err(AddLabelError::CannotInferLabel),
+      );
+      assert_eq!(
+        doc.get_add_label_edit(LabelTarget::PrevLine, 9),
+        Err(AddLabelError::CannotInferLabel),
+      );
+      assert_eq!(
+        doc.get_add_label_edit(LabelTarget::NextLine, 19),
+        Err(AddLabelError::CannotInferLabel),
+      );
+    }
+
+    #[test]
+    fn ub_no_lb() {
+      let mut doc = make_doc(
+        r#"
+:::
+:::
+10 :::
+"#
+        .trim(),
+      );
+      assert_eq!(
+        doc.get_add_label_edit(LabelTarget::CurLine, 5),
+        Err(AddLabelError::CannotInferLabel),
+      );
+      assert_eq!(
+        doc.get_add_label_edit(LabelTarget::PrevLine, 10),
+        Err(AddLabelError::CannotInferLabel),
+      );
+      assert_eq!(
+        doc.get_add_label_edit(LabelTarget::NextLine, 5),
+        Err(AddLabelError::CannotInferLabel),
+      );
+    }
+
+    #[test]
+    fn no_lb_no_ub() {
+      let mut doc = make_doc(
+        r#"
+:::
+:::
+:::
+"#
+        .trim(),
+      );
+      assert_eq!(
+        doc.get_add_label_edit(LabelTarget::CurLine, 6),
+        Err(AddLabelError::CannotInferLabel),
+      );
+      assert_eq!(
+        doc.get_add_label_edit(LabelTarget::PrevLine, 6),
+        Err(AddLabelError::CannotInferLabel),
+      );
+      assert_eq!(
+        doc.get_add_label_edit(LabelTarget::NextLine, 6),
+        Err(AddLabelError::CannotInferLabel),
+      );
+    }
+
+    #[test]
+    fn first_line_10() {
+      let mut doc = make_doc(
+        r#"
+:::
+15 cls
+"#
+        .trim(),
+      );
+      assert_eq!(
+        doc.get_add_label_edit(LabelTarget::CurLine, 1),
+        Ok(AddLabelResult {
+          edit: ReplaceText {
+            pos: 0,
+            old_len: 0,
+            str: format!("10 "),
+          },
+          goto: None
+        })
+      );
+
+      let mut doc = make_doc(
+        r#"
+15 cls
+"#
+        .trim(),
+      );
+      assert_eq!(
+        doc.get_add_label_edit(LabelTarget::PrevLine, 0),
+        Ok(AddLabelResult {
+          edit: ReplaceText {
+            pos: 0,
+            old_len: 0,
+            str: format!("10 \r\n"),
+          },
+          goto: Some(3)
+        })
+      );
+    }
+
+    #[test]
+    fn first_line_1() {
+      let mut doc = make_doc(
+        r#"
+:::
+5 cls
+"#
+        .trim(),
+      );
+      assert_eq!(
+        doc.get_add_label_edit(LabelTarget::CurLine, 1),
+        Ok(AddLabelResult {
+          edit: ReplaceText {
+            pos: 0,
+            old_len: 0,
+            str: format!("4 "),
+          },
+          goto: None
+        })
+      );
+
+      let mut doc = make_doc(
+        r#"
+5 cls
+"#
+        .trim(),
+      );
+      assert_eq!(
+        doc.get_add_label_edit(LabelTarget::PrevLine, 1),
+        Ok(AddLabelResult {
+          edit: ReplaceText {
+            pos: 0,
+            old_len: 0,
+            str: format!("4 \r\n"),
+          },
+          goto: Some(2)
+        })
+      );
+    }
+
+    #[test]
+    fn first_line_0() {
+      let mut doc = make_doc(
+        r#"
+:::
+0 cls
+"#
+        .trim(),
+      );
+      assert_eq!(
+        doc.get_add_label_edit(LabelTarget::CurLine, 1),
+        Err(AddLabelError::CannotInferLabel),
+      );
+
+      let mut doc = make_doc(
+        r#"
+0 cls
+"#
+        .trim(),
+      );
+      assert_eq!(
+        doc.get_add_label_edit(LabelTarget::PrevLine, 1),
+        Err(AddLabelError::CannotInferLabel),
+      );
+    }
+
+    #[test]
+    fn first_line_no_ub() {
+      let mut doc = make_doc(
+        r#"
+:::
+cls
+"#
+        .trim(),
+      );
+      assert_eq!(
+        doc.get_add_label_edit(LabelTarget::CurLine, 1),
+        Err(AddLabelError::CannotInferLabel),
+      );
+      assert_eq!(
+        doc.get_add_label_edit(LabelTarget::PrevLine, 1),
+        Err(AddLabelError::CannotInferLabel),
+      );
+    }
+
+    #[test]
+    fn last_line_10() {
+      let mut doc = make_doc(
+        r#"
+9989 cls
+:::
+"#
+        .trim(),
+      );
+      assert_eq!(
+        doc.get_add_label_edit(LabelTarget::CurLine, 12),
+        Ok(AddLabelResult {
+          edit: ReplaceText {
+            pos: 10,
+            old_len: 0,
+            str: format!("9990 "),
+          },
+          goto: None
+        })
+      );
+
+      let mut doc = make_doc(
+        r#"
+9989 cls
+"#
+        .trim(),
+      );
+      assert_eq!(
+        doc.get_add_label_edit(LabelTarget::NextLine, 0),
+        Ok(AddLabelResult {
+          edit: ReplaceText {
+            pos: 8,
+            old_len: 0,
+            str: format!("\r\n9990 "),
+          },
+          goto: Some(15)
+        })
+      );
+    }
+
+    #[test]
+    fn last_line_1() {
+      let mut doc = make_doc(
+        r#"
+9993 cls
+:::
+"#
+        .trim(),
+      );
+      assert_eq!(
+        doc.get_add_label_edit(LabelTarget::CurLine, 12),
+        Ok(AddLabelResult {
+          edit: ReplaceText {
+            pos: 10,
+            old_len: 0,
+            str: format!("9994 "),
+          },
+          goto: None
+        })
+      );
+
+      let mut doc = make_doc(
+        r#"
+9993 cls
+"#
+        .trim(),
+      );
+      assert_eq!(
+        doc.get_add_label_edit(LabelTarget::NextLine, 8),
+        Ok(AddLabelResult {
+          edit: ReplaceText {
+            pos: 8,
+            old_len: 0,
+            str: format!("\r\n9994 "),
+          },
+          goto: Some(15)
+        })
+      );
+    }
+
+    #[test]
+    fn last_line_0() {
+      let mut doc = make_doc(
+        r#"
+9999 cls
+:::
+"#
+        .trim(),
+      );
+      assert_eq!(
+        doc.get_add_label_edit(LabelTarget::CurLine, 12),
+        Err(AddLabelError::CannotInferLabel),
+      );
+
+      let mut doc = make_doc(
+        r#"
+9999 cls
+"#
+        .trim(),
+      );
+      assert_eq!(
+        doc.get_add_label_edit(LabelTarget::NextLine, 0),
+        Err(AddLabelError::CannotInferLabel),
+      );
+    }
+
+    #[test]
+    fn last_line_no_lb() {
+      let mut doc = make_doc(
+        r#"
+cls
+:::
+"#
+        .trim(),
+      );
+      assert_eq!(
+        doc.get_add_label_edit(LabelTarget::CurLine, 5),
+        Err(AddLabelError::CannotInferLabel),
+      );
+      assert_eq!(
+        doc.get_add_label_edit(LabelTarget::NextLine, 5),
+        Err(AddLabelError::CannotInferLabel),
+      );
+    }
   }
 }

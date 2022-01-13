@@ -11,8 +11,6 @@ class EmojiSelector : public QWidget {
 public:
   EmojiSelector(QWidget *parent = nullptr);
 
-  void moveBeneath(QWidget *);
-
 signals:
   void shown();
 

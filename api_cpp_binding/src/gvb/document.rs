@@ -24,7 +24,7 @@ pub type GvbLoadDocumentResult = Either<Utf8String, *mut GvbDocument>;
 #[no_mangle]
 pub extern "C" fn gvb_load_document(path: Utf16Str) -> GvbLoadDocumentResult {
   let path = unsafe { path.to_string() }.unwrap();
-  match gvb::Document::load(path) {
+  match gvb::Document::load_file(path) {
     Ok(doc) => Either::Right(Box::into_raw(box GvbDocument(doc))),
     Err(err) => {
       let msg = match err {
@@ -185,13 +185,13 @@ pub extern "C" fn gvb_document_machine_name(doc: *mut GvbDocument) -> Utf8Str {
 }
 
 #[repr(C)]
-pub struct ReplaceChar {
+pub struct GvbReplaceChar {
   pub pos: usize,
   pub old_len: usize,
   pub ch: char,
 }
 
-impl From<gvb::ReplaceChar> for ReplaceChar {
+impl From<gvb::ReplaceChar> for GvbReplaceChar {
   fn from(r: gvb::ReplaceChar) -> Self {
     Self {
       pos: r.pos,
@@ -201,7 +201,7 @@ impl From<gvb::ReplaceChar> for ReplaceChar {
   }
 }
 
-pub type GvbDocSyncMachResult = Either<Utf8String, Array<ReplaceChar>>;
+pub type GvbDocSyncMachResult = Either<Utf8String, Array<GvbReplaceChar>>;
 
 #[no_mangle]
 pub extern "C" fn gvb_document_sync_machine_name(
@@ -238,13 +238,13 @@ fn mach_prop_error_to_string(err: gvb::MachinePropError) -> Utf8String {
 }
 
 #[repr(C)]
-pub struct ReplaceText {
+pub struct GvbReplaceText {
   pub pos: usize,
   pub old_len: usize,
   pub str: Utf8String,
 }
 
-pub type GvbDocMachEditResult = Either<Utf8String, ReplaceText>;
+pub type GvbDocMachEditResult = Either<Utf8String, GvbReplaceText>;
 
 #[no_mangle]
 pub extern "C" fn gvb_document_machine_name_edit(
@@ -253,7 +253,7 @@ pub extern "C" fn gvb_document_machine_name_edit(
 ) -> GvbDocMachEditResult {
   let name = unsafe { name.as_str() };
   match unsafe { (*doc).0.get_machine_name_edit(name) } {
-    Ok(edit) => Either::Right(ReplaceText {
+    Ok(edit) => Either::Right(GvbReplaceText {
       pos: edit.pos,
       old_len: edit.old_len,
       str: unsafe { Utf8String::new(edit.str) },
@@ -263,11 +263,60 @@ pub extern "C" fn gvb_document_machine_name_edit(
 }
 
 #[no_mangle]
-pub extern "C" fn gvb_destroy_replace_text(rep: ReplaceText) {
+pub extern "C" fn gvb_destroy_replace_text(rep: GvbReplaceText) {
   destroy_string(rep.str);
 }
 
 #[no_mangle]
-pub extern "C" fn gvb_destroy_replace_char_array(reps: Array<ReplaceChar>) {
+pub extern "C" fn gvb_destroy_replace_char_array(reps: Array<GvbReplaceChar>) {
   drop(unsafe { reps.into_boxed_slice() });
+}
+
+#[repr(C)]
+pub enum GvbLabelTarget {
+  CurLine,
+  PrevLine,
+  NextLine,
+}
+
+impl From<GvbLabelTarget> for gvb::LabelTarget {
+  fn from(t: GvbLabelTarget) -> Self {
+    match t {
+      GvbLabelTarget::CurLine => Self::CurLine,
+      GvbLabelTarget::PrevLine => Self::PrevLine,
+      GvbLabelTarget::NextLine => Self::NextLine,
+    }
+  }
+}
+
+#[repr(C)]
+pub struct GvbAddLabelResult {
+  pub edit: GvbReplaceText,
+  pub goto: Maybe<usize>,
+}
+
+pub type GvbDocLabelEditResult = Either<Utf8String, GvbAddLabelResult>;
+
+#[no_mangle]
+pub extern "C" fn gvb_document_add_label_edit(
+  doc: *mut GvbDocument,
+  target: GvbLabelTarget,
+  position: usize,
+) -> GvbDocLabelEditResult {
+  match unsafe { (*doc).0.get_add_label_edit(target.into(), position) } {
+    Ok(result) => Either::Right(GvbAddLabelResult {
+      edit: GvbReplaceText {
+        pos: result.edit.pos,
+        old_len: result.edit.old_len,
+        str: unsafe { Utf8String::new(result.edit.str) },
+      },
+      goto: result.goto.into(),
+    }),
+    Err(gvb::AddLabelError::AlreadyHasLabel) => {
+      Either::Left(unsafe { Utf8String::new(format!("当前行已经有行号")) })
+    }
+    Err(gvb::AddLabelError::CannotInferLabel) => {
+      Either::Left(unsafe { Utf8String::new(format!("无法推测行号")) })
+    }
+  }
 }

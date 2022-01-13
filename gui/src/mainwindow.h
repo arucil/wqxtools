@@ -63,6 +63,7 @@ private:
   QAction *m_actCopy;
   QAction *m_actCut;
   QAction *m_actPaste;
+  QAction *m_actSelectAll;
   QAction *m_actFind;
   QAction *m_actReplace;
 

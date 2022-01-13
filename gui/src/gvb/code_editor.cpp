@@ -1,5 +1,6 @@
 #include "code_editor.h"
 
+#include <QContextMenuEvent>
 #include <QToolTip>
 #include <QUrl>
 #include <QtMath>
@@ -46,6 +47,8 @@ CodeEditor::CodeEditor(QWidget *parent) :
 
   setWordChars(
     "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789");
+
+  usePopUp(SC_POPUP_NEVER);
 }
 
 void CodeEditor::notified(Scintilla::NotificationData *data) {
@@ -127,6 +130,9 @@ void CodeEditor::notified(Scintilla::NotificationData *data) {
       if (
         static_cast<int>(data->updated)
         & (SC_UPDATE_SELECTION | SC_UPDATE_CONTENT)) {
+        if (static_cast<int>(data->updated) & SC_UPDATE_SELECTION) {
+          emit selectionChanged(!selectionEmpty());
+        }
         auto pos = currentPos();
         setTargetRange(selectionStart(), selectionEnd());
         emit cursorPositionChanged(pos);
@@ -524,4 +530,8 @@ void CodeEditor::replaceAll() {
     }
   }
   endUndoAction();
+}
+
+void CodeEditor::contextMenuEvent(QContextMenuEvent *event) {
+  emit contextMenu(event->pos());
 }

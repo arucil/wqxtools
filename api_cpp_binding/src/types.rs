@@ -17,3 +17,9 @@ pub struct Rect {
   pub right: usize,
   pub bottom: usize,
 }
+
+impl<T> From<Option<T>> for Maybe<T> {
+  fn from(x: Option<T>) -> Self {
+    x.map_or(Self::Nothing, Self::Just)
+  }
+}
