@@ -19,6 +19,7 @@
 
 #include "../action.h"
 #include "../config.h"
+#include "../message_bus.h"
 #include "../util.h"
 #include "code_editor.h"
 #include "emoji_selector.h"
@@ -35,7 +36,6 @@ GvbEditor::GvbEditor(QWidget *parent) :
   m_doc(nullptr),
   m_textLoaded(false),
   m_timerModify(0),
-  m_timerError(0),
   m_gvbsim(nullptr),
   m_emojiSelector(nullptr) {
   initUi();
@@ -69,7 +69,6 @@ void GvbEditor::initUi() {
   // initStatusBar() must goes after initEdit()
   initStatusBar();
 
-  connect(m_edit, &CodeEditor::showStatus, this, &GvbEditor::showMessage);
   connect(
     m_edit,
     &CodeEditor::selectionChanged,
@@ -215,17 +214,17 @@ void GvbEditor::initEdit() {
   connect(m_edit, &CodeEditor::contextMenu, this, &GvbEditor::contextMenu);
 
   connect(
-    &Config::instance(),
+    Config::instance(),
     &Config::styleChanged,
     m_edit,
     &CodeEditor::setStyle);
-  connect(&Config::instance(), &Config::configChanged, m_edit, [this]() {
+  connect(Config::instance(), &Config::configChanged, m_edit, [this]() {
     m_edit->setFontSize(api::config()->gvb.editor.font_size);
     loadMachNames();
     syncMachName(false);
   });
 
-  m_edit->setStyle(Config::instance().getStyle());
+  m_edit->setStyle(Config::instance()->getStyle());
 }
 
 void GvbEditor::initToolBar() {
@@ -342,10 +341,9 @@ void GvbEditor::loadMachNames() {
 void GvbEditor::syncMachName(bool skipSelection) {
   auto result = api::gvb_document_sync_machine_name(m_doc);
   if (result.tag == api::GvbDocSyncMachResult::Tag::Left) {
-    showErrorMessage(
-      QString::fromUtf8(result.left._0.data, result.left._0.len),
-      2000);
+    auto msg = QString::fromUtf8(result.left._0.data, result.left._0.len);
     api::destroy_string(result.left._0);
+    MessageBus::instance()->postMessage(msg, 2000, MessageType::Error);
   } else {
     auto edits = result.right._0;
     // NOTE Usually undo history must be cleared after disabling undo collection
@@ -383,10 +381,9 @@ void GvbEditor::setMachineName(int i) {
   }
   auto result = api::gvb_document_machine_name_edit(m_doc, n);
   if (result.tag == api::GvbDocMachEditResult::Tag::Left) {
-    showErrorMessage(
-      QString::fromUtf8(result.left._0.data, result.left._0.len),
-      2000);
+    auto msg = QString::fromUtf8(result.left._0.data, result.left._0.len);
     api::destroy_string(result.left._0);
+    MessageBus::instance()->postMessage(msg, 2000, MessageType::Error);
     syncMachName(false);
   } else {
     auto edit = result.right._0;
@@ -402,9 +399,6 @@ void GvbEditor::initStatusBar() {
   auto posLabel = new QLabel;
   posLabel->setMinimumWidth(120);
   m_statusBar->addPermanentWidget(posLabel);
-
-  m_errorLabel = new QLabel;
-  m_statusBar->addWidget(m_errorLabel);
 
   connect(
     m_edit,
@@ -666,7 +660,10 @@ void GvbEditor::tryStartPause(QWidget *sender) {
         {dataDir.utf16(), static_cast<size_t>(dataDir.size())});
       auto result = gvb_document_vm(m_doc, device);
       if (result.tag == api::Maybe<api::GvbVirtualMachine *>::Tag::Nothing) {
-        showErrorMessage("文件有错误，无法运行", 1000);
+        MessageBus::instance()->postMessage(
+          "文件有错误，无法运行",
+          1000,
+          MessageType::Error);
         return;
       }
       auto vm = result.just._0;
@@ -706,16 +703,10 @@ void GvbEditor::syncMachNameEdit() {
   syncMachName(true);
 }
 
-void GvbEditor::timerEvent(QTimerEvent *ev) {
-  if (ev->timerId() == m_timerModify) {
-    killTimer(m_timerModify);
-    m_timerModify = 0;
-    modified();
-  } else if (ev->timerId() == m_timerError) {
-    killTimer(m_timerError);
-    m_timerError = 0;
-    m_errorLabel->setText("");
-  }
+void GvbEditor::timerEvent(QTimerEvent *) {
+  killTimer(m_timerModify);
+  m_timerModify = 0;
+  modified();
 }
 
 void GvbEditor::keyPressEvent(QKeyEvent *ev) {
@@ -738,23 +729,6 @@ void GvbEditor::showRuntimeError(const api::GvbExecResult::Error_Body &error) {
     QString::fromUtf8(error.message.data, error.message.len)};
   m_edit->setRuntimeError(diag);
   m_edit->gotoPos(start);
-}
-
-void GvbEditor::showMessage(const QString &text, int ms) {
-  m_errorLabel->setText(text);
-  if (m_timerError) {
-    killTimer(m_timerError);
-    m_timerError = 0;
-  }
-  if (ms > 0) {
-    m_timerError = startTimer(ms);
-  }
-}
-
-void GvbEditor::showErrorMessage(const QString &text, int ms) {
-  showMessage(
-    QString("<font color=\"red\">%1</font>").arg(text.toHtmlEscaped()),
-    ms);
 }
 
 QList<QAction *> GvbEditor::extraActions() const {
@@ -793,7 +767,7 @@ void GvbEditor::addLabel(api::GvbLabelTarget target) {
   if (result.tag == api::GvbDocLabelEditResult::Tag::Left) {
     auto msg = QString::fromUtf8(result.left._0.data, result.left._0.len);
     api::destroy_string(result.left._0);
-    showErrorMessage(msg, 1000);
+    MessageBus::instance()->postMessage(msg, 800, MessageType::Error);
   } else {
     auto edit = result.right._0.edit;
     m_edit->setTargetRange(edit.pos, edit.pos + edit.old_len);

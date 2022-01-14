@@ -13,7 +13,6 @@
 class QToolButton;
 class QComboBox;
 class EmojiSelector;
-class QLabel;
 class QStatusBar;
 class QTimerEvent;
 class QKeyEvent;
@@ -96,8 +95,6 @@ public slots:
 private slots:
   void modified();
   void textChanged(const TextChange &);
-  void showMessage(const QString &, int ms);
-  void showErrorMessage(const QString &, int ms);
   void setMachineName(int index);
   void contextMenu(const QPoint &localPos);
   void showEmojiSelector();
@@ -109,7 +106,6 @@ private:
   api::GvbDocument *m_doc;
   bool m_textLoaded;
   int m_timerModify;
-  int m_timerError;
   QVector<std::variant<InsertText, DeleteText>> m_edits;
   QStateMachine m_stateMachine;
   GvbSimWindow *m_gvbsim;
@@ -117,7 +113,6 @@ private:
   QToolBar *m_toolBar;
   QStatusBar *m_statusBar;
   SearchBar *m_searchBar;
-  QLabel *m_errorLabel;
   QComboBox *m_machNames;
   QToolButton *m_btnEmoji;
   EmojiSelector *m_emojiSelector;

@@ -7,19 +7,25 @@
 #include <QFileDialog>
 #include <QFileInfo>
 #include <QFrame>
+#include <QJsonDocument>
 #include <QLabel>
 #include <QMenu>
 #include <QMenuBar>
 #include <QMessageBox>
 #include <QMimeData>
+#include <QNetworkAccessManager>
+#include <QNetworkReply>
+#include <QNetworkRequest>
 #include <QPushButton>
 #include <QScreen>
 #include <QTimer>
 
+#include "toast.h"
 #include "about_dialog.h"
 #include "action.h"
 #include "api.h"
 #include "config.h"
+#include "toast.h"
 #include "tool.h"
 #include "tool_registry.h"
 #include "value.h"
@@ -28,7 +34,20 @@
 #define UNNAMED "未命名"
 #define STYLE_DIR "styles"
 
-MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
+#define VERSION_API_ENDPOINT \
+  "https://gitlab.com/api/v4/projects/32814745/releases"
+
+MainWindow::MainWindow(QWidget *parent) :
+  QMainWindow(parent),
+  m_networkMan(new QNetworkAccessManager(this)),
+  m_manualUpdate(false) {
+  m_networkMan->setTransferTimeout(3000);
+  connect(
+    m_networkMan,
+    &QNetworkAccessManager::finished,
+    this,
+    &MainWindow::versionRequestFinished);
+
   initUi();
 
   resize(400, 340);
@@ -56,10 +75,15 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     } else if (args.length() == 2) {
       openFileByPath(args.at(1), qApp->primaryScreen());
     }
+
+    m_manualUpdate = false;
+    requestVersions();
   });
 }
 
 void MainWindow::initUi() {
+  m_toast = new Toast(this);
+
   setAcceptDrops(true);
 
   initMenu();
@@ -74,6 +98,16 @@ void MainWindow::initUi() {
 
   connect(&m_openFilePath, &StrValue::changed, this, &MainWindow::setTitle);
   setTitle();
+
+  // NOTE pass reference for QueuedConnection is safe, because the passed value
+  // will be copied, the original reference will never be used.
+  // See https://forum.qt.io/topic/53780/solved-safety-of-references-as-arguments-to-emitted-signals/2
+  connect(
+    MessageBus::instance(),
+    &MessageBus::newMessage,
+    this,
+    &MainWindow::showMessage,
+    Qt::QueuedConnection);
 }
 
 void MainWindow::initMenu() {
@@ -572,13 +606,13 @@ ActionResult MainWindow::loadConfig(QWidget *parent) {
         return ActionResult::Fail;
       }
 
-      Config::instance().setStyle(std::get<1>(result));
+      Config::instance()->setStyle(std::get<1>(result));
     } else {
-      Config::instance().setStyle({});
+      Config::instance()->setStyle({});
     }
   }
 
-  emit Config::instance().configChanged();
+  emit Config::instance()->configChanged();
 
   return ActionResult::Succeed;
 }
@@ -617,5 +651,50 @@ void MainWindow::dropEvent(QDropEvent *ev) {
     if (url.isLocalFile()) {
       openFileByPath(url.toLocalFile(), screen());
     }
+  }
+}
+
+void MainWindow::requestVersions() {
+  m_networkMan->get(QNetworkRequest(QUrl(VERSION_API_ENDPOINT)));
+}
+
+void MainWindow::versionRequestFinished(QNetworkReply *reply) {
+  reply->deleteLater();
+  if (reply->error()) {
+    if (!m_manualUpdate) {
+      return;
+    }
+
+    QString msg;
+    switch (reply->error()) {
+      case QNetworkReply::TimeoutError:
+        msg = "连接超时";
+        break;
+      case QNetworkReply::TemporaryNetworkFailureError:
+        msg = "网络断开";
+        break;
+      default:
+        msg = reply->errorString();
+        break;
+    }
+    QMessageBox::critical(this, "错误", QString("检查版本失败：") + msg);
+    return;
+  }
+  auto resp = reply->readAll();
+  QJsonParseError error;
+  auto json = QJsonDocument::fromJson(resp, &error);
+  // TODO
+}
+
+void MainWindow::showMessage(const QString &text, int ms, MessageType type) {
+  switch (type) {
+    case MessageType::Info:
+      m_toast->showText(text, ms);
+      break;
+    case MessageType::Error:
+      m_toast->showText(
+        QString("<font color=\"red\">%1</font>").arg(text.toHtmlEscaped()),
+        ms);
+      break;
   }
 }

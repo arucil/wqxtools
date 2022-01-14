@@ -1,6 +1,5 @@
 #include "gvbsim_screen.h"
 
-#include <QPaintEvent>
 #include <QPainter>
 
 #include "../config.h"
@@ -8,7 +7,7 @@
 
 GvbSimScreen::GvbSimScreen(QWidget *parent) : QWidget(parent) {
   connect(
-    &Config::instance(),
+    Config::instance(),
     &Config::configChanged,
     this,
     &GvbSimScreen::configChanged);
@@ -48,9 +47,9 @@ void GvbSimScreen::paintEvent(QPaintEvent *) {
   QPainter painter(this);
   const auto scale = api::config()->gvb.simulator.pixel_scale;
   painter.scale(scale, scale);
-  if (m_dirtyArea.has_value()) {
-    auto rect = m_dirtyArea.value();
-    m_dirtyArea.reset();
+  if (!m_dirtyArea.isNull()) {
+    auto rect = m_dirtyArea;
+    m_dirtyArea = QRect();
     painter.drawImage(QPoint {rect.x(), rect.y()}, m_img, rect);
   } else {
     // not triggered manually

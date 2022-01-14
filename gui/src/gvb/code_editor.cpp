@@ -7,6 +7,7 @@
 #include <utility>
 
 #include "../syntax_style.h"
+#include "../message_bus.h"
 
 #define INDICATOR_WARNING 0
 #define INDICATOR_ERROR 1
@@ -464,11 +465,11 @@ bool CodeEditor::findNext() {
   setTargetRange(currentPos(), length());
   auto pos = searchInTarget(m_searchText.size(), m_searchText.data());
   if (pos < 0) {
-    emit showStatus("从头开始查找", 600);
+    MessageBus::instance()->postMessage("从头开始查找", 600, MessageType::Info);
     targetWholeDocument();
     pos = searchInTarget(m_searchText.size(), m_searchText.data());
     if (pos < 0) {
-      emit showStatus("没有找到", 600);
+      MessageBus::instance()->postMessage("没有找到", 600, MessageType::Error);
       return false;
     }
   }
@@ -481,11 +482,11 @@ void CodeEditor::findPrevious() {
   setTargetRange(currentPos() - 1, 0);
   auto pos = searchInTarget(m_searchText.size(), m_searchText.data());
   if (pos < 0) {
-    emit showStatus("从末尾开始查找", 600);
+    MessageBus::instance()->postMessage("从末尾开始查找", 600, MessageType::Info);
     setTargetRange(length() - 1, 0);
     pos = searchInTarget(m_searchText.size(), m_searchText.data());
     if (pos < 0) {
-      emit showStatus("没有找到", 600);
+      MessageBus::instance()->postMessage("没有找到", 600, MessageType::Error);
       return;
     }
   }

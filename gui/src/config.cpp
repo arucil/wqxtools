@@ -2,10 +2,11 @@
 
 #include <utility>
 
-static Config config;
+Config::Config() {}
 
-Config &Config::instance() {
-  return config;
+Config *Config::instance() {
+  static Config config;
+  return &config;
 }
 
 const SyntaxStyle *Config::getStyle() const {

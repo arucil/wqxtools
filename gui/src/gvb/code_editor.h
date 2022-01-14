@@ -171,7 +171,6 @@ signals:
   void dirtyChanged(bool isDirty);
   void textChanged(const TextChange &);
   void selectionChanged(bool nonempty);
-  void showStatus(const QString &, int ms);
   void fileDropped(const QString &path);
   void contextMenu(const QPoint &localPos);
 

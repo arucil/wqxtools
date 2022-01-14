@@ -5,8 +5,12 @@
 
 #include "capability.h"
 #include "gvb/gvbeditor.h"
+#include "message_bus.h"
 #include "util.h"
 
+class QNetworkAccessManager;
+class Toast;
+class QNetworkReply;
 class QMenu;
 class QWidget;
 class QCloseEvent;
@@ -31,6 +35,7 @@ private:
   void initUi();
   void initMenu();
   ActionResult confirmSaveIfDirty(ToolWidget *);
+  void requestVersions();
 
 private slots:
   void openFile();
@@ -38,6 +43,8 @@ private slots:
   ActionResult saveFile();
   ActionResult saveFileAs(bool save = false);
   void setTitle();
+  void versionRequestFinished(QNetworkReply *);
+  void showMessage(const QString &, int ms, MessageType);
 
 private:
   void openFileByPath(const QString &, QScreen *);
@@ -52,6 +59,8 @@ protected:
   void dropEvent(QDropEvent *) override;
 
 private:
+  Toast *m_toast;
+  QNetworkAccessManager *m_networkMan;
   QMenu *m_mnuEdit;
 
   QAction *m_actOpen;
@@ -74,4 +83,6 @@ private:
   BoolValue m_loaded;
 
   QVector<QAction *> m_extraEditActions;
+
+  bool m_manualUpdate;
 };

@@ -3,8 +3,6 @@
 #include <QImage>
 #include <QRect>
 #include <QWidget>
-#include <cstdint>
-#include <optional>
 
 class QPaintEvent;
 
@@ -29,5 +27,5 @@ private:
 
 private:
   QImage m_img;
-  std::optional<QRect> m_dirtyArea;
+  QRect m_dirtyArea;
 };
