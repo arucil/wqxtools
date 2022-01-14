@@ -101,12 +101,13 @@ private slots:
   void setMachineName(int index);
   void contextMenu(const QPoint &localPos);
   void showEmojiSelector();
+  void applyEdits();
+  void syncMachNameEdit();
 
 private:
   CodeEditor *m_edit;
   api::GvbDocument *m_doc;
   bool m_textLoaded;
-  bool m_needSyncMach;
   int m_timerModify;
   int m_timerError;
   QVector<std::variant<InsertText, DeleteText>> m_edits;

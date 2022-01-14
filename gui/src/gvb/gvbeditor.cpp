@@ -34,7 +34,6 @@ GvbEditor::GvbEditor(QWidget *parent) :
   ToolWidget(parent),
   m_doc(nullptr),
   m_textLoaded(false),
-  m_needSyncMach(false),
   m_timerModify(0),
   m_timerError(0),
   m_gvbsim(nullptr),
@@ -349,7 +348,11 @@ void GvbEditor::syncMachName(bool skipSelection) {
     api::destroy_string(result.left._0);
   } else {
     auto edits = result.right._0;
-    // TODO test: delete emoji, change machine, undo
+    // NOTE Usually undo history must be cleared after disabling undo collection
+    // to avoid undo history losing sync with actual text, but here relaced char
+    // and original char have same number of bytes, so no need to clear undo
+    // history.
+    // See https://www.scintilla.org/ScintillaDoc.html#SCI_SETUNDOCOLLECTION
     m_edit->setUndoCollection(false);
     for (auto p = edits.data; p != edits.data + edits.len; p++) {
       m_edit->setTargetRange(p->pos, p->pos + p->old_len);
@@ -386,11 +389,11 @@ void GvbEditor::setMachineName(int i) {
     api::destroy_string(result.left._0);
     syncMachName(false);
   } else {
-    m_needSyncMach = true;
     auto edit = result.right._0;
     m_edit->setTargetRange(edit.pos, edit.pos + edit.old_len);
     m_edit->replaceTarget(edit.str.len, edit.str.data);
     api::gvb_destroy_replace_text(edit);
+    QTimer::singleShot(0, this, &GvbEditor::syncMachNameEdit);
   }
 }
 
@@ -575,11 +578,7 @@ void GvbEditor::textChanged(const TextChange &c) {
   }
 
   if (!m_timerModify) {
-    if (m_needSyncMach) {
-      m_timerModify = startTimer(20);
-    } else {
-      m_timerModify = startTimer(200);
-    }
+    m_timerModify = startTimer(400);
   }
 
   m_actUndo->setEnabled(m_edit->canUndo());
@@ -615,6 +614,12 @@ void GvbEditor::textChanged(const TextChange &c) {
 }
 
 void GvbEditor::modified() {
+  applyEdits();
+  computeDiagnostics();
+  m_timerModify = 0;
+}
+
+void GvbEditor::applyEdits() {
   for (auto edit : m_edits) {
     if (auto insert = get_if<InsertText>(&edit)) {
       api::GvbEdit ins = {
@@ -632,10 +637,6 @@ void GvbEditor::modified() {
     }
   }
   m_edits.clear();
-
-  computeDiagnostics();
-
-  m_timerModify = 0;
 }
 
 void GvbEditor::computeDiagnostics() {
@@ -700,15 +701,16 @@ void GvbEditor::tryStartPause(QWidget *sender) {
   }
 }
 
+void GvbEditor::syncMachNameEdit() {
+  modified();
+  syncMachName(true);
+}
+
 void GvbEditor::timerEvent(QTimerEvent *ev) {
   if (ev->timerId() == m_timerModify) {
     killTimer(m_timerModify);
     m_timerModify = 0;
     modified();
-    if (m_needSyncMach) {
-      m_needSyncMach = false;
-      syncMachName(true);
-    }
   } else if (ev->timerId() == m_timerError) {
     killTimer(m_timerError);
     m_timerError = 0;
@@ -800,5 +802,6 @@ void GvbEditor::addLabel(api::GvbLabelTarget target) {
     if (result.right._0.goto_.tag == api::Maybe<size_t>::Tag::Just) {
       m_edit->gotoPos(result.right._0.goto_.just._0);
     }
+    QTimer::singleShot(0, this, &GvbEditor::applyEdits);
   }
 }
