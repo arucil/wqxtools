@@ -20,6 +20,8 @@ HEADERS += src/mainwindow.h \
     src/action.h \
     src/config.h \
     src/tool.h \
+    src/toast.h \
+    src/message_bus.h \
     src/about_dialog.h \
     src/gvb/gvbeditor.h \
     src/gvb/gvbsim_window.h \
@@ -40,7 +42,7 @@ HEADERS += src/mainwindow.h \
 SOURCES += src/*.cpp \
     src/gvb/*.cpp
 
-QT += widgets
+QT += widgets network
 
 RESOURCES += resources/wqxtools.qrc
 

@@ -1,7 +1,8 @@
+# 修改配置之后选择菜单 [程序] -> [重新加载配置文件]
 gvbasic:
   editor:
     font-size: 12
-    # 编辑器高亮样式文件在 styles 文件夹中
+    # 编辑器高亮样式文件在 styles 文件夹中。预置的高亮样式：light, dracula
     style: light
   simulator:
     # 文曲星屏幕的一个像素对应几个电脑屏幕像素
