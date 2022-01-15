@@ -39,7 +39,6 @@ Toast::Toast(QWidget *parent) :
 
 void Toast::showText(const QString &text, int ms) {
   m_label->setText(text);
-  m_label->adjustSize();
   adjustSize();
   m_delay = ms;
   if (m_timer == 0) {
@@ -60,8 +59,7 @@ void Toast::showText(const QString &text, int ms) {
     auto g = qApp->primaryScreen()->geometry();
     topCenter = g.topLeft() + QPoint(g.width() / 2, g.height() * 4 / 5);
   }
-  auto size = sizeHint();
-  move(topCenter - QPoint(size.width() / 2, size.height() / 2));
+  move(topCenter - QPoint(width() / 2, height() / 2));
 }
 
 void Toast::timerEvent(QTimerEvent *) {
