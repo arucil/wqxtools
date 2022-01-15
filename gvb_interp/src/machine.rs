@@ -5,6 +5,7 @@ use std::mem::MaybeUninit;
 use std::time::Duration;
 use util::config;
 use yaml_rust::{Yaml, YamlLoader};
+use std::collections::BTreeMap;
 
 pub(crate) mod emoji;
 
@@ -56,11 +57,11 @@ pub fn names() -> impl Iterator<Item = &'static str> {
   unsafe { MACHINES.assume_init_ref().keys().map(|s| s.as_str()) }
 }
 
-pub(crate) fn machines() -> &'static HashMap<String, MachineProps> {
+pub(crate) fn machines() -> &'static BTreeMap<String, MachineProps> {
   unsafe { MACHINES.assume_init_ref() }
 }
 
-static mut MACHINES: MaybeUninit<HashMap<String, MachineProps>> =
+static mut MACHINES: MaybeUninit<BTreeMap<String, MachineProps>> =
   MaybeUninit::uninit();
 static mut MACHINES_INITED: bool = false;
 
@@ -108,7 +109,7 @@ pub fn init_machines() -> Result<(), InitError> {
     if MACHINES_INITED {
       MACHINES.assume_init_drop();
     }
-    MACHINES.write(HashMap::default());
+    MACHINES.write(BTreeMap::new());
     MACHINES_INITED = true;
   }
   if docs.is_empty() {
