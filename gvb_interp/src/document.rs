@@ -387,17 +387,24 @@ impl Document {
         str: name,
       }),
       None => {
+        use std::fmt::Write;
+
         let first_line = self.text.lines().next().unwrap();
         let quotes =
           first_line.as_bytes().iter().filter(|&&c| c == b'"').count();
+        let mut str = String::new();
+        if quotes % 2 != 0 {
+          str.push_str("\":");
+        } else if self.text.as_bytes()[first_line.len() - 1] != b':' {
+          str.push(':');
+        }
+        str.push_str("REM {type:");
+        write!(&mut str, "{}", name).unwrap();
+        str.push('}');
         Ok(ReplaceText {
           pos: first_line.len(),
           old_len: 0,
-          str: if quotes % 2 != 0 {
-            format!("\":REM {{type:{}}}", name)
-          } else {
-            format!(":REM {{type:{}}}", name)
-          },
+          str,
         })
       }
     }
