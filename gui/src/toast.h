@@ -1,6 +1,6 @@
 #pragma once
 
-#include <QFrame>
+#include <QWidget>
 
 class QString;
 class QTimerEvent;
@@ -9,7 +9,7 @@ class QLabel;
 class QPropertyAnimation;
 class QGraphicsOpacityEffect;
 
-class Toast : public QFrame {
+class Toast : public QWidget {
   Q_OBJECT
 
 public:
@@ -28,7 +28,8 @@ private:
 private:
   QLabel *m_label;
   QGraphicsOpacityEffect *m_opacityEffect;
-  QPropertyAnimation *m_fade;
+  QPropertyAnimation *m_fadeIn;
+  QPropertyAnimation *m_fadeOut;
   int m_timer;
   int m_delay;
 };

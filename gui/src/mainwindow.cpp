@@ -7,7 +7,9 @@
 #include <QFileDialog>
 #include <QFileInfo>
 #include <QFrame>
+#include <QJsonArray>
 #include <QJsonDocument>
+#include <QJsonObject>
 #include <QLabel>
 #include <QMenu>
 #include <QMenuBar>
@@ -20,7 +22,6 @@
 #include <QScreen>
 #include <QTimer>
 
-#include "toast.h"
 #include "about_dialog.h"
 #include "action.h"
 #include "api.h"
@@ -39,14 +40,8 @@
 
 MainWindow::MainWindow(QWidget *parent) :
   QMainWindow(parent),
-  m_networkMan(new QNetworkAccessManager(this)),
-  m_manualUpdate(false) {
+  m_networkMan(new QNetworkAccessManager(this)) {
   m_networkMan->setTransferTimeout(3000);
-  connect(
-    m_networkMan,
-    &QNetworkAccessManager::finished,
-    this,
-    &MainWindow::versionRequestFinished);
 
   initUi();
 
@@ -76,8 +71,7 @@ MainWindow::MainWindow(QWidget *parent) :
       openFileByPath(args.at(1), qApp->primaryScreen());
     }
 
-    m_manualUpdate = false;
-    requestVersions();
+    checkNewVersion(false);
   });
 }
 
@@ -192,8 +186,15 @@ void MainWindow::initMenu() {
 
   auto mnuHelp = menuBar()->addMenu("帮助");
 
-  auto actAbout = mnuHelp->addAction("关于");
+  auto actCheckVer = mnuHelp->addAction("检查新版本");
+  connect(actCheckVer, &QAction::triggered, this, [this] {
+    showMessage("正在检查版本更新", 1000, MessageType::Info);
+    checkNewVersion(true);
+  });
 
+  mnuHelp->addSeparator();
+
+  auto actAbout = mnuHelp->addAction("关于");
   connect(actAbout, &QAction::triggered, this, [this] {
     AboutDialog(this).exec();
   });
@@ -654,36 +655,116 @@ void MainWindow::dropEvent(QDropEvent *ev) {
   }
 }
 
-void MainWindow::requestVersions() {
-  m_networkMan->get(QNetworkRequest(QUrl(VERSION_API_ENDPOINT)));
-}
+void MainWindow::checkNewVersion(bool manual) {
+  auto reply = m_networkMan->get(QNetworkRequest(QUrl(VERSION_API_ENDPOINT)));
+  connect(reply, &QNetworkReply::finished, [=] {
+    reply->deleteLater();
 
-void MainWindow::versionRequestFinished(QNetworkReply *reply) {
-  reply->deleteLater();
-  if (reply->error()) {
-    if (!m_manualUpdate) {
+    if (reply->error()) {
+      if (manual) {
+        QString msg;
+        switch (reply->error()) {
+          case QNetworkReply::TimeoutError:
+            msg = "连接超时";
+            break;
+          case QNetworkReply::TemporaryNetworkFailureError:
+            msg = "网络断开";
+            break;
+          default:
+            msg = reply->errorString();
+            break;
+        }
+        QMessageBox::critical(this, "错误", QString("检查版本失败：") + msg);
+      }
+
+      return;
+    }
+    auto resp = reply->readAll();
+    QJsonParseError error;
+    auto json = QJsonDocument::fromJson(resp, &error);
+    if (error.error != QJsonParseError::NoError) {
+      if (manual) {
+        QMessageBox::critical(this, "错误", "检查版本失败：JSON parse error");
+      }
       return;
     }
 
-    QString msg;
-    switch (reply->error()) {
-      case QNetworkReply::TimeoutError:
-        msg = "连接超时";
-        break;
-      case QNetworkReply::TemporaryNetworkFailureError:
-        msg = "网络断开";
-        break;
-      default:
-        msg = reply->errorString();
-        break;
+    auto tag = json.array().at(0).toObject()["tag_name"].toString().toUtf8();
+    auto result =
+      api::is_new_version({tag.data(), static_cast<size_t>(tag.size())});
+    if (result.tag == api::Maybe<bool>::Tag::Nothing) {
+      if (manual) {
+        QMessageBox::critical(
+          this,
+          "错误",
+          "检查版本失败：release tag_name is not semver");
+      }
+      return;
     }
-    QMessageBox::critical(this, "错误", QString("检查版本失败：") + msg);
-    return;
-  }
-  auto resp = reply->readAll();
-  QJsonParseError error;
-  auto json = QJsonDocument::fromJson(resp, &error);
-  // TODO
+
+    if (manual) {
+      if (result.just._0) {
+        notifyNewVersion(tag);
+      } else {
+        showMessage("已经是最新版本", 700, MessageType::Info);
+      }
+    } else if (result.just._0) {
+      showMessage(
+        "有新版本，请点击菜单 [帮助] -> [检查新版本] 查看新版本",
+        1500,
+        MessageType::Info);
+    }
+  });
+}
+
+void MainWindow::notifyNewVersion(const QString &tag) {
+  auto reply = m_networkMan->get(
+    QNetworkRequest(QUrl(QString(VERSION_API_ENDPOINT "/%1?include_html_description=true").arg(tag))));
+  connect(reply, &QNetworkReply::finished, [=] {
+    reply->deleteLater();
+    if (reply->error()) {
+      QString msg;
+      switch (reply->error()) {
+        case QNetworkReply::TimeoutError:
+          msg = "连接超时";
+          break;
+        case QNetworkReply::TemporaryNetworkFailureError:
+          msg = "网络断开";
+          break;
+        default:
+          msg = reply->errorString();
+          break;
+      }
+      QMessageBox::critical(
+        this,
+        "错误",
+        QString("获取新版本信息失败：") + msg);
+    }
+    auto resp = reply->readAll();
+    QJsonParseError error;
+    auto json = QJsonDocument::fromJson(resp, &error);
+    if (error.error != QJsonParseError::NoError) {
+      QMessageBox::critical(
+        this,
+        "错误",
+        "获取新版本信息失败：JSON parse error");
+      return;
+    }
+
+    auto release = json.object();
+    auto description = release["description_html"].toString();
+    auto url = release["_links"].toObject()["self"].toString();
+
+    m_toast->hide();
+
+    QMessageBox::information(
+      this,
+      "新版本",
+      QString("<h3>%1</h3><p>%2</p><a href=\"%3\">点击链接下载新版本</a>")
+        .arg(tag)
+        .arg(description)
+        .arg(url));
+  });
 }
 
 void MainWindow::showMessage(const QString &text, int ms, MessageType type) {

@@ -11,3 +11,4 @@ crate-type = ["staticlib"]
 [dependencies]
 config = { version = "0.1.0", path = "../config" }
 gvb_interp = { version = "0.1.0", path = "../gvb_interp" }
+wqxtools = { path = ".." }

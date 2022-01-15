@@ -35,7 +35,8 @@ private:
   void initUi();
   void initMenu();
   ActionResult confirmSaveIfDirty(ToolWidget *);
-  void requestVersions();
+  void checkNewVersion(bool manual);
+  void notifyNewVersion(const QString &tag);
 
 private slots:
   void openFile();
@@ -43,7 +44,6 @@ private slots:
   ActionResult saveFile();
   ActionResult saveFileAs(bool save = false);
   void setTitle();
-  void versionRequestFinished(QNetworkReply *);
   void showMessage(const QString &, int ms, MessageType);
 
 private:
@@ -83,6 +83,4 @@ private:
   BoolValue m_loaded;
 
   QVector<QAction *> m_extraEditActions;
-
-  bool m_manualUpdate;
 };

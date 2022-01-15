@@ -1,9 +1,9 @@
 #include "gvbsim_window.h"
 
 #include <QHeaderView>
-#include <QStatusBar>
 #include <QKeyEvent>
 #include <QMessageBox>
+#include <QStatusBar>
 #include <QTableView>
 #include <QTimer>
 #include <QToolBar>
@@ -240,11 +240,8 @@ void GvbSimWindow::stop() {
 
   auto result = api::gvb_vm_stop(m_vm);
   if (result.tag == api::GvbStopVmResult::Tag::Left) {
-    QMessageBox::critical(
-      this,
-      "错误",
-      QString("运行时错误：%1")
-        .arg(QString::fromUtf8(result.left._0.data, result.left._0.len)));
+    auto msg = QString::fromUtf8(result.left._0.data, result.left._0.len);
+    m_message.setValue(QString("程序运行出错：") + msg);
     destroy_string(result.left._0);
   }
   api::gvb_reset_exec_result(&m_execResult);

@@ -5,12 +5,14 @@ pub mod config;
 pub mod gvb;
 pub mod string;
 pub mod types;
+pub mod version;
 
 pub use self::array::*;
 pub use self::config::*;
 pub use self::gvb::*;
 pub use self::string::*;
 pub use self::types::*;
+pub use self::version::*;
 
 #[repr(C)]
 pub struct Unit(pub i32);
