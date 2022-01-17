@@ -37,7 +37,8 @@ HEADERS += src/mainwindow.h \
     src/gvb/double_spinbox.h \
     src/gvb/search_bar.h \
     src/gvb/emoji_selector.h \
-    src/gvb/emoji_label.h
+    src/gvb/emoji_label.h \
+    src/gvb/relabel_dialog.h
 
 SOURCES += src/*.cpp \
     src/gvb/*.cpp

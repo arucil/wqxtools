@@ -482,7 +482,7 @@ impl CodeEmitter for CodeGen {
     let mut diags = vec![];
     self.patch_while_instr(&mut diags);
     self.convert_for_loop_to_sleep(&mut diags);
-    self.push_instr(Range::new(0, 0), InstrKind::End);
+    self.push_instr(Range::empty(0), InstrKind::End);
     diags
   }
 }

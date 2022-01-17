@@ -75,7 +75,7 @@ void Toast::startFadeOutTimer() {
 
 void Toast::paintEvent(QPaintEvent *) {
   QPainter p(this);
-  p.setBrush(palette().window());
-  p.setPen(palette().windowText().color());
+  p.setBrush(palette().brush(QPalette::Inactive, QPalette::ToolTipBase));
+  p.setPen(palette().color(QPalette::Inactive, QPalette::ToolTipText));
   p.drawRect(rect() - QMargins {1, 1, 1, 1});
 }

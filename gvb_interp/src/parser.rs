@@ -208,7 +208,7 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
     Self {
       offset: 0,
       input,
-      token: (Range::new(0, 0), TokenKind::Eof),
+      token: (Range::empty(0), TokenKind::Eof),
       label_value: None,
       last_token_end: 0,
       node_builder,
@@ -1413,7 +1413,7 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
         }
       }
     } else {
-      labels.push((Range::new(self.token.0.start, self.token.0.start), None));
+      labels.push((Range::empty(self.token.0.start), None));
     };
 
     while let TokenKind::Punc(Punc::Comma) = self.token.1 {
@@ -1430,7 +1430,7 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
           }
         }
       } else {
-        labels.push((Range::new(self.token.0.start, self.token.0.start), None));
+        labels.push((Range::empty(self.token.0.start), None));
       };
     }
 
@@ -2168,7 +2168,7 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
           .node_builder
           .new_expr(Expr::new(ExprKind::Ident, id_range))
       } else {
-        let range = Range::new(self.last_token_end, self.last_token_end);
+        let range = Range::empty(self.last_token_end);
         self
           .node_builder
           .new_expr(Expr::new(ExprKind::Error, range))
@@ -2449,7 +2449,7 @@ mod lex_tests {
         (Range::new(8, 9), TokenKind::Punc(Punc::Caret)),
         (Range::new(10, 11), TokenKind::Punc(Punc::Semicolon)),
         (Range::new(12, 13), TokenKind::Punc(Punc::LParen)),
-        (Range::new(16, 16), TokenKind::Eof),
+        (Range::empty(16), TokenKind::Eof),
       ]
     );
   }
@@ -2461,7 +2461,7 @@ mod lex_tests {
       vec![
         (Range::new(3, 11), TokenKind::String),
         (Range::new(12, 17), TokenKind::String),
-        (Range::new(17, 17), TokenKind::Eof),
+        (Range::empty(17), TokenKind::Eof),
       ]
     );
   }
@@ -2478,7 +2478,7 @@ mod lex_tests {
           (Range::new(2, 5), TokenKind::Float),
           (Range::new(5, 7), TokenKind::Ident),
           (Range::new(8, 9), TokenKind::Float),
-          (Range::new(9, 9), TokenKind::Eof),
+          (Range::empty(9), TokenKind::Eof),
         ]
       );
     }
@@ -2492,7 +2492,7 @@ mod lex_tests {
           (Range::new(9, 10), TokenKind::Punc(Punc::Minus)),
           (Range::new(10, 14), TokenKind::Float),
           (Range::new(16, 18), TokenKind::Float),
-          (Range::new(18, 18), TokenKind::Eof),
+          (Range::empty(18), TokenKind::Eof),
         ]
       );
     }
@@ -2510,7 +2510,7 @@ mod lex_tests {
           (Range::new(23, 30), TokenKind::Float),
           (Range::new(31, 32), TokenKind::Punc(Punc::Comma)),
           (Range::new(33, 36), TokenKind::Float),
-          (Range::new(38, 38), TokenKind::Eof),
+          (Range::empty(38), TokenKind::Eof),
         ]
       );
     }
@@ -2527,7 +2527,7 @@ mod lex_tests {
           (Range::new(28, 42), TokenKind::Float),
           (Range::new(42, 43), TokenKind::Punc(Punc::Comma)),
           (Range::new(44, 50), TokenKind::Float),
-          (Range::new(52, 52), TokenKind::Eof),
+          (Range::empty(52), TokenKind::Eof),
         ]
       );
     }
@@ -2545,7 +2545,7 @@ mod lex_tests {
           (Range::new(2, 5), TokenKind::Ident),
           (Range::new(6, 7), TokenKind::Punc(Punc::Colon)),
           (Range::new(8, 15), TokenKind::Ident),
-          (Range::new(16, 16), TokenKind::Eof),
+          (Range::empty(16), TokenKind::Eof),
         ]
       );
     }
@@ -2558,7 +2558,7 @@ mod lex_tests {
           (Range::new(2, 6), TokenKind::Ident),
           (Range::new(6, 10), TokenKind::Ident),
           (Range::new(11, 18), TokenKind::Ident),
-          (Range::new(19, 19), TokenKind::Eof),
+          (Range::empty(19), TokenKind::Eof),
         ]
       );
     }
@@ -2571,7 +2571,7 @@ mod lex_tests {
           (Range::new(2, 16), TokenKind::Ident),
           (Range::new(18, 25), TokenKind::Ident),
           (Range::new(25, 30), TokenKind::Ident),
-          (Range::new(31, 31), TokenKind::Eof),
+          (Range::empty(31), TokenKind::Eof),
         ]
       );
     }
@@ -2583,7 +2583,7 @@ mod lex_tests {
         vec![
           (Range::new(2, 5), TokenKind::Keyword(Keyword::Let)),
           (Range::new(6, 15), TokenKind::Ident),
-          (Range::new(17, 17), TokenKind::Eof),
+          (Range::empty(17), TokenKind::Eof),
         ]
       );
     }
@@ -2596,7 +2596,7 @@ mod lex_tests {
           (Range::new(2, 5), TokenKind::SysFunc(SysFuncKind::Asc)),
           (Range::new(6, 10), TokenKind::SysFunc(SysFuncKind::Chr)),
           (Range::new(11, 16), TokenKind::Ident),
-          (Range::new(18, 18), TokenKind::Eof),
+          (Range::empty(18), TokenKind::Eof),
         ]
       );
     }

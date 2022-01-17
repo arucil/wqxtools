@@ -2,14 +2,16 @@ use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
 
-use crate::ast::{Eol, Label, Program, ProgramLine};
+use crate::ast::{Eol, Label, Program, ProgramLine, Range, StmtKind};
 use crate::compiler::compile_prog;
 use crate::device::default::DefaultDevice;
 use crate::device::Device;
 use crate::machine::EmojiVersion;
 use crate::machine::MachineProps;
 use crate::parser::{parse_line, ParseResult};
+use crate::HashMap;
 use crate::{CodeGen, Diagnostic, VirtualMachine};
+use std::collections::hash_map;
 
 mod binary;
 
@@ -75,8 +77,7 @@ pub enum EditKind<'a> {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ReplaceText {
-  pub pos: usize,
-  pub old_len: usize,
+  pub range: Range,
   pub str: String,
 }
 
@@ -101,9 +102,14 @@ pub enum AddLabelError {
 
 #[derive(Debug)]
 pub struct ReplaceChar {
-  pub pos: usize,
-  pub old_len: usize,
+  pub range: Range,
   pub ch: char,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub enum RelabelError {
+  LabelNotFound { label: u16, range: Range },
+  LabelOverflow(u32),
 }
 
 impl From<io::Error> for LoadDocumentError {
@@ -354,8 +360,7 @@ impl Document {
     for ((i, c1), c2) in self.text.char_indices().zip(text.chars()) {
       if c1 != c2 {
         edits.push(ReplaceChar {
-          pos: i,
-          old_len: c1.len_utf8(),
+          range: Range::new(i, i + c1.len_utf8()),
           ch: c2,
         });
       }
@@ -382,8 +387,7 @@ impl Document {
     }
     match detect_machine_props(&self.text) {
       Some(((start, end), _)) => Ok(ReplaceText {
-        pos: start,
-        old_len: end - start,
+        range: Range::new(start, end),
         str: name,
       }),
       None => {
@@ -402,8 +406,7 @@ impl Document {
         write!(&mut str, "{}", name).unwrap();
         str.push('}');
         Ok(ReplaceText {
-          pos: first_line.len(),
-          old_len: 0,
+          range: Range::empty(first_line.len()),
           str,
         })
       }
@@ -494,7 +497,7 @@ impl Document {
         let pos = self.lines[i].line_start;
         let goto;
         let str;
-        if self.text.len() > pos && self.text.as_bytes()[pos] == b' ' {
+        if self.text.as_bytes().get(pos) == Some(&b' ') {
           goto = None;
           str = label.to_string();
         } else {
@@ -507,8 +510,7 @@ impl Document {
         }
         Ok(AddLabelResult {
           edit: ReplaceText {
-            pos,
-            old_len: 0,
+            range: Range::empty(pos),
             str,
           },
           goto,
@@ -529,8 +531,7 @@ impl Document {
         Ok(AddLabelResult {
           goto: Some(goto),
           edit: ReplaceText {
-            pos,
-            old_len: 0,
+            range: Range::empty(pos),
             str,
           },
         })
@@ -559,8 +560,7 @@ impl Document {
         Ok(AddLabelResult {
           goto: Some(goto),
           edit: ReplaceText {
-            pos,
-            old_len: 0,
+            range: Range::empty(pos),
             str,
           },
         })
@@ -576,6 +576,132 @@ impl Document {
       .as_ref()
       .map(|(_, Label(label))| *label)
       .ok_or(AddLabelError::CannotInferLabel)
+  }
+
+  pub fn compute_relabel_edits(
+    &mut self,
+    start: u16,
+    inc: u16,
+  ) -> Result<Vec<ReplaceText>, RelabelError> {
+    let last_label = start as u32 + (self.lines.len() as u32 - 1) * inc as u32;
+    if last_label > 9999 {
+      return Err(RelabelError::LabelOverflow(last_label));
+    }
+
+    let mut label_refs = (0..self.lines.len())
+      .flat_map(|i| {
+        let line_start = self.lines[i].line_start as _;
+        self
+          .ensure_line_parsed(i)
+          .content
+          .label
+          .as_ref()
+          .map(|(range, l)| (*l, vec![range.offset(line_start)]))
+      })
+      .collect::<HashMap<_, _>>();
+
+    for i in 0..self.lines.len() {
+      let line_start = self.lines[i].line_start as isize;
+      macro_rules! add_label_ref {
+        ($range:ident, $label:ident) => {{
+          match label_refs.entry($label) {
+            hash_map::Entry::Vacant(_) => {
+              return Err(RelabelError::LabelNotFound {
+                label: $label.0,
+                range: $range.offset(line_start),
+              });
+            }
+            hash_map::Entry::Occupied(mut refs) => {
+              refs.get_mut().push($range.offset(line_start));
+            }
+          }
+        }};
+      }
+
+      let parsed = self.ensure_line_parsed(i);
+      for (_, stmt) in &parsed.stmt_arena {
+        match &stmt.kind {
+          StmtKind::GoTo { label, .. } | StmtKind::GoSub(label) => {
+            let range;
+            let l;
+            if let Some((r1, l1)) = label {
+              range = r1.clone();
+              l = *l1;
+            } else {
+              range = Range::empty(stmt.range.end);
+              l = Label(0);
+            }
+            add_label_ref!(range, l);
+          }
+          StmtKind::Restore(Some((range, label))) => {
+            let range = range.clone();
+            let label = *label;
+            add_label_ref!(range, label);
+          }
+          StmtKind::On { labels, .. } => {
+            for (range, label) in &labels.0 {
+              let range = range.clone();
+              let l;
+              if let Some(l1) = label {
+                l = *l1;
+              } else {
+                l = Label(0);
+              }
+              add_label_ref!(range, l);
+            }
+          }
+          _ => {
+            // do nothing
+          }
+        }
+      }
+    }
+
+    let mut label = last_label as u16;
+    let mut edits = vec![];
+    for i in (0..self.lines.len()).rev() {
+      let parsed = self.ensure_line_parsed(i);
+      if let Some((_, l)) = &parsed.content.label {
+        for ref_range in &label_refs[l] {
+          let range;
+          let str;
+          if ref_range.is_empty() {
+            if matches!(
+              self.text.as_bytes().get(ref_range.start - 1),
+              Some(c) if c.is_ascii_alphabetic()
+            ) {
+              if self.text.as_bytes().get(ref_range.start) == Some(&b' ') {
+                range = ref_range.offset(1);
+                str = label.to_string();
+              } else {
+                range = ref_range.clone();
+                str = format!(" {}", label);
+              }
+            } else {
+              range = ref_range.clone();
+              str = label.to_string();
+            }
+          } else {
+            range = ref_range.clone();
+            str = label.to_string();
+          }
+          edits.push(ReplaceText { range, str });
+        }
+      } else {
+        let pos = self.lines[i].line_start;
+        edits.push(ReplaceText {
+          range: Range::empty(pos),
+          str: if self.text.as_bytes().get(pos) == Some(&b' ') {
+            label.to_string()
+          } else {
+            format!("{} ", label)
+          },
+        });
+      }
+      label -= inc;
+    }
+    edits.sort_by_key(|edit| !edit.range.start);
+    Ok(edits)
   }
 
   pub fn create_device<P>(&self, data_dir: P) -> DefaultDevice
@@ -1550,8 +1676,7 @@ no";
     assert_eq!(
       doc.compute_machine_name_edit("PC1000A"),
       Ok(ReplaceText {
-        pos: 6,
-        old_len: 0,
+        range: Range::empty(6),
         str: ":REM {type:PC1000A}".to_owned(),
       })
     );
@@ -1569,8 +1694,7 @@ no";
     assert_eq!(
       doc.compute_machine_name_edit("pc1000a"),
       Ok(ReplaceText {
-        pos: 17,
-        old_len: 0,
+        range: Range::empty(17),
         str: "\":REM {type:PC1000A}".to_owned(),
       })
     );
@@ -1588,8 +1712,7 @@ no";
     assert_eq!(
       doc.compute_machine_name_edit("tc808"),
       Ok(ReplaceText {
-        pos: 17,
-        old_len: 7,
+        range: Range::new(17, 24),
         str: "TC808".to_owned(),
       })
     );
@@ -1629,8 +1752,7 @@ no";
         doc.compute_add_label_edit(LabelTarget::CurLine, 9),
         Ok(AddLabelResult {
           edit: ReplaceText {
-            pos: 8,
-            old_len: 0,
+            range: Range::empty(8),
             str: format!("20"),
           },
           goto: None
@@ -1653,8 +1775,7 @@ no";
         doc.compute_add_label_edit(LabelTarget::CurLine, 9),
         Ok(AddLabelResult {
           edit: ReplaceText {
-            pos: 8,
-            old_len: 0,
+            range: Range::empty(8),
             str: format!("10 "),
           },
           goto: None
@@ -1664,8 +1785,7 @@ no";
         doc.compute_add_label_edit(LabelTarget::PrevLine, 22),
         Ok(AddLabelResult {
           edit: ReplaceText {
-            pos: 22,
-            old_len: 0,
+            range: Range::empty(22),
             str: format!("30 \r\n"),
           },
           goto: Some(25)
@@ -1675,8 +1795,7 @@ no";
         doc.compute_add_label_edit(LabelTarget::NextLine, 14),
         Ok(AddLabelResult {
           edit: ReplaceText {
-            pos: 22,
-            old_len: 0,
+            range: Range::empty(22),
             str: format!("30 \r\n"),
           },
           goto: Some(25)
@@ -1699,8 +1818,7 @@ no";
         doc.compute_add_label_edit(LabelTarget::CurLine, 9),
         Ok(AddLabelResult {
           edit: ReplaceText {
-            pos: 8,
-            old_len: 0,
+            range: Range::empty(8),
             str: format!("11 "),
           },
           goto: None
@@ -1710,8 +1828,7 @@ no";
         doc.compute_add_label_edit(LabelTarget::PrevLine, 22),
         Ok(AddLabelResult {
           edit: ReplaceText {
-            pos: 22,
-            old_len: 0,
+            range: Range::empty(22),
             str: format!("25 \r\n"),
           },
           goto: Some(25)
@@ -1721,8 +1838,7 @@ no";
         doc.compute_add_label_edit(LabelTarget::NextLine, 14),
         Ok(AddLabelResult {
           edit: ReplaceText {
-            pos: 22,
-            old_len: 0,
+            range: Range::empty(22),
             str: format!("17 \r\n"),
           },
           goto: Some(25)
@@ -1767,8 +1883,7 @@ no";
         doc.compute_add_label_edit(LabelTarget::CurLine, 2),
         Ok(AddLabelResult {
           edit: ReplaceText {
-            pos: 0,
-            old_len: 0,
+            range: Range::empty(0),
             str: format!("10 "),
           },
           goto: None
@@ -1863,8 +1978,7 @@ no";
         doc.compute_add_label_edit(LabelTarget::CurLine, 1),
         Ok(AddLabelResult {
           edit: ReplaceText {
-            pos: 0,
-            old_len: 0,
+            range: Range::empty(0),
             str: format!("10 "),
           },
           goto: None
@@ -1881,8 +1995,7 @@ no";
         doc.compute_add_label_edit(LabelTarget::PrevLine, 0),
         Ok(AddLabelResult {
           edit: ReplaceText {
-            pos: 0,
-            old_len: 0,
+            range: Range::empty(0),
             str: format!("10 \r\n"),
           },
           goto: Some(3)
@@ -1903,8 +2016,7 @@ no";
         doc.compute_add_label_edit(LabelTarget::CurLine, 1),
         Ok(AddLabelResult {
           edit: ReplaceText {
-            pos: 0,
-            old_len: 0,
+            range: Range::empty(0),
             str: format!("4 "),
           },
           goto: None
@@ -1921,8 +2033,7 @@ no";
         doc.compute_add_label_edit(LabelTarget::PrevLine, 1),
         Ok(AddLabelResult {
           edit: ReplaceText {
-            pos: 0,
-            old_len: 0,
+            range: Range::empty(0),
             str: format!("4 \r\n"),
           },
           goto: Some(2)
@@ -1988,8 +2099,7 @@ cls
         doc.compute_add_label_edit(LabelTarget::CurLine, 12),
         Ok(AddLabelResult {
           edit: ReplaceText {
-            pos: 10,
-            old_len: 0,
+            range: Range::empty(10),
             str: format!("9990 "),
           },
           goto: None
@@ -2006,8 +2116,7 @@ cls
         doc.compute_add_label_edit(LabelTarget::NextLine, 0),
         Ok(AddLabelResult {
           edit: ReplaceText {
-            pos: 8,
-            old_len: 0,
+            range: Range::empty(8),
             str: format!("\r\n9990 "),
           },
           goto: Some(15)
@@ -2028,8 +2137,7 @@ cls
         doc.compute_add_label_edit(LabelTarget::CurLine, 12),
         Ok(AddLabelResult {
           edit: ReplaceText {
-            pos: 10,
-            old_len: 0,
+            range: Range::empty(10),
             str: format!("9994 "),
           },
           goto: None
@@ -2046,8 +2154,7 @@ cls
         doc.compute_add_label_edit(LabelTarget::NextLine, 8),
         Ok(AddLabelResult {
           edit: ReplaceText {
-            pos: 8,
-            old_len: 0,
+            range: Range::empty(8),
             str: format!("\r\n9994 "),
           },
           goto: Some(15)
@@ -2114,8 +2221,7 @@ cls
         doc.compute_add_label_edit(LabelTarget::CurLine, 8),
         Ok(AddLabelResult {
           edit: ReplaceText {
-            pos: 8,
-            old_len: 0,
+            range: Range::empty(8),
             str: format!("11 "),
           },
           goto: Some(11)
@@ -2125,8 +2231,7 @@ cls
         doc.compute_add_label_edit(LabelTarget::CurLine, 18),
         Ok(AddLabelResult {
           edit: ReplaceText {
-            pos: 18,
-            old_len: 0,
+            range: Range::empty(18),
             str: format!("30 "),
           },
           goto: Some(21)
@@ -2136,13 +2241,175 @@ cls
         doc.compute_add_label_edit(LabelTarget::CurLine, 31),
         Ok(AddLabelResult {
           edit: ReplaceText {
-            pos: 31,
-            old_len: 0,
+            range: Range::empty(31),
             str: format!("60 "),
           },
           goto: Some(34)
         })
       );
     }
+  }
+
+  fn apply_replaces(doc: &mut Document, replaces: &[ReplaceText]) {
+    for r in replaces {
+      if !r.range.is_empty() {
+        doc.apply_edit(Edit {
+          pos: r.range.start,
+          kind: EditKind::Delete(r.range.len()),
+        })
+      }
+      doc.apply_edit(Edit {
+        pos: r.range.start,
+        kind: EditKind::Insert(&r.str),
+      })
+    }
+  }
+
+  #[test]
+  fn relabel_error() {
+    let mut doc = make_doc(
+      r#"
+10 cls
+30 goto
+40 ::
+"#
+      .trim(),
+    );
+    assert_eq!(
+      doc.compute_relabel_edits(10, 5000),
+      Err(RelabelError::LabelOverflow(10010))
+    );
+    assert_eq!(
+      doc.compute_relabel_edits(10, 10),
+      Err(RelabelError::LabelNotFound {
+        label: 0,
+        range: Range::empty(15),
+      })
+    );
+
+    let mut doc = make_doc(
+      r#"
+10 cls
+30 goto :
+40 ::
+"#
+      .trim(),
+    );
+    assert_eq!(
+      doc.compute_relabel_edits(10, 10),
+      Err(RelabelError::LabelNotFound {
+        label: 0,
+        range: Range::empty(15),
+      })
+    );
+
+    let mut doc = make_doc(
+      r#"
+10 cls
+30 goto 20
+40 ::
+"#
+      .trim(),
+    );
+    assert_eq!(
+      doc.compute_relabel_edits(10, 10),
+      Err(RelabelError::LabelNotFound {
+        label: 20,
+        range: Range::new(16, 18),
+      })
+    );
+
+    let mut doc = make_doc(
+      r#"
+10 cls
+30 gosub 20
+40 ::
+"#
+      .trim(),
+    );
+    assert_eq!(
+      doc.compute_relabel_edits(10, 10),
+      Err(RelabelError::LabelNotFound {
+        label: 20,
+        range: Range::new(17, 19),
+      })
+    );
+
+    let mut doc = make_doc(
+      r#"
+10 cls
+30 restore 20
+40 ::
+"#
+      .trim(),
+    );
+    assert_eq!(
+      doc.compute_relabel_edits(10, 10),
+      Err(RelabelError::LabelNotFound {
+        label: 20,
+        range: Range::new(19, 21),
+      })
+    );
+
+    let mut doc = make_doc(
+      r#"
+10 cls
+30 on 1 goto 40,20,,:
+40 ::
+"#
+      .trim(),
+    );
+    assert_eq!(
+      doc.compute_relabel_edits(10, 10),
+      Err(RelabelError::LabelNotFound {
+        label: 20,
+        range: Range::new(24, 26),
+      })
+    );
+
+    let mut doc = make_doc(
+      r#"
+10 cls
+30 on 1 goto 40,10,,:
+40 ::
+"#
+      .trim(),
+    );
+    assert_eq!(
+      doc.compute_relabel_edits(10, 10),
+      Err(RelabelError::LabelNotFound {
+        label: 0,
+        range: Range::empty(27),
+      })
+    );
+  }
+
+  #[test]
+  fn relabel() {
+    let mut doc = make_doc(
+      r#"
+0 cls:restore 40
+10 cls:goto :goto:goto 20:goto   :gosub :gosub:gosub 20
+20 restore:on a goto ,40,, ,0,10:
+30 if a+b then 20:print:gosub 40:else 10
+31 if a goto 
+ab
+ abc
+40 ::
+"#
+      .trim_start(),
+    );
+    let edits = doc.compute_relabel_edits(1000, 20).unwrap();
+    apply_replaces(&mut doc, &edits);
+    assert_eq!(&doc.text, "
+1000 cls:restore 1140\r
+1020 cls:goto 1000:goto 1000:goto 1040:goto 1000  :gosub 1000:gosub 1000:gosub 1040\r
+1040 restore:on a goto 1000,1140,1000, 1000,1000,1020:\r
+1060 if a+b then 1040:print:gosub 1140:else 1020\r
+1080 if a goto 1000\r
+1100 ab\r
+1120 abc\r
+1140 ::\r
+1160 ".trim_start());
   }
 }

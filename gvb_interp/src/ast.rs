@@ -105,12 +105,23 @@ impl Range {
     Self { start, end }
   }
 
+  pub fn empty(start: usize) -> Self {
+    Self { start, end: start }
+  }
+
   pub fn is_empty(&self) -> bool {
     self.start == self.end
   }
 
   pub fn len(&self) -> usize {
     self.end - self.start
+  }
+
+  pub fn offset(&self, offset: isize) -> Self {
+    Self {
+      start: self.start + offset as usize,
+      end: self.end + offset as usize,
+    }
   }
 }
 

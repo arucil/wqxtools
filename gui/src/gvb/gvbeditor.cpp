@@ -2,6 +2,7 @@
 
 #include <QApplication>
 #include <QComboBox>
+#include <QDialog>
 #include <QFileInfo>
 #include <QKeyEvent>
 #include <QLabel>
@@ -24,6 +25,7 @@
 #include "code_editor.h"
 #include "emoji_selector.h"
 #include "gvbsim_window.h"
+#include "relabel_dialog.h"
 #include "search_bar.h"
 
 #define DATA_DIR "dat_files"
@@ -37,6 +39,7 @@ GvbEditor::GvbEditor(QWidget *parent) :
   m_textLoaded(false),
   m_timerModify(0),
   m_gvbsim(nullptr),
+  m_relabelDlg(nullptr),
   m_emojiSelector(nullptr) {
   initUi();
   initStateMachine();
@@ -60,6 +63,9 @@ GvbEditor::~GvbEditor() {
     gvb_destroy_document(m_doc);
     m_doc = nullptr;
   }
+  delete m_gvbsim;
+  delete m_emojiSelector;
+  delete m_relabelDlg;
 }
 
 void GvbEditor::initUi() {
@@ -144,6 +150,13 @@ void GvbEditor::initUi() {
     &QAction::triggered,
     this,
     &GvbEditor::addLabelCurLine);
+
+  m_actRelabel = new QAction("重排行号", this);
+  connect(
+    m_actRelabel,
+    &QAction::triggered,
+    this,
+    &GvbEditor::showRelabelDialog);
 
   m_actSelectAll = new Action("全选", this);
   connect(
@@ -343,7 +356,7 @@ void GvbEditor::syncMachName(bool skipSelection) {
   if (result.tag == api::GvbDocSyncMachResult::Tag::Left) {
     auto msg = QString::fromUtf8(result.left._0.data, result.left._0.len);
     api::destroy_string(result.left._0);
-    MessageBus::instance()->postMessage(msg, 2000, MessageType::Error);
+    QMessageBox::critical(this, "错误", msg);
   } else {
     auto edits = result.right._0;
     // NOTE Usually undo history must be cleared after disabling undo collection
@@ -353,7 +366,7 @@ void GvbEditor::syncMachName(bool skipSelection) {
     // See https://www.scintilla.org/ScintillaDoc.html#SCI_SETUNDOCOLLECTION
     m_edit->setUndoCollection(false);
     for (auto p = edits.data; p != edits.data + edits.len; p++) {
-      m_edit->setTargetRange(p->pos, p->pos + p->old_len);
+      m_edit->setTargetRange(p->start, p->end);
       auto s = QString::fromUcs4(&p->ch, 1).toUtf8();
       m_edit->replaceTarget(s.size(), s.data());
     }
@@ -383,11 +396,11 @@ void GvbEditor::setMachineName(int i) {
   if (result.tag == api::GvbDocMachEditResult::Tag::Left) {
     auto msg = QString::fromUtf8(result.left._0.data, result.left._0.len);
     api::destroy_string(result.left._0);
-    MessageBus::instance()->postMessage(msg, 2000, MessageType::Error);
+    QMessageBox::critical(this, "错误", msg);
     syncMachName(false);
   } else {
     auto edit = result.right._0;
-    m_edit->setTargetRange(edit.pos, edit.pos + edit.old_len);
+    m_edit->setTargetRange(edit.start, edit.end);
     m_edit->replaceTarget(edit.str.len, edit.str.data);
     api::gvb_destroy_replace_text(edit);
     QTimer::singleShot(0, this, &GvbEditor::syncMachNameEdit);
@@ -732,7 +745,12 @@ void GvbEditor::showRuntimeError(const api::GvbExecResult::Error_Body &error) {
 }
 
 QList<QAction *> GvbEditor::extraActions() const {
-  return {m_actAddLabelNextLine, m_actAddLabelCurLine, m_actAddLabelPrevLine};
+  return {
+    m_actAddLabelNextLine,
+    m_actAddLabelCurLine,
+    m_actAddLabelPrevLine,
+    m_actRelabel,
+  };
 }
 
 void GvbEditor::setContextMenuActions(const QList<QAction *> &actions) {
@@ -770,12 +788,61 @@ void GvbEditor::addLabel(api::GvbLabelTarget target) {
     MessageBus::instance()->postMessage(msg, 800, MessageType::Error);
   } else {
     auto edit = result.right._0.edit;
-    m_edit->setTargetRange(edit.pos, edit.pos + edit.old_len);
+    m_edit->setTargetRange(edit.start, edit.end);
     m_edit->replaceTarget(edit.str.len, edit.str.data);
     api::gvb_destroy_replace_text(edit);
     if (result.right._0.goto_.tag == api::Maybe<size_t>::Tag::Just) {
       m_edit->gotoPos(result.right._0.goto_.just._0);
     }
     QTimer::singleShot(0, this, &GvbEditor::applyEdits);
+  }
+}
+
+void GvbEditor::showRelabelDialog() {
+  if (!m_relabelDlg) {
+    auto dlg = new RelabelDialog(getMainWindow());
+    m_relabelDlg = dlg;
+    connect(
+      dlg,
+      &RelabelDialog::relabel,
+      this,
+      &GvbEditor::relabel,
+      Qt::QueuedConnection);
+  }
+  m_relabelDlg->show();
+  m_relabelDlg->exec();
+}
+
+void GvbEditor::relabel(uint16_t start, uint16_t inc) {
+  auto result = api::gvb_document_relabel_edits(m_doc, start, inc);
+  if (result.tag == api::GvbDocRelabelResult::Tag::Left) {
+    switch (result.left._0.tag) {
+      case api::GvbDocRelabelError::Tag::LabelOverflow:
+        QMessageBox::critical(
+          this,
+          "错误",
+          QString("最后一行的行号 %1 超出了最大行号 9999")
+            .arg(result.left._0.label_overflow._0));
+        break;
+      case api::GvbDocRelabelError::Tag::LabelNotFound: {
+        auto err = result.left._0.label_not_found;
+        m_edit->gotoPos(err.end);
+        m_edit->setAnchor(err.start);
+        MessageBus::instance()->postMessage(
+          QString("行号 %1 不存在").arg(err.label),
+          2000,
+          MessageType::Error);
+        break;
+      }
+    }
+  } else {
+    auto edits = result.right._0;
+    m_edit->beginUndoAction();
+    for (auto p = edits.data; p != edits.data + edits.len; p++) {
+      m_edit->setTargetRange(p->start, p->end);
+      m_edit->replaceTarget(p->str.len, p->str.data);
+    }
+    m_edit->endUndoAction();
+    api::gvb_destroy_replace_text_array(edits);
   }
 }

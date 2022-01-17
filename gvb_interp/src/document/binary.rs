@@ -98,7 +98,10 @@ pub fn load_bas(
           if guessed_emoji_versions.is_empty() {
             return Err(LoadError {
               location: offset + i + 1,
-              message: format!("unable to determine emoji version"),
+              message: format!(
+                "无法转换文曲星图形符号的编码：0x{:04X}",
+                gbcode
+              ),
             });
           }
         }
@@ -210,7 +213,7 @@ pub fn load_txt(
       if content.len() <= i + 1 {
         return Err(LoadError {
           location: (line, i - line_offset),
-          message: format!("invalid character"),
+          message: format!("非法字符"),
         });
       }
 
@@ -222,7 +225,7 @@ pub fn load_txt(
         if guessed_emoji_versions.is_empty() {
           return Err(LoadError {
             location: (line, i - line_offset),
-            message: format!("unable to determine emoji version"),
+            message: format!("无法转换文曲星图形符号的编码：0x{:04X}", gbcode),
           });
         } else {
           let u = guessed_emoji_versions[0].code_to_char(gbcode).unwrap();

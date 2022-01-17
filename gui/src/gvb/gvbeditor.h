@@ -4,12 +4,16 @@
 
 #include <QStateMachine>
 #include <QVector>
+#include <cstdint>
 #include <string>
 #include <variant>
 
 #include "../capability.h"
 #include "../tool.h"
 
+using std::uint16_t;
+
+class QDialog;
 class QToolButton;
 class QComboBox;
 class EmojiSelector;
@@ -100,6 +104,8 @@ private slots:
   void showEmojiSelector();
   void applyEdits();
   void syncMachNameEdit();
+  void showRelabelDialog();
+  void relabel(uint16_t start, uint16_t inc);
 
 private:
   CodeEditor *m_edit;
@@ -112,6 +118,7 @@ private:
   QString m_filePath;
   QToolBar *m_toolBar;
   QStatusBar *m_statusBar;
+  QDialog *m_relabelDlg;
   SearchBar *m_searchBar;
   QComboBox *m_machNames;
   QToolButton *m_btnEmoji;
@@ -119,5 +126,6 @@ private:
   QAction *m_actAddLabelCurLine;
   QAction *m_actAddLabelPrevLine;
   QAction *m_actAddLabelNextLine;
+  QAction *m_actRelabel;
   QList<QAction *> m_ctxMenuActions;
 };

@@ -186,16 +186,16 @@ pub extern "C" fn gvb_document_machine_name(doc: *mut GvbDocument) -> Utf8Str {
 
 #[repr(C)]
 pub struct GvbReplaceChar {
-  pub pos: usize,
-  pub old_len: usize,
+  pub start: usize,
+  pub end: usize,
   pub ch: char,
 }
 
 impl From<gvb::ReplaceChar> for GvbReplaceChar {
   fn from(r: gvb::ReplaceChar) -> Self {
     Self {
-      pos: r.pos,
-      old_len: r.old_len,
+      start: r.range.start,
+      end: r.range.end,
       ch: r.ch,
     }
   }
@@ -239,8 +239,8 @@ fn mach_prop_error_to_string(err: gvb::MachinePropError) -> Utf8String {
 
 #[repr(C)]
 pub struct GvbReplaceText {
-  pub pos: usize,
-  pub old_len: usize,
+  pub start: usize,
+  pub end: usize,
   pub str: Utf8String,
 }
 
@@ -254,8 +254,8 @@ pub extern "C" fn gvb_document_machine_name_edit(
   let name = unsafe { name.as_str() };
   match unsafe { (*doc).0.compute_machine_name_edit(name) } {
     Ok(edit) => Either::Right(GvbReplaceText {
-      pos: edit.pos,
-      old_len: edit.old_len,
+      start: edit.range.start,
+      end: edit.range.end,
       str: unsafe { Utf8String::new(edit.str) },
     }),
     Err(err) => Either::Left(mach_prop_error_to_string(err)),
@@ -306,17 +306,69 @@ pub extern "C" fn gvb_document_add_label_edit(
   match unsafe { (*doc).0.compute_add_label_edit(target.into(), position) } {
     Ok(result) => Either::Right(GvbAddLabelResult {
       edit: GvbReplaceText {
-        pos: result.edit.pos,
-        old_len: result.edit.old_len,
+        start: result.edit.range.start,
+        end: result.edit.range.end,
         str: unsafe { Utf8String::new(result.edit.str) },
       },
       goto: result.goto.into(),
     }),
-    Err(gvb::AddLabelError::AlreadyHasLabel) => {
-      Either::Left(unsafe { Utf8String::new(format!("当前行已经有行号")) })
-    }
+    Err(gvb::AddLabelError::AlreadyHasLabel) => Either::Left(unsafe {
+      Utf8String::new(format!("当前行已经有行号"))
+    }),
     Err(gvb::AddLabelError::CannotInferLabel) => {
       Either::Left(unsafe { Utf8String::new(format!("无法推测行号")) })
     }
+  }
+}
+
+#[repr(C)]
+pub enum GvbDocRelabelError {
+  LabelOverflow(u32),
+  LabelNotFound {
+    start: usize,
+    end: usize,
+    label: u16,
+  },
+}
+
+pub type GvbDocRelabelResult =
+  Either<GvbDocRelabelError, Array<GvbReplaceText>>;
+
+#[no_mangle]
+pub extern "C" fn gvb_document_relabel_edits(
+  doc: *mut GvbDocument,
+  start: u16,
+  inc: u16,
+) -> GvbDocRelabelResult {
+  match unsafe { (*doc).0.compute_relabel_edits(start, inc) } {
+    Ok(edits) => Either::Right(unsafe {
+      Array::new(
+        edits
+          .into_iter()
+          .map(|edit| GvbReplaceText {
+            start: edit.range.start,
+            end: edit.range.end,
+            str: Utf8String::new(edit.str),
+          })
+          .collect(),
+      )
+    }),
+    Err(gvb::RelabelError::LabelOverflow(label)) => {
+      Either::Left(GvbDocRelabelError::LabelOverflow(label))
+    }
+    Err(gvb::RelabelError::LabelNotFound { range, label }) => {
+      Either::Left(GvbDocRelabelError::LabelNotFound {
+        start: range.start,
+        end: range.end,
+        label,
+      })
+    }
+  }
+}
+
+#[no_mangle]
+pub extern "C" fn gvb_destroy_replace_text_array(edits: Array<GvbReplaceText>) {
+  for edit in unsafe { edits.into_boxed_slice() }.iter() {
+    destroy_string(edit.str.clone());
   }
 }

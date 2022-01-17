@@ -2367,7 +2367,7 @@ fn compile_fn(
   if input.trim_matches(|c: char| c == ' ').is_empty() {
     return (
       None,
-      vec![Diagnostic::new_error(Range::new(0, 0), "表达式不能为空")],
+      vec![Diagnostic::new_error(Range::empty(0), "表达式不能为空")],
     );
   }
 
