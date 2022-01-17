@@ -252,7 +252,7 @@ pub extern "C" fn gvb_document_machine_name_edit(
   name: Utf8Str,
 ) -> GvbDocMachEditResult {
   let name = unsafe { name.as_str() };
-  match unsafe { (*doc).0.get_machine_name_edit(name) } {
+  match unsafe { (*doc).0.compute_machine_name_edit(name) } {
     Ok(edit) => Either::Right(GvbReplaceText {
       pos: edit.pos,
       old_len: edit.old_len,
@@ -303,7 +303,7 @@ pub extern "C" fn gvb_document_add_label_edit(
   target: GvbLabelTarget,
   position: usize,
 ) -> GvbDocLabelEditResult {
-  match unsafe { (*doc).0.get_add_label_edit(target.into(), position) } {
+  match unsafe { (*doc).0.compute_add_label_edit(target.into(), position) } {
     Ok(result) => Either::Right(GvbAddLabelResult {
       edit: GvbReplaceText {
         pos: result.edit.pos,

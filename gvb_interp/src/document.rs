@@ -369,7 +369,7 @@ impl Document {
     Ok(edits)
   }
 
-  pub fn get_machine_name_edit(
+  pub fn compute_machine_name_edit(
     &self,
     name: &str,
   ) -> Result<ReplaceText, MachinePropError> {
@@ -410,10 +410,10 @@ impl Document {
     }
   }
 
-  pub fn get_add_label_edit(
+  pub fn compute_add_label_edit(
     &mut self,
     target: LabelTarget,
-    pos: usize,
+    cursor_pos: usize,
   ) -> Result<AddLabelResult, AddLabelError> {
     fn infer_label(
       lb: Option<u16>,
@@ -470,19 +470,19 @@ impl Document {
       }
     }
 
-    let i = find_line_by_position(&self.lines, pos);
+    let i = find_line_by_position(&self.lines, cursor_pos);
     match target {
       LabelTarget::CurLine => {
         if self.ensure_line_parsed(i).content.label.is_some() {
           return Err(AddLabelError::AlreadyHasLabel);
         }
         let lb = if i > 0 {
-          Some(self.get_line_label(i - 1)?)
+          Some(self.line_label(i - 1)?)
         } else {
           None
         };
         let ub = if i < self.lines.len() - 1 {
-          Some(self.get_line_label(i + 1)?)
+          Some(self.line_label(i + 1)?)
         } else {
           None
         };
@@ -492,28 +492,35 @@ impl Document {
           infer_label(lb, ub, true).ok_or(AddLabelError::CannotInferLabel)?
         };
         let pos = self.lines[i].line_start;
-        let str = if !self.text.is_empty() && self.text.as_bytes()[pos] == b' '
-        {
-          label.to_string()
+        let goto;
+        let str;
+        if self.text.len() > pos && self.text.as_bytes()[pos] == b' ' {
+          goto = None;
+          str = label.to_string();
         } else {
-          format!("{} ", label)
-        };
+          str = format!("{} ", label);
+          if pos == cursor_pos {
+            goto = Some(pos + str.len());
+          } else {
+            goto = None;
+          }
+        }
         Ok(AddLabelResult {
           edit: ReplaceText {
             pos,
             old_len: 0,
             str,
           },
-          goto: None,
+          goto,
         })
       }
       LabelTarget::PrevLine => {
         let lb = if i > 0 {
-          Some(self.get_line_label(i - 1)?)
+          Some(self.line_label(i - 1)?)
         } else {
           None
         };
-        let ub = Some(self.get_line_label(i)?);
+        let ub = Some(self.line_label(i)?);
         let label =
           infer_label(lb, ub, false).ok_or(AddLabelError::CannotInferLabel)?;
         let pos = self.lines[i].line_start;
@@ -529,9 +536,9 @@ impl Document {
         })
       }
       LabelTarget::NextLine => {
-        let lb = Some(self.get_line_label(i)?);
+        let lb = Some(self.line_label(i)?);
         let ub = if i < self.lines.len() - 1 {
-          Some(self.get_line_label(i + 1)?)
+          Some(self.line_label(i + 1)?)
         } else {
           None
         };
@@ -561,7 +568,7 @@ impl Document {
     }
   }
 
-  fn get_line_label(&mut self, i: usize) -> Result<u16, AddLabelError> {
+  fn line_label(&mut self, i: usize) -> Result<u16, AddLabelError> {
     self
       .ensure_line_parsed(i)
       .content
@@ -1541,7 +1548,7 @@ no";
       .trim(),
     );
     assert_eq!(
-      doc.get_machine_name_edit("PC1000A"),
+      doc.compute_machine_name_edit("PC1000A"),
       Ok(ReplaceText {
         pos: 6,
         old_len: 0,
@@ -1560,7 +1567,7 @@ no";
       .trim(),
     );
     assert_eq!(
-      doc.get_machine_name_edit("pc1000a"),
+      doc.compute_machine_name_edit("pc1000a"),
       Ok(ReplaceText {
         pos: 17,
         old_len: 0,
@@ -1579,7 +1586,7 @@ no";
       .trim(),
     );
     assert_eq!(
-      doc.get_machine_name_edit("tc808"),
+      doc.compute_machine_name_edit("tc808"),
       Ok(ReplaceText {
         pos: 17,
         old_len: 7,
@@ -1603,7 +1610,7 @@ no";
         .trim(),
       );
       assert_eq!(
-        doc.get_add_label_edit(LabelTarget::CurLine, 4),
+        doc.compute_add_label_edit(LabelTarget::CurLine, 4),
         Err(AddLabelError::AlreadyHasLabel)
       );
     }
@@ -1619,7 +1626,7 @@ no";
         .trim(),
       );
       assert_eq!(
-        doc.get_add_label_edit(LabelTarget::CurLine, 9),
+        doc.compute_add_label_edit(LabelTarget::CurLine, 9),
         Ok(AddLabelResult {
           edit: ReplaceText {
             pos: 8,
@@ -1643,7 +1650,7 @@ no";
         .trim(),
       );
       assert_eq!(
-        doc.get_add_label_edit(LabelTarget::CurLine, 9),
+        doc.compute_add_label_edit(LabelTarget::CurLine, 9),
         Ok(AddLabelResult {
           edit: ReplaceText {
             pos: 8,
@@ -1654,7 +1661,7 @@ no";
         })
       );
       assert_eq!(
-        doc.get_add_label_edit(LabelTarget::PrevLine, 22),
+        doc.compute_add_label_edit(LabelTarget::PrevLine, 22),
         Ok(AddLabelResult {
           edit: ReplaceText {
             pos: 22,
@@ -1665,7 +1672,7 @@ no";
         })
       );
       assert_eq!(
-        doc.get_add_label_edit(LabelTarget::NextLine, 14),
+        doc.compute_add_label_edit(LabelTarget::NextLine, 14),
         Ok(AddLabelResult {
           edit: ReplaceText {
             pos: 22,
@@ -1689,7 +1696,7 @@ no";
         .trim(),
       );
       assert_eq!(
-        doc.get_add_label_edit(LabelTarget::CurLine, 9),
+        doc.compute_add_label_edit(LabelTarget::CurLine, 9),
         Ok(AddLabelResult {
           edit: ReplaceText {
             pos: 8,
@@ -1700,7 +1707,7 @@ no";
         })
       );
       assert_eq!(
-        doc.get_add_label_edit(LabelTarget::PrevLine, 22),
+        doc.compute_add_label_edit(LabelTarget::PrevLine, 22),
         Ok(AddLabelResult {
           edit: ReplaceText {
             pos: 22,
@@ -1711,7 +1718,7 @@ no";
         })
       );
       assert_eq!(
-        doc.get_add_label_edit(LabelTarget::NextLine, 14),
+        doc.compute_add_label_edit(LabelTarget::NextLine, 14),
         Ok(AddLabelResult {
           edit: ReplaceText {
             pos: 22,
@@ -1735,15 +1742,15 @@ no";
         .trim(),
       );
       assert_eq!(
-        doc.get_add_label_edit(LabelTarget::CurLine, 9),
+        doc.compute_add_label_edit(LabelTarget::CurLine, 9),
         Err(AddLabelError::CannotInferLabel),
       );
       assert_eq!(
-        doc.get_add_label_edit(LabelTarget::PrevLine, 22),
+        doc.compute_add_label_edit(LabelTarget::PrevLine, 22),
         Err(AddLabelError::CannotInferLabel),
       );
       assert_eq!(
-        doc.get_add_label_edit(LabelTarget::NextLine, 14),
+        doc.compute_add_label_edit(LabelTarget::NextLine, 14),
         Err(AddLabelError::CannotInferLabel),
       );
     }
@@ -1757,7 +1764,7 @@ no";
         .trim(),
       );
       assert_eq!(
-        doc.get_add_label_edit(LabelTarget::CurLine, 2),
+        doc.compute_add_label_edit(LabelTarget::CurLine, 2),
         Ok(AddLabelResult {
           edit: ReplaceText {
             pos: 0,
@@ -1782,15 +1789,15 @@ no";
         .trim(),
       );
       assert_eq!(
-        doc.get_add_label_edit(LabelTarget::CurLine, 9),
+        doc.compute_add_label_edit(LabelTarget::CurLine, 9),
         Err(AddLabelError::CannotInferLabel),
       );
       assert_eq!(
-        doc.get_add_label_edit(LabelTarget::PrevLine, 9),
+        doc.compute_add_label_edit(LabelTarget::PrevLine, 9),
         Err(AddLabelError::CannotInferLabel),
       );
       assert_eq!(
-        doc.get_add_label_edit(LabelTarget::NextLine, 19),
+        doc.compute_add_label_edit(LabelTarget::NextLine, 19),
         Err(AddLabelError::CannotInferLabel),
       );
     }
@@ -1806,15 +1813,15 @@ no";
         .trim(),
       );
       assert_eq!(
-        doc.get_add_label_edit(LabelTarget::CurLine, 5),
+        doc.compute_add_label_edit(LabelTarget::CurLine, 5),
         Err(AddLabelError::CannotInferLabel),
       );
       assert_eq!(
-        doc.get_add_label_edit(LabelTarget::PrevLine, 10),
+        doc.compute_add_label_edit(LabelTarget::PrevLine, 10),
         Err(AddLabelError::CannotInferLabel),
       );
       assert_eq!(
-        doc.get_add_label_edit(LabelTarget::NextLine, 5),
+        doc.compute_add_label_edit(LabelTarget::NextLine, 5),
         Err(AddLabelError::CannotInferLabel),
       );
     }
@@ -1830,15 +1837,15 @@ no";
         .trim(),
       );
       assert_eq!(
-        doc.get_add_label_edit(LabelTarget::CurLine, 6),
+        doc.compute_add_label_edit(LabelTarget::CurLine, 6),
         Err(AddLabelError::CannotInferLabel),
       );
       assert_eq!(
-        doc.get_add_label_edit(LabelTarget::PrevLine, 6),
+        doc.compute_add_label_edit(LabelTarget::PrevLine, 6),
         Err(AddLabelError::CannotInferLabel),
       );
       assert_eq!(
-        doc.get_add_label_edit(LabelTarget::NextLine, 6),
+        doc.compute_add_label_edit(LabelTarget::NextLine, 6),
         Err(AddLabelError::CannotInferLabel),
       );
     }
@@ -1853,7 +1860,7 @@ no";
         .trim(),
       );
       assert_eq!(
-        doc.get_add_label_edit(LabelTarget::CurLine, 1),
+        doc.compute_add_label_edit(LabelTarget::CurLine, 1),
         Ok(AddLabelResult {
           edit: ReplaceText {
             pos: 0,
@@ -1871,7 +1878,7 @@ no";
         .trim(),
       );
       assert_eq!(
-        doc.get_add_label_edit(LabelTarget::PrevLine, 0),
+        doc.compute_add_label_edit(LabelTarget::PrevLine, 0),
         Ok(AddLabelResult {
           edit: ReplaceText {
             pos: 0,
@@ -1893,7 +1900,7 @@ no";
         .trim(),
       );
       assert_eq!(
-        doc.get_add_label_edit(LabelTarget::CurLine, 1),
+        doc.compute_add_label_edit(LabelTarget::CurLine, 1),
         Ok(AddLabelResult {
           edit: ReplaceText {
             pos: 0,
@@ -1911,7 +1918,7 @@ no";
         .trim(),
       );
       assert_eq!(
-        doc.get_add_label_edit(LabelTarget::PrevLine, 1),
+        doc.compute_add_label_edit(LabelTarget::PrevLine, 1),
         Ok(AddLabelResult {
           edit: ReplaceText {
             pos: 0,
@@ -1933,7 +1940,7 @@ no";
         .trim(),
       );
       assert_eq!(
-        doc.get_add_label_edit(LabelTarget::CurLine, 1),
+        doc.compute_add_label_edit(LabelTarget::CurLine, 1),
         Err(AddLabelError::CannotInferLabel),
       );
 
@@ -1944,7 +1951,7 @@ no";
         .trim(),
       );
       assert_eq!(
-        doc.get_add_label_edit(LabelTarget::PrevLine, 1),
+        doc.compute_add_label_edit(LabelTarget::PrevLine, 1),
         Err(AddLabelError::CannotInferLabel),
       );
     }
@@ -1959,11 +1966,11 @@ cls
         .trim(),
       );
       assert_eq!(
-        doc.get_add_label_edit(LabelTarget::CurLine, 1),
+        doc.compute_add_label_edit(LabelTarget::CurLine, 1),
         Err(AddLabelError::CannotInferLabel),
       );
       assert_eq!(
-        doc.get_add_label_edit(LabelTarget::PrevLine, 1),
+        doc.compute_add_label_edit(LabelTarget::PrevLine, 1),
         Err(AddLabelError::CannotInferLabel),
       );
     }
@@ -1978,7 +1985,7 @@ cls
         .trim(),
       );
       assert_eq!(
-        doc.get_add_label_edit(LabelTarget::CurLine, 12),
+        doc.compute_add_label_edit(LabelTarget::CurLine, 12),
         Ok(AddLabelResult {
           edit: ReplaceText {
             pos: 10,
@@ -1996,7 +2003,7 @@ cls
         .trim(),
       );
       assert_eq!(
-        doc.get_add_label_edit(LabelTarget::NextLine, 0),
+        doc.compute_add_label_edit(LabelTarget::NextLine, 0),
         Ok(AddLabelResult {
           edit: ReplaceText {
             pos: 8,
@@ -2018,7 +2025,7 @@ cls
         .trim(),
       );
       assert_eq!(
-        doc.get_add_label_edit(LabelTarget::CurLine, 12),
+        doc.compute_add_label_edit(LabelTarget::CurLine, 12),
         Ok(AddLabelResult {
           edit: ReplaceText {
             pos: 10,
@@ -2036,7 +2043,7 @@ cls
         .trim(),
       );
       assert_eq!(
-        doc.get_add_label_edit(LabelTarget::NextLine, 8),
+        doc.compute_add_label_edit(LabelTarget::NextLine, 8),
         Ok(AddLabelResult {
           edit: ReplaceText {
             pos: 8,
@@ -2058,7 +2065,7 @@ cls
         .trim(),
       );
       assert_eq!(
-        doc.get_add_label_edit(LabelTarget::CurLine, 12),
+        doc.compute_add_label_edit(LabelTarget::CurLine, 12),
         Err(AddLabelError::CannotInferLabel),
       );
 
@@ -2069,7 +2076,7 @@ cls
         .trim(),
       );
       assert_eq!(
-        doc.get_add_label_edit(LabelTarget::NextLine, 0),
+        doc.compute_add_label_edit(LabelTarget::NextLine, 0),
         Err(AddLabelError::CannotInferLabel),
       );
     }
@@ -2084,12 +2091,57 @@ cls
         .trim(),
       );
       assert_eq!(
-        doc.get_add_label_edit(LabelTarget::CurLine, 5),
+        doc.compute_add_label_edit(LabelTarget::CurLine, 5),
         Err(AddLabelError::CannotInferLabel),
       );
       assert_eq!(
-        doc.get_add_label_edit(LabelTarget::NextLine, 5),
+        doc.compute_add_label_edit(LabelTarget::NextLine, 5),
         Err(AddLabelError::CannotInferLabel),
+      );
+    }
+
+    #[test]
+    fn last_line_empty() {
+      let mut doc = make_doc(
+        r#"10 cls
+
+20 cls
+cls
+50 cls
+"#,
+      );
+      assert_eq!(
+        doc.compute_add_label_edit(LabelTarget::CurLine, 8),
+        Ok(AddLabelResult {
+          edit: ReplaceText {
+            pos: 8,
+            old_len: 0,
+            str: format!("11 "),
+          },
+          goto: Some(11)
+        })
+      );
+      assert_eq!(
+        doc.compute_add_label_edit(LabelTarget::CurLine, 18),
+        Ok(AddLabelResult {
+          edit: ReplaceText {
+            pos: 18,
+            old_len: 0,
+            str: format!("30 "),
+          },
+          goto: Some(21)
+        })
+      );
+      assert_eq!(
+        doc.compute_add_label_edit(LabelTarget::CurLine, 31),
+        Ok(AddLabelResult {
+          edit: ReplaceText {
+            pos: 31,
+            old_len: 0,
+            str: format!("60 "),
+          },
+          goto: Some(34)
+        })
       );
     }
   }
