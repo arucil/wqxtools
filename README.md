@@ -7,6 +7,8 @@
 - [ ] PAC文件解包
 - [ ] EBK阅读器
 
+发版专用仓库：<https://gitlab.com/arucil/wqxtools-release>
+
 ## 编译
 
 编译本项目需要的环境：`Rust (nightly)`、`C++ 17及以上`、`Qt 5.15.0 及以上`，以及`Python`（用于编译 `Scintilla`，`Python 2`或`Python 3`皆可）。
