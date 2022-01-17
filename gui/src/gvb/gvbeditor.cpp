@@ -151,7 +151,7 @@ void GvbEditor::initUi() {
     this,
     &GvbEditor::addLabelCurLine);
 
-  m_actRelabel = new QAction("重排行号", this);
+  m_actRelabel = new QAction("重置行号", this);
   connect(
     m_actRelabel,
     &QAction::triggered,
