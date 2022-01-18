@@ -9,7 +9,7 @@
 #include <QScreen>
 
 Toast::Toast(QWidget *parent) :
-  QWidget(parent, Qt::FramelessWindowHint | Qt::Tool),
+  QWidget(parent),
   m_label(new QLabel(this)),
   m_opacityEffect(new QGraphicsOpacityEffect(this)),
   m_fadeIn(new QPropertyAnimation(m_opacityEffect, "opacity", this)),
@@ -43,6 +43,7 @@ void Toast::showText(const QString &text, int ms) {
   m_delay = ms;
   if (m_timer == 0) {
     show();
+    raise();
     m_fadeOut->stop();
     m_fadeIn->setStartValue(m_opacityEffect->opacity());
     m_fadeIn->start();
@@ -51,14 +52,9 @@ void Toast::showText(const QString &text, int ms) {
     m_timer = 0;
     startFadeOutTimer();
   }
-  adjustPosition();
-}
-
-void Toast::adjustPosition() {
   QPoint topCenter;
   if (auto parent = parentWidget()) {
-    QPoint offset(parent->width() / 2, parent->height() * 4 / 5);
-    topCenter = parent->mapToGlobal(QPoint()) + offset;
+    topCenter = QPoint(parent->width() / 2, parent->height() * 4 / 5);
   } else {
     auto g = qApp->primaryScreen()->geometry();
     topCenter = g.topLeft() + QPoint(g.width() / 2, g.height() * 4 / 5);

@@ -76,8 +76,6 @@ MainWindow::MainWindow(QWidget *parent) :
 }
 
 void MainWindow::initUi() {
-  m_toast = new Toast(this);
-
   setAcceptDrops(true);
 
   initMenu();
@@ -102,6 +100,8 @@ void MainWindow::initUi() {
     this,
     &MainWindow::showMessage,
     Qt::QueuedConnection);
+
+  m_toast = new Toast(this);
 }
 
 void MainWindow::initMenu() {
@@ -652,12 +652,6 @@ void MainWindow::dropEvent(QDropEvent *ev) {
     if (url.isLocalFile()) {
       openFileByPath(url.toLocalFile(), screen());
     }
-  }
-}
-
-void MainWindow::moveEvent(QMoveEvent *) {
-  if (m_toast->isVisible()) {
-    m_toast->adjustPosition();
   }
 }
 

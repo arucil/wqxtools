@@ -25,9 +25,6 @@ private:
   void hideToast();
   void startFadeOutTimer();
 
-public slots:
-  void adjustPosition();
-
 private:
   QLabel *m_label;
   QGraphicsOpacityEffect *m_opacityEffect;
