@@ -4,12 +4,16 @@
 #include <QComboBox>
 #include <QDialog>
 #include <QFileInfo>
+#include <QHeaderView>
 #include <QKeyEvent>
 #include <QLabel>
 #include <QMenu>
 #include <QMessageBox>
+#include <QPushButton>
+#include <QSplitter>
 #include <QState>
 #include <QStatusBar>
+#include <QTableView>
 #include <QTimer>
 #include <QToolBar>
 #include <QToolButton>
@@ -24,6 +28,7 @@
 #include "../util.h"
 #include "code_editor.h"
 #include "emoji_selector.h"
+#include "error_list_model.h"
 #include "gvbsim_window.h"
 #include "relabel_dialog.h"
 #include "search_bar.h"
@@ -86,7 +91,7 @@ void GvbEditor::initUi() {
     m_actCut,
     &QAction::setEnabled);
 
-  m_searchBar = new SearchBar(this);
+  m_searchBar = new SearchBar;
   m_searchBar->hide();
   connect(
     m_searchBar,
@@ -122,11 +127,50 @@ void GvbEditor::initUi() {
   connect(m_searchBar, &SearchBar::replace, m_edit, &CodeEditor::replace);
   connect(m_searchBar, &SearchBar::replaceAll, m_edit, &CodeEditor::replaceAll);
 
+  auto splitter = new QSplitter(this);
+  splitter->setOrientation(Qt::Vertical);
+
+  auto editContainer = new QWidget(splitter);
+  auto editLayout = new QVBoxLayout(editContainer);
+  editLayout->setContentsMargins({});
+  editLayout->setSpacing(0);
+  editLayout->addWidget(m_edit, 1);
+  editLayout->addWidget(m_searchBar);
+  m_edit->setParent(editContainer);
+  m_searchBar->setParent(editContainer);
+  splitter->addWidget(editContainer);
+
+  m_errorListModel = new ErrorListModel(&m_edit->diagnostics(), this);
+  m_errorView = new QTableView;
+  m_errorView->setModel(m_errorListModel);
+  m_errorView->hide();
+  m_errorView->setSelectionBehavior(QAbstractItemView::SelectRows);
+  connect(
+    m_errorView,
+    &QTableView::doubleClicked,
+    this,
+    [=](const QModelIndex &index) {
+      if (index.row() < m_edit->diagnostics().size()) {
+        const auto &diag = m_edit->diagnostics()[index.row()];
+        m_edit->gotoPos(diag.end);
+        m_edit->setAnchor(diag.start);
+      }
+    });
+  auto errorListHeader = m_errorView->horizontalHeader();
+  errorListHeader->setMinimumSectionSize(0);
+  errorListHeader->setMaximumHeight(m_statusBar->sizeHint().height());
+  errorListHeader->setSectionResizeMode(0, QHeaderView::ResizeToContents);
+  errorListHeader->setSectionResizeMode(1, QHeaderView::Stretch);
+  errorListHeader->setSectionResizeMode(2, QHeaderView::ResizeToContents);
+  splitter->addWidget(m_errorView);
+
+  splitter->setStretchFactor(0, 2);
+  splitter->setStretchFactor(1, 1);
+
   layout->addWidget(m_toolBar);
-  layout->addWidget(m_edit, 1);
-  layout->addWidget(m_searchBar);
+  layout->addWidget(splitter, 1);
   layout->addWidget(m_statusBar);
-  layout->setContentsMargins(0, 0, 0, 0);
+  layout->setContentsMargins({});
   layout->setSpacing(0);
 
   m_actAddLabelNextLine = new QAction("在下一行插入行号", this);
@@ -214,7 +258,7 @@ void GvbEditor::updateStartAction(QState *state) {
 }
 
 void GvbEditor::initEdit() {
-  m_edit = new CodeEditor(this);
+  m_edit = new CodeEditor;
 
   m_edit->setCaretLineVisibleAlways(true);
   m_edit->setEOLMode(SC_EOL_CRLF);
@@ -409,6 +453,28 @@ void GvbEditor::setMachineName(int i) {
 
 void GvbEditor::initStatusBar() {
   m_statusBar = new QStatusBar;
+  m_statusBar->setStyleSheet(R"(
+    QPushButton {
+      border: none;
+    }
+    QPushButton:hover {
+      background: rgba(128, 128, 128, 20%);
+    }
+    QPushButton:pressed {
+      background: rgba(128, 128, 128, 40%);
+    }
+  )");
+
+  m_errBtn = new QPushButton;
+  m_errBtn->setMinimumWidth(100);
+  m_errBtn->setToolTip("点击显示问题列表");
+  m_statusBar->addPermanentWidget(m_errBtn);
+  connect(m_errBtn, &QPushButton::clicked, this, &GvbEditor::toggleErrorList);
+
+  auto empty = new QWidget;
+  empty->setFixedWidth(50);
+  m_statusBar->addPermanentWidget(empty);
+
   auto posLabel = new QLabel;
   posLabel->setMinimumWidth(120);
   m_statusBar->addPermanentWidget(posLabel);
@@ -649,6 +715,8 @@ void GvbEditor::applyEdits() {
 void GvbEditor::computeDiagnostics() {
   auto diags = gvb_document_diagnostics(m_doc);
   QVector<Diagnostic> diagVec;
+  int errNum = 0;
+  int warnNum = 0;
   for (auto it = diags.data; it < diags.data + diags.len; it++) {
     Diagnostic d = {
       it->line,
@@ -657,10 +725,20 @@ void GvbEditor::computeDiagnostics() {
       it->severity,
       QString::fromUtf8(it->message.data, static_cast<int>(it->message.len)),
     };
+    switch (d.severity) {
+      case api::GvbSeverity::Error:
+        errNum++;
+        break;
+      case api::GvbSeverity::Warning:
+        warnNum++;
+        break;
+    }
     diagVec.push_back(d);
   }
   gvb_destroy_str_diagnostic_array(diags);
   m_edit->setDiagnostics(std::move(diagVec));
+  m_errBtn->setText(QString("%1 错误 / %2 警告").arg(errNum).arg(warnNum));
+  m_errorListModel->diagnosticsChanged(diags.len);
 }
 
 void GvbEditor::tryStartPause(QWidget *sender) {
@@ -844,5 +922,15 @@ void GvbEditor::relabel(uint16_t start, uint16_t inc) {
     }
     m_edit->endUndoAction();
     api::gvb_destroy_replace_text_array(edits);
+  }
+}
+
+void GvbEditor::toggleErrorList() {
+  if (m_errorView->isVisible()) {
+    m_errorView->hide();
+    m_errBtn->setToolTip("点击显示问题列表");
+  } else {
+    m_errorView->show();
+    m_errBtn->setToolTip("点击隐藏问题列表");
   }
 }

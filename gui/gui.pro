@@ -38,7 +38,8 @@ HEADERS += src/mainwindow.h \
     src/gvb/search_bar.h \
     src/gvb/emoji_selector.h \
     src/gvb/emoji_label.h \
-    src/gvb/relabel_dialog.h
+    src/gvb/relabel_dialog.h \
+    src/gvb/error_list_model.h \
 
 SOURCES += src/*.cpp \
     src/gvb/*.cpp

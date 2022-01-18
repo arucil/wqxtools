@@ -3,11 +3,11 @@
 #include <ScintillaEdit.h>
 #include <api.h>
 
-#include <string>
 #include <QString>
 #include <QVector>
 #include <interval-tree/interval_tree.hpp>
 #include <optional>
+#include <string>
 
 class SyntaxStyle;
 class QPoint;
@@ -158,6 +158,10 @@ class CodeEditor: public ScintillaEdit {
 
 public:
   CodeEditor(QWidget *parent = nullptr);
+
+  const QVector<Diagnostic> &diagnostics() {
+    return m_diagnostics;
+  }
 
 protected:
   void contextMenuEvent(QContextMenuEvent *) override;

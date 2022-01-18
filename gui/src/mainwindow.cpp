@@ -655,6 +655,12 @@ void MainWindow::dropEvent(QDropEvent *ev) {
   }
 }
 
+void MainWindow::moveEvent(QMoveEvent *) {
+  if (m_toast->isVisible()) {
+    m_toast->adjustPosition();
+  }
+}
+
 void MainWindow::checkNewVersion(bool manual) {
   auto reply = m_networkMan->get(QNetworkRequest(QUrl(VERSION_API_ENDPOINT)));
   connect(reply, &QNetworkReply::finished, [=] {
@@ -761,9 +767,7 @@ void MainWindow::notifyNewVersion(const QString &tag) {
       this,
       "新版本",
       QString("<h3>%1</h3><p>%2</p><a href=\"%3\">点击链接下载新版本</a>")
-        .arg(tag)
-        .arg(description)
-        .arg(url));
+        .arg(tag, description, url));
   });
 }
 

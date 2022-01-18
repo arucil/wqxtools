@@ -115,8 +115,11 @@ void GvbSimWindow::initUi() {
   m_bindingView = new QTableView();
   m_bindingView->resize(100, 0);
   m_bindingView->setModel(&m_bindingModel);
-  m_bindingView->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
+  auto bindingHeader = m_bindingView->horizontalHeader();
+  bindingHeader->setSectionResizeMode(QHeaderView::Interactive);
+  bindingHeader->setStretchLastSection(true);
   m_bindingView->setItemDelegate(&m_bindingDelegate);
+  m_bindingView->setSelectionBehavior(QAbstractItemView::SelectRows);
   connect(
     m_bindingView,
     &QTableView::doubleClicked,

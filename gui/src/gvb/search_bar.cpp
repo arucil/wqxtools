@@ -19,7 +19,7 @@ void SearchBar::initUi() {
   auto layout = new QVBoxLayout(this);
 
   auto searchLayout = new QHBoxLayout();
-  searchLayout->setContentsMargins(0, 0, 0, 0);
+  searchLayout->setContentsMargins({});
   layout->addLayout(searchLayout);
 
   searchLayout->addWidget(new QLabel("查找", this));
@@ -50,7 +50,7 @@ void SearchBar::initUi() {
   layout->addWidget(m_replaceBar);
 
   auto replaceLayout = new QHBoxLayout(m_replaceBar);
-  replaceLayout->setContentsMargins(0, 0, 0, 0);
+  replaceLayout->setContentsMargins({});
   replaceLayout->addWidget(new QLabel("替换", m_replaceBar));
 
   m_replaceEdit = new QLineEdit(m_replaceBar);
@@ -74,7 +74,7 @@ void SearchBar::initUi() {
 
   auto flags = new QWidget(this);
   auto flagLayout = new QHBoxLayout(flags);
-  flagLayout->setContentsMargins(0, 0, 0, 0);
+  flagLayout->setContentsMargins({});
   layout->addWidget(flags);
 
   auto matchCase = new QCheckBox("匹配大小写", flags);

@@ -22,6 +22,7 @@ class Tool;
 class QScreen;
 class QDragEnterEvent;
 class QDropEvent;
+class QMoveEvent;
 
 class MainWindow: public QMainWindow {
   Q_OBJECT
@@ -57,6 +58,7 @@ protected:
   void closeEvent(QCloseEvent *) override;
   void dragEnterEvent(QDragEnterEvent *) override;
   void dropEvent(QDropEvent *) override;
+  void moveEvent(QMoveEvent *) override;
 
 private:
   Toast *m_toast;

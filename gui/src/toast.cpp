@@ -51,6 +51,10 @@ void Toast::showText(const QString &text, int ms) {
     m_timer = 0;
     startFadeOutTimer();
   }
+  adjustPosition();
+}
+
+void Toast::adjustPosition() {
   QPoint topCenter;
   if (auto parent = parentWidget()) {
     QPoint offset(parent->width() / 2, parent->height() * 4 / 5);

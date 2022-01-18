@@ -13,6 +13,8 @@
 
 using std::uint16_t;
 
+class QTableView;
+class ErrorListModel;
 class QDialog;
 class QToolButton;
 class QComboBox;
@@ -25,6 +27,8 @@ class CodeEditor;
 class QToolBar;
 class GvbSimWindow;
 class SearchBar;
+class QPushButton;
+class SyntaxStyle;
 
 struct InsertText {
   size_t pos;
@@ -106,6 +110,7 @@ private slots:
   void syncMachNameEdit();
   void showRelabelDialog();
   void relabel(uint16_t start, uint16_t inc);
+  void toggleErrorList();
 
 private:
   CodeEditor *m_edit;
@@ -128,4 +133,7 @@ private:
   QAction *m_actAddLabelNextLine;
   QAction *m_actRelabel;
   QList<QAction *> m_ctxMenuActions;
+  QPushButton *m_errBtn;
+  QTableView *m_errorView;
+  ErrorListModel *m_errorListModel;
 };
