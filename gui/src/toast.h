@@ -1,15 +1,14 @@
 #pragma once
 
-#include <QWidget>
+#include <QLabel>
 
 class QString;
 class QTimerEvent;
 class QPaintEvent;
-class QLabel;
 class QPropertyAnimation;
 class QGraphicsOpacityEffect;
 
-class Toast : public QWidget {
+class Toast : public QLabel {
   Q_OBJECT
 
 public:
@@ -26,7 +25,6 @@ private:
   void startFadeOutTimer();
 
 private:
-  QLabel *m_label;
   QGraphicsOpacityEffect *m_opacityEffect;
   QPropertyAnimation *m_fadeIn;
   QPropertyAnimation *m_fadeOut;

@@ -2,20 +2,19 @@
 
 #include <QApplication>
 #include <QGraphicsOpacityEffect>
-#include <QHBoxLayout>
-#include <QLabel>
 #include <QPainter>
 #include <QPropertyAnimation>
 #include <QScreen>
+#include <QStyleOptionFrame>
+#include <QStylePainter>
+#include <QToolTip>
 
 Toast::Toast(QWidget *parent) :
-  QWidget(parent),
-  m_label(new QLabel(this)),
+  QLabel(parent),
   m_opacityEffect(new QGraphicsOpacityEffect(this)),
   m_fadeIn(new QPropertyAnimation(m_opacityEffect, "opacity", this)),
   m_fadeOut(new QPropertyAnimation(m_opacityEffect, "opacity", this)),
   m_timer(0) {
-  setAttribute(Qt::WA_TranslucentBackground);
   setGraphicsEffect(m_opacityEffect);
 
   m_fadeIn->setEndValue(1);
@@ -31,14 +30,17 @@ Toast::Toast(QWidget *parent) :
   m_fadeOut->setDuration(250);
   connect(m_fadeOut, &QPropertyAnimation::finished, this, &QWidget::hide);
 
-  auto layout = new QHBoxLayout(this);
-  layout->addWidget(m_label);
+  setForegroundRole(QPalette::ToolTipText);
+  setBackgroundRole(QPalette::ToolTipBase);
+  setPalette(QToolTip::palette());
+  setMargin(
+    5 + style()->pixelMetric(QStyle::PM_ToolTipLabelFrameWidth, nullptr, this));
 
   hide();
 }
 
 void Toast::showText(const QString &text, int ms) {
-  m_label->setText(text);
+  setText(text);
   adjustSize();
   m_delay = ms;
   if (m_timer == 0) {
@@ -73,9 +75,12 @@ void Toast::startFadeOutTimer() {
   m_timer = startTimer(m_delay);
 }
 
-void Toast::paintEvent(QPaintEvent *) {
-  QPainter p(this);
-  p.setBrush(palette().brush(QPalette::Inactive, QPalette::ToolTipBase));
-  p.setPen(palette().color(QPalette::Inactive, QPalette::ToolTipText));
-  p.drawRect(rect() - QMargins {1, 1, 1, 1});
+void Toast::paintEvent(QPaintEvent *ev) {
+  QStylePainter p(this);
+  QStyleOptionFrame opt;
+  opt.initFrom(this);
+  p.drawPrimitive(QStyle::PE_PanelTipLabel, opt);
+  p.end();
+
+  QLabel::paintEvent(ev);
 }
