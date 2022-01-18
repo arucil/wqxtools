@@ -35,6 +35,7 @@ Toast::Toast(QWidget *parent) :
   setPalette(QToolTip::palette());
   setMargin(
     5 + style()->pixelMetric(QStyle::PM_ToolTipLabelFrameWidth, nullptr, this));
+  setFrameShape(QFrame::NoFrame);
 
   hide();
 }
@@ -76,11 +77,12 @@ void Toast::startFadeOutTimer() {
 }
 
 void Toast::paintEvent(QPaintEvent *ev) {
-  QStylePainter p(this);
-  QStyleOptionFrame opt;
-  opt.initFrom(this);
-  p.drawPrimitive(QStyle::PE_PanelTipLabel, opt);
-  p.end();
+  {
+    QStylePainter p(this);
+    QStyleOptionFrame opt;
+    opt.initFrom(this);
+    p.drawPrimitive(QStyle::PE_PanelTipLabel, opt);
+  }
 
   QLabel::paintEvent(ev);
 }
