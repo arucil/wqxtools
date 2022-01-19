@@ -1,9 +1,10 @@
 ---
 source: gvb_interp/src/compiler.rs
+assertion_line: 2266
 expression: "compile(r#\"\n10 sleep -2*x:sleep 0:sleep 300\n    \"#.trim())"
 
 ---
-emoji_version: New
+emoji_version: V2
 --------- data ----------
 --------- code ----------
 0     0:10..11  push number 2

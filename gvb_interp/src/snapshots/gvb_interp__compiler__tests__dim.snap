@@ -1,9 +1,10 @@
 ---
 source: gvb_interp/src/compiler.rs
+assertion_line: 2157
 expression: "compile(r#\"\n10 dim a$,b(3,f(2)),k%(m+1):dim a\n    \"#.trim())"
 
 ---
-emoji_version: New
+emoji_version: V2
 --------- data ----------
 --------- code ----------
 0     0:12..13  push number 3

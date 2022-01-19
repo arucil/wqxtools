@@ -1,9 +1,10 @@
 ---
 source: gvb_interp/src/compiler.rs
+assertion_line: 2345
 expression: "compile(r#\"\n10 write #k+1, abc$ 12+val(chr$(k)), s%(2),:write #2,a,b(1,2,3),c:\n    \"#.trim())"
 
 ---
-emoji_version: New
+emoji_version: V2
 --------- data ----------
 --------- code ----------
 0     0:10..11  push var K

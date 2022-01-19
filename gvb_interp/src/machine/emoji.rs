@@ -1,7 +1,7 @@
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum EmojiVersion {
-  Old,
-  New,
+  V1,
+  V2,
 }
 
 impl EmojiVersion {
@@ -9,7 +9,7 @@ impl EmojiVersion {
     let hi = code >> 8;
     let lo = code & 255;
     match self {
-      Self::Old => {
+      Self::V1 => {
         let c = match hi {
           0xfa => match lo {
             70..=126 => lo - 70,
@@ -34,7 +34,7 @@ impl EmojiVersion {
         };
         Some(c as _)
       }
-      Self::New => {
+      Self::V2 => {
         let c = match hi {
           248..=252 => match lo {
             0..=93 => 1000 + (hi - 0xf8) * 94 + lo,
@@ -69,7 +69,7 @@ impl EmojiVersion {
 
     let mut c = (c - 0xe000) as u16;
     match self {
-      Self::Old => {
+      Self::V1 => {
         if c >= 1000 {
           c -= 1000;
         }
@@ -84,7 +84,7 @@ impl EmojiVersion {
           _ => unreachable!(),
         }
       }
-      Self::New => {
+      Self::V2 => {
         if c >= 1000 {
           c -= 1000;
           Some(0xf800 + ((c / 94) << 8) + c % 94)
@@ -98,8 +98,8 @@ impl EmojiVersion {
   pub fn default_machine_name(&self) -> &'static str {
     unsafe {
       match self {
-        Self::New => super::DEFAULT_MACHINE_FOR_NEW_EMOJI_VERSION.as_ref(),
-        Self::Old => super::DEFAULT_MACHINE_FOR_OLD_EMOJI_VERSION.as_ref(),
+        Self::V2 => super::DEFAULT_MACHINE_FOR_EMOJI_VERSION_2.as_ref(),
+        Self::V1 => super::DEFAULT_MACHINE_FOR_EMOJI_VERSION_1.as_ref(),
       }
     }
   }
@@ -124,9 +124,9 @@ mod tests {
   }
 
   #[quickcheck]
-  fn new_version_is_symmetric(Gb(code): Gb) -> bool {
-    EmojiVersion::New.code_to_char(code).map_or(true, |c| {
-      EmojiVersion::New
+  fn version_2_is_symmetric(Gb(code): Gb) -> bool {
+    EmojiVersion::V2.code_to_char(code).map_or(true, |c| {
+      EmojiVersion::V2
         .char_to_code(c)
         .filter(|&new_code| new_code == code)
         .is_some()
@@ -134,9 +134,9 @@ mod tests {
   }
 
   #[quickcheck]
-  fn old_version_is_symmetric(Gb(code): Gb) -> bool {
-    EmojiVersion::Old.code_to_char(code).map_or(true, |c| {
-      EmojiVersion::Old
+  fn version_1_is_symmetric(Gb(code): Gb) -> bool {
+    EmojiVersion::V1.code_to_char(code).map_or(true, |c| {
+      EmojiVersion::V1
         .char_to_code(c)
         .filter(|&new_code| new_code == code)
         .is_some()

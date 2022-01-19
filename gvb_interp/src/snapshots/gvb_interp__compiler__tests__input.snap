@@ -1,9 +1,10 @@
 ---
 source: gvb_interp/src/compiler.rs
+assertion_line: 2192
 expression: "compile(r#\"\n10 input a, b$, c%(m+2,i): input \"ABC123俄\"; fn v(t ), c%\n    \"#.trim())"
 
 ---
-emoji_version: New
+emoji_version: V2
 --------- data ----------
 --------- code ----------
 0     0:9..10   push var lvalue A

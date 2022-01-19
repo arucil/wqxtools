@@ -1,9 +1,10 @@
 ---
 source: gvb_interp/src/compiler.rs
+assertion_line: 2375
 expression: "compile(r#\"\n10 fseek #1,a/b:fseek k+1, a(3)\n    \"#.trim())"
 
 ---
-emoji_version: New
+emoji_version: V2
 --------- data ----------
 --------- code ----------
 0     0:10..11  push number 1

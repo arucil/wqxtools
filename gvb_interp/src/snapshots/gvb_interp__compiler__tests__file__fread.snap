@@ -1,9 +1,10 @@
 ---
 source: gvb_interp/src/compiler.rs
+assertion_line: 2385
 expression: "compile(r#\"\n10 fread #k, 1234+a(3), k%:fread 99,i,j\n    \"#.trim())"
 
 ---
-emoji_version: New
+emoji_version: V2
 --------- data ----------
 --------- code ----------
 0     0:10..11  push var K

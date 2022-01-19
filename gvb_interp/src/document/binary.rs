@@ -36,7 +36,7 @@ pub fn load_bas(
   let mut guessed_emoji_versions = if let Some(emoji_version) = emoji_version {
     vec![emoji_version]
   } else {
-    vec![EmojiVersion::New, EmojiVersion::Old]
+    vec![EmojiVersion::V2, EmojiVersion::V1]
   };
 
   let mut second_line_addr = 0;
@@ -195,7 +195,7 @@ pub fn load_txt(
   let mut guessed_emoji_versions = if let Some(emoji_version) = emoji_version {
     vec![emoji_version]
   } else {
-    vec![EmojiVersion::New, EmojiVersion::Old]
+    vec![EmojiVersion::V2, EmojiVersion::V1]
   };
   let mut text = String::new();
 

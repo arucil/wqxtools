@@ -1,9 +1,10 @@
 ---
 source: gvb_interp/src/compiler.rs
+assertion_line: 2324
 expression: "compile(r#\"\n10 get f(i)+1, m*2:get #i/20,abc\n20 put #f(i)+1,m*3:put i/20,AbC%\n    \"#.trim())"
 
 ---
-emoji_version: New
+emoji_version: V2
 --------- data ----------
 --------- code ----------
 0     0:9..10   push var I

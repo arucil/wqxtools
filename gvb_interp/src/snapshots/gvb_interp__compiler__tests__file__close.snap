@@ -1,9 +1,10 @@
 ---
 source: gvb_interp/src/compiler.rs
+assertion_line: 2303
 expression: "compile(r#\"\n10 close 3: close #2:close#k+1\n30 close fi(i):\n    \"#.trim())"
 
 ---
-emoji_version: New
+emoji_version: V2
 --------- data ----------
 --------- code ----------
 0     0:9..10   push number 3

@@ -1,9 +1,10 @@
 ---
 source: gvb_interp/src/compiler.rs
+assertion_line: 2107
 expression: "compile(r#\"\n0 :\n10 ::gosub 30:goto 10::\n20 on x+1 goto 30,,40:on m(x) gosub:on m gosub 40,50,40,,\n30 print 1:end\n40 print 2;:end\n50 print 3,:end\n    \"#.trim())"
 
 ---
-emoji_version: New
+emoji_version: V2
 --------- data ----------
 --------- code ----------
 0     1:5..13   gosub 20

@@ -1,10 +1,10 @@
 ---
 source: gvb_interp/src/compiler.rs
-assertion_line: 2085
+assertion_line: 2122
 expression: "compile(r#\"\n10 let a = peek(23):poke 237+i,c(i+1)\n20 call 31284+k\n    \"#.trim())"
 
 ---
-emoji_version: New
+emoji_version: V2
 --------- data ----------
 --------- code ----------
 0     0:7..8    push var lvalue A

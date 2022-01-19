@@ -1,9 +1,10 @@
 ---
 source: gvb_interp/src/compiler.rs
+assertion_line: 2314
 expression: "compile(r#\"\n10 field f(i)+1, 25aSa$(i), 1 as m$ : field #1,k+3 asa$\n    \"#.trim())"
 
 ---
-emoji_version: New
+emoji_version: V2
 --------- data ----------
 --------- code ----------
 0     0:17..19  push number 25

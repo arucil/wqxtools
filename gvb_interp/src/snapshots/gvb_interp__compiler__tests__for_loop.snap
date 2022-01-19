@@ -1,9 +1,10 @@
 ---
 source: gvb_interp/src/compiler.rs
+assertion_line: 2167
 expression: "compile(r#\"\n10 for i =10 to n+1:for abc=k(m)*3 to 31 step -n*k\n20 next:next i:next i,j,ka\n    \"#.trim())"
 
 ---
-emoji_version: New
+emoji_version: V2
 --------- data ----------
 --------- code ----------
 0     0:10..12  push number 10

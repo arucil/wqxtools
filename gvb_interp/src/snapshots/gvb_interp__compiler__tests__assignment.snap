@@ -4,7 +4,7 @@ assertion_line: 2056
 expression: "compile(r#\"\n10 a=a*b+coo%/2^len(a$+\"xx和\")\n20 b%=1+3:c$(2)=\"a\"+chr$(2):\n\"#.trim())"
 
 ---
-emoji_version: New
+emoji_version: V2
 --------- data ----------
 --------- code ----------
 0     0:3..4    push var lvalue A

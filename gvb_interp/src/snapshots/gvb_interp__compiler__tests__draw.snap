@@ -1,9 +1,10 @@
 ---
 source: gvb_interp/src/compiler.rs
+assertion_line: 2096
 expression: "compile(r#\"\n10 boX 1+2,3,4,5,7:box a%,val(c$(a,b)+chr$(tan(72))),m%(3,j+k,i),0:box 1,2,3,4,5,6\n20 draw 10,20:draw -3,1,t\n30 circle x*10,y*10,3:circle x1,y1%+2,11,0:circle x2,y2,r,4,5\n40 line x0,y0,x1,y1:line x0,y0,x1,y1,2\n50 ellipse x,y,a,b:ellipse x,y,a,b,1:ellipse x,y,a,b,k,6\n    \"#.trim())"
 
 ---
-emoji_version: New
+emoji_version: V2
 --------- data ----------
 --------- code ----------
 0     0:7..8    push number 1

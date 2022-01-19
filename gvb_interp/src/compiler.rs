@@ -2022,7 +2022,7 @@ mod tests {
 
   fn compile(text: &str) -> CodeGen {
     let mut prog = parse_prog(text);
-    let mut codegen = CodeGen::new(EmojiVersion::New);
+    let mut codegen = CodeGen::new(EmojiVersion::V2);
     compile_prog(text, &mut prog, &mut codegen);
     for (i, line) in prog.lines.iter().enumerate() {
       let diags: Vec<_> = line
@@ -2038,7 +2038,7 @@ mod tests {
 
   fn compile_error(text: &str, errors: Vec<Vec<Diagnostic>>) {
     let mut prog = parse_prog(text);
-    let mut codegen = CodeGen::new(EmojiVersion::New);
+    let mut codegen = CodeGen::new(EmojiVersion::V2);
     compile_prog(text, &mut prog, &mut codegen);
     for (i, line) in prog.lines.iter().enumerate() {
       let diags: Vec<_> = line
@@ -2405,7 +2405,7 @@ mod tests {
   fn fn_body() {
     let text = r#"x + 3 * fn f(7) - 2"#;
     let mut prog = parse_expr(text).0;
-    let mut codegen = CodeGen::new(EmojiVersion::New);
+    let mut codegen = CodeGen::new(EmojiVersion::V2);
     compile_fn_body(text, &mut prog, &mut codegen);
     assert_eq!(prog.diagnostics, vec![]);
     assert_debug_snapshot!(codegen);
@@ -2415,7 +2415,7 @@ mod tests {
   fn fn_body_type_mismatch() {
     let text = r#"x$ + chr$(i)"#;
     let mut prog = parse_expr(text).0;
-    let mut codegen = CodeGen::new(EmojiVersion::New);
+    let mut codegen = CodeGen::new(EmojiVersion::V2);
     compile_fn_body(text, &mut prog, &mut codegen);
     assert_debug_snapshot!(prog.diagnostics);
   }

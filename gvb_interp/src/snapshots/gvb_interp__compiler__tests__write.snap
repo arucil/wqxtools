@@ -1,9 +1,10 @@
 ---
 source: gvb_interp/src/compiler.rs
+assertion_line: 2256
 expression: "compile(r#\"\n10 write 1+2, c$(t+1),:write a$b,mki$(j)\n    \"#.trim())"
 
 ---
-emoji_version: New
+emoji_version: V2
 --------- data ----------
 --------- code ----------
 0     0:9..10   push number 1

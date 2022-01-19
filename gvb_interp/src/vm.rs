@@ -2728,7 +2728,7 @@ mod tests {
 
   fn compile(text: &str) -> CodeGen {
     let mut prog = parse_prog(text);
-    let mut codegen = CodeGen::new(EmojiVersion::New);
+    let mut codegen = CodeGen::new(EmojiVersion::V2);
     compile_prog(text, &mut prog, &mut codegen);
     for (i, line) in prog.lines.iter().enumerate() {
       let diags: Vec<_> = line
@@ -3404,7 +3404,7 @@ mod tests {
             ],
           },
           {
-            let body = compile_fn("fn g(y)+2", EmojiVersion::New).0.unwrap();
+            let body = compile_fn("fn g(y)+2", EmojiVersion::V2).0.unwrap();
             ExecInput::KeyboardInput(vec![
               KeyboardInput::Integer(37),
               KeyboardInput::Func { body },

@@ -1,9 +1,10 @@
 ---
 source: gvb_interp/src/compiler.rs
+assertion_line: 2276
 expression: "compile(r#\"\n10 for i=1 to 30:next i:for j=0 to 2000 step 1:next:\n20 for j=1 to 1000:cls:next:for i=1 to n:next i,j:\n30 for k=1 to t step 1:next k:for k=1 to t step 1:next t\n    \"#.trim())"
 
 ---
-emoji_version: New
+emoji_version: V2
 --------- data ----------
 --------- code ----------
 0     0:9..10   no op
