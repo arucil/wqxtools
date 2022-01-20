@@ -1,8 +1,8 @@
 use super::{Label, Range, StmtId};
 use smallvec::SmallVec;
-use std::fmt::{self, Formatter, Debug, Display};
 #[cfg(test)]
 use std::fmt::Write;
+use std::fmt::{self, Debug, Display, Formatter};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProgramLine {

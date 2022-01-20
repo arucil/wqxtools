@@ -27,6 +27,17 @@ mod gb2312 {
   include!(concat!(env!("OUT_DIR"), "/gb2312.rs"));
 }
 
-use fasthash::{metro::Hash64_1, RandomState};
+use std::hash;
 
-type HashMap<K, V> = std::collections::HashMap<K, V, RandomState<Hash64_1>>;
+type HashMap<K, V> = std::collections::HashMap<K, V, BuildSeaHasher>;
+
+#[derive(Default)]
+pub struct BuildSeaHasher;
+
+impl hash::BuildHasher for BuildSeaHasher {
+  type Hasher = seahash::SeaHasher;
+
+  fn build_hasher(&self) -> Self::Hasher {
+    seahash::SeaHasher::new()
+  }
+}

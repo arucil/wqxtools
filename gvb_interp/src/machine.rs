@@ -1,11 +1,11 @@
 use crate::HashMap;
 use intmap::IntMap;
+use std::collections::BTreeMap;
 use std::io;
 use std::mem::MaybeUninit;
 use std::time::Duration;
 use util::config;
 use yaml_rust::{Yaml, YamlLoader};
-use std::collections::BTreeMap;
 
 pub(crate) mod emoji;
 
@@ -408,14 +408,18 @@ pub fn init_machines() -> Result<(), InitError> {
       .assume_init_ref()
       .contains_key(&DEFAULT_MACHINE_FOR_EMOJI_VERSION_2)
     {
-      return Err(format!("emoji version 2 default machine '{}' not found", v2).into());
+      return Err(
+        format!("emoji version 2 default machine '{}' not found", v2).into(),
+      );
     }
 
     if !MACHINES
       .assume_init_ref()
       .contains_key(&DEFAULT_MACHINE_FOR_EMOJI_VERSION_1)
     {
-      return Err(format!("emoji version 1 default machine '{}' not found", v1).into());
+      return Err(
+        format!("emoji version 1 default machine '{}' not found", v1).into(),
+      );
     }
   }
 

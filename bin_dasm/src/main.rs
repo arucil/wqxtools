@@ -34,11 +34,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         .help("file for dumping assembly")
         .takes_value(true),
     )
-    .arg(
-      Arg::new("FILE")
-        .help("source .BIN file")
-        .required(true),
-    )
+    .arg(Arg::new("FILE").help("source .BIN file").required(true))
     .get_matches();
 
   let file = matches.value_of("FILE").unwrap();
