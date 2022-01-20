@@ -7,6 +7,17 @@
 - [ ] PAC文件解包
 - [ ] EBK阅读器
 
+<details>
+  <summary>截图</summary>
+
+  GVBASIC编辑器(Linux)：
+  ![](./screenshots/linux-gvb-editor.png)
+
+  GVBASIC模拟器(Linux)：
+  ![](./screenshots/linux-gvb-sim.png)
+
+</details>
+
 发版专用仓库：<https://gitlab.com/arucil/wqxtools-release>
 
 ## 编译
