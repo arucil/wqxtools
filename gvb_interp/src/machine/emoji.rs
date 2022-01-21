@@ -36,12 +36,12 @@ impl EmojiVersion {
       }
       Self::V2 => {
         let c = match hi {
-          248..=252 => match lo {
+          0xf8..=0xfc => match lo {
             0..=93 => 1000 + (hi - 0xf8) * 94 + lo,
             161..=254 => (hi - 0xf8) * 94 + (lo - 161),
             _ => return None,
           },
-          253 => match lo {
+          0xfd => match lo {
             0..=56 => 1000 + 94 * 5 + lo,
             161..=217 => 94 * 5 + (lo - 161),
             _ => return None,
