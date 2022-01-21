@@ -5,8 +5,7 @@
   never_type,
   io_error_more,
   int_abs_diff,
-  const_maybe_uninit_assume_init,
-  maybe_uninit_extra
+  const_maybe_uninit_assume_init
 )]
 
 mod ast;

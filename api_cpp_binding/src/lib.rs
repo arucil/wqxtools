@@ -1,4 +1,4 @@
-#![feature(box_syntax, slice_ptr_get, io_error_more, maybe_uninit_extra)]
+#![feature(box_syntax, slice_ptr_get, io_error_more)]
 
 pub mod array;
 pub mod config;

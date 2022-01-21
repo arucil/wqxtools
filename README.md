@@ -22,11 +22,11 @@
 
 ## 编译
 
-编译本项目需要的环境：`Rust (nightly)`、`C++ 17及以上`、`Qt 5.15.0 及以上`，以及`Python`（用于编译 `Scintilla`，`Python 2`或`Python 3`皆可）。
+编译本项目需要的环境：`Rust (nightly)`、`C++ 17及以上`、`Qt 6.0 及以上`。在 Windows 下编译时请使用基于 MinGW 的 Rust 和 Qt 版本。
 
 clone 项目到本地，然后运行 `git submodule update --init --recursive` 下载 git submodule。
 
-按照 `gui/BUILD_SCINTILLA` 中的指引，编译 `Scintilla` 组件。
+把 `gui/scintilla515.zip` 解压到 gui 目录。
 
 安装编译辅助工具：
 
@@ -39,6 +39,8 @@ cargo install cargo-make cbindgen
 ```shell
 cargo make -p release all
 ```
+
+生成的可执行文件在 `gui/build/release` 目录中。
 
 测试：
 ```shell

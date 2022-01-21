@@ -112,7 +112,7 @@ void GvbSimKeyboard::initUi() {
 
   layout->setHorizontalSpacing(3);
   layout->setVerticalSpacing(4);
-  layout->setMargin(0);
+  layout->setContentsMargins({});
 
   setStyleSheet(R"(
     QPushButton {
