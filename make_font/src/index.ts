@@ -2,19 +2,36 @@ import opentype from "opentype.js"
 import fs from "fs"
 import iconv from "iconv-lite"
 
+const SCALE = 100
+
 // Note that the .notdef glyph is required.
+const notdefPath = new opentype.Path()
+notdefPath.moveTo(0, 0)
+notdefPath.lineTo(0, 1500)
+notdefPath.lineTo(1500, 1500)
+notdefPath.lineTo(1500, 0)
+notdefPath.moveTo(120, 70)
+notdefPath.lineTo(1380, 70)
+notdefPath.lineTo(750, 700)
+notdefPath.moveTo(70, 120)
+notdefPath.lineTo(700, 750)
+notdefPath.lineTo(70, 1380)
+notdefPath.moveTo(120, 1430)
+notdefPath.lineTo(750, 800)
+notdefPath.lineTo(1380, 1430)
+notdefPath.moveTo(1430, 1380)
+notdefPath.lineTo(800, 750)
+notdefPath.lineTo(1430, 120)
 const notdefGlyph = new opentype.Glyph({
   name: '.notdef',
   unicode: 0,
-  advanceWidth: 8,
-  path: new opentype.Path()
+  advanceWidth: 16 * SCALE,
+  path: notdefPath
 })
-
-const SCALE = 100
 
 // gb2312
 {
-  console.log('generating gb2312...')
+  console.log('generating WenQuXing.ttf...')
   const glyphs = [
     notdefGlyph,
     ...makeAsciiGlyphs(),
@@ -23,7 +40,7 @@ const SCALE = 100
   ]
   const font = new opentype.Font({
     familyName: 'WenQuXing',
-    styleName: 'Medium',
+    styleName: 'Regular',
     unitsPerEm: 16.4 * SCALE,
     ascender: 15.9 * SCALE,
     descender: 0,
@@ -31,74 +48,6 @@ const SCALE = 100
   })
   font.download('WenQuXing.ttf')
 }
-
-// old icons
-/*{
-  console.log('generating old icons...')
-  const glyphs = [
-    notdefGlyph,
-    ...makeIconGlyphs(i => {
-      let byte1: number
-      let byte2: number
-      if (i < 57 + 94) {
-        byte1 = 0xfa
-        byte2 = i + 70
-      } else if (i < 57 + 94) {
-        byte1 = 0xfa
-        byte2 = i - 57 + 161
-      } else if (i < (57 + 94) + 63) {
-        byte1 = 0xfb
-        byte2 = i - (57 + 94) + 64
-      } else if (i < (57 + 94) + (63 + 94)) {
-        byte1 = 0xfb
-        byte2 = i - ((57 + 94) + 63) + 161
-      } else if (i < (57 + 94) + (63 + 94) + 63) {
-        byte1 = 0xfc
-        byte2 = i - ((57 + 94) + (63 + 94)) + 64
-      } else if (i < (57 + 94) + (63 + 94) + (63 + 94)) {
-        byte1 = 0xfc
-        byte2 = i - ((57 + 94) + (63 + 94) + 63) + 161
-      } else {
-        byte1 = 0xfd
-        byte2 = i - ((57 + 94) + (63 + 94) + (63 + 94)) + 64
-      }
-      // make use of one of Unicode Private Use Areas (U+E000 - U+F8FF)
-      return 0xe000 + ((byte1 - 0xfa) << 8) + byte2
-    }),
-  ]
-  const font = new opentype.Font({
-    familyName: 'WenQuXing-Icons-Old',
-    styleName: 'Medium',
-    unitsPerEm: 16 * SCALE,
-    ascender: 16 * SCALE,
-    descender: 0,
-    glyphs,
-  })
-  font.download('WenQuXing-Icons-Old.ttf')
-}
-
-// new icons
-{
-  console.log('generating new icons...')
-  const glyphs = [
-    notdefGlyph,
-    ...makeIconGlyphs(i => {
-      const byte1 = 0xf8 + (i / 94 | 0)
-      const byte2 = i % 94 + 161
-      return 0xe000 + ((byte1 - 0xf8) << 8) + byte2
-    }),
-  ]
-  const font = new opentype.Font({
-    familyName: 'WenQuXing-Icons-New',
-    styleName: 'Medium',
-    unitsPerEm: 16 * SCALE,
-    ascender: 16 * SCALE,
-    descender: 0,
-    glyphs,
-  })
-  font.download('WenQuXing-Icons-New.ttf')
-}
-*/
 
 function makeAsciiGlyphs(): opentype.Glyph[] {
   const data = fs.readFileSync('../data/ascii_16.dat')
@@ -138,7 +87,9 @@ function makeIconGlyphs(): opentype.Glyph[] {
   for (let i = 0; i < 527; ++i) {
     const cp = 0xe000 + i
     glyphs.push(makeGlyph(cp, data.slice(i * 32, i * 32 + 32), 16, 16))
-    glyphs.push(makeGlyph(cp + 1000, data.slice(i * 32, i * 32 + 32), 16, 16))
+  }
+
+  for (let i = 0xe300; i <= 0xeaff; ++i) {
   }
 
   return glyphs
