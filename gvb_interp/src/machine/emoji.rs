@@ -37,12 +37,10 @@ impl EmojiVersion {
       Self::V2 => {
         let c = match hi {
           0xf8..=0xfc => match lo {
-            0..=93 => 1000 + (hi - 0xf8) * 94 + lo,
             161..=254 => (hi - 0xf8) * 94 + (lo - 161),
             _ => return None,
           },
           0xfd => match lo {
-            0..=56 => 1000 + 94 * 5 + lo,
             161..=217 => 94 * 5 + (lo - 161),
             _ => return None,
           },
@@ -61,38 +59,41 @@ impl EmojiVersion {
 
   pub fn char_to_code(&self, c: char) -> Option<u16> {
     let c = c as u32;
-    if (c < 0xe000 || c >= 0xe000 + 527)
-      && (c < 0xe000 + 1000 || c >= 0xe000 + 1000 + 527)
-    {
+    if c < 0xe000 || c >= 0xe000 + 527 {
       return None;
     }
 
-    let mut c = (c - 0xe000) as u16;
+    let c = (c - 0xe000) as u16;
     match self {
-      Self::V1 => {
-        if c >= 1000 {
-          c -= 1000;
-        }
-        match c {
-          0..57 => Some(0xfa46 + c),
-          57..151 => Some(0xfaa1 + c - 57),
-          151..214 => Some(0xfb40 + c - 151),
-          214..308 => Some(0xfba1 + c - 214),
-          308..371 => Some(0xfc40 + c - 308),
-          371..465 => Some(0xfca1 + c - 371),
-          465..527 => Some(0xfd40 + c - 465),
-          _ => unreachable!(),
-        }
-      }
-      Self::V2 => {
-        if c >= 1000 {
-          c -= 1000;
-          Some(0xf800 + ((c / 94) << 8) + c % 94)
-        } else {
-          Some(0xf8a1 + ((c / 94) << 8) + c % 94)
-        }
-      }
+      Self::V1 => match c {
+        0..57 => Some(0xfa46 + c),
+        57..151 => Some(0xfaa1 + c - 57),
+        151..214 => Some(0xfb40 + c - 151),
+        214..308 => Some(0xfba1 + c - 214),
+        308..371 => Some(0xfc40 + c - 308),
+        371..465 => Some(0xfca1 + c - 371),
+        465..527 => Some(0xfd40 + c - 465),
+        _ => unreachable!(),
+      },
+      Self::V2 => Some(0xf8a1 + ((c / 94) << 8) + c % 94),
     }
+  }
+
+  pub fn fallback_code_to_char(code: u16) -> Option<char> {
+    if code < 0xf800 {
+      return None;
+    }
+    let c = code as u32 - 0xf800;
+    return Some(unsafe { char::from_u32_unchecked(c + 0xe300) });
+  }
+
+  pub fn fallback_char_to_code(c: char) -> Option<u16> {
+    let c = c as u32;
+    if c < 0xe300 || c > 0xeaff {
+      return None;
+    }
+    let c = c - 0xe300;
+    Some(0xf800 + c as u16)
   }
 
   pub fn default_machine_name(&self) -> &'static str {
@@ -138,6 +139,15 @@ mod tests {
     EmojiVersion::V1.code_to_char(code).map_or(true, |c| {
       EmojiVersion::V1
         .char_to_code(c)
+        .filter(|&new_code| new_code == code)
+        .is_some()
+    })
+  }
+
+  #[quickcheck]
+  fn fallback_is_symmetric(Gb(code): Gb) -> bool {
+    EmojiVersion::fallback_code_to_char(code).map_or(true, |c| {
+      EmojiVersion::fallback_char_to_code(c)
         .filter(|&new_code| new_code == code)
         .is_some()
     })

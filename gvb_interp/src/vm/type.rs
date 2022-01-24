@@ -48,7 +48,10 @@ impl ByteString {
         }
         bytes.push((c >> 8) as _);
         bytes.push(c as _);
-      } else if let Some(c) = emoji_version.char_to_code(c) {
+      } else if let Some(c) = emoji_version
+        .char_to_code(c)
+        .or_else(|| EmojiVersion::fallback_char_to_code(c))
+      {
         if add_0x1f {
           bytes.push(0x1f);
         }
@@ -75,7 +78,10 @@ impl ByteString {
         let code = ((b as u16) << 8) + b2 as u16;
         if let Some(&c) = crate::gb2312::GB2312_TO_UNICODE.get(&code) {
           s.push(unsafe { char::from_u32_unchecked(c as _) });
-        } else if let Some(c) = emoji_version.code_to_char(code) {
+        } else if let Some(c) = emoji_version
+          .code_to_char(code)
+          .or_else(|| EmojiVersion::fallback_code_to_char(code))
+        {
           s.push(c);
         } else {
           s.push(char::REPLACEMENT_CHARACTER);
