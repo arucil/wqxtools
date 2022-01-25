@@ -22,7 +22,7 @@ impl DerefMut for ByteString {
 
 #[derive(Debug, Clone)]
 pub enum StringError {
-  InvalidChar(char),
+  InvalidChar(usize, char),
 }
 
 impl ByteString {
@@ -37,7 +37,7 @@ impl ByteString {
   ) -> Result<Self, StringError> {
     let str = str.as_ref();
     let mut bytes = vec![];
-    for c in str.chars() {
+    for (i, c) in str.char_indices() {
       let b = c as u32;
       if b < 128 {
         bytes.push(b as u8);
@@ -58,7 +58,7 @@ impl ByteString {
         bytes.push((c >> 8) as _);
         bytes.push(c as _);
       } else {
-        return Err(StringError::InvalidChar(c));
+        return Err(StringError::InvalidChar(i, c));
       }
     }
     Ok(Self(bytes))

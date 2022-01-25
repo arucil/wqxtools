@@ -183,7 +183,7 @@ void GvbSimInputDialog::initUi(
                   msg->setText("非法的 UTF-16 字符串");
                   break;
                 case api::GvbStringError::Tag::InvalidChar: {
-                  auto c = result.left._0.invalid_char._0;
+                  auto c = result.left._0.invalid_char._1;
                   msg->setText(QString("非法字符：%1 (U+%2)")
                                  // TODO check if c is printable
                                  .arg(QString::fromUcs4(&c, 1))

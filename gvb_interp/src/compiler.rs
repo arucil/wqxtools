@@ -5,6 +5,11 @@ use smallvec::SmallVec;
 use std::fmt::{self, Display, Formatter};
 use std::num::NonZeroUsize;
 
+pub struct CharError {
+  pub range: Range,
+  pub char: char,
+}
+
 pub trait CodeEmitter {
   type Symbol: Copy;
   type Addr: Copy;
@@ -16,12 +21,13 @@ pub trait CodeEmitter {
 
   fn emit_op(&mut self, range: Range, kind: &StmtKind, arity: usize);
 
+  /// `range` includes quotes if `is_quoted` is true.
   fn emit_datum(
     &mut self,
     range: Range,
     datum: String,
     is_quoted: bool,
-  ) -> Result<(Self::DatumIndex, usize), char>;
+  ) -> Result<(Self::DatumIndex, usize), CharError>;
 
   fn begin_def_fn(
     &mut self,
@@ -115,7 +121,14 @@ pub trait CodeEmitter {
 
   fn emit_number(&mut self, range: Range, num: Mbf5);
   fn emit_var(&mut self, range: Range, sym: Self::Symbol);
-  fn emit_string(&mut self, range: Range, str: String) -> Result<usize, char>;
+
+  /// `range` includes quotes
+  fn emit_string(
+    &mut self,
+    range: Range,
+    str: String,
+  ) -> Result<usize, CharError>;
+
   fn emit_inkey(&mut self, range: Range);
   fn emit_index(
     &mut self,
@@ -213,14 +226,14 @@ impl<'a, 'b, E: CodeEmitter, T> CompileState<'a, 'b, E, T> {
       .push(Diagnostic::new_error(range, message));
   }
 
-  fn add_invalid_char_error(&mut self, range: Range, c: char) {
+  fn add_invalid_char_error(&mut self, CharError { range, char }: CharError) {
     self.add_error(
       range,
       // TODO check if c is printable
-      if (c as u32) < 0x10000 {
-        format!("字符串中包含非法字符：U+{:04X}", c as u32)
+      if (char as u32) < 0x10000 {
+        format!("非法字符：U+{:04X}", char as u32)
       } else {
-        format!("字符串中包含非法字符：U+{:06X}", c as u32)
+        format!("非法字符：U+{:06X}", char as u32)
       },
     );
   }
@@ -626,8 +639,8 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E, ProgramLine> {
             data_index = Some(index);
           }
         }
-        Err(c) => {
-          self.add_invalid_char_error(datum.range.clone(), c);
+        Err(err) => {
+          self.add_invalid_char_error(err);
         }
       }
     }
@@ -1273,8 +1286,8 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E, ProgramLine> {
               self.add_error(prompt.clone(), "字符串太长，长度超出 255");
             }
           }
-          Err(c) => {
-            self.add_invalid_char_error(prompt.clone(), c);
+          Err(err) => {
+            self.add_invalid_char_error(err);
           }
         }
         self
@@ -1611,8 +1624,8 @@ impl<'a, 'b, E: CodeEmitter, T> CompileState<'a, 'b, E, T> {
               self.add_error(range.clone(), "字符串太长，长度超出 255");
             }
           }
-          Err(c) => {
-            self.add_invalid_char_error(range.clone(), c);
+          Err(err) => {
+            self.add_invalid_char_error(err);
           }
         }
         Type::String

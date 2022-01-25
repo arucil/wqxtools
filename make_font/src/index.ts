@@ -29,6 +29,106 @@ const notdefGlyph = new opentype.Glyph({
   path: notdefPath
 })
 
+const tinyDigitData = Buffer.from(new Uint8Array([
+  0b11100000, // 0
+  0b10100000,
+  0b10100000,
+  0b10100000,
+  0b11100000,
+
+  0b01000000, // 1
+  0b11000000,
+  0b01000000,
+  0b01000000,
+  0b11100000,
+
+  0b11000000, // 2
+  0b00100000,
+  0b01000000,
+  0b10000000,
+  0b11100000,
+
+  0b11100000, // 3
+  0b00100000,
+  0b01100000,
+  0b00100000,
+  0b11100000,
+
+  0b10100000, // 4
+  0b10100000,
+  0b11100000,
+  0b00100000,
+  0b00100000,
+
+  0b11100000, // 5
+  0b10000000,
+  0b11100000,
+  0b00100000,
+  0b11100000,
+
+  0b11100000, // 6
+  0b10000000,
+  0b11100000,
+  0b10100000,
+  0b11100000,
+
+  0b11100000, // 7
+  0b00100000,
+  0b00100000,
+  0b00100000,
+  0b00100000,
+
+  0b11100000, // 8
+  0b10100000,
+  0b11100000,
+  0b10100000,
+  0b11100000,
+
+  0b11100000, // 9
+  0b10100000,
+  0b11100000,
+  0b00100000,
+  0b11100000,
+
+  0b01000000, // A
+  0b10100000,
+  0b11100000,
+  0b10100000,
+  0b10100000,
+
+  0b11100000, // B
+  0b10100000,
+  0b11000000,
+  0b10100000,
+  0b11100000,
+
+  0b11100000, // C
+  0b10000000,
+  0b10000000,
+  0b10000000,
+  0b11100000,
+
+  0b11000000, // D
+  0b10100000,
+  0b10100000,
+  0b10100000,
+  0b11000000,
+
+  0b11100000, // E
+  0b10000000,
+  0b11100000,
+  0b10000000,
+  0b11100000,
+
+  0b11100000, // F
+  0b10000000,
+  0b11000000,
+  0b10000000,
+  0b10000000,
+]))
+const tinyDigitPaths = Array.from(Array(16).keys())
+  .map(i => makePath(tinyDigitData.slice(i * 5, i * 5 + 5), 0, 3, 5))
+
 // gb2312
 {
   console.log('generating WenQuXing.ttf...')
@@ -54,7 +154,7 @@ function makeAsciiGlyphs(): opentype.Glyph[] {
   const glyphs = []
 
   for (let i = 1; i < 128; ++i) {
-    glyphs.push(makeGlyph(i, data.slice(i * 16, i * 16 + 16), 8, 16))
+    glyphs.push(makeGlyph(i, data.slice(i * 16, i * 16 + 16), -2, 8, 16))
   }
 
   return glyphs
@@ -74,10 +174,21 @@ function makeGb2312Glyphs(): opentype.Glyph[] {
     if (cp === 0xfffd) {
       continue
     }
-    glyphs.push(makeGlyph(cp, data.slice(i * 32, i * 32 + 32), 16, 16))
+    glyphs.push(makeGlyph(cp, data.slice(i * 32, i * 32 + 32), -1, 16, 16))
   }
 
   return glyphs
+}
+
+
+function offsetPathCmd(x: number, y: number) {
+  return (cmd: opentype.PathCommand): opentype.PathCommand => {
+    return {
+      type: cmd.type,
+      x: cmd.x! + x,
+      y: cmd.y! + y,
+    }
+  }
 }
 
 function makeIconGlyphs(): opentype.Glyph[] {
@@ -86,22 +197,41 @@ function makeIconGlyphs(): opentype.Glyph[] {
 
   for (let i = 0; i < 527; ++i) {
     const cp = 0xe000 + i
-    glyphs.push(makeGlyph(cp, data.slice(i * 32, i * 32 + 32), 16, 16))
+    glyphs.push(makeGlyph(cp, data.slice(i * 32, i * 32 + 32), -1, 16, 16))
   }
 
   for (let i = 0xe300; i <= 0xeaff; ++i) {
+    const code = i - 0xe300 + 0xf800
+    const path = new opentype.Path()
+    path.moveTo(0, 0)
+    path.lineTo(0, 1500)
+    path.lineTo(1500, 1500)
+    path.lineTo(1500, 0)
+    path.moveTo(70, 70)
+    path.lineTo(1430, 70)
+    path.lineTo(1430, 1430)
+    path.lineTo(70, 1430)
+    path.extend(tinyDigitPaths[code >> 12].commands.map(offsetPathCmd(380, 800)))
+    path.extend(tinyDigitPaths[(code >> 8) & 15].commands.map(offsetPathCmd(820, 800)))
+    path.extend(tinyDigitPaths[(code >> 4) & 15].commands.map(offsetPathCmd(380, 200)))
+    path.extend(tinyDigitPaths[(code) & 15].commands.map(offsetPathCmd(820, 200)))
+    glyphs.push(new opentype.Glyph({
+      name: 'U+' + i.toString(16).padStart(4, '0'),
+      unicode: i,
+      advanceWidth: 16 * SCALE,
+      path,
+    }))
   }
 
   return glyphs
 }
 
-
-function makeGlyph(
-  codepoint: number,
+function makePath(
   data: Buffer,
+  offsetY: number,
   width: number,
   height: number
-): opentype.Glyph {
+): opentype.Path {
   const byteWidth = (width + 7) >>> 3
   const unitSegments: Map<number, number[]> = new Map
 
@@ -109,7 +239,7 @@ function makeGlyph(
   const getY = (y: number) => height - y - 1
 
   for (let y = 0; y < height; ++y) {
-    const y1 = y - (codepoint < 256 ? 2 : 1)
+    const y1 = y + offsetY
     for (let x = 0; x < width; ++x) {
       const bitMask = getBitMask(x)
       if ((data[getY(y) * byteWidth + (x >>> 3)] & bitMask) === 0) {
@@ -200,11 +330,22 @@ function makeGlyph(
     }
   }
 
+  return path
+}
+
+function makeGlyph(
+  codepoint: number,
+  data: Buffer,
+  offsetY: number,
+  width: number,
+  height: number
+): opentype.Glyph {
+
   return new opentype.Glyph({
     name: 'U+' + codepoint.toString(16).padStart(4, '0'),
     unicode: codepoint,
     advanceWidth: width * SCALE,
-    path,
+    path: makePath(data, offsetY, width, height),
   })
 }
 
