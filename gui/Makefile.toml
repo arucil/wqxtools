@@ -5,6 +5,6 @@ CARGO_MAKE_EXTEND_WORKSPACE_MAKEFILE = false
 clear = true
 script_runner = "@shell"
 script = """
-qmake
+qmake6
 make ${PROFILE} -j8
 """

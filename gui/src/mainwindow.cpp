@@ -760,7 +760,7 @@ void MainWindow::notifyNewVersion(const QString &tag) {
     QMessageBox::information(
       this,
       "新版本",
-      QString("<h3>%1</h3><p>%2</p><a href=\"%3\">点击链接下载新版本</a>")
+      QString("<h3>版本：%1</h3><p>%2</p><a href=\"%3\">点击链接下载新版本</a>")
         .arg(tag, description, url));
   });
 }

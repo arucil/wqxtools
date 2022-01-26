@@ -1,11 +1,11 @@
 use crate::HashMap;
 use intmap::IntMap;
+use std::collections::BTreeMap;
 use std::io;
 use std::mem::MaybeUninit;
 use std::time::Duration;
 use util::config;
 use yaml_rust::{Yaml, YamlLoader};
-use std::collections::BTreeMap;
 
 pub(crate) mod emoji;
 
@@ -40,7 +40,7 @@ impl Default for MachineProps {
   fn default() -> Self {
     Self {
       name: String::new(),
-      emoji_version: EmojiVersion::New,
+      emoji_version: EmojiVersion::V2,
       graphics_base_addr: 0,
       sleep_unit: Duration::default(),
       text_buffer_base_addr: 0,
@@ -65,10 +65,10 @@ static mut MACHINES: MaybeUninit<BTreeMap<String, MachineProps>> =
   MaybeUninit::uninit();
 static mut MACHINES_INITED: bool = false;
 
-pub(crate) static mut DEFAULT_MACHINE_FOR_NEW_EMOJI_VERSION: String =
+pub(crate) static mut DEFAULT_MACHINE_FOR_EMOJI_VERSION_2: String =
   String::new();
 
-pub(crate) static mut DEFAULT_MACHINE_FOR_OLD_EMOJI_VERSION: String =
+pub(crate) static mut DEFAULT_MACHINE_FOR_EMOJI_VERSION_1: String =
   String::new();
 
 #[derive(Debug)]
@@ -127,26 +127,26 @@ pub fn init_machines() -> Result<(), InitError> {
   let mut default =
     default.into_hash().ok_or_else(|| "default is not object")?;
 
-  // default.new
-  let new = default
-    .remove(&Yaml::String("new".into()))
-    .ok_or_else(|| "missing field 'new' in 'default'")?;
-  let new = new
+  // default.emoji-v2
+  let v2 = default
+    .remove(&Yaml::String("emoji-v2".into()))
+    .ok_or_else(|| "missing field 'emoji-v2' in 'default'")?;
+  let v2 = v2
     .into_string()
-    .ok_or_else(|| "default.new is not string")?;
+    .ok_or_else(|| "default.emoji-v2 is not string")?;
   unsafe {
-    DEFAULT_MACHINE_FOR_NEW_EMOJI_VERSION = new.to_ascii_uppercase();
+    DEFAULT_MACHINE_FOR_EMOJI_VERSION_2 = v2.to_ascii_uppercase();
   }
 
-  // default.old
-  let old = default
-    .remove(&Yaml::String("old".into()))
-    .ok_or_else(|| "missing field 'old' in 'default'")?;
-  let old = old
+  // default.emoji-v1
+  let v1 = default
+    .remove(&Yaml::String("emoji-v1".into()))
+    .ok_or_else(|| "missing field 'emoji-v1' in 'default'")?;
+  let v1 = v1
     .into_string()
-    .ok_or_else(|| "default.old is not string")?;
+    .ok_or_else(|| "default.emoji-v1 is not string")?;
   unsafe {
-    DEFAULT_MACHINE_FOR_OLD_EMOJI_VERSION = old.to_ascii_uppercase();
+    DEFAULT_MACHINE_FOR_EMOJI_VERSION_1 = v1.to_ascii_uppercase();
   }
 
   if let Some((key, _)) = default.pop_front() {
@@ -176,10 +176,10 @@ pub fn init_machines() -> Result<(), InitError> {
     let emoji_version = emoji_version
       .as_str()
       .ok_or_else(|| format!("{}.emoji-version is not string", mach_name))?;
-    if emoji_version == "new" {
-      props.emoji_version = EmojiVersion::New;
-    } else if emoji_version == "old" {
-      props.emoji_version = EmojiVersion::Old;
+    if emoji_version.eq_ignore_ascii_case("v2") {
+      props.emoji_version = EmojiVersion::V2;
+    } else if emoji_version.eq_ignore_ascii_case("v1") {
+      props.emoji_version = EmojiVersion::V1;
     } else {
       return Err(
         format!("unrecognized emoji version '{}'", emoji_version).into(),
@@ -406,16 +406,20 @@ pub fn init_machines() -> Result<(), InitError> {
   unsafe {
     if !MACHINES
       .assume_init_ref()
-      .contains_key(&DEFAULT_MACHINE_FOR_NEW_EMOJI_VERSION)
+      .contains_key(&DEFAULT_MACHINE_FOR_EMOJI_VERSION_2)
     {
-      return Err(format!("new default machine '{}' not found", new).into());
+      return Err(
+        format!("emoji version 2 default machine '{}' not found", v2).into(),
+      );
     }
 
     if !MACHINES
       .assume_init_ref()
-      .contains_key(&DEFAULT_MACHINE_FOR_OLD_EMOJI_VERSION)
+      .contains_key(&DEFAULT_MACHINE_FOR_EMOJI_VERSION_1)
     {
-      return Err(format!("old default machine '{}' not found", old).into());
+      return Err(
+        format!("emoji version 1 default machine '{}' not found", v1).into(),
+      );
     }
   }
 

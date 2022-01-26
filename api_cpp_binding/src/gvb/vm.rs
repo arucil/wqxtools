@@ -299,7 +299,7 @@ pub extern "C" fn gvb_assign_device_key(
 #[repr(C)]
 pub enum GvbStringError {
   InvalidUtf16,
-  InvalidChar(u32),
+  InvalidChar(usize, u32),
 }
 
 type GvbStringResult = Either<GvbStringError, Array<u8>>;
@@ -316,8 +316,8 @@ pub extern "C" fn gvb_utf16_to_byte_string(
   };
   match unsafe { (*vm).0.byte_string_from_str(&s).into() } {
     Ok(s) => Either::Right(unsafe { Array::new(s.into()) }),
-    Err(gvb::vm::r#type::StringError::InvalidChar(c)) => {
-      Either::Left(GvbStringError::InvalidChar(c as _))
+    Err(gvb::vm::r#type::StringError::InvalidChar(i, c)) => {
+      Either::Left(GvbStringError::InvalidChar(i, c as _))
     }
   }
 }

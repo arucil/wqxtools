@@ -33,11 +33,8 @@ pub fn load_bas(
   let mut base_addr = 0;
   let mut lines: Vec<&[u8]> = vec![];
   let mut offset = 0;
-  let mut guessed_emoji_versions = if let Some(emoji_version) = emoji_version {
-    vec![emoji_version]
-  } else {
-    vec![EmojiVersion::New, EmojiVersion::Old]
-  };
+  let mut emoji_v1_count = 0;
+  let mut emoji_v2_count = 0;
 
   let mut second_line_addr = 0;
 
@@ -94,15 +91,11 @@ pub fn load_bas(
 
         let gbcode = ((content[i + 1] as u16) << 8) + content[i + 2] as u16;
         if !crate::gb2312::GB2312_TO_UNICODE.contains_key(&gbcode) {
-          guessed_emoji_versions.retain(|s| s.code_to_char(gbcode).is_some());
-          if guessed_emoji_versions.is_empty() {
-            return Err(LoadError {
-              location: offset + i + 1,
-              message: format!(
-                "无法转换文曲星图形符号的编码：0x{:04X}",
-                gbcode
-              ),
-            });
+          if emoji_version.is_none() {
+            emoji_v1_count +=
+              EmojiVersion::V1.code_to_char(gbcode).is_some() as usize;
+            emoji_v2_count +=
+              EmojiVersion::V2.code_to_char(gbcode).is_some() as usize;
           }
         }
         i += 3;
@@ -118,7 +111,13 @@ pub fn load_bas(
     }
   }
 
-  let guessed_emoji_version = guessed_emoji_versions[0];
+  let guessed_emoji_version = emoji_version.unwrap_or_else(|| {
+    if emoji_v1_count > emoji_v2_count {
+      EmojiVersion::V1
+    } else {
+      EmojiVersion::V2
+    }
+  });
   let mut text = String::new();
   let mut newline = false;
 
@@ -140,7 +139,10 @@ pub fn load_bas(
         if let Some(&u) = crate::gb2312::GB2312_TO_UNICODE.get(&gbcode) {
           text.push(char::from_u32(u as _).unwrap());
         } else {
-          let u = guessed_emoji_version.code_to_char(gbcode).unwrap();
+          let u = guessed_emoji_version
+            .code_to_char(gbcode)
+            .or_else(|| EmojiVersion::fallback_code_to_char(gbcode))
+            .unwrap();
           text.push(char::from_u32(u as _).unwrap());
         }
         last_is_keyword = false;
@@ -192,11 +194,8 @@ pub fn load_txt(
   emoji_version: Option<EmojiVersion>,
 ) -> Result<BasTextDocument, LoadError<(usize, usize)>> {
   let base_addr = DEFAULT_BASE_ADDR;
-  let mut guessed_emoji_versions = if let Some(emoji_version) = emoji_version {
-    vec![emoji_version]
-  } else {
-    vec![EmojiVersion::New, EmojiVersion::Old]
-  };
+  let mut emoji_v1_count = 0;
+  let mut emoji_v2_count = 0;
   let mut text = String::new();
 
   let mut i = 0;
@@ -221,14 +220,21 @@ pub fn load_txt(
       if let Some(&u) = crate::gb2312::GB2312_TO_UNICODE.get(&gbcode) {
         text.push(char::from_u32(u as _).unwrap());
       } else {
-        guessed_emoji_versions.retain(|s| s.code_to_char(gbcode).is_some());
-        if guessed_emoji_versions.is_empty() {
-          return Err(LoadError {
-            location: (line, i - line_offset),
-            message: format!("无法转换文曲星图形符号的编码：0x{:04X}", gbcode),
-          });
+        if let Some(v) = emoji_version {
+          let u = v
+            .code_to_char(gbcode)
+            .or_else(|| EmojiVersion::fallback_code_to_char(gbcode))
+            .unwrap();
+          text.push(char::from_u32(u as _).unwrap());
         } else {
-          let u = guessed_emoji_versions[0].code_to_char(gbcode).unwrap();
+          emoji_v1_count +=
+            EmojiVersion::V1.code_to_char(gbcode).is_some() as usize;
+          emoji_v2_count +=
+            EmojiVersion::V2.code_to_char(gbcode).is_some() as usize;
+          let u = EmojiVersion::V2
+            .code_to_char(gbcode)
+            .or_else(|| EmojiVersion::fallback_code_to_char(gbcode))
+            .unwrap();
           text.push(char::from_u32(u as _).unwrap());
         }
       }
@@ -240,9 +246,17 @@ pub fn load_txt(
     }
   }
 
+  let guessed_emoji_version = emoji_version.unwrap_or_else(|| {
+    if emoji_v1_count > emoji_v2_count {
+      EmojiVersion::V1
+    } else {
+      EmojiVersion::V2
+    }
+  });
+
   Ok(BasTextDocument {
     base_addr,
-    guessed_emoji_version: guessed_emoji_versions[0],
+    guessed_emoji_version,
     text,
   })
 }
@@ -454,7 +468,10 @@ pub fn save_txt(
       if let Some(&gbcode) = crate::gb2312::UNICODE_TO_GB2312.get(&(c as u16)) {
         bytes.push((gbcode >> 8) as _);
         bytes.push(gbcode as _);
-      } else if let Some(gbcode) = emoji_version.char_to_code(c) {
+      } else if let Some(gbcode) = emoji_version
+        .char_to_code(c)
+        .or_else(|| EmojiVersion::fallback_char_to_code(c))
+      {
         bytes.push((gbcode >> 8) as _);
         bytes.push(gbcode as _);
       } else {

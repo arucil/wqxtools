@@ -29,7 +29,10 @@ pub struct GvbSimulatorConfig {
 
 const DEFAULT_CONFIG: Config = Config {
   gvb: GvbConfig {
-    editor: GvbEditorConfig { font_size: 12, style: None },
+    editor: GvbEditorConfig {
+      font_size: 12,
+      style: None,
+    },
     simulator: GvbSimulatorConfig {
       pixel_scale: 2,
       foreground: 0x31_31_32,
@@ -124,8 +127,7 @@ fn load_gvb_config(
       }
 
       // gvb.editor.style
-      if let Some(style) = editor.remove(&Yaml::String("style".into()))
-      {
+      if let Some(style) = editor.remove(&Yaml::String("style".into())) {
         let style = style
           .into_string()
           .ok_or_else(|| "gvbasic.editor.style is not string")?;

@@ -12,7 +12,10 @@ use crate::ast::{
 };
 use crate::diagnostic::Diagnostic;
 use crate::util::mbf5::Mbf5;
-use crate::{compiler::CodeEmitter, machine::EmojiVersion};
+use crate::{
+  compiler::{CharError, CodeEmitter},
+  machine::EmojiVersion,
+};
 use string_interner::StringInterner;
 
 use super::Datum;
@@ -150,14 +153,20 @@ impl CodeEmitter for CodeGen {
 
   fn emit_datum(
     &mut self,
-    _range: Range,
+    range: Range,
     value: String,
     is_quoted: bool,
-  ) -> Result<(Self::DatumIndex, usize), char> {
+  ) -> Result<(Self::DatumIndex, usize), CharError> {
     let index = DatumIndex(self.data.len());
     let value = match ByteString::from_str(value, self.emoji_version, true) {
       Ok(value) => value,
-      Err(StringError::InvalidChar(c)) => return Err(c),
+      Err(StringError::InvalidChar(i, c)) => {
+        return Err(CharError {
+          range: Range::new(i, i + c.len_utf8())
+            .offset(range.start as isize + is_quoted as isize),
+          char: c,
+        })
+      }
     };
     let len = value.len();
     self.data.push(Datum { value, is_quoted });
@@ -401,10 +410,19 @@ impl CodeEmitter for CodeGen {
     self.push_instr(range, InstrKind::PushVar(sym));
   }
 
-  fn emit_string(&mut self, range: Range, str: String) -> Result<usize, char> {
+  fn emit_string(
+    &mut self,
+    range: Range,
+    str: String,
+  ) -> Result<usize, CharError> {
     let str = match ByteString::from_str(str, self.emoji_version, true) {
       Ok(str) => str,
-      Err(StringError::InvalidChar(c)) => return Err(c),
+      Err(StringError::InvalidChar(i, c)) => {
+        return Err(CharError {
+          range: Range::new(i, i + c.len_utf8()).offset((range.start + 1) as _),
+          char: c,
+        })
+      }
     };
     let len = str.len();
     self.push_instr(range, InstrKind::PushStr(str));

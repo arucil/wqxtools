@@ -165,9 +165,9 @@ impl Document {
   pub fn new() -> Self {
     Self {
       base_addr: binary::DEFAULT_BASE_ADDR,
-      emoji_version: EmojiVersion::New,
+      emoji_version: EmojiVersion::V2,
       machine_props: crate::machine::machines()
-        [EmojiVersion::New.default_machine_name()]
+        [EmojiVersion::V2.default_machine_name()]
       .clone(),
       text: DEFAULT_TEXT.to_owned(),
       lines: text_to_doc_lines(DEFAULT_TEXT),

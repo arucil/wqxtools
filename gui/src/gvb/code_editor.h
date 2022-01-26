@@ -1,5 +1,6 @@
 #pragma once
 
+#define EXPORT_IMPORT_API
 #include <ScintillaEdit.h>
 #include <api.h>
 

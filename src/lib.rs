@@ -5,3 +5,7 @@ pub fn is_new_version(ver: &str) -> Result<bool, semver::Error> {
   let cur_ver = env!("CARGO_PKG_VERSION").parse::<Version>().unwrap();
   Ok(ver > cur_ver)
 }
+
+pub const fn version() -> &'static str {
+  env!("CARGO_PKG_VERSION")
+}

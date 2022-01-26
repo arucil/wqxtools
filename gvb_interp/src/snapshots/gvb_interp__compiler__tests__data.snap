@@ -1,9 +1,10 @@
 ---
 source: gvb_interp/src/compiler.rs
+assertion_line: 2133
 expression: "compile(r#\"\n10 read a,b$,c(m+1,10): data \"cj,:\",abc13,  126a  ,\n20 data \n30 data \"\",,,++  !:\n40 restore:restore 30:restore 20:restore 25\n    \"#.trim())"
 
 ---
-emoji_version: New
+emoji_version: V2
 --------- data ----------
 0     "cj,:"
 1     abc13

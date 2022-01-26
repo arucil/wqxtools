@@ -2,18 +2,18 @@
 
 default:
   # 如果无法自动检测机型，则使用下面的默认机型。
-  # new表示检测到BAS文件中用到的文曲星图形为新版图形时，使用的默认机型；old同理
-  new: tc808
-  old: pc1000a
+  # emoji-v2表示检测到BAS文件中用到的文曲星图形符号版本为v2时，使用的默认机型；emoji-v1同理
+  emoji-v2: tc808
+  emoji-v1: pc1000a
 
 tc808:
-  # 文曲星图形版本：new（新版）, old（旧版）
+  # 文曲星图形符号版本：v1 或 v2
   #
-  # 鉴别新旧版本图形的方法：
+  # 鉴别图形符号版本的方法：
   # 在文曲星中运行以下GVBASIC程序：
   # 10 PRINT CHR$(250)+CHR$(172)
-  # 如果屏幕上显示的是一个蘑菇，则是新型图形；如果显示的是一个太极图（阴阳鱼）则是旧版图形。
-  emoji-version: new
+  # 如果屏幕上显示的是一个蘑菇，则是v2版本；如果显示的是一个太极图（阴阳鱼）则是v1版本。
+  emoji-version: v2
 
   # SLEEP 语句的单位，支持的单位：秒 s, 毫秒 ms, 微秒 us, 纳秒 ns
   sleep-unit: 0.4ms
@@ -121,7 +121,7 @@ tc808:
     1018: halfsecond
 
 pc1000a:
-  emoji-version: old
+  emoji-version: v1
   sleep-unit: 1ms
   graphics-base-addr: 2496
   text-buffer-base-addr: 704
@@ -187,7 +187,7 @@ pc1000a:
     1131: halfsecond
 
 nc1020:
-  emoji-version: new
+  emoji-version: v2
   sleep-unit: 1ms
   graphics-base-addr: 2496
   text-buffer-base-addr: 704
@@ -253,7 +253,7 @@ nc1020:
     1137: halfsecond
 
 nc3000:
-  emoji-version: new
+  emoji-version: v2
   sleep-unit: 0.4ms
   graphics-base-addr: 0x19c0
   text-buffer-base-addr: 704

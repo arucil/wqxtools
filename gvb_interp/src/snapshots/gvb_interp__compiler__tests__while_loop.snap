@@ -1,9 +1,10 @@
 ---
 source: gvb_interp/src/compiler.rs
+assertion_line: 2232
 expression: "compile(r#\"\n10 while a$>\"AB=号即\":print:wend:while a<>b:cls:while a<2:cls:wend\n20 cls:goto 20:wend\n    \"#.trim())"
 
 ---
-emoji_version: New
+emoji_version: V2
 --------- data ----------
 --------- code ----------
 0     0:9..11   push var A$

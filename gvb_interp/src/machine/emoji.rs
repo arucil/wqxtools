@@ -1,7 +1,7 @@
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum EmojiVersion {
-  Old,
-  New,
+  V1,
+  V2,
 }
 
 impl EmojiVersion {
@@ -9,7 +9,7 @@ impl EmojiVersion {
     let hi = code >> 8;
     let lo = code & 255;
     match self {
-      Self::Old => {
+      Self::V1 => {
         let c = match hi {
           0xfa => match lo {
             70..=126 => lo - 70,
@@ -34,15 +34,13 @@ impl EmojiVersion {
         };
         Some(c as _)
       }
-      Self::New => {
+      Self::V2 => {
         let c = match hi {
-          248..=252 => match lo {
-            0..=93 => 1000 + (hi - 0xf8) * 94 + lo,
+          0xf8..=0xfc => match lo {
             161..=254 => (hi - 0xf8) * 94 + (lo - 161),
             _ => return None,
           },
-          253 => match lo {
-            0..=56 => 1000 + 94 * 5 + lo,
+          0xfd => match lo {
             161..=217 => 94 * 5 + (lo - 161),
             _ => return None,
           },
@@ -61,45 +59,48 @@ impl EmojiVersion {
 
   pub fn char_to_code(&self, c: char) -> Option<u16> {
     let c = c as u32;
-    if (c < 0xe000 || c >= 0xe000 + 527)
-      && (c < 0xe000 + 1000 || c >= 0xe000 + 1000 + 527)
-    {
+    if c < 0xe000 || c >= 0xe000 + 527 {
       return None;
     }
 
-    let mut c = (c - 0xe000) as u16;
+    let c = (c - 0xe000) as u16;
     match self {
-      Self::Old => {
-        if c >= 1000 {
-          c -= 1000;
-        }
-        match c {
-          0..57 => Some(0xfa46 + c),
-          57..151 => Some(0xfaa1 + c - 57),
-          151..214 => Some(0xfb40 + c - 151),
-          214..308 => Some(0xfba1 + c - 214),
-          308..371 => Some(0xfc40 + c - 308),
-          371..465 => Some(0xfca1 + c - 371),
-          465..527 => Some(0xfd40 + c - 465),
-          _ => unreachable!(),
-        }
-      }
-      Self::New => {
-        if c >= 1000 {
-          c -= 1000;
-          Some(0xf800 + ((c / 94) << 8) + c % 94)
-        } else {
-          Some(0xf8a1 + ((c / 94) << 8) + c % 94)
-        }
-      }
+      Self::V1 => match c {
+        0..57 => Some(0xfa46 + c),
+        57..151 => Some(0xfaa1 + c - 57),
+        151..214 => Some(0xfb40 + c - 151),
+        214..308 => Some(0xfba1 + c - 214),
+        308..371 => Some(0xfc40 + c - 308),
+        371..465 => Some(0xfca1 + c - 371),
+        465..527 => Some(0xfd40 + c - 465),
+        _ => unreachable!(),
+      },
+      Self::V2 => Some(0xf8a1 + ((c / 94) << 8) + c % 94),
     }
+  }
+
+  pub fn fallback_code_to_char(code: u16) -> Option<char> {
+    if code < 0xf800 {
+      return None;
+    }
+    let c = code as u32 - 0xf800;
+    return Some(unsafe { char::from_u32_unchecked(c + 0xe300) });
+  }
+
+  pub fn fallback_char_to_code(c: char) -> Option<u16> {
+    let c = c as u32;
+    if c < 0xe300 || c > 0xeaff {
+      return None;
+    }
+    let c = c - 0xe300;
+    Some(0xf800 + c as u16)
   }
 
   pub fn default_machine_name(&self) -> &'static str {
     unsafe {
       match self {
-        Self::New => super::DEFAULT_MACHINE_FOR_NEW_EMOJI_VERSION.as_ref(),
-        Self::Old => super::DEFAULT_MACHINE_FOR_OLD_EMOJI_VERSION.as_ref(),
+        Self::V2 => super::DEFAULT_MACHINE_FOR_EMOJI_VERSION_2.as_ref(),
+        Self::V1 => super::DEFAULT_MACHINE_FOR_EMOJI_VERSION_1.as_ref(),
       }
     }
   }
@@ -124,9 +125,9 @@ mod tests {
   }
 
   #[quickcheck]
-  fn new_version_is_symmetric(Gb(code): Gb) -> bool {
-    EmojiVersion::New.code_to_char(code).map_or(true, |c| {
-      EmojiVersion::New
+  fn version_2_is_symmetric(Gb(code): Gb) -> bool {
+    EmojiVersion::V2.code_to_char(code).map_or(true, |c| {
+      EmojiVersion::V2
         .char_to_code(c)
         .filter(|&new_code| new_code == code)
         .is_some()
@@ -134,10 +135,19 @@ mod tests {
   }
 
   #[quickcheck]
-  fn old_version_is_symmetric(Gb(code): Gb) -> bool {
-    EmojiVersion::Old.code_to_char(code).map_or(true, |c| {
-      EmojiVersion::Old
+  fn version_1_is_symmetric(Gb(code): Gb) -> bool {
+    EmojiVersion::V1.code_to_char(code).map_or(true, |c| {
+      EmojiVersion::V1
         .char_to_code(c)
+        .filter(|&new_code| new_code == code)
+        .is_some()
+    })
+  }
+
+  #[quickcheck]
+  fn fallback_is_symmetric(Gb(code): Gb) -> bool {
+    EmojiVersion::fallback_code_to_char(code).map_or(true, |c| {
+      EmojiVersion::fallback_char_to_code(c)
         .filter(|&new_code| new_code == code)
         .is_some()
     })

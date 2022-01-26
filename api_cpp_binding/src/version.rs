@@ -5,3 +5,8 @@ pub extern "C" fn is_new_version(ver: Utf8Str) -> Maybe<bool> {
   wqxtools::is_new_version(unsafe { ver.as_str() })
     .map_or(Maybe::Nothing, Maybe::Just)
 }
+
+#[no_mangle]
+pub extern "C" fn version() -> Utf8Str {
+  unsafe { Utf8Str::new(wqxtools::version()) }
+}

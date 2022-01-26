@@ -1171,7 +1171,7 @@ mod tests {
   fn new_device() -> DefaultDevice {
     initialize();
     DefaultDevice::new(
-      crate::machine::machines()[EmojiVersion::New.default_machine_name()]
+      crate::machine::machines()[EmojiVersion::V2.default_machine_name()]
         .clone(),
       "",
     )
@@ -1205,7 +1205,7 @@ mod tests {
   }
 
   fn string(str: &str) -> ByteString {
-    ByteString::from_str(str, EmojiVersion::New, true).unwrap()
+    ByteString::from_str(str, EmojiVersion::V2, true).unwrap()
   }
 
   fn pad_text_buffer(mut s: ByteString) -> ByteString {

@@ -1,9 +1,10 @@
 ---
 source: gvb_interp/src/compiler.rs
+assertion_line: 2222
 expression: "compile(r#\"\n10 swap a$(b*2,3,i*10+j), c$:swap c%,d%\n    \"#.trim())"
 
 ---
-emoji_version: New
+emoji_version: V2
 --------- data ----------
 --------- code ----------
 0     0:11..12  push var B
