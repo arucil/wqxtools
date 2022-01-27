@@ -1,20 +1,21 @@
-0 REM 屏幕上方图示依次为：当前玩家，HP/MP，射击角度，风力
-1 REM 大致规则：
-2 REM 地形可被建设/破坏，可埋地雷，定期出现随机道具，
-3 REM 龙卷风会改变炮弹飞行速度和方向(部分武器破坏力由速度决定)。
-4 REM  [左][右]          移动(MP-10%)
-5 REM  [上翻页][下翻页]  调整射击方向
-6 REM  [输入]            切换调整精度(1°/15°)
-7 REM  [空格]            待机(MP+20%)
-8 REM  [上]+[上]         常规射击
-9 REM  [上]+[下]         制导交换(MP-100%)
-10 REM [上]+[左]         多重射击(MP-100%)
-11 REM [上]+[右]         辐射武器(MP-100%)
-12 REM [下]+[上]         未知武器(MP-100%)  条件：需要HP<25%
-13 REM [下]+[下]         强化护甲(MP-50%)
-14 REM [下]+[左/右]      加固地形(MP-10%)
-15 REM [下]+[上翻页/下翻页]     铺设地雷(MP-10%)
-16 IH=50:IM=25:IS=1:IT=0:GOSUB 100:PRINT "Author: X'/ZYB","zybx@msn.com":K$=INKEY$:CLS
+0 REM {type:NC1020}
+1 REM 屏幕上方图示依次为：当前玩家，HP/MP，射击角度，风力
+2 REM 大致规则：
+3 REM 地形可被建设/破坏，可埋地雷，定期出现随机道具，
+4 REM 龙卷风会改变炮弹飞行速度和方向(部分武器破坏力由速度决定)。
+5 REM  [左][右]          移动(MP-10%)
+6 REM  [上翻页][下翻页]  调整射击方向
+7 REM  [输入]            切换调整精度(1°/15°)
+8 REM  [空格]            待机(MP+20%)
+9 REM  [上]+[上]         常规射击
+10 REM [上]+[下]         制导交换(MP-100%)
+11 REM [上]+[左]         多重射击(MP-100%)
+12 REM [上]+[右]         辐射武器(MP-100%)
+13 REM [下]+[上]         未知武器(MP-100%)  条件：需要HP<25%
+14 REM [下]+[下]         强化护甲(MP-50%)
+15 REM [下]+[左/右]      加固地形(MP-10%)
+16 REM [下]+[上翻页/下翻页]     铺设地雷(MP-10%)
+17 IH=50:IM=25:IS=1:IT=0:GOSUB 100:PRINT "Author: X'/ZYB","zybx@msn.com":K$=INKEY$:CLS
 20 PRINT "X-TANK II v2.20","For NC1020/CC880","Single-Player Game":K$=INKEY$
 30 AP=2
 40 CLS:AP=AP+(TH(0)>0 AND ACT=1 AND AP<8):ACT=0:GOSUB 2000
@@ -176,7 +177,7 @@
 4520 BOX 20,2,71,13,1,1
 4525 BOX 21,3,70,12,1,0
 4530 BOX 20,2,20+SP,13,1,1:LINE 20+TL(CP),3,20+TL(CP),12,(TL(CP)>=SP)
-4535 sleep 50:KC=PEEK(199)-128:IF KC>=0 THEN GOTO 4560
+4535 sleep 25:KC=PEEK(199)-128:IF KC>=0 THEN GOTO 4560
 4540 IF SP>50 THEN GOTO 4515 ELSE SP=SP+1
 4550 GOTO 4530
 4560 POKE 199,0
@@ -226,7 +227,7 @@
 5060 IF LX(0)>1 AND LY(0)>1 THEN BOX LX(0)-1,LY(0)-1,LX(0)+1,LY(0)+1,1,0
 5070 IF PX(0)>1 AND PY(0)>1 THEN BOX PX(0)-1,PY(0)-1,PX(0)+1,PY(0)+1,1,1
 5075 IF PX(0)>1 AND PY(0)>1 AND L THEN CIRCLE PX(0),PY(0),8
-5080 sleep 60:LX(0)=PX(0):LY(0)=PY(0)
+5080 sleep 35:LX(0)=PX(0):LY(0)=PY(0)
 5090 DP=INT(PX(0)/8)
 5095 IF 80-FH(DP)<=PY(0) THEN CT=1:GOTO 5490
 5100 FOR J=0  TO (AP-1)
