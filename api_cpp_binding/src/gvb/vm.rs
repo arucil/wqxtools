@@ -314,11 +314,18 @@ pub extern "C" fn gvb_utf16_to_byte_string(
     Ok(s) => s,
     Err(_) => return Either::Left(GvbStringError::InvalidUtf16),
   };
-  match unsafe { (*vm).0.byte_string_from_str(&s).into() } {
-    Ok(s) => Either::Right(unsafe { Array::new(s.into()) }),
-    Err(gvb::vm::r#type::StringError::InvalidChar(i, c)) => {
+  let (s, problems) = unsafe { (*vm).0.byte_string_from_str(&s).into() };
+  if let Some(p) = problems
+    .into_iter()
+    .find(|p| matches!(p, gvb::vm::r#type::StringProblem::InvalidChar(..)))
+  {
+    if let gvb::vm::r#type::StringProblem::InvalidChar(i, c) = p {
       Either::Left(GvbStringError::InvalidChar(i, c as _))
+    } else {
+      unreachable!()
     }
+  } else {
+    Either::Right(unsafe { Array::new(s.into()) })
   }
 }
 
