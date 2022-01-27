@@ -284,7 +284,7 @@ where
   pub fn byte_string_from_str(
     &self,
     s: &str,
-  ) -> std::result::Result<crate::ByteString, crate::StringError> {
+  ) -> (crate::ByteString, Vec<crate::StringProblem>) {
     ByteString::from_str(s, self.emoji_version, false)
   }
 

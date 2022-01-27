@@ -1205,7 +1205,7 @@ mod tests {
   }
 
   fn string(str: &str) -> ByteString {
-    ByteString::from_str(str, EmojiVersion::V2, true).unwrap()
+    ByteString::from_str(str, EmojiVersion::V2, true).0
   }
 
   fn pad_text_buffer(mut s: ByteString) -> ByteString {

@@ -5,17 +5,14 @@ use std::num::NonZeroUsize;
 
 use super::{
   Addr, Alignment, ByteString, CmpKind, DatumIndex, Instr, InstrKind, Location,
-  PrintMode, ScreenMode, StringError, Symbol, DUMMY_ADDR, FISRT_DATUM_INDEX,
+  PrintMode, ScreenMode, StringProblem, Symbol, DUMMY_ADDR, FISRT_DATUM_INDEX,
 };
 use crate::ast::{
   BinaryOpKind, FileMode, Range, StmtKind, SysFuncKind, UnaryOpKind,
 };
 use crate::diagnostic::Diagnostic;
 use crate::util::mbf5::Mbf5;
-use crate::{
-  compiler::{CharError, CodeEmitter},
-  machine::EmojiVersion,
-};
+use crate::{compiler::CodeEmitter, machine::EmojiVersion};
 use string_interner::StringInterner;
 
 use super::Datum;
@@ -27,6 +24,7 @@ pub struct CodeGen {
   pub(super) data: Vec<Datum>,
   pub(super) code: Vec<Instr>,
   cur_line: usize,
+  diagnostics: Vec<(usize, Diagnostic)>,
 }
 
 impl CodeGen {
@@ -37,6 +35,7 @@ impl CodeGen {
       data: vec![],
       code: vec![],
       cur_line: 0,
+      diagnostics: vec![],
     }
   }
 
@@ -48,6 +47,45 @@ impl CodeGen {
       },
       kind,
     })
+  }
+
+  fn add_error(&mut self, range: Range, message: impl ToString) {
+    self
+      .diagnostics
+      .push((self.cur_line, Diagnostic::new_error(range, message)));
+  }
+
+  fn add_warning(&mut self, range: Range, message: impl ToString) {
+    self
+      .diagnostics
+      .push((self.cur_line, Diagnostic::new_warning(range, message)));
+  }
+
+  fn add_string_problems(
+    &mut self,
+    problems: Vec<StringProblem>,
+    range_offset: isize,
+  ) {
+    for problem in problems {
+      match problem {
+        StringProblem::UnrecogEmoji(i, c, code) => {
+          self.add_warning(
+            Range::new(i, i + c.len_utf8()).offset(range_offset),
+            format!("无法识别的符号 0x{:04X}。可能是选择了错误的机型", code),
+          );
+        }
+        StringProblem::InvalidChar(i, c) => {
+          self.add_error(
+            Range::new(i, i + c.len_utf8()).offset(range_offset),
+            if (c as u32) < 0x10000 {
+              format!("非法字符：U+{:04X}", c as u32)
+            } else {
+              format!("非法字符：U+{:06X}", c as u32)
+            },
+          );
+        }
+      }
+    }
   }
 }
 
@@ -156,21 +194,15 @@ impl CodeEmitter for CodeGen {
     range: Range,
     value: String,
     is_quoted: bool,
-  ) -> Result<(Self::DatumIndex, usize), CharError> {
+  ) -> (Self::DatumIndex, usize) {
     let index = DatumIndex(self.data.len());
-    let value = match ByteString::from_str(value, self.emoji_version, true) {
-      Ok(value) => value,
-      Err(StringError::InvalidChar(i, c)) => {
-        return Err(CharError {
-          range: Range::new(i, i + c.len_utf8())
-            .offset(range.start as isize + is_quoted as isize),
-          char: c,
-        })
-      }
-    };
+    let (value, problems) =
+      ByteString::from_str(value, self.emoji_version, true);
+    let range_offset = range.start as isize + is_quoted as isize;
+    self.add_string_problems(problems, range_offset);
     let len = value.len();
     self.data.push(Datum { value, is_quoted });
-    Ok((index, len))
+    (index, len)
   }
 
   fn begin_def_fn(
@@ -410,23 +442,13 @@ impl CodeEmitter for CodeGen {
     self.push_instr(range, InstrKind::PushVar(sym));
   }
 
-  fn emit_string(
-    &mut self,
-    range: Range,
-    str: String,
-  ) -> Result<usize, CharError> {
-    let str = match ByteString::from_str(str, self.emoji_version, true) {
-      Ok(str) => str,
-      Err(StringError::InvalidChar(i, c)) => {
-        return Err(CharError {
-          range: Range::new(i, i + c.len_utf8()).offset((range.start + 1) as _),
-          char: c,
-        })
-      }
-    };
+  fn emit_string(&mut self, range: Range, str: String) -> usize {
+    let (str, problems) = ByteString::from_str(str, self.emoji_version, true);
+    let range_offset = (range.start + 1) as _;
+    self.add_string_problems(problems, range_offset);
     let len = str.len();
     self.push_instr(range, InstrKind::PushStr(str));
-    Ok(len)
+    len
   }
 
   fn emit_inkey(&mut self, range: Range) {
@@ -497,16 +519,15 @@ impl CodeEmitter for CodeGen {
   }
 
   fn clean_up(&mut self) -> Vec<(usize, Diagnostic)> {
-    let mut diags = vec![];
-    self.patch_while_instr(&mut diags);
-    self.convert_for_loop_to_sleep(&mut diags);
+    self.patch_while_instr();
+    self.convert_for_loop_to_sleep();
     self.push_instr(Range::empty(0), InstrKind::End);
-    diags
+    std::mem::replace(&mut self.diagnostics, vec![])
   }
 }
 
 impl CodeGen {
-  fn patch_while_instr(&mut self, diagnostics: &mut Vec<(usize, Diagnostic)>) {
+  fn patch_while_instr(&mut self) {
     let mut wend_stack: Vec<Addr> = vec![];
 
     for (i, instr) in self.code.iter_mut().enumerate().rev() {
@@ -516,7 +537,7 @@ impl CodeGen {
           if let Some(i) = wend_stack.pop() {
             *end = i;
           } else {
-            diagnostics.push((
+            self.diagnostics.push((
               instr.loc.line,
               Diagnostic::new_error(
                 instr.loc.range.clone(),
@@ -532,10 +553,7 @@ impl CodeGen {
     }
   }
 
-  fn convert_for_loop_to_sleep(
-    &mut self,
-    _diagnostics: &mut Vec<(usize, Diagnostic)>,
-  ) {
+  fn convert_for_loop_to_sleep(&mut self) {
     for i in 0..self.code.len() {
       match &self.code[i].kind {
         InstrKind::ForLoop { name, has_step } => {

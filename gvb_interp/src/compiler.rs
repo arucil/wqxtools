@@ -5,11 +5,6 @@ use smallvec::SmallVec;
 use std::fmt::{self, Display, Formatter};
 use std::num::NonZeroUsize;
 
-pub struct CharError {
-  pub range: Range,
-  pub char: char,
-}
-
 pub trait CodeEmitter {
   type Symbol: Copy;
   type Addr: Copy;
@@ -21,13 +16,15 @@ pub trait CodeEmitter {
 
   fn emit_op(&mut self, range: Range, kind: &StmtKind, arity: usize);
 
+  /// Returns datum index and length of string.
+  ///
   /// `range` includes quotes if `is_quoted` is true.
   fn emit_datum(
     &mut self,
     range: Range,
     datum: String,
     is_quoted: bool,
-  ) -> Result<(Self::DatumIndex, usize), CharError>;
+  ) -> (Self::DatumIndex, usize);
 
   fn begin_def_fn(
     &mut self,
@@ -122,12 +119,10 @@ pub trait CodeEmitter {
   fn emit_number(&mut self, range: Range, num: Mbf5);
   fn emit_var(&mut self, range: Range, sym: Self::Symbol);
 
+  /// Returns length of string.
+  ///
   /// `range` includes quotes
-  fn emit_string(
-    &mut self,
-    range: Range,
-    str: String,
-  ) -> Result<usize, CharError>;
+  fn emit_string(&mut self, range: Range, str: String) -> usize;
 
   fn emit_inkey(&mut self, range: Range);
   fn emit_index(
@@ -224,18 +219,6 @@ impl<'a, 'b, E: CodeEmitter, T> CompileState<'a, 'b, E, T> {
     unsafe { &mut *self.parsed }
       .diagnostics
       .push(Diagnostic::new_error(range, message));
-  }
-
-  fn add_invalid_char_error(&mut self, CharError { range, char }: CharError) {
-    self.add_error(
-      range,
-      // TODO check if c is printable
-      if (char as u32) < 0x10000 {
-        format!("非法字符：U+{:04X}", char as u32)
-      } else {
-        format!("非法字符：U+{:06X}", char as u32)
-      },
-    );
   }
 
   fn add_warning(&mut self, range: Range, message: impl ToString) {
@@ -626,22 +609,16 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E, ProgramLine> {
       } else {
         text.to_owned()
       };
-      match self.code_emitter.emit_datum(
+      let (index, len) = self.code_emitter.emit_datum(
         datum.range.clone(),
         text,
         datum.is_quoted,
-      ) {
-        Ok((index, len)) => {
-          if len > 255 {
-            self.add_error(datum.range.clone(), "字符串太长，长度超出 255");
-          }
-          if data_index.is_none() {
-            data_index = Some(index);
-          }
-        }
-        Err(err) => {
-          self.add_invalid_char_error(err);
-        }
+      );
+      if len > 255 {
+        self.add_error(datum.range.clone(), "字符串太长，长度超出 255");
+      }
+      if data_index.is_none() {
+        data_index = Some(index);
       }
     }
 
@@ -1277,18 +1254,11 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E, ProgramLine> {
         if text.ends_with('"') {
           text = &text[..text.len() - 1];
         }
-        match self
+        let len = self
           .code_emitter
-          .emit_string(prompt.clone(), text.to_owned())
-        {
-          Ok(len) => {
-            if len > 255 {
-              self.add_error(prompt.clone(), "字符串太长，长度超出 255");
-            }
-          }
-          Err(err) => {
-            self.add_invalid_char_error(err);
-          }
+          .emit_string(prompt.clone(), text.to_owned());
+        if len > 255 {
+          self.add_error(prompt.clone(), "字符串太长，长度超出 255");
         }
         self
           .code_emitter
@@ -1615,18 +1585,11 @@ impl<'a, 'b, E: CodeEmitter, T> CompileState<'a, 'b, E, T> {
         if text.ends_with('"') {
           text = &text[..text.len() - 1];
         }
-        match self
+        let len = self
           .code_emitter
-          .emit_string(range.clone(), text.to_owned())
-        {
-          Ok(len) => {
-            if len > 255 {
-              self.add_error(range.clone(), "字符串太长，长度超出 255");
-            }
-          }
-          Err(err) => {
-            self.add_invalid_char_error(err);
-          }
+          .emit_string(range.clone(), text.to_owned());
+        if len > 255 {
+          self.add_error(range.clone(), "字符串太长，长度超出 255");
         }
         Type::String
       }

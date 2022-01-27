@@ -21,7 +21,8 @@ impl DerefMut for ByteString {
 }
 
 #[derive(Debug, Clone)]
-pub enum StringError {
+pub enum StringProblem {
+  UnrecogEmoji(usize, char, u16),
   InvalidChar(usize, char),
 }
 
@@ -34,9 +35,10 @@ impl ByteString {
     str: S,
     emoji_version: EmojiVersion,
     add_0x1f: bool,
-  ) -> Result<Self, StringError> {
+  ) -> (Self, Vec<StringProblem>) {
     let str = str.as_ref();
     let mut bytes = vec![];
+    let mut problems = vec![];
     for (i, c) in str.char_indices() {
       let b = c as u32;
       if b < 128 {
@@ -48,20 +50,24 @@ impl ByteString {
         }
         bytes.push((c >> 8) as _);
         bytes.push(c as _);
-      } else if let Some(c) = emoji_version
-        .char_to_code(c)
-        .or_else(|| EmojiVersion::fallback_char_to_code(c))
-      {
+      } else if let Some(code) = emoji_version.char_to_code(c) {
         if add_0x1f {
           bytes.push(0x1f);
         }
-        bytes.push((c >> 8) as _);
-        bytes.push(c as _);
+        bytes.push((code >> 8) as _);
+        bytes.push(code as _);
+      } else if let Some(code) = EmojiVersion::fallback_char_to_code(c) {
+        problems.push(StringProblem::UnrecogEmoji(i, c, code));
+        if add_0x1f {
+          bytes.push(0x1f);
+        }
+        bytes.push((code >> 8) as _);
+        bytes.push(code as _);
       } else {
-        return Err(StringError::InvalidChar(i, c));
+        problems.push(StringProblem::InvalidChar(i, c));
       }
     }
-    Ok(Self(bytes))
+    (Self(bytes), problems)
   }
 
   pub fn to_string_lossy(&self, emoji_version: EmojiVersion) -> String {
