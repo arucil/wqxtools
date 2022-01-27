@@ -96,11 +96,11 @@ const tinyDigitData = Buffer.from(new Uint8Array([
   0b10100000,
   0b10100000,
 
-  0b11100000, // B
+  0b11000000, // B
   0b10100000,
   0b11000000,
   0b10100000,
-  0b11100000,
+  0b11000000,
 
   0b11100000, // C
   0b10000000,
@@ -127,7 +127,7 @@ const tinyDigitData = Buffer.from(new Uint8Array([
   0b10000000,
 ]))
 const tinyDigitPaths = Array.from(Array(16).keys())
-  .map(i => makePath(tinyDigitData.slice(i * 5, i * 5 + 5), 0, 3, 5))
+  .map(i => makePath(tinyDigitData.slice(i * 5, i * 5 + 5), 0, 0, 3, 5))
 
 // gb2312
 {
@@ -141,9 +141,9 @@ const tinyDigitPaths = Array.from(Array(16).keys())
   const font = new opentype.Font({
     familyName: 'WenQuXing',
     styleName: 'Regular',
-    unitsPerEm: 16.4 * SCALE,
-    ascender: 15.9 * SCALE,
-    descender: 0,
+    unitsPerEm: 16 * SCALE,
+    ascender: 18 * SCALE,
+    descender: -4 * SCALE,
     glyphs,
   })
   font.download('WenQuXing.ttf')
@@ -154,7 +154,7 @@ function makeAsciiGlyphs(): opentype.Glyph[] {
   const glyphs = []
 
   for (let i = 1; i < 128; ++i) {
-    glyphs.push(makeGlyph(i, data.slice(i * 16, i * 16 + 16), -2, 8, 16))
+    glyphs.push(makeGlyph(i, data.slice(i * 16, i * 16 + 16), -SCALE / 2, -4 * SCALE, 8, 16))
   }
 
   return glyphs
@@ -174,7 +174,7 @@ function makeGb2312Glyphs(): opentype.Glyph[] {
     if (cp === 0xfffd) {
       continue
     }
-    glyphs.push(makeGlyph(cp, data.slice(i * 32, i * 32 + 32), -1, 16, 16))
+    glyphs.push(makeGlyph(cp, data.slice(i * 32, i * 32 + 32), 0, -3 * SCALE, 16, 16))
   }
 
   return glyphs
@@ -194,27 +194,32 @@ function offsetPathCmd(x: number, y: number) {
 function makeIconGlyphs(): opentype.Glyph[] {
   const data = fs.readFileSync('../data/icon_16.dat')
   const glyphs = []
+  let offsetX = 0
+  let offsetY = -3 * SCALE
 
   for (let i = 0; i < 527; ++i) {
     const cp = 0xe000 + i
-    glyphs.push(makeGlyph(cp, data.slice(i * 32, i * 32 + 32), -1, 16, 16))
+    glyphs.push(makeGlyph(cp, data.slice(i * 32, i * 32 + 32), offsetX, offsetY, 16, 16))
   }
+
+  offsetX = SCALE/2
+  offsetY = -2 * SCALE
 
   for (let i = 0xe300; i <= 0xeaff; ++i) {
     const code = i - 0xe300 + 0xf800
     const path = new opentype.Path()
-    path.moveTo(0, 0)
-    path.lineTo(0, 1500)
-    path.lineTo(1500, 1500)
-    path.lineTo(1500, 0)
-    path.moveTo(70, 70)
-    path.lineTo(1430, 70)
-    path.lineTo(1430, 1430)
-    path.lineTo(70, 1430)
-    path.extend(tinyDigitPaths[code >> 12].commands.map(offsetPathCmd(380, 800)))
-    path.extend(tinyDigitPaths[(code >> 8) & 15].commands.map(offsetPathCmd(820, 800)))
-    path.extend(tinyDigitPaths[(code >> 4) & 15].commands.map(offsetPathCmd(380, 200)))
-    path.extend(tinyDigitPaths[(code) & 15].commands.map(offsetPathCmd(820, 200)))
+    path.moveTo(offsetX + 0, offsetY + 0)
+    path.lineTo(offsetX + 0, offsetY + 1500)
+    path.lineTo(offsetX + 1500, offsetY + 1500)
+    path.lineTo(offsetX + 1500, offsetY + 0)
+    path.moveTo(offsetX + 70, offsetY + 70)
+    path.lineTo(offsetX + 1430, offsetY + 70)
+    path.lineTo(offsetX + 1430, offsetY + 1430)
+    path.lineTo(offsetX + 70, offsetY + 1430)
+    path.extend(tinyDigitPaths[code >> 12].commands.map(offsetPathCmd(offsetX + 380, offsetY + 800)))
+    path.extend(tinyDigitPaths[(code >> 8) & 15].commands.map(offsetPathCmd(offsetX + 820, offsetY + 800)))
+    path.extend(tinyDigitPaths[(code >> 4) & 15].commands.map(offsetPathCmd(offsetX + 380, offsetY + 200)))
+    path.extend(tinyDigitPaths[(code) & 15].commands.map(offsetPathCmd(offsetX + 820, offsetY + 200)))
     glyphs.push(new opentype.Glyph({
       name: 'U+' + i.toString(16).padStart(4, '0'),
       unicode: i,
@@ -228,6 +233,7 @@ function makeIconGlyphs(): opentype.Glyph[] {
 
 function makePath(
   data: Buffer,
+  offsetX: number,
   offsetY: number,
   width: number,
   height: number
@@ -239,7 +245,6 @@ function makePath(
   const getY = (y: number) => height - y - 1
 
   for (let y = 0; y < height; ++y) {
-    const y1 = y + offsetY
     for (let x = 0; x < width; ++x) {
       const bitMask = getBitMask(x)
       if ((data[getY(y) * byteWidth + (x >>> 3)] & bitMask) === 0) {
@@ -248,29 +253,29 @@ function makePath(
 
       // top
       if (y === height - 1 || (data[getY(y + 1) * byteWidth + (x >>> 3)] & bitMask) === 0) {
-        const from = (y1 + 1) * 100 + x
-        const to = (y1 + 1) * 100 + (x + 1)
+        const from = (y + 1) * 100 + x
+        const to = (y + 1) * 100 + (x + 1)
         initValue(unitSegments, from).push(to)
       }
 
       // bottom
       if (y === 0 || (data[getY(y - 1) * byteWidth + (x >>> 3)] & bitMask) === 0) {
-        const from = y1 * 100 + (x + 1)
-        const to = y1 * 100 + x
+        const from = y * 100 + (x + 1)
+        const to = y * 100 + x
         initValue(unitSegments, from).push(to)
       }
 
       // left
       if (x === 0 || (data[getY(y) * byteWidth + ((x - 1) >>> 3)] & getBitMask(x - 1)) === 0) {
-        const from = y1 * 100 + x
-        const to = (y1 + 1) * 100 + x
+        const from = y * 100 + x
+        const to = (y + 1) * 100 + x
         initValue(unitSegments, from).push(to)
       }
 
       // right
       if (x === width - 1 || (data[getY(y) * byteWidth + ((x + 1) >>> 3)] & getBitMask(x + 1)) === 0) {
-        const from = (y1 + 1) * 100 + (x + 1)
-        const to = y1 * 100 + (x + 1)
+        const from = (y + 1) * 100 + (x + 1)
+        const to = y * 100 + (x + 1)
         initValue(unitSegments, from).push(to)
       }
     }
@@ -323,10 +328,12 @@ function makePath(
       segments.pop()
     }
 
-    path.moveTo(segments[0][0] % 100 * SCALE, (segments[0][0] / 100 | 0) * SCALE)
+    path.moveTo(
+      segments[0][0] % 100 * SCALE + offsetX,
+      (segments[0][0] / 100 | 0) * SCALE + offsetY)
 
     for (const [, to] of segments) {
-      path.lineTo(to % 100 * SCALE, (to / 100 | 0) * SCALE)
+      path.lineTo(to % 100 * SCALE + offsetX, (to / 100 | 0) * SCALE + offsetY)
     }
   }
 
@@ -336,6 +343,7 @@ function makePath(
 function makeGlyph(
   codepoint: number,
   data: Buffer,
+  offsetX: number,
   offsetY: number,
   width: number,
   height: number
@@ -345,7 +353,7 @@ function makeGlyph(
     name: 'U+' + codepoint.toString(16).padStart(4, '0'),
     unicode: codepoint,
     advanceWidth: width * SCALE,
-    path: makePath(data, offsetY, width, height),
+    path: makePath(data, offsetX, offsetY, width, height),
   })
 }
 

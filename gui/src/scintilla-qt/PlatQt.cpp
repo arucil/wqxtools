@@ -715,7 +715,7 @@ XYPOSITION SurfaceImpl::Descent(const Font *font) {
   // See: QFontEngineWin::descent which says:
   // ### we subtract 1 to even out the historical +1 in QFontMetrics's
   // ### height=asc+desc+1 equation. Fix in Qt5.
-  return metrics.descent() + 1;
+  return metrics.descent()/* + 1*/;
 }
 
 XYPOSITION SurfaceImpl::InternalLeading(const Font * /* font */) {
