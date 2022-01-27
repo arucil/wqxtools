@@ -114,17 +114,6 @@ impl DefaultDevice {
     }
   }
 
-  pub fn key(&mut self) -> Option<u8> {
-    let addr = self.props.key_buffer_addr as usize;
-    let key = self.memory[addr];
-    if key < 128 {
-      None
-    } else {
-      self.memory[addr] &= 0x7f;
-      Some(key & 0x7f)
-    }
-  }
-
   pub fn blink_cursor(&mut self) {
     if self.screen_mode != ScreenMode::Text {
       return;
@@ -918,6 +907,17 @@ impl Device for DefaultDevice {
     }
   }
 
+  fn key(&mut self) -> Option<u8> {
+    let addr = self.props.key_buffer_addr as usize;
+    let key = self.memory[addr];
+    if key < 128 {
+      None
+    } else {
+      self.memory[addr] &= 0x7f;
+      Some(key & 0x7f)
+    }
+  }
+
   fn read_byte(&self, addr: u16) -> u8 {
     if let Some(prop) = self.props.addrs.get(addr as _) {
       let now = Local::now();
@@ -960,11 +960,13 @@ impl Device for DefaultDevice {
   }
 
   fn user_quit(&self) -> bool {
+    let esc = self.memory[self.props.key_buffer_addr as usize]
+      == 128 + KeyCode::Esc as u8;
     if self.props.key_buffer_quit {
-      self.memory[self.props.key_buffer_addr as usize] == 128 + 27
+      esc
     } else {
       let (addr, mask) = self.props.key_masks[27].unwrap();
-      self.memory[addr as usize] & mask == 0
+      esc && self.memory[addr as usize] & mask == 0
     }
   }
 

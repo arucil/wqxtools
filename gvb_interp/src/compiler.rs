@@ -1554,7 +1554,7 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E, ProgramLine> {
             } else if matches!(&elems[i + 1], PrintElement::Expr(_)) {
               self
                 .code_emitter
-                .emit_number(elem_range.clone(), Mbf5::one());
+                .emit_number(elem_range.clone(), Mbf5::ONE);
               self.code_emitter.emit_print_spc(elem_range.clone());
             }
           }

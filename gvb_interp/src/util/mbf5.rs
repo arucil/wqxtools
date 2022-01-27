@@ -421,17 +421,11 @@ impl PartialEq<f64> for Mbf5 {
 }
 
 impl Mbf5 {
-  pub fn zero() -> Self {
-    Self(0.0)
-  }
+  pub const ZERO: Self = Self(0.0);
 
-  pub fn one() -> Self {
-    Self(1.0)
-  }
+  pub const ONE: Self = Self(1.0);
 
-  pub fn neg_one() -> Self {
-    Self(-1.0)
-  }
+  pub const NEG_ONE: Self = Self(-1.0);
 
   pub fn is_positive(&self) -> bool {
     self.0 > 0.0

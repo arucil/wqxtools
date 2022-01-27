@@ -245,11 +245,11 @@ void GvbSimWindow::stop() {
   if (result.tag == api::GvbStopVmResult::Tag::Left) {
     auto msg = QString::fromUtf8(result.left._0.data, result.left._0.len);
     m_message.setValue(QString("程序运行出错：") + msg);
-    destroy_string(result.left._0);
+    api::destroy_string(result.left._0);
   }
   api::gvb_reset_exec_result(&m_execResult);
   m_execResult.tag = api::GvbExecResult::Tag::End;
-  m_screen->update();
+  QTimer::singleShot(0, m_screen, qOverload<>(&QWidget::update));
 }
 
 void GvbSimWindow::execLater() {
@@ -277,6 +277,13 @@ void GvbSimWindow::execLater() {
         break;
       }
       case api::GvbExecResult::Tag::KeyboardInput: {
+        if (m_execResult.keyboard_input.fields.len == 0) {
+          QVector<api::GvbKeyboardInput> inputData;
+          m_execInput.tag = api::GvbExecInput::Tag::KeyboardInput;
+          m_execInput.keyboard_input._0 =
+            api::gvb_new_input_array(inputData.constData(), inputData.size());
+          break;
+        }
         startCursorTimer();
         GvbSimInputDialog inputDlg(this, m_vm, m_execResult.keyboard_input);
         inputDlg.setModal(true);

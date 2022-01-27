@@ -4,6 +4,7 @@ use crate::{
 };
 use gvb_interp as gvb;
 use std::convert::TryInto;
+use gvb::device::Device;
 
 pub struct GvbVirtualMachine(
   pub(crate) gvb::VirtualMachine<'static, gvb::device::default::DefaultDevice>,
@@ -47,6 +48,7 @@ pub enum GvbExecResult {
   Sleep(u64),
   KeyboardInput {
     prompt: Maybe<Utf8String>,
+    /// Fields may be empty. If so, resume execution immediately.
     fields: Array<GvbKeyboardInputType>,
   },
   InKey,

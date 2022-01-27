@@ -8,7 +8,7 @@ use std::time::Duration;
 
 use crate::ast::{self, Range, SysFuncKind};
 use crate::compiler::compile_fn_body;
-use crate::device::{AsmExecState, Device, DrawMode, FileHandle};
+use crate::device::{AsmExecState, Device, DrawMode, FileHandle, KeyCode};
 use crate::diagnostic::{contains_errors, Diagnostic};
 use crate::machine::EmojiVersion;
 use crate::parser::{parse_expr, read_number};
@@ -85,7 +85,10 @@ enum Type {
 enum ExecState<S> {
   Done,
   Normal,
-  WaitForKeyboardInput { lvalues: Vec<(Location, LValue)> },
+  WaitForKeyboardInput {
+    lvalues: Vec<(Location, LValue)>,
+    skip_first: bool,
+  },
   WaitForKey,
   AsmSuspend(S),
 }
@@ -161,6 +164,7 @@ pub enum ExecResult {
   Sleep(Duration),
   KeyboardInput {
     prompt: Option<String>,
+    /// Fields may be empty. If so, resume execution immediately.
     fields: Vec<KeyboardInputType>,
   },
   InKey,
@@ -402,9 +406,10 @@ where
     match std::mem::replace(&mut self.state, ExecState::Normal) {
       ExecState::Done => return ExecResult::End,
       ExecState::WaitForKey => self.assign_key(input),
-      ExecState::WaitForKeyboardInput { lvalues } => {
-        self.assign_input(input, lvalues)
-      }
+      ExecState::WaitForKeyboardInput {
+        lvalues,
+        skip_first,
+      } => self.assign_input(input, lvalues, skip_first),
       ExecState::AsmSuspend(s) => {
         if let Some(s) = self.device.exec_asm(&mut steps, AsmExecState::Cont(s))
         {
@@ -1000,10 +1005,21 @@ where
         }
         self.device.flush();
 
+        let skip_first;
+        if matches!(self.device.key(), Some(c) if c == KeyCode::Enter as u8)
+          && !matches!(fields.last(), Some(KeyboardInputType::Func { .. }))
+        {
+          fields.pop();
+          skip_first = true;
+        } else {
+          skip_first = false;
+        }
+
         fields.reverse();
         lvalues.reverse();
         self.state.input(
           lvalues,
+          skip_first,
           prompt.map(|s| s.to_string_lossy(self.emoji_version)),
           fields,
         )?;
@@ -1640,11 +1656,11 @@ where
       SysFuncKind::Sgn => {
         let value = self.num_stack.pop().unwrap().1;
         let num = if value.is_positive() {
-          Mbf5::one().into()
+          Mbf5::ONE.into()
         } else if value.is_negative() {
-          Mbf5::neg_one().into()
+          Mbf5::NEG_ONE.into()
         } else {
-          Mbf5::zero().into()
+          Mbf5::ZERO.into()
         };
         self.num_stack.push((loc, num));
         Ok(())
@@ -1701,7 +1717,7 @@ where
         let (len, _) = read_number(&*value, false, false);
         let num = unsafe { std::str::from_utf8_unchecked(&value[..len]) }
           .parse::<Mbf5>()
-          .unwrap_or(Mbf5::zero());
+          .unwrap_or(Mbf5::ZERO);
         self.num_stack.push((loc, num));
         Ok(())
       }
@@ -1897,7 +1913,7 @@ where
           let value = if ty == Type::Integer {
             Value::Integer(0)
           } else {
-            Value::Real(Mbf5::zero())
+            Value::Real(Mbf5::ZERO)
           };
           self.bindings.store_value(lvalue, value);
         } else {
@@ -2012,7 +2028,7 @@ where
     let step = if has_step {
       self.num_stack.pop().unwrap().1
     } else {
-      Mbf5::one()
+      Mbf5::ONE
     };
     let end = self.num_stack.pop().unwrap().1;
     let start = self.num_stack.pop().unwrap().1;
@@ -2148,11 +2164,28 @@ where
     &mut self,
     input: ExecInput,
     lvalues: Vec<(Location, LValue)>,
+    skip_first: bool,
   ) {
     match input {
-      ExecInput::KeyboardInput(values) => {
+      ExecInput::KeyboardInput(mut values) => {
         let mut comma = false;
-        for ((lval_loc, lvalue), value) in lvalues.into_iter().zip(values) {
+        let mut lvalues = lvalues.into_iter().peekable();
+        if skip_first {
+          comma = true;
+          match &lvalues.peek().unwrap().1 {
+            LValue::Var { name } | LValue::Index { name, .. } => {
+              match symbol_type(&self.interner, *name) {
+                Type::Integer => values.insert(0, KeyboardInput::Integer(0)),
+                Type::Real => values.insert(0, KeyboardInput::Real(Mbf5::ZERO)),
+                Type::String => {
+                  values.insert(0, KeyboardInput::String(ByteString::new()))
+                }
+              }
+            }
+            LValue::Fn { .. } => unreachable!(),
+          }
+        }
+        for ((lval_loc, lvalue), value) in lvalues.zip(values) {
           if comma {
             self.device.print(b",");
           }
@@ -2527,10 +2560,14 @@ impl<S> ExecState<S> {
   fn input(
     &mut self,
     lvalues: Vec<(Location, LValue)>,
+    skip_first: bool,
     prompt: Option<String>,
     fields: Vec<KeyboardInputType>,
   ) -> Result<!> {
-    *self = Self::WaitForKeyboardInput { lvalues };
+    *self = Self::WaitForKeyboardInput {
+      lvalues,
+      skip_first,
+    };
     Err(ExecResult::KeyboardInput { prompt, fields })
   }
 
@@ -2601,7 +2638,7 @@ fn symbol_type(interner: &StringInterner, symbol: Symbol) -> Type {
 
 fn u32_to_random_number(x: u32) -> Mbf5 {
   if x == 0 {
-    return Mbf5::zero();
+    return Mbf5::ZERO;
   }
   let n = x.leading_zeros();
   let exponent = (0x80 - n) as _;
@@ -2629,7 +2666,7 @@ impl ArrayData {
   fn new(ty: Type, size: usize) -> Self {
     match ty {
       Type::Integer => ArrayData::Integer(vec![0; size]),
-      Type::Real => ArrayData::Real(vec![Mbf5::zero(); size]),
+      Type::Real => ArrayData::Real(vec![Mbf5::ZERO; size]),
       Type::String => ArrayData::String(vec![ByteString::new(); size]),
     }
   }
@@ -2697,7 +2734,7 @@ impl Bindings {
           .entry(name)
           .or_insert_with(|| match ty {
             Type::Integer => Value::Integer(0),
-            Type::Real => Value::Real(Mbf5::zero()),
+            Type::Real => Value::Real(Mbf5::ZERO),
             Type::String => Value::String(ByteString::new()),
           })
           .clone()
@@ -3004,6 +3041,11 @@ mod tests {
     fn check_key(&self, key: u8) -> bool {
       add_log(self.log.clone(), format!("check key {}", key));
       false
+    }
+
+    fn key(&mut self) -> Option<u8> {
+      add_log(self.log.clone(), format!("take key"));
+      None
     }
 
     fn user_quit(&self) -> bool {

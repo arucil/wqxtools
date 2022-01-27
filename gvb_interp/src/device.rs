@@ -4,6 +4,11 @@ use super::{PrintMode, ScreenMode};
 
 pub mod default;
 
+pub enum KeyCode {
+  Enter = 13,
+  Esc = 27,
+}
+
 pub trait Device {
   type File: FileHandle;
   type AsmState;
@@ -51,6 +56,8 @@ pub trait Device {
   fn check_point(&self, coord: (i32, i32)) -> bool;
 
   fn check_key(&self, key: u8) -> bool;
+
+  fn key(&mut self) -> Option<u8>;
 
   fn read_byte(&self, addr: u16) -> u8;
 
