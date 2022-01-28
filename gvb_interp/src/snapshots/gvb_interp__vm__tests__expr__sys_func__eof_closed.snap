@@ -1,0 +1,15 @@
+---
+source: gvb_interp/src/vm.rs
+assertion_line: 4687
+expression: "run_with_file(r#\"\n10 open \"f\" input as 3:close 3\n20 print eof(3);\n30 open \"f\" binary as 3:close 3\n40 print eof(3);\n    \"#.trim(),\n              vec![(exec_error(3, 9, 15,\n                               \"EOF 函数只能用于以 INPUT 模式打开的文件，但 3 号文件是以 BINARY 模式打开的\"),\n                    ExecInput :: None)], b\"f.DAT\",\n              File::new(b\"AB,\\\",ab\\\"\\xff12\\xff\\xff\".to_vec()))"
+
+---
+open file "f.DAT", read: true, write: false, truncate: false
+close file
+get file len: 13
+get file pos: 0
+print "0"
+flush
+open file "f.DAT", read: true, write: true, truncate: false
+close file
+

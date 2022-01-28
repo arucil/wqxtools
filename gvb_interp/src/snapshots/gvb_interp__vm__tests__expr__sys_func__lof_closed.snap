@@ -1,0 +1,16 @@
+---
+source: gvb_interp/src/vm.rs
+assertion_line: 4787
+expression: "run_with_file(r#\"\n10 open \"f\" random as 2:close 2\n20 print lof(2);\n30 open \"f\" append as 1:close 1\n40 print lof(1);\n    \"#.trim(),\n              vec![(exec_error(3, 9, 15,\n                               \"LOF 函数只能用于以 RANDOM 模式打开的文件，但 1 号文件是以 APPEND 模式打开的\"),\n                    ExecInput :: None)], b\"f.DAT\",\n              File::new(b\"0123456789\".to_vec()))"
+
+---
+open file "f.DAT", read: true, write: true, truncate: false
+close file
+get file len: 10
+print "10"
+flush
+open file "f.DAT", read: false, write: true, truncate: false
+get file len: 10
+seek file: 10
+close file
+

@@ -10,7 +10,7 @@ pub enum KeyCode {
 }
 
 pub trait Device {
-  type File: FileHandle;
+  type File: FileHandle + Default;
   type AsmState;
 
   /// Range: [0, 4]
@@ -68,11 +68,12 @@ pub trait Device {
 
   fn open_file(
     &mut self,
+    file: &mut Self::File,
     name: &[u8],
     read: bool,
     write: bool,
     truncate: bool,
-  ) -> io::Result<Self::File>;
+  ) -> io::Result<()>;
 
   fn cls(&mut self);
 
@@ -116,7 +117,9 @@ pub trait FileHandle {
 
   fn read(&mut self, data: &mut [u8]) -> io::Result<usize>;
 
-  fn close(self) -> io::Result<()>;
+  fn close(&mut self) -> io::Result<()>;
+
+  fn is_open(&self) -> bool;
 }
 
 pub enum AsmExecState<S> {

@@ -3,7 +3,7 @@ use crate::machine::{AddrProp, MachineProps};
 use crate::ByteString;
 use chrono::prelude::*;
 use emulator_6502::{Interface6502, MOS6502};
-use std::fs::{File, OpenOptions};
+use std::fs::{File as FsFile, OpenOptions};
 use std::io::{self, prelude::*, SeekFrom};
 use std::path::PathBuf;
 
@@ -55,10 +55,19 @@ enum CursorState {
 }
 
 pub struct DefaultFileHandle {
-  file: File,
+  state: FileState,
   pos: usize,
-  data: Vec<u8>,
-  dirty: bool,
+}
+
+enum FileState {
+  Open {
+    file: FsFile,
+    data: Vec<u8>,
+    dirty: bool,
+  },
+  Closed {
+    len: usize,
+  },
 }
 
 impl DefaultDevice {
@@ -972,11 +981,12 @@ impl Device for DefaultDevice {
 
   fn open_file(
     &mut self,
+    file: &mut Self::File,
     name: &[u8],
     _read: bool,
     write: bool,
     truncate: bool,
-  ) -> io::Result<Self::File> {
+  ) -> io::Result<()> {
     let mut options = OpenOptions::new();
     options
       .read(true)
@@ -984,9 +994,8 @@ impl Device for DefaultDevice {
       .truncate(truncate)
       .create(write);
     let name = ByteString::from(name).to_string_lossy(self.props.emoji_version);
-    options
-      .open(self.data_dir.join(name))
-      .and_then(DefaultFileHandle::new)
+    let f = options.open(self.data_dir.join(name))?;
+    file.open(f)
   }
 
   fn cls(&mut self) {
@@ -1087,29 +1096,52 @@ impl Interface6502 for DefaultDevice {
 }
 
 impl DefaultFileHandle {
-  fn new(mut file: File) -> io::Result<Self> {
+  fn open(&mut self, mut file: FsFile) -> io::Result<()> {
     let mut data = vec![];
     file.read_to_end(&mut data)?;
-    Ok(Self {
-      file,
+    if matches!(&self.state, FileState::Open { .. }) {
+      Err(io::Error::new(io::ErrorKind::Other, "重复打开文件"))
+    } else {
+      self.state = FileState::Open {
+        file,
+        data,
+        dirty: false,
+      };
+      Ok(())
+    }
+  }
+}
+
+impl Default for DefaultFileHandle {
+  fn default() -> Self {
+    Self {
+      state: FileState::Closed { len: 0 },
       pos: 0,
-      data,
-      dirty: false,
-    })
+    }
   }
 }
 
 impl FileHandle for DefaultFileHandle {
   fn len(&self) -> io::Result<u64> {
-    Ok(self.data.len() as _)
+    match &self.state {
+      FileState::Open { data, .. } => Ok(data.len() as _),
+      FileState::Closed { len } => Ok(*len as _),
+    }
   }
 
   fn seek(&mut self, pos: u64) -> io::Result<()> {
-    if pos > self.data.len() as u64 {
-      Err(io::Error::new(io::ErrorKind::Other, "out of range"))
-    } else {
-      self.pos = pos as _;
-      Ok(())
+    match &self.state {
+      FileState::Open { data, .. } => {
+        if pos > data.len() as u64 {
+          Err(io::Error::new(io::ErrorKind::Other, "文件指针超出文件大小"))
+        } else {
+          self.pos = pos as _;
+          Ok(())
+        }
+      }
+      FileState::Closed { .. } => {
+        Err(io::Error::new(io::ErrorKind::Other, "未打开文件"))
+      }
     }
   }
 
@@ -1117,39 +1149,68 @@ impl FileHandle for DefaultFileHandle {
     Ok(self.pos as _)
   }
 
-  fn write(&mut self, data: &[u8]) -> io::Result<()> {
-    let data_end = self.pos + data.len();
-    if data_end > self.data.len() {
-      if data_end > 65534 {
-        return Err(io::Error::new(
-          io::ErrorKind::FileTooLarge,
-          format!("文件大小为 {} 字节，超出文件大小上限 65534", data_end),
-        ));
+  fn write(&mut self, written_data: &[u8]) -> io::Result<()> {
+    match &mut self.state {
+      FileState::Open { data, dirty, .. } => {
+        let data_end = self.pos + written_data.len();
+        let data_len = data.len();
+        if data_end > data_len {
+          if data_end > 65534 {
+            return Err(io::Error::new(
+              io::ErrorKind::FileTooLarge,
+              format!("文件大小为 {} 字节，超出文件大小上限 65534", data_end),
+            ));
+          }
+          data.resize(data_end, 0);
+        }
+        data[self.pos..self.pos + data_len].copy_from_slice(written_data);
+        self.pos = data_end;
+        *dirty = true;
+        Ok(())
       }
-      self.data.resize(data_end, 0);
+      FileState::Closed { .. } => {
+        Err(io::Error::new(io::ErrorKind::Other, "未打开文件"))
+      }
     }
-    self.data[self.pos..self.pos + data.len()].copy_from_slice(data);
-    self.pos += data.len();
-    self.dirty = true;
-    Ok(())
   }
 
-  fn read(&mut self, data: &mut [u8]) -> io::Result<usize> {
-    let mut len = data.len();
-    if self.pos + len > self.data.len() {
-      len = self.data.len() - self.pos;
+  fn read(&mut self, read_buf: &mut [u8]) -> io::Result<usize> {
+    match &mut self.state {
+      FileState::Open { data, .. } => {
+        let mut len = read_buf.len();
+        if self.pos + len > data.len() {
+          len = data.len() - self.pos;
+        }
+        read_buf[..len].copy_from_slice(&data[self.pos..self.pos + len]);
+        self.pos += len;
+        Ok(len as _)
+      }
+      FileState::Closed { .. } => {
+        Err(io::Error::new(io::ErrorKind::Other, "未打开文件"))
+      }
     }
-    data[..len].copy_from_slice(&self.data[self.pos..self.pos + len]);
-    self.pos += len;
-    Ok(len as _)
   }
 
-  fn close(mut self) -> io::Result<()> {
-    if self.dirty {
-      self.file.seek(SeekFrom::Start(0))?;
-      self.file.write_all(&self.data)?;
+  fn close(&mut self) -> io::Result<()> {
+    match &mut self.state {
+      FileState::Open { file, data, dirty } => {
+        let len = data.len();
+        if *dirty {
+          file.seek(SeekFrom::Start(0))?;
+          file.write_all(data)?;
+        }
+        self.state = FileState::Closed { len };
+        Ok(())
+      }
+      FileState::Closed { .. } => Err(io::Error::new(
+        io::ErrorKind::Other,
+        "未打开文件，不能关闭文件",
+      )),
     }
-    Ok(())
+  }
+
+  fn is_open(&self) -> bool {
+    matches!(&self.state, FileState::Open { .. })
   }
 }
 

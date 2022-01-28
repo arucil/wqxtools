@@ -50,7 +50,7 @@ pub struct VirtualMachine<'d, D: Device> {
   bindings: Bindings,
   fn_call_stack: Vec<FnCallRecord>,
   device: &'d mut D,
-  files: [Option<OpenFile<D::File>>; NUM_FILES],
+  files: [VmFile<D::File>; NUM_FILES],
   rng: WyRand,
   current_rand: u32,
   state: ExecState<D::AsmState>,
@@ -200,14 +200,15 @@ pub struct InputFuncBody {
   code: Vec<Instr>,
 }
 
-#[derive(Debug, Clone)]
-struct OpenFile<F> {
-  pub file: F,
+#[derive(Debug, Clone, Default)]
+struct VmFile<F> {
+  pub handle: F,
   pub mode: FileMode,
 }
 
 #[derive(Debug, Clone)]
 enum FileMode {
+  None,
   Input,
   Output,
   Append,
@@ -222,6 +223,12 @@ enum FileMode {
 struct RecordField {
   len: u8,
   lvalue: LValue,
+}
+
+impl Default for FileMode {
+  fn default() -> Self {
+    Self::None
+  }
 }
 
 impl InputFuncBody {
@@ -254,7 +261,7 @@ where
       bindings: Bindings::default(),
       fn_call_stack: vec![],
       device,
-      files: [None, None, None],
+      files: [Default::default(), Default::default(), Default::default()],
       rng: WyRand::new(),
       current_rand: 0,
       state: ExecState::Done,
@@ -395,8 +402,10 @@ where
 
   fn close_files(&mut self, loc: Location) -> Result<()> {
     for file in &mut self.files {
-      if let Some(file) = file.take() {
-        self.state.io(loc.clone(), "关闭文件", file.file.close())?;
+      if file.handle.is_open() {
+        self
+          .state
+          .io(loc.clone(), "关闭文件", file.handle.close())?;
       }
     }
     Ok(())
@@ -471,16 +480,21 @@ where
       ) => {{
         if $to_file {
           let filenum = self.get_filenum($end)?;
-          if let Some(file) = &mut self.files[filenum as usize] {
-            if let FileMode::Output | FileMode::Append = file.mode {
-              let $file = &mut file.file;
+          let file = &mut self.files[filenum as usize];
+          if !file.handle.is_open() {
+            self.state.error(loc, "未打开文件，不能执行 WRITE 操作")?;
+          }
+          match file.mode {
+            FileMode::Output | FileMode::Append => {
+              let $file = &mut file.handle;
               $write_file;
               if $end {
                 write_file!($file, &[0xffu8]);
               } else {
                 write_file!($file, b",");
               }
-            } else {
+            }
+            _ => {
               self.state.error(
                 loc,
                 format!(
@@ -491,8 +505,6 @@ where
                 ),
               )?;
             }
-          } else {
-            self.state.error(loc, "未打开文件，不能执行 WRITE 操作")?;
           }
         } else {
           $write_screen;
@@ -518,20 +530,25 @@ where
         let record = record - 1;
 
         let filenum = self.get_filenum(true)?;
-        if let Some(file) = &mut self.files[filenum as usize] {
-          if let FileMode::Random { record_len, fields } = &file.mode {
+        let file = &mut self.files[filenum as usize];
+        if !file.handle.is_open() {
+          self.state.error(loc, "未打开文件")?;
+        }
+        match &file.mode {
+          FileMode::Random { record_len, fields } => {
             let offset = record as u64 * *record_len as u64;
             self.state.io(
               loc.clone(),
               "设置文件指针",
-              file.file.seek(offset),
+              file.handle.seek(offset),
             )?;
 
             let $record_len = *record_len;
             let $fields = &fields[..];
-            let $file = &mut file.file;
+            let $file = &mut file.handle;
             $body;
-          } else {
+          }
+          _ => {
             self.state.error(
               loc,
               format!(
@@ -543,8 +560,6 @@ where
               ),
             )?;
           }
-        } else {
-          self.state.error(loc, "未打开文件")?;
         }
       };
     }
@@ -1026,22 +1041,22 @@ where
       }
       InstrKind::FileInput { fields: num_fields } => {
         let filenum = self.get_filenum(true)?;
-        let file = if let Some(file) = &mut self.files[filenum as usize] {
-          if let FileMode::Input = file.mode {
-            &mut file.file
-          } else {
-            self.state.error(
-              loc,
-              format!(
-                "INPUT 语句只能用于以 INPUT 模式打开的文件，\
-                  但 {} 号文件是以 {} 模式打开的",
-                filenum + 1,
-                file.mode
-              ),
-            )?;
-          }
-        } else {
+        let file = &mut self.files[filenum as usize];
+        if !file.handle.is_open() {
           self.state.error(loc, "未打开文件")?;
+        }
+        let file = if let FileMode::Input = file.mode {
+          &mut file.handle
+        } else {
+          self.state.error(
+            loc,
+            format!(
+              "INPUT 语句只能用于以 INPUT 模式打开的文件，\
+                  但 {} 号文件是以 {} 模式打开的",
+              filenum + 1,
+              file.mode
+            ),
+          )?;
         };
 
         let offset = self.lval_stack.len() - num_fields.get();
@@ -1101,11 +1116,11 @@ where
       }
       InstrKind::CloseFile => {
         let filenum = self.get_filenum(true)?;
-        if let Some(file) = self.files[filenum as usize].take() {
-          self.state.io(loc, "关闭文件", file.file.close())?;
-        } else {
-          self.state.error(loc, "未打开文件，不能关闭文件")?;
-        }
+        self.state.io(
+          loc,
+          "关闭文件",
+          self.files[filenum as usize].handle.close(),
+        )?;
       }
       InstrKind::Cls => {
         self.device.cls();
@@ -1283,26 +1298,26 @@ where
         }
 
         let filenum = self.get_filenum(true)?;
-        if let Some(file) = &mut self.files[filenum as usize] {
-          if matches!(&file.mode, FileMode::Binary | FileMode::Random { .. }) {
-            self.state.io(
-              loc.clone(),
-              "写入文件",
-              file.file.write(&value[..1]),
-            )?;
-          } else {
-            self.state.error(
-              loc,
-              format!(
-                "FPUTC 语句只能用于以 BINARY 或 RANDOM 模式打开的文件，\
-                  但 {} 号文件是以 {} 模式打开的",
-                filenum + 1,
-                file.mode
-              ),
-            )?;
-          }
-        } else {
+        let file = &mut self.files[filenum as usize];
+        if !file.handle.is_open() {
           self.state.error(loc, "未打开文件")?;
+        }
+        if matches!(&file.mode, FileMode::Binary | FileMode::Random { .. }) {
+          self.state.io(
+            loc.clone(),
+            "写入文件",
+            file.handle.write(&value[..1]),
+          )?;
+        } else {
+          self.state.error(
+            loc,
+            format!(
+              "FPUTC 语句只能用于以 BINARY 或 RANDOM 模式打开的文件，\
+                  但 {} 号文件是以 {} 模式打开的",
+              filenum + 1,
+              file.mode
+            ),
+          )?;
         }
       }
       InstrKind::Fread => {
@@ -1316,34 +1331,34 @@ where
         }
 
         let filenum = self.get_filenum(true)?;
-        if let Some(file) = &mut self.files[filenum as usize] {
-          if matches!(&file.mode, FileMode::Binary | FileMode::Random { .. }) {
-            let mut buf = vec![0; size as usize];
-            let read_len = self.state.io(
-              loc.clone(),
-              "读取文件",
-              file.file.read(&mut buf),
-            )?;
-            if read_len < size as usize {
-              self.state.error(loc, "文件中没有足够的数据可供读取")?;
-            }
-            for b in buf {
-              self.device.write_byte(addr, b);
-              addr += 1;
-            }
-          } else {
-            self.state.error(
-              loc,
-              format!(
-                "FREAD 语句只能用于以 BINARY 或 RANDOM 模式打开的文件，\
-                  但 {} 号文件是以 {} 模式打开的",
-                filenum + 1,
-                file.mode
-              ),
-            )?;
+        let file = &mut self.files[filenum as usize];
+        if !file.handle.is_open() {
+          self.state.error(loc, "未打开文件")?;
+        }
+        if matches!(&file.mode, FileMode::Binary | FileMode::Random { .. }) {
+          let mut buf = vec![0; size as usize];
+          let read_len = self.state.io(
+            loc.clone(),
+            "读取文件",
+            file.handle.read(&mut buf),
+          )?;
+          if read_len < size as usize {
+            self.state.error(loc, "文件中没有足够的数据可供读取")?;
+          }
+          for b in buf {
+            self.device.write_byte(addr, b);
+            addr += 1;
           }
         } else {
-          self.state.error(loc, "未打开文件")?;
+          self.state.error(
+            loc,
+            format!(
+              "FREAD 语句只能用于以 BINARY 或 RANDOM 模式打开的文件，\
+                  但 {} 号文件是以 {} 模式打开的",
+              filenum + 1,
+              file.mode
+            ),
+          )?;
         }
       }
       InstrKind::Fwrite => {
@@ -1357,54 +1372,54 @@ where
         }
 
         let filenum = self.get_filenum(true)?;
-        if let Some(file) = &mut self.files[filenum as usize] {
-          if matches!(&file.mode, FileMode::Binary | FileMode::Random { .. }) {
-            let mut buf = vec![0; size as usize];
-            for i in 0..size {
-              buf[i as usize] = self.device.read_byte(addr + i);
-            }
-            self
-              .state
-              .io(loc.clone(), "写入文件", file.file.write(&buf))?;
-          } else {
-            self.state.error(
-              loc,
-              format!(
-                "FWRITE 语句只能用于以 BINARY 或 RANDOM 模式打开的文件，\
-                  但 {} 号文件是以 {} 模式打开的",
-                filenum + 1,
-                file.mode
-              ),
-            )?;
-          }
-        } else {
+        let file = &mut self.files[filenum as usize];
+        if !file.handle.is_open() {
           self.state.error(loc, "未打开文件")?;
+        }
+        if matches!(&file.mode, FileMode::Binary | FileMode::Random { .. }) {
+          let mut buf = vec![0; size as usize];
+          for i in 0..size {
+            buf[i as usize] = self.device.read_byte(addr + i);
+          }
+          self
+            .state
+            .io(loc.clone(), "写入文件", file.handle.write(&buf))?;
+        } else {
+          self.state.error(
+            loc,
+            format!(
+              "FWRITE 语句只能用于以 BINARY 或 RANDOM 模式打开的文件，\
+                  但 {} 号文件是以 {} 模式打开的",
+              filenum + 1,
+              file.mode
+            ),
+          )?;
         }
       }
       InstrKind::Fseek => {
         let offset = self.pop_range(0, 65535)? as u16;
 
         let filenum = self.get_filenum(true)?;
-        if let Some(file) = &mut self.files[filenum as usize] {
-          if matches!(&file.mode, FileMode::Binary | FileMode::Random { .. }) {
-            self.state.io(
-              loc.clone(),
-              "设置文件指针",
-              file.file.seek(offset as u64),
-            )?;
-          } else {
-            self.state.error(
-              loc,
-              format!(
-                "FSEEK 语句只能用于以 BINARY 或 RANDOM 模式打开的文件，\
-                  但 {} 号文件是以 {} 模式打开的",
-                filenum + 1,
-                file.mode
-              ),
-            )?;
-          }
-        } else {
+        let file = &mut self.files[filenum as usize];
+        if !file.handle.is_open() {
           self.state.error(loc, "未打开文件")?;
+        }
+        if matches!(&file.mode, FileMode::Binary | FileMode::Random { .. }) {
+          self.state.io(
+            loc.clone(),
+            "设置文件指针",
+            file.handle.seek(offset as u64),
+          )?;
+        } else {
+          self.state.error(
+            loc,
+            format!(
+              "FSEEK 语句只能用于以 BINARY 或 RANDOM 模式打开的文件，\
+                  但 {} 号文件是以 {} 模式打开的",
+              filenum + 1,
+              file.mode
+            ),
+          )?;
         }
       }
     }
@@ -1484,8 +1499,24 @@ where
       }
       SysFuncKind::Eof => {
         let filenum = self.get_filenum(true)?;
-        if let Some(file) = &self.files[filenum as usize] {
-          if !matches!(file.mode, FileMode::Input) {
+        let file = &self.files[filenum as usize];
+        match file.mode {
+          FileMode::Input => {
+            let len =
+              self
+                .state
+                .io(loc.clone(), "获取文件大小", file.handle.len())?;
+            let pos =
+              self
+                .state
+                .io(loc.clone(), "获取文件指针", file.handle.pos())?;
+            self.num_stack.push((loc, Mbf5::from(pos >= len)));
+            Ok(())
+          }
+          FileMode::None => {
+            self.state.error(loc, "未打开文件")?;
+          }
+          _ => {
             self.state.error(
               loc,
               format!(
@@ -1494,18 +1525,6 @@ where
                 file.mode
               ))?;
           }
-          let len =
-            self
-              .state
-              .io(loc.clone(), "获取文件大小", file.file.len())?;
-          let pos =
-            self
-              .state
-              .io(loc.clone(), "获取文件指针", file.file.pos())?;
-          self.num_stack.push((loc, Mbf5::from(pos >= len)));
-          Ok(())
-        } else {
-          self.state.error(loc, "未打开文件")?;
         }
       }
       SysFuncKind::Exp => {
@@ -1546,8 +1565,20 @@ where
       }
       SysFuncKind::Lof => {
         let filenum = self.get_filenum(true)?;
-        if let Some(file) = &self.files[filenum as usize] {
-          if !matches!(file.mode, FileMode::Random { .. }) {
+        let file = &self.files[filenum as usize];
+        match file.mode {
+          FileMode::Random { .. } => {
+            let len =
+              self
+                .state
+                .io(loc.clone(), "获取文件大小", file.handle.len())?;
+            self.num_stack.push((loc, Mbf5::from(len)));
+            Ok(())
+          }
+          FileMode::None => {
+            self.state.error(loc, "未打开文件")?;
+          }
+          _ => {
             self.state.error(
               loc,
               format!(
@@ -1556,14 +1587,6 @@ where
                 file.mode
               ))?;
           }
-          let len =
-            self
-              .state
-              .io(loc.clone(), "获取文件大小", file.file.len())?;
-          self.num_stack.push((loc, Mbf5::from(len)));
-          Ok(())
-        } else {
-          self.state.error(loc, "未打开文件")?;
         }
       }
       SysFuncKind::Log => {
@@ -1737,62 +1760,63 @@ where
       }
       SysFuncKind::Fopen => {
         let filenum = self.get_filenum(true)?;
-        self
-          .num_stack
-          .push((loc, Mbf5::from(self.files[filenum as usize].is_some())));
+        self.num_stack.push((
+          loc,
+          Mbf5::from(self.files[filenum as usize].handle.is_open()),
+        ));
         Ok(())
       }
       SysFuncKind::Fgetc => {
         let filenum = self.get_filenum(true)?;
-        if let Some(file) = &mut self.files[filenum as usize] {
-          if !matches!(&file.mode, FileMode::Binary | FileMode::Random { .. }) {
-            self.state.error(
-              loc,
-              format!(
-                "FGETC 函数只能用于以 BINARY 或 RANDOM 模式打开的文件，\
-                但 {} 号文件是以 {} 模式打开的",
-                filenum + 1,
-                file.mode
-              ),
-            )?;
-          }
-          let mut buf = [0];
-          let read_len =
-            self
-              .state
-              .io(loc.clone(), "读取文件", file.file.read(&mut buf))?;
-          if read_len == 0 {
-            self.state.error(loc, "不能在文件末尾读取数据")?;
-          }
-          self.num_stack.push((loc, Mbf5::from(buf[0])));
-          Ok(())
-        } else {
+        let file = &mut self.files[filenum as usize];
+        if !file.handle.is_open() {
           self.state.error(loc, "未打开文件")?;
         }
+        if !matches!(&file.mode, FileMode::Binary | FileMode::Random { .. }) {
+          self.state.error(
+            loc,
+            format!(
+              "FGETC 函数只能用于以 BINARY 或 RANDOM 模式打开的文件，\
+                但 {} 号文件是以 {} 模式打开的",
+              filenum + 1,
+              file.mode
+            ),
+          )?;
+        }
+        let mut buf = [0];
+        let read_len =
+          self
+            .state
+            .io(loc.clone(), "读取文件", file.handle.read(&mut buf))?;
+        if read_len == 0 {
+          self.state.error(loc, "不能在文件末尾读取数据")?;
+        }
+        self.num_stack.push((loc, Mbf5::from(buf[0])));
+        Ok(())
       }
       SysFuncKind::Ftell => {
         let filenum = self.get_filenum(true)?;
-        if let Some(file) = &self.files[filenum as usize] {
-          if !matches!(&file.mode, FileMode::Binary | FileMode::Random { .. }) {
-            self.state.error(
-              loc,
-              format!(
-                "FTELL 函数只能用于以 BINARY 或 RANDOM 模式打开的文件，\
-                但 {} 号文件是以 {} 模式打开的",
-                filenum + 1,
-                file.mode
-              ),
-            )?;
-          }
-          let pos =
-            self
-              .state
-              .io(loc.clone(), "获取文件指针", file.file.pos())?;
-          self.num_stack.push((loc, Mbf5::from(pos)));
-          Ok(())
-        } else {
+        let file = &mut self.files[filenum as usize];
+        if !file.handle.is_open() {
           self.state.error(loc, "未打开文件")?;
         }
+        if !matches!(&file.mode, FileMode::Binary | FileMode::Random { .. }) {
+          self.state.error(
+            loc,
+            format!(
+              "FTELL 函数只能用于以 BINARY 或 RANDOM 模式打开的文件，\
+                但 {} 号文件是以 {} 模式打开的",
+              filenum + 1,
+              file.mode
+            ),
+          )?;
+        }
+        let pos =
+          self
+            .state
+            .io(loc.clone(), "获取文件指针", file.handle.pos())?;
+        self.num_stack.push((loc, Mbf5::from(pos)));
+        Ok(())
       }
     }
   }
@@ -1818,7 +1842,7 @@ where
     filename.end_at_null();
     filename.drop_0x1f();
 
-    if self.files[filenum as usize].is_some() {
+    if self.files[filenum as usize].handle.is_open() {
       self
         .state
         .error(loc, format!("重复打开 {} 号文件", filenum + 1))?;
@@ -1854,14 +1878,24 @@ where
       ast::FileMode::Error => unreachable!(),
     };
 
-    match self.device.open_file(&filename, read, write, truncate) {
-      Ok(mut file) => {
+    let file = &mut self.files[filenum as usize];
+    match self.device.open_file(
+      &mut file.handle,
+      &filename,
+      read,
+      write,
+      truncate,
+    ) {
+      Ok(()) => {
         if let FileMode::Append = &mode {
-          let len = self.state.io(loc.clone(), "获取文件大小", file.len())?;
-          self.state.io(loc, "设置文件指针", file.seek(len))?;
+          let len =
+            self
+              .state
+              .io(loc.clone(), "获取文件大小", file.handle.len())?;
+          self.state.io(loc, "设置文件指针", file.handle.seek(len))?;
         }
 
-        self.files[filenum as usize] = Some(OpenFile { file, mode });
+        file.mode = mode;
       }
       Err(err) => {
         if matches!(&mode, FileMode::Binary) {
@@ -1966,14 +2000,17 @@ where
   fn exec_field(&mut self, loc: Location, num_fields: usize) -> Result<()> {
     let filenum = self.get_filenum(true)?;
     let record_len;
-    if let Some(file) = &self.files[filenum as usize] {
-      if let FileMode::Random {
-        record_len: len, ..
-      } = &file.mode
-      {
-        record_len = *len as u32;
-      } else {
-        self.state.error(
+    let file = &self.files[filenum as usize];
+    if !file.handle.is_open() {
+      self.state.error(loc, "未打开文件")?;
+    }
+    if let FileMode::Random {
+      record_len: len, ..
+    } = &file.mode
+    {
+      record_len = *len as u32;
+    } else {
+      self.state.error(
           loc,
           format!(
             "FIELD 语句只能用于以 RANDOM 模式打开的文件，但 {} 号文件是以 {} 模式打开的",
@@ -1981,9 +2018,6 @@ where
             file.mode
           )
         )?;
-      }
-    } else {
-      self.state.error(loc, "未打开文件")?;
     }
 
     let mut fields = vec![];
@@ -2009,7 +2043,7 @@ where
       )?;
     }
 
-    match &mut self.files[filenum as usize].as_mut().unwrap().mode {
+    match &mut self.files[filenum as usize].mode {
       FileMode::Random { fields: f, .. } => {
         *f = fields;
       }
@@ -2686,6 +2720,7 @@ impl LValue {
 impl Display for FileMode {
   fn fmt(&self, f: &mut Formatter) -> fmt::Result {
     match self {
+      Self::None => write!(f, "none"),
       Self::Input => write!(f, "INPUT"),
       Self::Output => write!(f, "OUTPUT"),
       Self::Append => write!(f, "APPEND"),
@@ -2863,11 +2898,12 @@ mod tests {
     cursor: (u8, u8),
   }
 
-  #[derive(Debug, Clone)]
+  #[derive(Debug, Clone, Default)]
   struct File {
     log: Rc<RefCell<String>>,
     pos: usize,
     data: Rc<RefCell<Vec<u8>>>,
+    is_open: bool,
   }
 
   impl TestDevice {
@@ -2894,6 +2930,7 @@ mod tests {
         log: Rc::new(RefCell::new(String::new())),
         pos: 0,
         data: Rc::new(RefCell::new(data)),
+        is_open: false,
       }
     }
   }
@@ -3054,11 +3091,12 @@ mod tests {
 
     fn open_file(
       &mut self,
+      file: &mut Self::File,
       name: &[u8],
       read: bool,
       write: bool,
       truncate: bool,
-    ) -> io::Result<Self::File> {
+    ) -> io::Result<()> {
       add_log(
         self.log.clone(),
         format!(
@@ -3073,7 +3111,7 @@ mod tests {
           truncate
         ),
       );
-      let file = if let Some(file) = self.files.get(name) {
+      *file = if let Some(file) = self.files.get(name) {
         file.clone()
       } else {
         return Err(io::Error::new(io::ErrorKind::NotFound, "no such file"));
@@ -3081,7 +3119,8 @@ mod tests {
       if truncate {
         file.data.borrow_mut().clear();
       }
-      Ok(file)
+      file.is_open = true;
+      Ok(())
     }
 
     fn cls(&mut self) {
@@ -3177,9 +3216,14 @@ mod tests {
       Ok(len)
     }
 
-    fn close(self) -> io::Result<()> {
+    fn close(&mut self) -> io::Result<()> {
       add_log(self.log.clone(), "close file");
+      self.is_open = false;
       Ok(())
+    }
+
+    fn is_open(&self) -> bool {
+      self.is_open
     }
   }
 
@@ -4639,6 +4683,22 @@ mod tests {
       }
 
       #[test]
+      fn eof_closed() {
+        assert_snapshot!(run_with_file(
+          r#"
+10 open "f" input as 3:close 3
+20 print eof(3);
+30 open "f" binary as 3:close 3
+40 print eof(3);
+    "#
+          .trim(),
+          vec![(exec_error(3, 9, 15, "EOF 函数只能用于以 INPUT 模式打开的文件，但 3 号文件是以 BINARY 模式打开的"), ExecInput::None)],
+          b"f.DAT",
+          File::new(b"AB,\",ab\"\xff12\xff\xff".to_vec())
+        ));
+      }
+
+      #[test]
       fn eof_mode_error() {
         assert_snapshot!(run_with_file(
           r#"
@@ -4717,6 +4777,22 @@ mod tests {
     "#
           .trim(),
           vec![(exec_error(4, 9, 15, "未打开文件",), ExecInput::None)],
+          b"f.DAT",
+          File::new(b"0123456789".to_vec())
+        ));
+      }
+
+      #[test]
+      fn lof_closed() {
+        assert_snapshot!(run_with_file(
+          r#"
+10 open "f" random as 2:close 2
+20 print lof(2);
+30 open "f" append as 1:close 1
+40 print lof(1);
+    "#
+          .trim(),
+          vec![(exec_error(3, 9, 15, "LOF 函数只能用于以 RANDOM 模式打开的文件，但 1 号文件是以 APPEND 模式打开的"), ExecInput::None)],
           b"f.DAT",
           File::new(b"0123456789".to_vec())
         ));
