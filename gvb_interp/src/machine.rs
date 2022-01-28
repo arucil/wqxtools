@@ -23,6 +23,9 @@ pub(crate) struct MachineProps {
   pub key_masks: [Option<(u16, u8)>; 256],
   pub key_buffer_quit: bool,
   pub addrs: IntMap<AddrProp>,
+  pub extra_symbol_data: Vec<u8>,
+  /// symbol code -> index of extra_symbol_data
+  pub extra_symbols: IntMap<usize>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -34,6 +37,7 @@ pub enum AddrProp {
   Hour,
   Minute,
   HalfSecond,
+  SecondMult2,
 }
 
 impl Default for MachineProps {
@@ -49,6 +53,8 @@ impl Default for MachineProps {
       key_masks: [None; 256],
       key_buffer_quit: false,
       addrs: IntMap::new(),
+      extra_symbol_data: vec![],
+      extra_symbols: IntMap::new(),
     }
   }
 }
@@ -372,6 +378,7 @@ pub fn init_machines() -> Result<(), InitError> {
         "hour" => AddrProp::Hour,
         "minute" => AddrProp::Minute,
         "halfsecond" => AddrProp::HalfSecond,
+        "second*2" => AddrProp::SecondMult2,
         s => {
           return Err(
             format!(
@@ -383,6 +390,60 @@ pub fn init_machines() -> Result<(), InitError> {
         }
       };
       props.addrs.insert(addr as _, prop);
+    }
+
+    // extra-symbols
+    if let Some(extra_symbols) =
+      obj.remove(&Yaml::String("extra-symbols".to_owned()))
+    {
+      let extra_symbols = extra_symbols
+        .into_hash()
+        .ok_or_else(|| format!("{}.extra-symbols is not object", mach_name))?;
+
+      for (code, pixels) in extra_symbols {
+        let code = code.as_i64().ok_or_else(|| {
+          format!(
+            "key {}.extra-symbols.{} is not integer",
+            mach_name,
+            yaml_to_string(&code)
+          )
+        })?;
+        let code = u16::try_from(code).map_err(|_| {
+          format!(
+            "key {}.extra-symbols.{} is not within the range 0~65535",
+            mach_name, code
+          )
+        })?;
+        if code < 32768 {
+          return Err(
+            format!(
+              "bit 15 of key {}.extra-symbols.{} is not 1",
+              mach_name, code
+            )
+            .into(),
+          );
+        }
+
+        let pixels = pixels.into_vec().ok_or_else(|| {
+          format!("{}.extra-symbols.{} is not array", mach_name, code)
+        })?;
+        let start = props.extra_symbol_data.len();
+        for b in pixels {
+          let b = b.as_i64().ok_or_else(|| {
+            format!(
+              "{} in {}.extra-symbols.{} is not array",
+              yaml_to_string(&b),
+              mach_name,
+              code
+            )
+          })?;
+          let b = u8::try_from(b).map_err(|_| {
+            format!("{} in {}.extra-symbols.{} is not byte", b, mach_name, code)
+          })?;
+          props.extra_symbol_data.push(b);
+        }
+        props.extra_symbols.insert(code as _, start);
+      }
     }
 
     if let Some((key, _)) = obj.pop_front() {

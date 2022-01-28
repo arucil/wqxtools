@@ -1,0 +1,15 @@
+---
+source: gvb_interp/src/parser.rs
+assertion_line: 2877
+expression: parse_line(line).0.to_string(line)
+
+---
+label: None
+len: 1
+eol: None
+diagnostics: 
+  Error<0..1>: 缺少行号
+  Error<0..1>: 语法错误。期望是 ":" 或 语句
+-----------------
+0..1      :
+

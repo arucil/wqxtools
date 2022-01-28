@@ -1422,6 +1422,14 @@ where
           )?;
         }
       }
+      InstrKind::Debug => {
+        let (_, value) = self.str_stack.pop().unwrap();
+        println!(
+          "DEBUG: line {}: {}",
+          loc.line + 1,
+          value.to_string_lossy(self.emoji_version)
+        );
+      }
     }
     self.pc += 1;
     Ok(())
@@ -3120,6 +3128,7 @@ mod tests {
         file.data.borrow_mut().clear();
       }
       file.is_open = true;
+      file.pos = 0;
       Ok(())
     }
 

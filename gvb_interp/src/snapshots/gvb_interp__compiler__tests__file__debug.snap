@@ -1,0 +1,16 @@
+---
+source: gvb_interp/src/compiler.rs
+assertion_line: 2387
+expression: "compile(r#\"\n10 debugprint \"a\"+chr$(3)\n    \"#.trim())"
+
+---
+emoji_version: V2
+--------- data ----------
+--------- code ----------
+0     0:14..17  push string "a"
+1     0:23..24  push number 3
+2     0:18..25  call sys func CHR$, arity: 1
+3     0:14..25  concat
+4     0:3..25   debug
+5     0:0..0    end
+

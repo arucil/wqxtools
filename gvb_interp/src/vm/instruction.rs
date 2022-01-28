@@ -178,6 +178,7 @@ pub enum InstrKind {
   Fread,
   Fwrite,
   Fseek,
+  Debug,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -444,6 +445,7 @@ impl InstrKind {
       Self::Fread => format!("fread"),
       Self::Fwrite => format!("fwrite"),
       Self::Fseek => format!("fseek"),
+      Self::Debug => format!("debug"),
     }
   }
 }

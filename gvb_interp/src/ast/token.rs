@@ -101,6 +101,7 @@ pub enum Keyword {
   Fread,
   Fwrite,
   Fseek,
+  DebugPrint,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, FromPrimitive)]
@@ -204,6 +205,7 @@ impl FromStr for Keyword {
       "fread" => Ok(Self::Fread),
       "fwrite" => Ok(Self::Fwrite),
       "fseek" => Ok(Self::Fseek),
+      "debugprint" => Ok(Self::DebugPrint),
       _ => Err(()),
     }
   }
@@ -315,6 +317,7 @@ impl Debug for Keyword {
       Fread => "FREAD",
       Fwrite => "FWRITE",
       Fseek => "FSEEK",
+      DebugPrint => "DEBUGPRINT"
     };
     write!(f, "{}", kw)
   }

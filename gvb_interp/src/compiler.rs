@@ -569,6 +569,14 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E, ProgramLine> {
       StmtKind::Fseek { filenum, offset } => {
         self.compile_fseek(range, &stmt.kind, *filenum, *offset);
       }
+      StmtKind::DebugPrint { value } => self.compile_unary_stmt(
+        range,
+        &stmt.kind,
+        *value,
+        Type::String,
+        "DEBUGPRINT",
+        "参数",
+      ),
       StmtKind::NoOp => self.code_emitter.emit_no_op(range),
     }
   }
@@ -1552,9 +1560,7 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E, ProgramLine> {
             if i == elems.len() - 1 {
               self.code_emitter.emit_newline(range.clone());
             } else if matches!(&elems[i + 1], PrintElement::Expr(_)) {
-              self
-                .code_emitter
-                .emit_number(elem_range.clone(), Mbf5::ONE);
+              self.code_emitter.emit_number(elem_range.clone(), Mbf5::ONE);
               self.code_emitter.emit_print_spc(elem_range.clone());
             }
           }
@@ -2371,6 +2377,16 @@ mod tests {
       assert_debug_snapshot!(compile(
         r#"
 10 fwrite #k, 1234+a(3), k%:fwrite 99,i,j
+    "#
+        .trim()
+      ));
+    }
+
+    #[test]
+    fn debug() {
+      assert_debug_snapshot!(compile(
+        r#"
+10 debugprint "a"+chr$(3)
     "#
         .trim()
       ));

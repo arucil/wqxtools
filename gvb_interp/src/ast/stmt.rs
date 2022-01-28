@@ -184,6 +184,9 @@ pub enum StmtKind {
     filenum: ExprId,
     offset: ExprId,
   },
+  DebugPrint {
+    value: ExprId,
+  },
   NoOp,
 }
 
@@ -772,6 +775,11 @@ fn print_stmt(
       expr_arena[*filenum].print(expr_arena, text, f)?;
       write!(f, ", ")?;
       expr_arena[*offset].print(expr_arena, text, f)?;
+      writeln!(f)
+    }
+    StmtKind::DebugPrint { value } => {
+      write!(f, "DebugPrint # ")?;
+      expr_arena[*value].print(expr_arena, text, f)?;
       writeln!(f)
     }
     StmtKind::NoOp => writeln!(f, ":"),

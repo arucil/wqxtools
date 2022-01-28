@@ -185,6 +185,7 @@ impl CodeEmitter for CodeGen {
       StmtKind::Fread { .. } => self.push_instr(range, InstrKind::Fread),
       StmtKind::Fwrite { .. } => self.push_instr(range, InstrKind::Fwrite),
       StmtKind::Fseek { .. } => self.push_instr(range, InstrKind::Fseek),
+      StmtKind::DebugPrint { .. } => self.push_instr(range, InstrKind::Debug),
       _ => unreachable!(),
     }
   }

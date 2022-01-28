@@ -646,6 +646,7 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
       Keyword(Kw::Fread) => self.parse_fread_fwrite_stmt(false),
       Keyword(Kw::Fwrite) => self.parse_fread_fwrite_stmt(true),
       Keyword(Kw::Fseek) => self.parse_fseek_stmt(),
+      Keyword(Kw::DebugPrint) => self.parse_debug_stmt(),
       Label => match self.label_value.take().unwrap() {
         Ok(label) => {
           let range = self.token.0.clone();
@@ -1879,6 +1880,22 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
     })
   }
 
+  fn parse_debug_stmt(&mut self) -> StmtId {
+    let _first_symbols = self.first_symbols.backup();
+    let old_follow = self.follow_symbols.backup();
+    let start = self.token.0.start;
+    self.read_token(false);
+
+    setup_first! { self : }
+    setup_follow! { self, old_follow : }
+    let value = self.parse_expr();
+
+    self.node_builder.new_stmt(Stmt {
+      kind: StmtKind::DebugPrint { value },
+      range: Range::new(start, self.last_token_end),
+    })
+  }
+
   fn parse_cmd<A: Array<Item = ExprId> + PartialEq + Eq>(
     &mut self,
     ctor: fn(NonEmptyVec<A>) -> StmtKind,
@@ -2320,7 +2337,7 @@ pub fn read_number(
   read_label: bool,
 ) -> (usize, bool) {
   let mut i = 0;
-  let mut is_nat = true;
+  let mut is_nat = !matches!(input.first(), Some(b'.'));
 
   if allow_space {
     i += count_space(input, i);
@@ -2868,6 +2885,12 @@ mod parser_tests {
   #[test]
   fn label_followed_by_e() {
     let line = r#"10 e=1"#;
+    assert_snapshot!(parse_line(line).0.to_string(line));
+  }
+
+  #[test]
+  fn dot_label() {
+    let line = r#"."#;
     assert_snapshot!(parse_line(line).0.to_string(line));
   }
 

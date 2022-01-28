@@ -589,6 +589,11 @@ impl Device for DefaultDevice {
           // }
 
           data_ptr = unsafe { GB2312_16_DATA.as_ptr().add(gb_offset) };
+        } else if let Some(&offset) =
+          self.props.extra_symbols.get((c as u64) << 8 | c2 as u64)
+        {
+          data_ptr =
+            unsafe { self.props.extra_symbol_data.as_ptr().add(offset) };
         } else {
           self.paint_hex_code(row, col);
           char_ptr = unsafe { char_ptr.add(1) };
@@ -940,6 +945,7 @@ impl Device for DefaultDevice {
         AddrProp::HalfSecond => {
           ((now.second() as f64 + now.nanosecond() as f64 / 1e9) * 2.0) as _
         }
+        AddrProp::SecondMult2 => (now.second() * 2) as _,
       }
     } else {
       self.memory[addr as usize]
@@ -1107,6 +1113,7 @@ impl DefaultFileHandle {
         data,
         dirty: false,
       };
+      self.pos = 0;
       Ok(())
     }
   }
@@ -1163,7 +1170,7 @@ impl FileHandle for DefaultFileHandle {
           }
           data.resize(data_end, 0);
         }
-        data[self.pos..self.pos + data_len].copy_from_slice(written_data);
+        data[self.pos..data_end].copy_from_slice(written_data);
         self.pos = data_end;
         *dirty = true;
         Ok(())
