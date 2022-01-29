@@ -29,7 +29,7 @@
 190 IF A$="b" THEN GOTO 200
 195 GOTO 100
 200 CLS:PRINT "进攻谁?"
-201 for i=0 to 8:if not e(i+2) then locate 2+int(i/3),1+7*(i-int(i/3)*3):print i+1;n$(i+2)
+201 for kk=0 to 8:if not e(kk+2) then locate 2+int(kk/3),1+7*(kk-int(kk/3)*3):print kk+1;n$(kk+2)
 202 next:locate 5,1:print "[跳出]取消";:A$=INKEY$:a=0
 203 if a$="b" and not e(2) then a=1 else if a$="n" and not e(3) then a=2
 204 if a$="m" and not e(4) then a=3 else if a$="g" and not e(5) then a=4
@@ -49,7 +49,7 @@
 510 CLS:PRINT N$(1);"派军队四处打劫,缴获";M;"元军费.":A$=INKEY$
 520 C(1)=C(1)+M:GOTO 6009
 600 S=INT(A(1)^0.8/10):IF C(1)<S THEN PRINT "军费不够!":A$=INKEY$:GOTO 100
-610 B(1)=B(1)+5:C(1)=C(1)-S:CLS:PRINT N$(1);"军战斗力增强!":A$=INKEY$
+610 B(1)=B(1)+2:C(1)=C(1)-S:CLS:PRINT N$(1);"军战斗力增强!":A$=INKEY$
 620 IF B(1)>100 THEN B(1)=100
 630 GOTO 6009
 700 M=INT(RND(1)*D(1)^0.8*30+D(1)^0.8*10)
