@@ -108,4 +108,5 @@ void SearchBar::show(bool replace) {
 
 void SearchBar::focus() {
   m_searchEdit->setFocus();
+  m_searchEdit->selectAll();
 }
