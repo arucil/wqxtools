@@ -30,6 +30,7 @@ pub fn load_bas(
   emoji_version: Option<EmojiVersion>,
 ) -> Result<BasTextDocument, LoadError<usize>> {
   let mut content = content.as_ref();
+  let mut got_base_addr = false;
   let mut base_addr = 0;
   let mut lines: Vec<&[u8]> = vec![];
   let mut offset = 0;
@@ -60,9 +61,10 @@ pub fn load_bas(
 
     if second_line_addr == 0 {
       second_line_addr = addr;
-    } else if base_addr == 0 {
+    } else if !got_base_addr {
       if let Some(b) = second_line_addr.checked_sub(offset as u16 + 1) {
         base_addr = b;
+        got_base_addr = true;
       } else {
         return Err(LoadError {
           location: 1,
