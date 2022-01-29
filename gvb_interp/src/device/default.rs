@@ -356,7 +356,7 @@ impl DefaultDevice {
     y: i32,
     mode: DrawMode,
   ) {
-    if y >= screen::HEIGHT as i32 {
+    if y < 0 || y >= screen::HEIGHT as i32 {
       return;
     }
     if x1 > x2 {
@@ -366,9 +366,13 @@ impl DefaultDevice {
     }
     if x1 >= screen::WIDTH as i32 {
       return;
+    } else if x1 < 0 {
+      x1 = 0;
     }
     if x2 >= screen::WIDTH as i32 {
       x2 = screen::WIDTH as i32 - 1;
+    } else if x2 < 0 {
+      x2 = 0;
     }
 
     Self::draw_hor_line_unchecked(ptr, x1 as u8, x2 as u8, y as u8, mode);
@@ -1794,6 +1798,17 @@ mod tests {
     device.draw_circle((40, 50), 14, true, DrawMode::Copy);
 
     device.draw_circle((100, 50), 35, true, DrawMode::Copy);
+
+    assert_snapshot!(device_screen_braille(&device));
+  }
+
+  #[test]
+  fn draw_circle_negative_coord() {
+    let mut device = new_device();
+
+    device.draw_circle((10, 10), 30, true, DrawMode::Copy);
+
+    device.draw_circle((10, 10), 50, false, DrawMode::Copy);
 
     assert_snapshot!(device_screen_braille(&device));
   }
