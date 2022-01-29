@@ -428,6 +428,12 @@ pub fn init_machines() -> Result<(), InitError> {
           format!("{}.extra-symbols.{} is not array", mach_name, code)
         })?;
         let start = props.extra_symbol_data.len();
+        if pixels.len() != 32 {
+          return Err(
+            format!("length of {}.extra-symbols.{} is not 32", mach_name, code)
+              .into(),
+          );
+        }
         for b in pixels {
           let b = b.as_i64().ok_or_else(|| {
             format!(
