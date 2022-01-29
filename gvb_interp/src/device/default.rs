@@ -213,9 +213,7 @@ impl DefaultDevice {
     self.inverse_text[TEXT_COLUMNS * (TEXT_ROWS - 1)..].fill(false);
   }
 
-  fn paint_hex_code(&mut self, row: usize, column: usize) {
-    let mut c = self.memory
-      [self.props.text_buffer_base_addr as usize + row * TEXT_COLUMNS + column];
+  fn paint_hex_code(&mut self, row: usize, column: usize, mut c: u8) {
     unsafe {
       let mut g = self.memory.as_mut_ptr().add(
         self.props.graphics_base_addr as usize
@@ -489,9 +487,12 @@ impl Device for DefaultDevice {
 
     let mut i = self.row as usize * TEXT_COLUMNS + self.column as usize;
     unsafe {
-      while i < 100 && *text_buffer.add(i) != 0 {
+      while i < 100 {
         *text_buffer.add(i) = 0;
         i += 1;
+        if *text_buffer.add(i) == 0 {
+          break;
+        }
       }
     }
   }
@@ -558,7 +559,7 @@ impl Device for DefaultDevice {
         }
 
         if row == TEXT_ROWS - 1 && col == TEXT_COLUMNS - 1 {
-          self.paint_hex_code(row, col);
+          self.paint_hex_code(row, col, c);
           char_ptr = unsafe { char_ptr.add(1) };
           inv_ptr = unsafe { inv_ptr.add(1) };
           col += 1;
@@ -595,10 +596,11 @@ impl Device for DefaultDevice {
           data_ptr =
             unsafe { self.props.extra_symbol_data.as_ptr().add(offset) };
         } else {
-          self.paint_hex_code(row, col);
-          char_ptr = unsafe { char_ptr.add(1) };
-          inv_ptr = unsafe { inv_ptr.add(1) };
-          col += 1;
+          self.paint_hex_code(row, col, c);
+          self.paint_hex_code(row, col + 1, c2);
+          char_ptr = unsafe { char_ptr.add(2) };
+          inv_ptr = unsafe { inv_ptr.add(2) };
+          col += 2;
           continue;
         }
 
