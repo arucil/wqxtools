@@ -1046,7 +1046,7 @@ impl Device for DefaultDevice {
           let code_addr_lo = self.memory[0x102 + sp];
           let code_addr_hi = self.memory[0x103 + sp];
           let code_addr =
-            code_addr_lo as usize + ((code_addr_hi as usize) << 8);
+            code_addr_lo as usize + ((code_addr_hi as usize) << 8) - 1;
           self.memory[0x102 + sp] = code_addr_lo.wrapping_add(2);
           if code_addr_lo >= 0xfe {
             self.memory[0x103 + sp] += 1;
