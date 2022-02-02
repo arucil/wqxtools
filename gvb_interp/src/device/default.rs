@@ -1,5 +1,5 @@
 use super::*;
-use crate::machine::{AddrProp, MachineProps};
+use crate::machine::{AddrProp, BrkKind, MachineProps};
 use crate::ByteString;
 use chrono::prelude::*;
 use emulator_6502::{Interface6502, MOS6502};
@@ -98,6 +98,7 @@ impl DefaultDevice {
 
   pub fn reset(&mut self) {
     self.memory.fill(0);
+    self.memory[0xffff] = 0x40; // RTI
     for &addr in &self.props.key_mapping_addrs {
       self.memory[addr as usize] = 0xff;
     }
@@ -432,6 +433,7 @@ impl DrawMode {
 impl Device for DefaultDevice {
   type File = DefaultFileHandle;
   type AsmState = MOS6502;
+  type AsmError = String;
 
   fn get_row(&self) -> u8 {
     self.row
@@ -1025,7 +1027,7 @@ impl Device for DefaultDevice {
     &mut self,
     steps: &mut usize,
     state: AsmExecState<MOS6502>,
-  ) -> Option<MOS6502> {
+  ) -> Result<Option<MOS6502>, String> {
     let mut sim = match state {
       AsmExecState::Start(addr) => {
         let mut sim = MOS6502::new();
@@ -1038,28 +1040,39 @@ impl Device for DefaultDevice {
       for _ in 0..50 {
         sim.execute_instruction(self);
         if sim.get_stack_pointer() > 0xfd {
-          return None;
+          return Ok(None);
         }
         // brk
-        if sim.get_status_register() & 0b00110000 == 0b00110000 {
+        if sim.get_status_register() & 0b00110100 == 0b00110100 {
           let sp = sim.get_stack_pointer() as usize;
           let code_addr_lo = self.memory[0x102 + sp];
           let code_addr_hi = self.memory[0x103 + sp];
           let code_addr =
             code_addr_lo as usize + ((code_addr_hi as usize) << 8) - 1;
-          self.memory[0x102 + sp] = code_addr_lo.wrapping_add(2);
-          if code_addr_lo >= 0xfe {
+          let code = (self.memory[code_addr] as u16)
+            + ((self.memory[code_addr + 1] as u16) << 8);
+          self.memory[0x102 + sp] = code_addr_lo.wrapping_add(1);
+          if code_addr_lo >= 0xff {
             self.memory[0x103 + sp] += 1;
           }
-          let code = ((self.memory[code_addr] as u16) << 8)
-            + self.memory[code_addr + 1] as u16;
           sim.set_program_counter(0xffff); // run RTI
-          todo!("BRK ${:04X}", code)
+          sim.set_status_register(sim.get_status_register() & !0b00110000);
+          match self.props.brks.get(code as _) {
+            Some(BrkKind::Mult) => {
+              let prod =
+                sim.get_accumulator() as u16 * sim.get_x_register() as u16;
+              self.memory[0x80] = prod as _;
+              self.memory[0x81] = (prod >> 8) as _;
+            }
+            None => {
+              return Err(format!("调用了中断 ${:04X}，目前模拟器不支持 {}", code, sim.get_program_counter()))
+            }
+          }
         }
       }
       *steps -= 1;
     }
-    Some(sim)
+    Ok(Some(sim))
   }
 
   fn set_screen_mode(&mut self, mode: ScreenMode) {

@@ -90,7 +90,10 @@ enum ExecState<S> {
     skip_first: bool,
   },
   WaitForKey,
-  AsmSuspend(S),
+  AsmSuspend {
+    loc: Location,
+    state: S,
+  },
 }
 
 #[derive(Debug, Clone)]
@@ -410,7 +413,13 @@ where
     }
     Ok(())
   }
+}
 
+impl<'d, D> VirtualMachine<'d, D>
+where
+  D: Device,
+  <D as Device>::AsmError: ToString,
+{
   pub fn exec(&mut self, input: ExecInput, mut steps: usize) -> ExecResult {
     match std::mem::replace(&mut self.state, ExecState::Normal) {
       ExecState::Done => return ExecResult::End,
@@ -419,12 +428,15 @@ where
         lvalues,
         skip_first,
       } => self.assign_input(input, lvalues, skip_first),
-      ExecState::AsmSuspend(s) => {
-        if let Some(s) = self.device.exec_asm(&mut steps, AsmExecState::Cont(s))
-        {
-          return self.state.suspend_asm(s).unwrap_err();
-        } else {
-          self.pc += 1;
+      ExecState::AsmSuspend { state, loc } => {
+        match self.device.exec_asm(&mut steps, AsmExecState::Cont(state)) {
+          Ok(Some(s)) => {
+            return self.state.suspend_asm(loc, s).unwrap_err();
+          }
+          Ok(None) => {
+            self.pc += 1;
+          }
+          Err(msg) => return self.state.error(loc, msg).unwrap_err(),
         }
       }
       ExecState::Normal => {
@@ -1094,9 +1106,12 @@ where
       }
       InstrKind::Call => {
         let addr = self.pop_range(-65535, 65535)? as _;
-        if let Some(s) = self.device.exec_asm(steps, AsmExecState::Start(addr))
-        {
-          self.state.suspend_asm(s)?;
+        match self.device.exec_asm(steps, AsmExecState::Start(addr)) {
+          Ok(Some(state)) => self.state.suspend_asm(loc, state)?,
+          Ok(None) => {
+            // do nothing
+          }
+          Err(msg) => self.state.error(loc, msg)?,
         }
       }
       InstrKind::DrawCircle { has_fill, has_mode } => {
@@ -1434,7 +1449,12 @@ where
     self.pc += 1;
     Ok(())
   }
+}
 
+impl<'d, D> VirtualMachine<'d, D>
+where
+  D: Device,
+{
   fn exec_sys_func(
     &mut self,
     loc: Location,
@@ -2614,8 +2634,8 @@ impl<S> ExecState<S> {
   }
 
   #[must_use]
-  fn suspend_asm(&mut self, s: S) -> Result<!> {
-    *self = Self::AsmSuspend(s);
+  fn suspend_asm(&mut self, loc: Location, state: S) -> Result<!> {
+    *self = Self::AsmSuspend { loc, state };
     Err(ExecResult::Continue)
   }
 
@@ -2951,6 +2971,7 @@ mod tests {
   impl Device for TestDevice {
     type File = File;
     type AsmState = ();
+    type AsmError = String;
 
     fn get_row(&self) -> u8 {
       add_log(self.log.clone(), format!("get row: {}", self.cursor.0));
@@ -3140,7 +3161,7 @@ mod tests {
       &mut self,
       steps: &mut usize,
       state: AsmExecState<()>,
-    ) -> Option<()> {
+    ) -> std::result::Result<Option<()>,String> {
       if let AsmExecState::Start(addr) = state {
         add_log(
           self.log.clone(),
@@ -3149,7 +3170,7 @@ mod tests {
       } else {
         add_log(self.log.clone(), format!("call None, steps: {}", steps));
       }
-      None
+      Ok(None)
     }
 
     fn set_screen_mode(&mut self, mode: ScreenMode) {

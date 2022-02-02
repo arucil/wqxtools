@@ -233,10 +233,18 @@ pub fn load_txt(
             EmojiVersion::V1.code_to_char(gbcode).is_some() as usize;
           emoji_v2_count +=
             EmojiVersion::V2.code_to_char(gbcode).is_some() as usize;
-          let u = EmojiVersion::V2
+          let u;
+          if let Some(c) = EmojiVersion::V2
             .code_to_char(gbcode)
             .or_else(|| EmojiVersion::fallback_code_to_char(gbcode))
-            .unwrap();
+          {
+            u = c;
+          } else {
+            return Err(LoadError {
+              location: (line, i - line_offset),
+              message: format!("非法字符"),
+            });
+          }
           text.push(char::from_u32(u as _).unwrap());
         }
       }

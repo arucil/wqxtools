@@ -3,6 +3,7 @@ use intmap::IntMap;
 use std::collections::BTreeMap;
 use std::io;
 use std::mem::MaybeUninit;
+use std::str::FromStr;
 use std::time::Duration;
 use util::config;
 use yaml_rust::{Yaml, YamlLoader};
@@ -26,6 +27,7 @@ pub(crate) struct MachineProps {
   pub extra_symbol_data: Vec<u8>,
   /// symbol code -> index of extra_symbol_data
   pub extra_symbols: IntMap<usize>,
+  pub brks: IntMap<BrkKind>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -38,6 +40,11 @@ pub enum AddrProp {
   Minute,
   HalfSecond,
   SecondMult2,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BrkKind {
+  Mult,
 }
 
 impl Default for MachineProps {
@@ -55,6 +62,34 @@ impl Default for MachineProps {
       addrs: IntMap::new(),
       extra_symbol_data: vec![],
       extra_symbols: IntMap::new(),
+      brks: IntMap::new(),
+    }
+  }
+}
+
+impl FromStr for AddrProp {
+  type Err = ();
+  fn from_str(s: &str) -> Result<Self, Self::Err> {
+    match s {
+      "year" => Ok(Self::Year),
+      "month" => Ok(Self::Month),
+      "day" => Ok(Self::Day),
+      "weekday" => Ok(Self::WeekDay),
+      "hour" => Ok(Self::Hour),
+      "minute" => Ok(Self::Minute),
+      "halfsecond" => Ok(Self::HalfSecond),
+      "second*2" => Ok(Self::SecondMult2),
+      _ => Err(()),
+    }
+  }
+}
+
+impl FromStr for BrkKind {
+  type Err = ();
+  fn from_str(s: &str) -> Result<Self, Self::Err> {
+    match s {
+      "mult" => Ok(Self::Mult),
+      _ => Err(()),
     }
   }
 }
@@ -370,25 +405,12 @@ pub fn init_machines() -> Result<(), InitError> {
       let value = value
         .into_string()
         .ok_or_else(|| format!("{}.addrs.{} is not string", mach_name, addr))?;
-      let prop = match value.as_str() {
-        "year" => AddrProp::Year,
-        "month" => AddrProp::Month,
-        "day" => AddrProp::Day,
-        "weekday" => AddrProp::WeekDay,
-        "hour" => AddrProp::Hour,
-        "minute" => AddrProp::Minute,
-        "halfsecond" => AddrProp::HalfSecond,
-        "second*2" => AddrProp::SecondMult2,
-        s => {
-          return Err(
-            format!(
-              "unrecognized variable {} in {}.addrs.{}",
-              s, mach_name, addr
-            )
-            .into(),
-          )
-        }
-      };
+      let prop = value.parse().map_err(|_| {
+        format!(
+          "unrecognized value {} in {}.addrs.{}",
+          value, mach_name, addr
+        )
+      })?;
       props.addrs.insert(addr as _, prop);
     }
 
@@ -449,6 +471,37 @@ pub fn init_machines() -> Result<(), InitError> {
           props.extra_symbol_data.push(b);
         }
         props.extra_symbols.insert(code as _, start);
+      }
+    }
+
+    // brks
+    if let Some(brks) = obj.remove(&Yaml::String("brks".to_owned())) {
+      let brks = brks
+        .into_hash()
+        .ok_or_else(|| format!("{}.brks is not object", mach_name))?;
+
+      for (code, brk) in brks {
+        let code = code.as_i64().ok_or_else(|| {
+          format!(
+            "key {}.brks.{} is not integer",
+            mach_name,
+            yaml_to_string(&code)
+          )
+        })?;
+        let code = u16::try_from(code).map_err(|_| {
+          format!(
+            "key {}.brks.{} is not within the range 0~65535",
+            mach_name, code
+          )
+        })?;
+
+        let brk = brk.into_string().ok_or_else(|| {
+          format!("{}.brks.{} is not string", mach_name, code)
+        })?;
+        let brk = brk.parse().map_err(|_| {
+          format!("unrecognized brk {} in {}.brks.{}", brk, mach_name, code)
+        })?;
+        props.brks.insert(code as _, brk);
       }
     }
 

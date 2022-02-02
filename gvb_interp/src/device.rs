@@ -12,6 +12,7 @@ pub enum KeyCode {
 pub trait Device {
   type File: FileHandle + Default;
   type AsmState;
+  type AsmError;
 
   /// Range: [0, 4]
   fn get_row(&self) -> u8;
@@ -77,14 +78,15 @@ pub trait Device {
 
   fn cls(&mut self);
 
-  /// Returns Some() if execution is not finished.
+  /// Returns Ok(Some(state)) if execution is not finished,
+  /// Ok(None) if execution is finished.
   ///
   /// `steps` will be the steps left the when exec_asm() is returned.
   fn exec_asm(
     &mut self,
     steps: &mut usize,
     state: AsmExecState<Self::AsmState>,
-  ) -> Option<Self::AsmState>;
+  ) -> Result<Option<Self::AsmState>, Self::AsmError>;
 
   fn set_screen_mode(&mut self, mode: ScreenMode);
 
