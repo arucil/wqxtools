@@ -154,8 +154,10 @@ void GvbEditor::initUi() {
         const auto &diag = m_edit->diagnostics()[index.row()];
         m_edit->gotoPos(diag.end);
         m_edit->setAnchor(diag.start);
+        m_edit->grabFocus();
       }
-    });
+    },
+    Qt::QueuedConnection);
   auto errorListHeader = m_errorView->horizontalHeader();
   errorListHeader->setMinimumSectionSize(0);
   errorListHeader->setMaximumHeight(m_statusBar->sizeHint().height());

@@ -43,7 +43,7 @@ pub fn load_bas(
     if content.len() < 3 {
       return Err(LoadError {
         location: offset + content.len(),
-        message: format!("文件已损坏：unexpected EOF"),
+        message: format!("文件损坏：unexpected EOF"),
       });
     }
 
@@ -51,7 +51,7 @@ pub fn load_bas(
       return Err(LoadError {
         location: offset,
         message: format!(
-          "文件已损坏：expected 0x00, found 0x{:02X}",
+          "文件损坏：expected 0x00, found 0x{:02X}",
           content[0]
         ),
       });
@@ -71,7 +71,7 @@ pub fn load_bas(
       } else {
         return Err(LoadError {
           location: 1,
-          message: format!("文件已损坏：address underflow"),
+          message: format!("文件损坏：address underflow"),
         });
       }
     }
@@ -90,7 +90,7 @@ pub fn load_bas(
         if content.len() <= i + 2 {
           return Err(LoadError {
             location: offset + i,
-            message: format!("文件已损坏：invalid full-width character"),
+            message: format!("文件损坏：invalid full-width character"),
           });
         }
 
@@ -109,7 +109,7 @@ pub fn load_bas(
           return Err(LoadError {
             location: offset + i,
             message: format!(
-              "文件已损坏：unrecognized bytecode 0x{:02x}",
+              "文件损坏：unrecognized bytecode 0x{:02x}",
               content[i]
             ),
           });

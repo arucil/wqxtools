@@ -93,19 +93,19 @@ pub fn parse_line(
     } else {
       parser.report_label_error(
         ParseLabelError::NotALabel,
-        Range::new(0, line_with_eol.len()),
+        Range::new(0, line.len()),
       );
     }
   } else {
     parser.report_label_error(
       ParseLabelError::NotALabel,
-      Range::new(0, line_with_eol.len()),
+      Range::new(0, line.len()),
     );
   }
 
   let stmts = parser.parse_stmts(false);
   if stmts.is_empty() {
-    parser.add_error(Range::new(0, line_with_eol.len()), "缺少语句");
+    parser.add_error(Range::new(0, line.len()), "缺少语句");
   }
 
   let expected_symbols_at_eof = parser.expected_symbols_at_eof.take();

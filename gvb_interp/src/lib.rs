@@ -4,7 +4,6 @@
   const_mut_refs,
   never_type,
   io_error_more,
-  int_abs_diff,
   const_maybe_uninit_assume_init
 )]
 
