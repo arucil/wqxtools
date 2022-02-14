@@ -30,7 +30,9 @@
 - [x] 按键映射一个地址只能响应一个键？
   NO
 
-
+- [ ] 模拟器运行时禁用拖动打开文件
+- [ ] C-f 如果 search text 显示并且没有焦点则 focus，而不是隐藏
+- [ ] 编辑区按esc会隐藏search bar
 - [ ] QLineEdit 会把 control character 显示成空格，wqx字体的 control character glyph无法显示
 - 关联 .bas  .lav  .pac 文件
 - [ ] 在运行模拟器时不能加载其他文件
