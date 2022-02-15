@@ -225,6 +225,9 @@ void MainWindow::openFile() {
 }
 
 void MainWindow::openFileByPath(const QString &path) {
+  if (!m_actOpen->isEnabled()) {
+    return;
+  }
   openFileByPath(path, screen());
 }
 
