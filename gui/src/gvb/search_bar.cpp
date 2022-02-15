@@ -110,3 +110,7 @@ void SearchBar::focus() {
   m_searchEdit->setFocus();
   m_searchEdit->selectAll();
 }
+
+bool SearchBar::hasFocus() const {
+  return m_searchEdit->hasFocus() || m_replaceEdit->hasFocus();
+}

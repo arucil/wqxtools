@@ -13,6 +13,7 @@
 class SyntaxStyle;
 class QPoint;
 class QContextMenuEvent;
+class QKeyEvent;
 
 struct Diagnostic {
   size_t line;
@@ -166,6 +167,7 @@ public:
 
 protected:
   void contextMenuEvent(QContextMenuEvent *) override;
+  void keyPressEvent(QKeyEvent *) override;
 
 private:
   void adjustLineNumberMarginWidth();
@@ -178,6 +180,7 @@ signals:
   void selectionChanged(bool nonempty);
   void fileDropped(const QString &path);
   void contextMenu(const QPoint &localPos);
+  void escape();
 
 public slots:
   void setDiagnostics(QVector<Diagnostic>);

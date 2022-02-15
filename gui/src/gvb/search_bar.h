@@ -13,6 +13,7 @@ public:
 public:
   void show(bool replace);
   void focus();
+  bool hasFocus() const;
   bool isReplaceEnabled() const {
     return m_replace;
   }

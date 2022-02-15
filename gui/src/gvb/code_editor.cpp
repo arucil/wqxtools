@@ -159,6 +159,10 @@ void CodeEditor::notified(Scintilla::NotificationData *data) {
       }
       break;
     }
+    case Scintilla::Notification::Key: {
+      printf("%d\n", data->ch);
+      break;
+    }
     default:
       break;
   }
@@ -535,4 +539,13 @@ void CodeEditor::replaceAll() {
 
 void CodeEditor::contextMenuEvent(QContextMenuEvent *event) {
   emit contextMenu(event->pos());
+}
+
+void CodeEditor::keyPressEvent(QKeyEvent *event) {
+  if (event->key() == Qt::Key_Escape && event->modifiers() == Qt::NoModifier) {
+    if (!callTipActive() && !autoCActive() && selections() == 1) {
+      emit escape();
+    }
+  }
+  ScintillaEdit::keyPressEvent(event);
 }

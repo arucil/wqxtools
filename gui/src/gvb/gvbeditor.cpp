@@ -127,6 +127,12 @@ void GvbEditor::initUi() {
   connect(m_searchBar, &SearchBar::replace, m_edit, &CodeEditor::replace);
   connect(m_searchBar, &SearchBar::replaceAll, m_edit, &CodeEditor::replaceAll);
 
+  connect(m_edit, &CodeEditor::escape, m_searchBar, [=] {
+    if (m_searchBar->isVisible()) {
+      m_searchBar->hide();
+    }
+  });
+
   auto splitter = new QSplitter(this);
   splitter->setOrientation(Qt::Vertical);
 
@@ -610,7 +616,9 @@ QSize GvbEditor::preferredWindowSize() const {
 }
 
 void GvbEditor::find() {
-  if (m_searchBar->isVisible() && !m_searchBar->isReplaceEnabled()) {
+  if (
+    m_searchBar->isVisible() && m_searchBar->hasFocus()
+    && !m_searchBar->isReplaceEnabled()) {
     m_searchBar->hide();
   } else {
     m_searchBar->show(false);
@@ -619,7 +627,9 @@ void GvbEditor::find() {
 }
 
 void GvbEditor::replace() {
-  if (m_searchBar->isVisible() && m_searchBar->isReplaceEnabled()) {
+  if (
+    m_searchBar->isVisible() && m_searchBar->hasFocus()
+    && m_searchBar->isReplaceEnabled()) {
     m_searchBar->hide();
   } else {
     m_searchBar->show(true);
