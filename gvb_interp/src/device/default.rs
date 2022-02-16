@@ -840,6 +840,10 @@ impl Device for DefaultDevice {
       return;
     }
 
+    if !fill && mode == DrawMode::Unknown {
+      return;
+    }
+
     let r = rx.max(ry);
     let mut inc_x = 0xffu8;
     let mut inc_y = 1u8;
@@ -885,27 +889,16 @@ impl Device for DefaultDevice {
           fxy = fy - fxy;
           t0 = false;
         }
-        let tfx = fx;
-        let tt1 = t1;
-        t1 = t2;
-        fx = fy;
-
-        // jsr c795
-        if t1 {
-          if fx > 2 {
-            fx -= 2;
+        if t2 {
+          if fy > 2 {
+            fy -= 2;
           } else {
-            fx = 2 - fx;
-            t1 = false;
+            fy = 2 - fy;
+            t2 = false;
           }
         } else {
-          fx = fx.wrapping_add(2);
+          fy = fy.wrapping_add(2);
         }
-
-        fy = fx;
-        t2 = t1;
-        t1 = tt1;
-        fx = tfx;
         if !t2 && fy <= 2 {
           inc_x = inc_x.wrapping_neg();
           fx = fx.wrapping_neg().wrapping_add(2);
