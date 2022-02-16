@@ -103,9 +103,10 @@ pub trait Device {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DrawMode {
-  Erase,
-  Copy,
-  Not,
+  Clear,
+  Or,
+  Xor,
+  Unknown,
 }
 
 pub trait FileHandle {

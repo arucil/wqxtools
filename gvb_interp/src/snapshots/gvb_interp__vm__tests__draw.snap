@@ -1,19 +1,20 @@
 ---
 source: gvb_interp/src/vm.rs
-expression: device.log.borrow()
+assertion_line: 3284
+expression: "run(r#\"\n0 x=10:y=20:x1=11:y1=22:x2=33:y2=44:r=6:f=3:m=2\n10 draw x,y+1:draw x1,y1,m\n20 line x1,y1,x2,y2:line x1,y1,x2,y2,0:\n30 box x1,y1,x2,y2:box x,y,x,y%,f:box x1,y1,x2+1,y2,4,m\n40 circle x1,y1,r:circle x,y,r,1:circle x,y,r,0,m\n50 ellipse x,y,7,3:ellipse x,y,7,3,1:ellipse x,y,7,3,f,m\n    \"#.trim(),\n    vec![(ExecResult :: End, ExecInput :: None)])"
 
 ---
-draw point at (10, 21), Copy
-draw point at (11, 22), Not
-draw line from (11, 22) to (33, 44), Copy
-draw line from (11, 22) to (33, 44), Erase
-draw box from (11, 22) to (33, 44), fill: false, Copy
-draw box from (10, 20) to (10, 0), fill: true, Copy
-draw box from (11, 22) to (34, 44), fill: false, Not
-draw circle at (11, 22), radius: 6, fill: false, Copy
-draw circle at (10, 20), radius: 6, fill: true, Copy
-draw circle at (10, 20), radius: 6, fill: false, Not
-draw ellipse at (10, 20), rx: 7, ry: 3, fill: false, Copy
-draw ellipse at (10, 20), rx: 7, ry: 3, fill: true, Copy
-draw ellipse at (10, 20), rx: 7, ry: 3, fill: true, Not
+draw point at (10, 21), Or
+draw point at (11, 22), Xor
+draw line from (11, 22) to (33, 44), Or
+draw line from (11, 22) to (33, 44), Clear
+draw box from (11, 22) to (33, 44), fill: false, Or
+draw box from (10, 20) to (10, 0), fill: true, Or
+draw box from (11, 22) to (34, 44), fill: false, Xor
+draw circle at (11, 22), radius: 6, fill: false, Or
+draw circle at (10, 20), radius: 6, fill: true, Or
+draw circle at (10, 20), radius: 6, fill: false, Xor
+draw ellipse at (10, 20), rx: 7, ry: 3, fill: false, Or
+draw ellipse at (10, 20), rx: 7, ry: 3, fill: true, Or
+draw ellipse at (10, 20), rx: 7, ry: 3, fill: true, Xor
 

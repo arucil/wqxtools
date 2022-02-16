@@ -2376,15 +2376,15 @@ where
 
   fn calc_draw_mode(&mut self, has_mode: bool) -> Result<DrawMode> {
     if !has_mode {
-      return Ok(DrawMode::Copy);
+      return Ok(DrawMode::Or);
     }
 
     let value = self.pop_u8(false)? & 7;
     match value {
-      0 => Ok(DrawMode::Erase),
-      1 | 6 => Ok(DrawMode::Copy),
-      2 => Ok(DrawMode::Not),
-      _ => Ok(DrawMode::Copy),
+      0 => Ok(DrawMode::Clear),
+      1 | 6 => Ok(DrawMode::Or),
+      2 => Ok(DrawMode::Xor),
+      _ => Ok(DrawMode::Unknown),
     }
   }
 

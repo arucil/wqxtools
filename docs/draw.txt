@@ -1,0 +1,47 @@
+draw: mode != 0,1,2 就不画
+      x != [1,159] 就不画
+      y != [0,79]
+
+line:
+  x0==x1: for y=y0 to y1: draw x0,y
+  y0==y1:
+    if x0>=x1: swap x0,x1
+    if x0>=160: x0=159
+    if x1>=160: x1=159
+    if y0>=80: y=79 else: y=y0
+    if x0==0: x0=1
+    if mode >= 2: mode=2
+    draw horizontal line x0,x1,y
+  else:
+    if x0>x1: swap x0,x1; swap y0,y1
+    dist_x=x1-x0
+    dist_y=abs(y1-y0)
+    inc_y=if y1>y0: +1 else: -1
+    dist_max=if abs(y1-y0)>=(x1-x0): abs(y1-y0) else: (x1-x0)
+    error_x=0
+    error_y=0
+    x=x0
+    y=y0
+    for i=0 to dist_max:
+      draw x,y
+      error_x+=dist_x
+      error_y+=dist_y
+      if error_x>=dist_max:
+        error_x-=dist_max
+        x+=1
+      if error_y>=dist_max:
+        error_y-=dist_max
+        y+=inc_y
+
+box filled:
+  if x0>=x1: swap x0,x1
+  if y0>=y1: swap y0,y1
+  for y=y0 to y1:
+    line x0,x1,y,y
+
+box hollow:
+  if x0>=x1: swap x0,x1; swap y0,y1
+  line x0,x0,y0,y1
+  line x0,x1,y0,y0
+  line x0,x1,y1,y1
+  line x1,x1,y0,y1

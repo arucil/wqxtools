@@ -4,7 +4,6 @@ nc3000 中断执行地址计算方式：
 像$cxxx就不是这样算了。
 计算方法：比如INT $CA12，首先转到$c000地址，让IO $0a的值等于第二个数字A，再根据$C000+12*2、$C001+12*2地址中的值跳转到指定位置就行了
 
-
 ;;; INT $CAxx
 ;;;  位于 NC300模拟器的 obj.bin 文件中偏移 0x10000~0x11fff
 ;;;  对应地址 $0A=#$0A, $C000~$DFFF
@@ -14,7 +13,6 @@ C000: .dw $EA60, $C9E9, $C8A4, $C9B0, $C2BB
       .dw $C193, $C301, $C1FA, $C031, $C524
       .dw $C54B, $C514, $C51C, $CA2E, $CA4F
       .dw $D29A, $D5E8, $D982, $DA02
-
 
 C030: 60       RTS
 
@@ -175,14 +173,17 @@ C184: 08       PHP
 C185: 4C 7A C1 JMP $C17A
 C188: 28       PLP
 C189: 60       RTS
+
 C18A: 8D C4 03 STA $03C4
 C18D: 8E C5 03 STX $03C5
 C190: 8C C6 03 STY $03C6
+
+;; filled BOX
 C193: AD C4 03 LDA $03C4
 C196: 8D CB 03 STA $03CB
 C199: AD C3 03 LDA $03C3
 C19C: CD C5 03 CMP $03C5
-C19F: 90 18    BCC $C1B9
+C19F: 90 18    BCC $C1B9  ; if x0>=x1 then swap x0 with x1, swap y0 with y1
 C1A1: AD C3 03 LDA $03C3
 C1A4: AE C5 03 LDX $03C5
 C1A7: 8D C5 03 STA $03C5
@@ -193,7 +194,7 @@ C1B3: 8D C6 03 STA $03C6
 C1B6: 8E C4 03 STX $03C4
 C1B9: AD C4 03 LDA $03C4
 C1BC: CD C6 03 CMP $03C6
-C1BF: 90 0C    BCC $C1CD
+C1BF: 90 0C    BCC $C1CD  ; if y0>=y1 then swap y0 with y1
 C1C1: AD C4 03 LDA $03C4
 C1C4: AE C6 03 LDX $03C6
 C1C7: 8D C6 03 STA $03C6
@@ -202,7 +203,7 @@ C1CD: AD C6 03 LDA $03C6
 C1D0: 48       PHA
 C1D1: AD C4 03 LDA $03C4
 C1D4: 8D C6 03 STA $03C6
-C1D7: 20 01 C3 JSR $C301
+C1D7: 20 01 C3 JSR $C301  ; draw line x0,x1,y0,y0
 C1DA: 68       PLA
 C1DB: CD C6 03 CMP $03C6
 C1DE: F0 0A    BEQ $C1EA
@@ -210,15 +211,19 @@ C1E0: 48       PHA
 C1E1: EE C6 03 INC $03C6
 C1E4: EE C4 03 INC $03C4
 C1E7: 4C D7 C1 JMP $C1D7
+
 C1EA: AD CB 03 LDA $03CB
 C1ED: 8D C4 03 STA $03C4
 C1F0: 60       RTS
+
 C1F1: 8D C4 03 STA $03C4
 C1F4: 8E C5 03 STX $03C5
 C1F7: 8C C6 03 STY $03C6
+
+;; hollow BOX
 C1FA: AD C3 03 LDA $03C3
 C1FD: CD C5 03 CMP $03C5
-C200: 90 18    BCC $C21A
+C200: 90 18    BCC $C21A  ; if x0>=x1 then swap x0 with x1, swap y0 with y1
 C202: AD C3 03 LDA $03C3
 C205: AE C5 03 LDX $03C5
 C208: 8D C5 03 STA $03C5
@@ -231,31 +236,32 @@ C21A: AD C5 03 LDA $03C5
 C21D: 48       PHA
 C21E: AD C3 03 LDA $03C3
 C221: 8D C5 03 STA $03C5
-C224: 20 01 C3 JSR $C301
+C224: 20 01 C3 JSR $C301  ; draw line x0,x0,y0,y1
 C227: 68       PLA
 C228: 8D C5 03 STA $03C5
 C22B: AD C6 03 LDA $03C6
 C22E: 48       PHA
 C22F: AD C4 03 LDA $03C4
 C232: 8D C6 03 STA $03C6
-C235: 20 01 C3 JSR $C301
+C235: 20 01 C3 JSR $C301  ; draw line x0,x1,y0,y0
 C238: 68       PLA
 C239: 8D C6 03 STA $03C6
 C23C: AD C4 03 LDA $03C4
 C23F: 48       PHA
 C240: AD C6 03 LDA $03C6
 C243: 8D C4 03 STA $03C4
-C246: 20 01 C3 JSR $C301
+C246: 20 01 C3 JSR $C301  ; draw line x0,x1,y1,y1
 C249: 68       PLA
 C24A: 8D C4 03 STA $03C4
 C24D: AD C3 03 LDA $03C3
 C250: 48       PHA
 C251: AD C5 03 LDA $03C5
 C254: 8D C3 03 STA $03C3
-C257: 20 01 C3 JSR $C301
+C257: 20 01 C3 JSR $C301  ; draw line x1,x1,y0,y1
 C25A: 68       PLA
 C25B: 8D C3 03 STA $03C3
 C25E: 60       RTS
+
 C25F: AD C7 03 LDA $03C7
 C262: CD C8 03 CMP $03C8
 C265: 90 05    BCC $C26C
@@ -266,6 +272,13 @@ C26C: AD C8 03 LDA $03C8
 C26F: 38       SEC
 C270: ED C7 03 SBC $03C7
 C273: 60       RTS
+
+;; input:
+;;   $03c7  x
+;;   $03c8  y
+;; output:
+;;   $80,$81  address of pixel
+;;   A        bit mask of pixel
 C274: A9 C0    LDA #$C0
 C276: 85 80    STA $80
 C278: A9 19    LDA #$19
@@ -295,23 +308,21 @@ C2A3: 29 07    AND #$07
 C2A5: AA       TAX
 C2A6: BD AA C2 LDA $C2AA,X
 C2A9: 60       RTS
-C2AA: 80       ??
-C2AB: 40       RTI
-C2AC: 20 10 08 JSR $0810
-C2AF: 04       ??
-C2B0: 02       ??
-C2B1: 01 60    ORA ($60,X)
+
+C2AA: .db $80, $40, $20, $10, $08, $04, $02, $01
+
+C2B2: 60       RTS
 C2B3: 20 74 C2 JSR $C274
 C2B6: A0 00    LDY #$00
 C2B8: 31 80    AND ($80),Y
 C2BA: 60       RTS
 
 ;; DRAW
-C2BB: AD C7 03 LDA $03C7
+C2BB: AD C7 03 LDA $03C7  ; x
 C2BE: F0 21    BEQ $C2E1
 C2C0: C9 A0    CMP #$A0
 C2C2: B0 1D    BCS $C2E1
-C2C4: AD C8 03 LDA $03C8
+C2C4: AD C8 03 LDA $03C8  ; y
 C2C7: C9 50    CMP #$50
 C2C9: B0 16    BCS $C2E1
 C2CB: AD C9 03 LDA $03C9
@@ -325,33 +336,40 @@ C2DB: A0 00    LDY #$00
 C2DD: 51 80    EOR ($80),Y
 C2DF: 91 80    STA ($80),Y
 C2E1: 60       RTS
+
+;; DRAW x,y,1
 C2E2: 20 74 C2 JSR $C274
 C2E5: A0 00    LDY #$00
 C2E7: 11 80    ORA ($80),Y
 C2E9: 91 80    STA ($80),Y
 C2EB: 60       RTS
+
+;; DRAW x,y,0
 C2EC: 20 74 C2 JSR $C274
 C2EF: A0 00    LDY #$00
 C2F1: 49 FF    EOR #$FF
 C2F3: 31 80    AND ($80),Y
 C2F5: 91 80    STA ($80),Y
 C2F7: 60       RTS
+
 C2F8: 8D C4 03 STA $03C4
 C2FB: 8E C5 03 STX $03C5
 C2FE: 8C C6 03 STY $03C6
 
 ;; LINE
-C301: AE C3 03 LDX $03C3
-C304: EC C5 03 CPX $03C5
+C301: AE C3 03 LDX $03C3  ; x0
+C304: EC C5 03 CPX $03C5  ; x1
 C307: D0 03    BNE $C30C
 C309: 4C C6 C3 JMP $C3C6
-C30C: AE C4 03 LDX $03C4
-C30F: EC C6 03 CPX $03C6
+
+C30C: AE C4 03 LDX $03C4  ; y0
+C30F: EC C6 03 CPX $03C6  ; y1
 C312: D0 03    BNE $C317
 C314: 4C 31 C4 JMP $C431
+
 C317: AD C5 03 LDA $03C5
 C31A: CD C3 03 CMP $03C3
-C31D: B0 1C    BCS $C33B
+C31D: B0 1C    BCS $C33B  ; if x0>x1 then swap x0 with x1, swap y0 with y1
 C31F: AD C3 03 LDA $03C3
 C322: 48       PHA
 C323: AD C5 03 LDA $03C5
@@ -364,17 +382,18 @@ C331: AD C6 03 LDA $03C6
 C334: 8D C4 03 STA $03C4
 C337: 68       PLA
 C338: 8D C6 03 STA $03C6
+
 C33B: AD C5 03 LDA $03C5
 C33E: 38       SEC
 C33F: ED C3 03 SBC $03C3
-C342: 8D CD 03 STA $03CD
+C342: 8D CD 03 STA $03CD  ; x1-x0
 C345: AD C6 03 LDA $03C6
 C348: 38       SEC
 C349: ED C4 03 SBC $03C4
-C34C: 8D CE 03 STA $03CE
+C34C: 8D CE 03 STA $03CE  ; y1-y0
 C34F: AD CE 03 LDA $03CE
 C352: 20 0C C5 JSR $C50C
-C355: 8D CC 03 STA $03CC
+C355: 8D CC 03 STA $03CC  ; if y1>=y0 then +1 else -1
 C358: 20 E7 C4 JSR $C4E7
 C35B: A9 00    LDA #$00
 C35D: 8D D1 03 STA $03D1
@@ -384,7 +403,7 @@ C366: AD C3 03 LDA $03C3
 C369: 8D C7 03 STA $03C7
 C36C: AD C4 03 LDA $03C4
 C36F: 8D C8 03 STA $03C8
-C372: 20 BB C2 JSR $C2BB
+C372: 20 BB C2 JSR $C2BB  ; draw point
 C375: 18       CLC
 C376: AD CF 03 LDA $03CF
 C379: 6D CD 03 ADC $03CD
@@ -417,6 +436,8 @@ C3BD: AD D2 03 LDA $03D2
 C3C0: CD D1 03 CMP $03D1
 C3C3: B0 AD    BCS $C372
 C3C5: 60       RTS
+
+;; draw vertical line
 C3C6: AD C6 03 LDA $03C6
 C3C9: 38       SEC
 C3CA: ED C4 03 SBC $03C4
@@ -429,19 +450,21 @@ C3D8: E9 01    SBC #$01
 C3DA: 49 FF    EOR #$FF
 C3DC: 8D CE 03 STA $03CE
 C3DF: A9 FF    LDA #$FF
-C3E1: 8D CC 03 STA $03CC
+C3E1: 8D CC 03 STA $03CC  ; inc y = -1
 C3E4: 4C F2 C3 JMP $C3F2
-C3E7: 8D CC 03 STA $03CC
+
+C3E7: 8D CC 03 STA $03CC  ; inc y = 0
 C3EA: 4C F2 C3 JMP $C3F2
+
 C3ED: A9 01    LDA #$01
-C3EF: 8D CC 03 STA $03CC
+C3EF: 8D CC 03 STA $03CC  ; inc y = +1
 C3F2: A9 00    LDA #$00
 C3F4: 8D D1 03 STA $03D1
 C3F7: AD C3 03 LDA $03C3
 C3FA: 8D C7 03 STA $03C7
 C3FD: AD C4 03 LDA $03C4
 C400: 8D C8 03 STA $03C8
-C403: 20 BB C2 JSR $C2BB
+C403: 20 BB C2 JSR $C2BB  ; draw point
 C406: 18       CLC
 C407: AD C8 03 LDA $03C8
 C40A: 6D CC 03 ADC $03CC
@@ -451,6 +474,7 @@ C413: AD CE 03 LDA $03CE
 C416: CD D1 03 CMP $03D1
 C419: B0 E8    BCS $C403
 C41B: 60       RTS
+
 C41C: F0 05    BEQ $C423
 C41E: C9 A0    CMP #$A0
 C420: B0 04    BCS $C426
@@ -459,38 +483,41 @@ C423: A9 01    LDA #$01
 C425: 60       RTS
 C426: A9 9F    LDA #$9F
 C428: 60       RTS
+
 C429: C9 50    CMP #$50
 C42B: B0 01    BCS $C42E
 C42D: 60       RTS
 C42E: A9 4F    LDA #$4F
 C430: 60       RTS
+
+;; draw horizontal line
 C431: AD C3 03 LDA $03C3
 C434: CD C5 03 CMP $03C5
-C437: 90 09    BCC $C442
+C437: 90 09    BCC $C442  ; if x0>=x1 then swap x0 with x1
 C439: AE C5 03 LDX $03C5
 C43C: 8D C5 03 STA $03C5
 C43F: 8E C3 03 STX $03C3
 C442: AD C3 03 LDA $03C3
 C445: C9 A0    CMP #$A0
-C447: 90 05    BCC $C44E
+C447: 90 05    BCC $C44E  ; if x0>=160 then x0=159
 C449: A9 9F    LDA #$9F
 C44B: 8D C3 03 STA $03C3
 C44E: AD C5 03 LDA $03C5
 C451: C9 A0    CMP #$A0
-C453: 90 05    BCC $C45A
+C453: 90 05    BCC $C45A  ; if x1>=160 then x1=159
 C455: A9 9F    LDA #$9F
 C457: 8D C5 03 STA $03C5
 C45A: AD C4 03 LDA $03C4
 C45D: C9 50    CMP #$50
-C45F: 90 02    BCC $C463
+C45F: 90 02    BCC $C463  ; if y0>=80 then y=79 else y=y0
 C461: A9 4F    LDA #$4F
 C463: 8D C8 03 STA $03C8
 C466: AD C3 03 LDA $03C3
-C469: D0 05    BNE $C470
+C469: D0 05    BNE $C470  ; if x0=0 then x0=1
 C46B: A9 01    LDA #$01
 C46D: 8D C3 03 STA $03C3
 C470: 8D C7 03 STA $03C7
-C473: 20 74 C2 JSR $C274
+C473: 20 74 C2 JSR $C274  ; get pixel address and bit mask
 C476: 85 82    STA $82
 C478: AD C5 03 LDA $03C5
 C47B: 38       SEC
@@ -501,6 +528,7 @@ C481: 20 A8 C4 JSR $C4A8
 C484: E0 00    CPX #$00
 C486: F0 3A    BEQ $C4C2
 C488: D0 0C    BNE $C496
+
 C48A: A9 FF    LDA #$FF
 C48C: 85 82    STA $82
 C48E: 20 A8 C4 JSR $C4A8
@@ -517,6 +545,7 @@ C4A0: A9 80    LDA #$80
 C4A2: 85 82    STA $82
 C4A4: E0 00    CPX #$00
 C4A6: F0 1A    BEQ $C4C2
+
 C4A8: A0 00    LDY #$00
 C4AA: AD C9 03 LDA $03C9
 C4AD: C9 01    CMP #$01
@@ -531,6 +560,7 @@ C4BC: B0 04    BCS $C4C2
 C4BE: E0 00    CPX #$00
 C4C0: D0 F1    BNE $C4B3
 C4C2: 60       RTS
+
 C4C3: A5 82    LDA $82
 C4C5: 11 80    ORA ($80),Y
 C4C7: 91 80    STA ($80),Y
@@ -540,6 +570,7 @@ C4CC: B0 F4    BCS $C4C2
 C4CE: E0 00    CPX #$00
 C4D0: D0 F1    BNE $C4C3
 C4D2: 60       RTS
+
 C4D3: B1 80    LDA ($80),Y
 C4D5: 49 FF    EOR #$FF
 C4D7: 05 82    ORA $82
@@ -551,50 +582,66 @@ C4E0: B0 E0    BCS $C4C2
 C4E2: E0 00    CPX #$00
 C4E4: D0 ED    BNE $C4D3
 C4E6: 60       RTS
+
 C4E7: AD CE 03 LDA $03CE
 C4EA: 20 03 C5 JSR $C503
-C4ED: 8D CE 03 STA $03CE
+C4ED: 8D CE 03 STA $03CE  ; =abs(y1-y0)
 C4F0: CD CD 03 CMP $03CD
 C4F3: 90 06    BCC $C4FB
-C4F5: 8D D2 03 STA $03D2
+C4F5: 8D D2 03 STA $03D2  ; =abs(y1-y0) if abs(y1-y0)>=(x1-x0)
 C4F8: 4C 01 C5 JMP $C501
+
 C4FB: AD CD 03 LDA $03CD
-C4FE: 8D D2 03 STA $03D2
+C4FE: 8D D2 03 STA $03D2  ; =(x1-x0) if abs(y1-y0)<(x1-x0)
 C501: 18       CLC
 C502: 60       RTS
+
 C503: 10 05    BPL $C50A
 C505: 38       SEC
 C506: E9 01    SBC #$01
 C508: 49 FF    EOR #$FF
 C50A: 18       CLC
 C50B: 60       RTS
+
 C50C: 30 03    BMI $C511
 C50E: A9 01    LDA #$01
 C510: 60       RTS
+
 C511: A9 FF    LDA #$FF
 C513: 60       RTS
+
+;; filled CIRCLE
 C514: A9 01    LDA #$01
 C516: 8D DA 03 STA $03DA
 C519: 4C 29 C5 JMP $C529
+
+;; filled ELLIPSE
 C51C: A9 01    LDA #$01
 C51E: 8D DA 03 STA $03DA
 C521: 4C 50 C5 JMP $C550
+
+;; hollow CIRCLE
 C524: A9 00    LDA #$00
 C526: 8D DA 03 STA $03DA
+
 C529: A9 00    LDA #$00
 C52B: 8D D9 03 STA $03D9
 C52E: AD D6 03 LDA $03D6
 C531: 8D DB 03 STA $03DB
 C534: 8D DC 03 STA $03DC
-C537: F0 03    BEQ $C53C
+C537: F0 03    BEQ $C53C  ; radius==0
 C539: 4C 73 C5 JMP $C573
+
 C53C: AD C3 03 LDA $03C3
 C53F: 8D C7 03 STA $03C7
 C542: AD C4 03 LDA $03C4
 C545: 8D C8 03 STA $03C8
-C548: 4C BB C2 JMP $C2BB
+C548: 4C BB C2 JMP $C2BB  ; draw point
+
+;; hollow ellipse
 C54B: A9 00    LDA #$00
 C54D: 8D DA 03 STA $03DA
+
 C550: A9 00    LDA #$00
 C552: 8D D9 03 STA $03D9
 C555: AD DB 03 LDA $03DB
@@ -607,7 +654,8 @@ C565: 8D D6 03 STA $03D6
 C568: CD DC 03 CMP $03DC
 C56B: B0 06    BCS $C573
 C56D: AD DC 03 LDA $03DC
-C570: 8D D6 03 STA $03D6
+C570: 8D D6 03 STA $03D6  ; =max(rx,ry)
+
 C573: A9 FF    LDA #$FF
 C575: 8D D5 03 STA $03D5
 C578: A9 01    LDA #$01
@@ -630,10 +678,11 @@ C5A3: 8D D8 03 STA $03D8
 C5A6: AD C4 03 LDA $03C4
 C5A9: 8D C8 03 STA $03C8
 C5AC: AD DA 03 LDA $03DA
-C5AF: F0 06    BEQ $C5B7
+C5AF: F0 06    BEQ $C5B7  ; hollow
 C5B1: 20 C3 C7 JSR $C7C3
 C5B4: 4C BA C5 JMP $C5BA
 C5B7: 20 49 C8 JSR $C849
+
 C5BA: AD D4 03 LDA $03D4
 C5BD: D0 7E    BNE $C63D
 C5BF: AD CD 03 LDA $03CD
@@ -661,6 +710,7 @@ C5F3: F0 06    BEQ $C5FB
 C5F5: 20 C3 C7 JSR $C7C3
 C5F8: 4C FE C5 JMP $C5FE
 C5FB: 20 49 C8 JSR $C849
+
 C5FE: 20 30 C7 JSR $C730
 C601: 20 95 C7 JSR $C795
 C604: AD D0 03 LDA $03D0
@@ -687,6 +737,7 @@ C632: AD D4 03 LDA $03D4
 C635: 49 01    EOR #$01
 C637: 8D D4 03 STA $03D4
 C63A: 4C 02 C7 JMP $C702
+
 C63D: 18       CLC
 C63E: AD CE 03 LDA $03CE
 C641: 6D DC 03 ADC $03DC
@@ -719,6 +770,7 @@ C682: 20 49 C8 JSR $C849
 C685: 68       PLA
 C686: 8D D7 03 STA $03D7
 C689: 4C 9F C6 JMP $C69F
+
 C68C: A9 01    LDA #$01
 C68E: 8D D9 03 STA $03D9
 C691: AD DA 03 LDA $03DA
@@ -726,6 +778,7 @@ C694: F0 06    BEQ $C69C
 C696: 20 C3 C7 JSR $C7C3
 C699: 4C 9F C6 JMP $C69F
 C69C: 20 49 C8 JSR $C849
+
 C69F: 20 63 C7 JSR $C763
 C6A2: AD CF 03 LDA $03CF
 C6A5: 48       PHA
@@ -768,10 +821,12 @@ C6FA: 38       SEC
 C6FB: E9 01    SBC #$01
 C6FD: 49 FF    EOR #$FF
 C6FF: 8D D3 03 STA $03D3
+
 C702: AD D7 03 LDA $03D7
 C705: F0 03    BEQ $C70A
 C707: 4C BA C5 JMP $C5BA
 C70A: 60       RTS
+
 C70B: F0 0F    BEQ $C71C
 C70D: 30 08    BMI $C717
 C70F: 38       SEC
@@ -785,6 +840,7 @@ C71C: 38       SEC
 C71D: 60       RTS
 C71E: 18       CLC
 C71F: 60       RTS
+
 C720: AD D6 03 LDA $03D6
 C723: 0A       ASL
 C724: 38       SEC
@@ -793,13 +849,15 @@ C727: 8D CF 03 STA $03CF
 C72A: A9 01    LDA #$01
 C72C: 8D D0 03 STA $03D0
 C72F: 60       RTS
+
 C730: AD D4 03 LDA $03D4
-C733: F0 0B    BEQ $C740
+C733: F0 0B    BEQ $C740  ; always branches
 C735: 18       CLC
 C736: AD D3 03 LDA $03D3
 C739: 6D CF 03 ADC $03CF
 C73C: 8D D3 03 STA $03D3
 C73F: 60       RTS
+
 C740: AD D3 03 LDA $03D3
 C743: CD CF 03 CMP $03CF
 C746: 90 0B    BCC $C753
@@ -808,6 +866,7 @@ C74B: 38       SEC
 C74C: ED CF 03 SBC $03CF
 C74F: 8D D3 03 STA $03D3
 C752: 60       RTS
+
 C753: AD CF 03 LDA $03CF
 C756: 38       SEC
 C757: ED D3 03 SBC $03D3
@@ -815,8 +874,9 @@ C75A: 8D D3 03 STA $03D3
 C75D: A9 01    LDA #$01
 C75F: 8D D4 03 STA $03D4
 C762: 60       RTS
+
 C763: AD D4 03 LDA $03D4
-C766: F0 22    BEQ $C78A
+C766: F0 22    BEQ $C78A  ; never branches
 C768: AD D3 03 LDA $03D3
 C76B: CD D1 03 CMP $03D1
 C76E: F0 02    BEQ $C772
@@ -828,15 +888,18 @@ C779: 8D D3 03 STA $03D3
 C77C: A9 00    LDA #$00
 C77E: 8D D4 03 STA $03D4
 C781: 60       RTS
+
 C782: 38       SEC
 C783: ED D1 03 SBC $03D1
 C786: 8D D3 03 STA $03D3
 C789: 60       RTS
+
 C78A: AD D3 03 LDA $03D3
 C78D: 18       CLC
 C78E: 6D D1 03 ADC $03D1
 C791: 8D D3 03 STA $03D3
 C794: 60       RTS
+
 C795: AD D0 03 LDA $03D0
 C798: F0 1F    BEQ $C7B9
 C79A: AD CF 03 LDA $03CF
@@ -850,15 +913,18 @@ C7A9: 8D CF 03 STA $03CF
 C7AC: A9 00    LDA #$00
 C7AE: 8D D0 03 STA $03D0
 C7B1: 60       RTS
+
 C7B2: 38       SEC
 C7B3: E9 02    SBC #$02
 C7B5: 8D CF 03 STA $03CF
 C7B8: 60       RTS
+
 C7B9: AD CF 03 LDA $03CF
 C7BC: 18       CLC
 C7BD: 69 02    ADC #$02
 C7BF: 8D CF 03 STA $03CF
 C7C2: 60       RTS
+
 C7C3: AD CD 03 LDA $03CD
 C7C6: 48       PHA
 C7C7: AD CE 03 LDA $03CE
@@ -867,26 +933,27 @@ C7CB: AD C4 03 LDA $03C4
 C7CE: 48       PHA
 C7CF: 18       CLC
 C7D0: 6D D8 03 ADC $03D8
-C7D3: 8D C4 03 STA $03C4
+C7D3: 8D C4 03 STA $03C4  ;y0=y+tmp_y
 C7D6: AD C3 03 LDA $03C3
 C7D9: 48       PHA
 C7DA: 38       SEC
 C7DB: ED D7 03 SBC $03D7
-C7DE: 8D C3 03 STA $03C3
+C7DE: 8D C3 03 STA $03C3  ;x0=x-tmp_x
 C7E1: 68       PLA
 C7E2: 48       PHA
 C7E3: 18       CLC
 C7E4: 6D D7 03 ADC $03D7
-C7E7: 8D C5 03 STA $03C5
+C7E7: 8D C5 03 STA $03C5  ;x1=x+tmp_x
 C7EA: AD C3 03 LDA $03C3
 C7ED: CD C5 03 CMP $03C5
-C7F0: 90 0D    BCC $C7FF
+C7F0: 90 0D    BCC $C7FF  ;x0<x1
 C7F2: F0 0B    BEQ $C7FF
 C7F4: A9 00    LDA #$00
-C7F6: 8D C3 03 STA $03C3
-C7F9: 20 31 C4 JSR $C431
+C7F6: 8D C3 03 STA $03C3  ;x0=0 if x0>x1
+C7F9: 20 31 C4 JSR $C431  ; draw horizontal line
 C7FC: 4C 02 C8 JMP $C802
-C7FF: 20 31 C4 JSR $C431
+
+C7FF: 20 31 C4 JSR $C431  ; draw horizontal line
 C802: 68       PLA
 C803: AA       TAX
 C804: 68       PLA
@@ -896,21 +963,21 @@ C807: 8A       TXA
 C808: 48       PHA
 C809: 38       SEC
 C80A: ED D7 03 SBC $03D7
-C80D: 8D C3 03 STA $03C3
+C80D: 8D C3 03 STA $03C3  ; x0=x-tmp_x
 C810: 98       TYA
 C811: 38       SEC
 C812: ED D8 03 SBC $03D8
-C815: 8D C4 03 STA $03C4
+C815: 8D C4 03 STA $03C4  ; y0=y-tmp_y
 C818: 8A       TXA
 C819: 18       CLC
 C81A: 6D D7 03 ADC $03D7
-C81D: 8D C5 03 STA $03C5
+C81D: 8D C5 03 STA $03C5  ; x1=x+tmp_x
 C820: AD C3 03 LDA $03C3
 C823: CD C5 03 CMP $03C5
 C826: 90 0D    BCC $C835
 C828: F0 0B    BEQ $C835
 C82A: A9 00    LDA #$00
-C82C: 8D C3 03 STA $03C3
+C82C: 8D C3 03 STA $03C3  ; x0=0 if x0>x1
 C82F: 20 31 C4 JSR $C431
 C832: 4C 38 C8 JMP $C838
 C835: 20 31 C4 JSR $C431
@@ -923,35 +990,37 @@ C841: 8D CE 03 STA $03CE
 C844: 68       PLA
 C845: 8D CD 03 STA $03CD
 C848: 60       RTS
+
 C849: AD C3 03 LDA $03C3
 C84C: 38       SEC
 C84D: ED D7 03 SBC $03D7
-C850: 8D C7 03 STA $03C7
+C850: 8D C7 03 STA $03C7  ; x0=x-tmp_x
 C853: AD C4 03 LDA $03C4
 C856: 18       CLC
 C857: 6D D8 03 ADC $03D8
-C85A: 8D C8 03 STA $03C8
-C85D: 20 BB C2 JSR $C2BB
+C85A: 8D C8 03 STA $03C8  ; y0=y+tmp_y
+C85D: 20 BB C2 JSR $C2BB  ; draw point
 C860: AD C3 03 LDA $03C3
 C863: 18       CLC
 C864: 6D D7 03 ADC $03D7
-C867: 8D C7 03 STA $03C7
+C867: 8D C7 03 STA $03C7  ;x0=x+tmp_x
 C86A: 20 BB C2 JSR $C2BB
 C86D: AD C3 03 LDA $03C3
 C870: 38       SEC
 C871: ED D7 03 SBC $03D7
-C874: 8D C7 03 STA $03C7
+C874: 8D C7 03 STA $03C7  ;x0=x-tmp_x
 C877: AD C4 03 LDA $03C4
 C87A: 38       SEC
 C87B: ED D8 03 SBC $03D8
-C87E: 8D C8 03 STA $03C8
+C87E: 8D C8 03 STA $03C8  ;y0=y-tmp_y
 C881: 20 BB C2 JSR $C2BB
 C884: AD C3 03 LDA $03C3
 C887: 18       CLC
 C888: 6D D7 03 ADC $03D7
-C88B: 8D C7 03 STA $03C7
+C88B: 8D C7 03 STA $03C7  ;x0=x+tmp_x
 C88E: 20 BB C2 JSR $C2BB
 C891: 60       RTS
+
 C892: 8D CC 03 STA $03CC
 C895: A9 00    LDA #$00
 C897: 8D CD 03 STA $03CD
@@ -3353,1047 +3422,4 @@ DBE7: 3F       ??
 DBE8: FF       ??
 DBE9: E7       ??
 DBEA: FF       ??
-DBEB: F0 FF    BEQ $DBEC
-DBED: FF       ??
-DBEE: FF       ??
-DBEF: FF       ??
-DBF0: FF       ??
-DBF1: FF       ??
-DBF2: FF       ??
-DBF3: FF       ??
-DBF4: FF       ??
-DBF5: FF       ??
-DBF6: FF       ??
-DBF7: FF       ??
-DBF8: FF       ??
-DBF9: FF       ??
-DBFA: FF       ??
-DBFB: FF       ??
-DBFC: FF       ??
-DBFD: FF       ??
-DBFE: FF       ??
-DBFF: FF       ??
-DC00: FF       ??
-DC01: FF       ??
-DC02: FF       ??
-DC03: FF       ??
-DC04: FF       ??
-DC05: FF       ??
-DC06: FF       ??
-DC07: FF       ??
-DC08: FF       ??
-DC09: FF       ??
-DC0A: FF       ??
-DC0B: FF       ??
-DC0C: FF       ??
-DC0D: FF       ??
-DC0E: FF       ??
-DC0F: FF       ??
-DC10: FF       ??
-DC11: FF       ??
-DC12: FF       ??
-DC13: FF       ??
-DC14: FF       ??
-DC15: FF       ??
-DC16: FF       ??
-DC17: FF       ??
-DC18: FF       ??
-DC19: FF       ??
-DC1A: FF       ??
-DC1B: FF       ??
-DC1C: FF       ??
-DC1D: FF       ??
-DC1E: FF       ??
-DC1F: FF       ??
-DC20: FF       ??
-DC21: FF       ??
-DC22: FF       ??
-DC23: FF       ??
-DC24: FF       ??
-DC25: FF       ??
-DC26: FF       ??
-DC27: FF       ??
-DC28: FF       ??
-DC29: FF       ??
-DC2A: FF       ??
-DC2B: FF       ??
-DC2C: FF       ??
-DC2D: FF       ??
-DC2E: FF       ??
-DC2F: FF       ??
-DC30: FF       ??
-DC31: FF       ??
-DC32: FF       ??
-DC33: FF       ??
-DC34: FF       ??
-DC35: FF       ??
-DC36: FF       ??
-DC37: FF       ??
-DC38: FF       ??
-DC39: FF       ??
-DC3A: FF       ??
-DC3B: FF       ??
-DC3C: FF       ??
-DC3D: FF       ??
-DC3E: FF       ??
-DC3F: FF       ??
-DC40: FF       ??
-DC41: FF       ??
-DC42: FF       ??
-DC43: FF       ??
-DC44: FF       ??
-DC45: FF       ??
-DC46: FF       ??
-DC47: FF       ??
-DC48: FF       ??
-DC49: FF       ??
-DC4A: FF       ??
-DC4B: FF       ??
-DC4C: FF       ??
-DC4D: FF       ??
-DC4E: FF       ??
-DC4F: FF       ??
-DC50: FF       ??
-DC51: FF       ??
-DC52: FF       ??
-DC53: FF       ??
-DC54: FF       ??
-DC55: FF       ??
-DC56: FF       ??
-DC57: FF       ??
-DC58: FF       ??
-DC59: FF       ??
-DC5A: FF       ??
-DC5B: FF       ??
-DC5C: FF       ??
-DC5D: FF       ??
-DC5E: FF       ??
-DC5F: FF       ??
-DC60: FF       ??
-DC61: FF       ??
-DC62: FF       ??
-DC63: FF       ??
-DC64: FF       ??
-DC65: FF       ??
-DC66: FF       ??
-DC67: FF       ??
-DC68: FF       ??
-DC69: FF       ??
-DC6A: FF       ??
-DC6B: FF       ??
-DC6C: FF       ??
-DC6D: FF       ??
-DC6E: FF       ??
-DC6F: FF       ??
-DC70: FF       ??
-DC71: FF       ??
-DC72: FF       ??
-DC73: FF       ??
-DC74: FF       ??
-DC75: FF       ??
-DC76: FF       ??
-DC77: FF       ??
-DC78: FF       ??
-DC79: FF       ??
-DC7A: FF       ??
-DC7B: FF       ??
-DC7C: FF       ??
-DC7D: FF       ??
-DC7E: FF       ??
-DC7F: FF       ??
-DC80: FF       ??
-DC81: FF       ??
-DC82: FF       ??
-DC83: FF       ??
-DC84: FF       ??
-DC85: FF       ??
-DC86: FF       ??
-DC87: FF       ??
-DC88: FF       ??
-DC89: FF       ??
-DC8A: FF       ??
-DC8B: FF       ??
-DC8C: FF       ??
-DC8D: FF       ??
-DC8E: FF       ??
-DC8F: FF       ??
-DC90: FF       ??
-DC91: FF       ??
-DC92: FF       ??
-DC93: FF       ??
-DC94: FF       ??
-DC95: FF       ??
-DC96: FF       ??
-DC97: FF       ??
-DC98: FF       ??
-DC99: FF       ??
-DC9A: FF       ??
-DC9B: FF       ??
-DC9C: FF       ??
-DC9D: FF       ??
-DC9E: FF       ??
-DC9F: FF       ??
-DCA0: FF       ??
-DCA1: FF       ??
-DCA2: FF       ??
-DCA3: FF       ??
-DCA4: FF       ??
-DCA5: FF       ??
-DCA6: FF       ??
-DCA7: FF       ??
-DCA8: FF       ??
-DCA9: FF       ??
-DCAA: FF       ??
-DCAB: FF       ??
-DCAC: FF       ??
-DCAD: FF       ??
-DCAE: FF       ??
-DCAF: FF       ??
-DCB0: FF       ??
-DCB1: FF       ??
-DCB2: FF       ??
-DCB3: FF       ??
-DCB4: FF       ??
-DCB5: FF       ??
-DCB6: FF       ??
-DCB7: FF       ??
-DCB8: FF       ??
-DCB9: FF       ??
-DCBA: FF       ??
-DCBB: FF       ??
-DCBC: FF       ??
-DCBD: FF       ??
-DCBE: FF       ??
-DCBF: FF       ??
-DCC0: FF       ??
-DCC1: FF       ??
-DCC2: FF       ??
-DCC3: FF       ??
-DCC4: FF       ??
-DCC5: FF       ??
-DCC6: FF       ??
-DCC7: FF       ??
-DCC8: FF       ??
-DCC9: FF       ??
-DCCA: FF       ??
-DCCB: FF       ??
-DCCC: FF       ??
-DCCD: FF       ??
-DCCE: FF       ??
-DCCF: FF       ??
-DCD0: FF       ??
-DCD1: FF       ??
-DCD2: FF       ??
-DCD3: FF       ??
-DCD4: FF       ??
-DCD5: FF       ??
-DCD6: FF       ??
-DCD7: FF       ??
-DCD8: FF       ??
-DCD9: FF       ??
-DCDA: FF       ??
-DCDB: FF       ??
-DCDC: FF       ??
-DCDD: FF       ??
-DCDE: FF       ??
-DCDF: FF       ??
-DCE0: FF       ??
-DCE1: FF       ??
-DCE2: FF       ??
-DCE3: FF       ??
-DCE4: FF       ??
-DCE5: FF       ??
-DCE6: FF       ??
-DCE7: FF       ??
-DCE8: FF       ??
-DCE9: FF       ??
-DCEA: FF       ??
-DCEB: FF       ??
-DCEC: FF       ??
-DCED: FF       ??
-DCEE: FF       ??
-DCEF: FF       ??
-DCF0: FF       ??
-DCF1: FF       ??
-DCF2: FF       ??
-DCF3: FF       ??
-DCF4: FF       ??
-DCF5: FF       ??
-DCF6: FF       ??
-DCF7: FF       ??
-DCF8: FF       ??
-DCF9: FF       ??
-DCFA: FF       ??
-DCFB: FF       ??
-DCFC: FF       ??
-DCFD: FF       ??
-DCFE: FF       ??
-DCFF: FF       ??
-DD00: FF       ??
-DD01: FF       ??
-DD02: FF       ??
-DD03: FF       ??
-DD04: FF       ??
-DD05: FF       ??
-DD06: FF       ??
-DD07: FF       ??
-DD08: FF       ??
-DD09: FF       ??
-DD0A: FF       ??
-DD0B: FF       ??
-DD0C: FF       ??
-DD0D: FF       ??
-DD0E: FF       ??
-DD0F: FF       ??
-DD10: FF       ??
-DD11: FF       ??
-DD12: FF       ??
-DD13: FF       ??
-DD14: FF       ??
-DD15: FF       ??
-DD16: FF       ??
-DD17: FF       ??
-DD18: FF       ??
-DD19: FF       ??
-DD1A: FF       ??
-DD1B: FF       ??
-DD1C: FF       ??
-DD1D: FF       ??
-DD1E: FF       ??
-DD1F: FF       ??
-DD20: FF       ??
-DD21: FF       ??
-DD22: FF       ??
-DD23: FF       ??
-DD24: FF       ??
-DD25: FF       ??
-DD26: FF       ??
-DD27: FF       ??
-DD28: FF       ??
-DD29: FF       ??
-DD2A: FF       ??
-DD2B: FF       ??
-DD2C: FF       ??
-DD2D: FF       ??
-DD2E: FF       ??
-DD2F: FF       ??
-DD30: FF       ??
-DD31: FF       ??
-DD32: FF       ??
-DD33: FF       ??
-DD34: FF       ??
-DD35: FF       ??
-DD36: FF       ??
-DD37: FF       ??
-DD38: FF       ??
-DD39: FF       ??
-DD3A: FF       ??
-DD3B: FF       ??
-DD3C: FF       ??
-DD3D: FF       ??
-DD3E: FF       ??
-DD3F: FF       ??
-DD40: FF       ??
-DD41: FF       ??
-DD42: FF       ??
-DD43: FF       ??
-DD44: FF       ??
-DD45: FF       ??
-DD46: FF       ??
-DD47: FF       ??
-DD48: FF       ??
-DD49: FF       ??
-DD4A: FF       ??
-DD4B: FF       ??
-DD4C: FF       ??
-DD4D: FF       ??
-DD4E: FF       ??
-DD4F: FF       ??
-DD50: FF       ??
-DD51: FF       ??
-DD52: FF       ??
-DD53: FF       ??
-DD54: FF       ??
-DD55: FF       ??
-DD56: FF       ??
-DD57: FF       ??
-DD58: FF       ??
-DD59: FF       ??
-DD5A: FF       ??
-DD5B: FF       ??
-DD5C: FF       ??
-DD5D: FF       ??
-DD5E: FF       ??
-DD5F: FF       ??
-DD60: FF       ??
-DD61: FF       ??
-DD62: FF       ??
-DD63: FF       ??
-DD64: FF       ??
-DD65: FF       ??
-DD66: FF       ??
-DD67: FF       ??
-DD68: FF       ??
-DD69: FF       ??
-DD6A: FF       ??
-DD6B: FF       ??
-DD6C: FF       ??
-DD6D: FF       ??
-DD6E: FF       ??
-DD6F: FF       ??
-DD70: FF       ??
-DD71: FF       ??
-DD72: FF       ??
-DD73: FF       ??
-DD74: FF       ??
-DD75: FF       ??
-DD76: FF       ??
-DD77: FF       ??
-DD78: FF       ??
-DD79: FF       ??
-DD7A: FF       ??
-DD7B: FF       ??
-DD7C: FF       ??
-DD7D: FF       ??
-DD7E: FF       ??
-DD7F: FF       ??
-DD80: FF       ??
-DD81: FF       ??
-DD82: FF       ??
-DD83: FF       ??
-DD84: FF       ??
-DD85: FF       ??
-DD86: FF       ??
-DD87: FF       ??
-DD88: FF       ??
-DD89: FF       ??
-DD8A: FF       ??
-DD8B: FF       ??
-DD8C: FF       ??
-DD8D: FF       ??
-DD8E: FF       ??
-DD8F: FF       ??
-DD90: FF       ??
-DD91: FF       ??
-DD92: FF       ??
-DD93: FF       ??
-DD94: FF       ??
-DD95: FF       ??
-DD96: FF       ??
-DD97: FF       ??
-DD98: FF       ??
-DD99: FF       ??
-DD9A: FF       ??
-DD9B: FF       ??
-DD9C: FF       ??
-DD9D: FF       ??
-DD9E: FF       ??
-DD9F: FF       ??
-DDA0: FF       ??
-DDA1: FF       ??
-DDA2: FF       ??
-DDA3: FF       ??
-DDA4: FF       ??
-DDA5: FF       ??
-DDA6: FF       ??
-DDA7: FF       ??
-DDA8: FF       ??
-DDA9: FF       ??
-DDAA: FF       ??
-DDAB: FF       ??
-DDAC: FF       ??
-DDAD: FF       ??
-DDAE: FF       ??
-DDAF: FF       ??
-DDB0: FF       ??
-DDB1: FF       ??
-DDB2: FF       ??
-DDB3: FF       ??
-DDB4: FF       ??
-DDB5: FF       ??
-DDB6: FF       ??
-DDB7: FF       ??
-DDB8: FF       ??
-DDB9: FF       ??
-DDBA: FF       ??
-DDBB: FF       ??
-DDBC: FF       ??
-DDBD: FF       ??
-DDBE: FF       ??
-DDBF: FF       ??
-DDC0: FF       ??
-DDC1: FF       ??
-DDC2: FF       ??
-DDC3: FF       ??
-DDC4: FF       ??
-DDC5: FF       ??
-DDC6: FF       ??
-DDC7: FF       ??
-DDC8: FF       ??
-DDC9: FF       ??
-DDCA: FF       ??
-DDCB: FF       ??
-DDCC: FF       ??
-DDCD: FF       ??
-DDCE: FF       ??
-DDCF: FF       ??
-DDD0: FF       ??
-DDD1: FF       ??
-DDD2: FF       ??
-DDD3: FF       ??
-DDD4: FF       ??
-DDD5: FF       ??
-DDD6: FF       ??
-DDD7: FF       ??
-DDD8: FF       ??
-DDD9: FF       ??
-DDDA: FF       ??
-DDDB: FF       ??
-DDDC: FF       ??
-DDDD: FF       ??
-DDDE: FF       ??
-DDDF: FF       ??
-DDE0: FF       ??
-DDE1: FF       ??
-DDE2: FF       ??
-DDE3: FF       ??
-DDE4: FF       ??
-DDE5: FF       ??
-DDE6: FF       ??
-DDE7: FF       ??
-DDE8: FF       ??
-DDE9: FF       ??
-DDEA: FF       ??
-DDEB: FF       ??
-DDEC: FF       ??
-DDED: FF       ??
-DDEE: FF       ??
-DDEF: FF       ??
-DDF0: FF       ??
-DDF1: FF       ??
-DDF2: FF       ??
-DDF3: FF       ??
-DDF4: FF       ??
-DDF5: FF       ??
-DDF6: FF       ??
-DDF7: FF       ??
-DDF8: FF       ??
-DDF9: FF       ??
-DDFA: FF       ??
-DDFB: FF       ??
-DDFC: FF       ??
-DDFD: FF       ??
-DDFE: FF       ??
-DDFF: FF       ??
-DE00: FF       ??
-DE01: FF       ??
-DE02: FF       ??
-DE03: FF       ??
-DE04: FF       ??
-DE05: FF       ??
-DE06: FF       ??
-DE07: FF       ??
-DE08: FF       ??
-DE09: FF       ??
-DE0A: FF       ??
-DE0B: FF       ??
-DE0C: FF       ??
-DE0D: FF       ??
-DE0E: FF       ??
-DE0F: FF       ??
-DE10: FF       ??
-DE11: FF       ??
-DE12: FF       ??
-DE13: FF       ??
-DE14: FF       ??
-DE15: FF       ??
-DE16: FF       ??
-DE17: FF       ??
-DE18: FF       ??
-DE19: FF       ??
-DE1A: FF       ??
-DE1B: FF       ??
-DE1C: FF       ??
-DE1D: FF       ??
-DE1E: FF       ??
-DE1F: FF       ??
-DE20: FF       ??
-DE21: FF       ??
-DE22: FF       ??
-DE23: FF       ??
-DE24: FF       ??
-DE25: FF       ??
-DE26: FF       ??
-DE27: FF       ??
-DE28: FF       ??
-DE29: FF       ??
-DE2A: FF       ??
-DE2B: FF       ??
-DE2C: FF       ??
-DE2D: FF       ??
-DE2E: FF       ??
-DE2F: FF       ??
-DE30: FF       ??
-DE31: FF       ??
-DE32: FF       ??
-DE33: FF       ??
-DE34: FF       ??
-DE35: FF       ??
-DE36: FF       ??
-DE37: FF       ??
-DE38: FF       ??
-DE39: FF       ??
-DE3A: FF       ??
-DE3B: FF       ??
-DE3C: FF       ??
-DE3D: FF       ??
-DE3E: FF       ??
-DE3F: FF       ??
-DE40: FF       ??
-DE41: FF       ??
-DE42: FF       ??
-DE43: FF       ??
-DE44: FF       ??
-DE45: FF       ??
-DE46: FF       ??
-DE47: FF       ??
-DE48: FF       ??
-DE49: FF       ??
-DE4A: FF       ??
-DE4B: FF       ??
-DE4C: FF       ??
-DE4D: FF       ??
-DE4E: FF       ??
-DE4F: FF       ??
-DE50: FF       ??
-DE51: FF       ??
-DE52: FF       ??
-DE53: FF       ??
-DE54: FF       ??
-DE55: FF       ??
-DE56: FF       ??
-DE57: FF       ??
-DE58: FF       ??
-DE59: FF       ??
-DE5A: FF       ??
-DE5B: FF       ??
-DE5C: FF       ??
-DE5D: FF       ??
-DE5E: FF       ??
-DE5F: FF       ??
-DE60: FF       ??
-DE61: FF       ??
-DE62: FF       ??
-DE63: FF       ??
-DE64: FF       ??
-DE65: FF       ??
-DE66: FF       ??
-DE67: FF       ??
-DE68: FF       ??
-DE69: FF       ??
-DE6A: FF       ??
-DE6B: FF       ??
-DE6C: FF       ??
-DE6D: FF       ??
-DE6E: FF       ??
-DE6F: FF       ??
-DE70: FF       ??
-DE71: FF       ??
-DE72: FF       ??
-DE73: FF       ??
-DE74: FF       ??
-DE75: FF       ??
-DE76: FF       ??
-DE77: FF       ??
-DE78: FF       ??
-DE79: FF       ??
-DE7A: FF       ??
-DE7B: FF       ??
-DE7C: FF       ??
-DE7D: FF       ??
-DE7E: FF       ??
-DE7F: FF       ??
-DE80: FF       ??
-DE81: FF       ??
-DE82: FF       ??
-DE83: FF       ??
-DE84: FF       ??
-DE85: FF       ??
-DE86: FF       ??
-DE87: FF       ??
-DE88: FF       ??
-DE89: FF       ??
-DE8A: FF       ??
-DE8B: FF       ??
-DE8C: FF       ??
-DE8D: FF       ??
-DE8E: FF       ??
-DE8F: FF       ??
-DE90: FF       ??
-DE91: FF       ??
-DE92: FF       ??
-DE93: FF       ??
-DE94: FF       ??
-DE95: FF       ??
-DE96: FF       ??
-DE97: FF       ??
-DE98: FF       ??
-DE99: FF       ??
-DE9A: FF       ??
-DE9B: FF       ??
-DE9C: FF       ??
-DE9D: FF       ??
-DE9E: FF       ??
-DE9F: FF       ??
-DEA0: FF       ??
-DEA1: FF       ??
-DEA2: FF       ??
-DEA3: FF       ??
-DEA4: FF       ??
-DEA5: FF       ??
-DEA6: FF       ??
-DEA7: FF       ??
-DEA8: FF       ??
-DEA9: FF       ??
-DEAA: FF       ??
-DEAB: FF       ??
-DEAC: FF       ??
-DEAD: FF       ??
-DEAE: FF       ??
-DEAF: FF       ??
-DEB0: FF       ??
-DEB1: FF       ??
-DEB2: FF       ??
-DEB3: FF       ??
-DEB4: FF       ??
-DEB5: FF       ??
-DEB6: FF       ??
-DEB7: FF       ??
-DEB8: FF       ??
-DEB9: FF       ??
-DEBA: FF       ??
-DEBB: FF       ??
-DEBC: FF       ??
-DEBD: FF       ??
-DEBE: FF       ??
-DEBF: FF       ??
-DEC0: FF       ??
-DEC1: FF       ??
-DEC2: FF       ??
-DEC3: FF       ??
-DEC4: FF       ??
-DEC5: FF       ??
-DEC6: FF       ??
-DEC7: FF       ??
-DEC8: FF       ??
-DEC9: FF       ??
-DECA: FF       ??
-DECB: FF       ??
-DECC: FF       ??
-DECD: FF       ??
-DECE: FF       ??
-DECF: FF       ??
-DED0: FF       ??
-DED1: FF       ??
-DED2: FF       ??
-DED3: FF       ??
-DED4: FF       ??
-DED5: FF       ??
-DED6: FF       ??
-DED7: FF       ??
-DED8: FF       ??
-DED9: FF       ??
-DEDA: FF       ??
-DEDB: FF       ??
-DEDC: FF       ??
-DEDD: FF       ??
-DEDE: FF       ??
-DEDF: FF       ??
-DEE0: FF       ??
-DEE1: FF       ??
-DEE2: FF       ??
-DEE3: FF       ??
-DEE4: FF       ??
-DEE5: FF       ??
-DEE6: FF       ??
-DEE7: FF       ??
-DEE8: FF       ??
-DEE9: FF       ??
-DEEA: FF       ??
-DEEB: FF       ??
-DEEC: FF       ??
-DEED: FF       ??
-DEEE: FF       ??
-DEEF: FF       ??
-DEF0: FF       ??
-DEF1: FF       ??
-DEF2: FF       ??
-DEF3: FF       ??
-DEF4: FF       ??
-DEF5: FF       ??
-DEF6: FF       ??
-DEF7: FF       ??
-DEF8: FF       ??
-DEF9: FF       ??
-DEFA: FF       ??
-DEFB: FF       ??
-DEFC: FF       ??
-DEFD: FF       ??
-DEFE: FF       ??
-DEFF: FF       ??
-DF00: FF       ??
-DF01: FF       ??
-DF02: FF       ??
-DF03: FF       ??
-DF04: FF       ??
-DF05: FF       ??
-DF06: FF       ??
-DF07: FF       ??
-DF08: FF       ??
-DF09: FF       ??
-DF0A: FF       ??
-DF0B: FF       ??
-DF0C: FF       ??
-DF0D: FF       ??
-DF0E: FF       ??
-DF0F: FF       ??
-DF10: FF       ??
-DF11: FF       ??
-DF12: FF       ??
-DF13: FF       ??
-DF14: FF       ??
-DF15: FF       ??
-DF16: FF       ??
-DF17: FF       ??
-DF18: FF       ??
-DF19: FF       ??
-DF1A: FF       ??
-DF1B: FF       ??
-DF1C: FF       ??
-DF1D: FF       ??
-DF1E: FF       ??
-DF1F: FF       ??
-DF20: FF       ??
-DF21: FF       ??
-DF22: FF       ??
-DF23: FF       ??
-DF24: FF       ??
-DF25: FF       ??
-DF26: FF       ??
-DF27: FF       ??
-DF28: FF       ??
-DF29: FF       ??
-DF2A: FF       ??
-DF2B: FF       ??
-DF2C: FF       ??
-DF2D: FF       ??
-DF2E: FF       ??
-DF2F: FF       ??
-DF30: FF       ??
-DF31: FF       ??
-DF32: FF       ??
-DF33: FF       ??
-DF34: FF       ??
-DF35: FF       ??
-DF36: FF       ??
-DF37: FF       ??
-DF38: FF       ??
-DF39: FF       ??
-DF3A: FF       ??
-DF3B: FF       ??
-DF3C: FF       ??
-DF3D: FF       ??
-DF3E: FF       ??
-DF3F: FF       ??
-DF40: FF       ??
-DF41: FF       ??
-DF42: FF       ??
-DF43: FF       ??
-DF44: FF       ??
-DF45: FF       ??
-DF46: FF       ??
-DF47: FF       ??
-DF48: FF       ??
-DF49: FF       ??
-DF4A: FF       ??
-DF4B: FF       ??
-DF4C: FF       ??
-DF4D: FF       ??
-DF4E: FF       ??
-DF4F: FF       ??
-DF50: FF       ??
-DF51: FF       ??
-DF52: FF       ??
-DF53: FF       ??
-DF54: FF       ??
-DF55: FF       ??
-DF56: FF       ??
-DF57: FF       ??
-DF58: FF       ??
-DF59: FF       ??
-DF5A: FF       ??
-DF5B: FF       ??
-DF5C: FF       ??
-DF5D: FF       ??
-DF5E: FF       ??
-DF5F: FF       ??
-DF60: FF       ??
-DF61: FF       ??
-DF62: FF       ??
-DF63: FF       ??
-DF64: FF       ??
-DF65: FF       ??
-DF66: FF       ??
-DF67: FF       ??
-DF68: FF       ??
-DF69: FF       ??
-DF6A: FF       ??
-DF6B: FF       ??
-DF6C: FF       ??
-DF6D: FF       ??
-DF6E: FF       ??
-DF6F: FF       ??
-DF70: FF       ??
-DF71: FF       ??
-DF72: FF       ??
-DF73: FF       ??
-DF74: FF       ??
-DF75: FF       ??
-DF76: FF       ??
-DF77: FF       ??
-DF78: FF       ??
-DF79: FF       ??
-DF7A: FF       ??
-DF7B: FF       ??
-DF7C: FF       ??
-DF7D: FF       ??
-DF7E: FF       ??
-DF7F: FF       ??
-DF80: FF       ??
-DF81: FF       ??
-DF82: FF       ??
-DF83: FF       ??
-DF84: FF       ??
-DF85: FF       ??
-DF86: FF       ??
-DF87: FF       ??
-DF88: FF       ??
-DF89: FF       ??
-DF8A: FF       ??
-DF8B: FF       ??
-DF8C: FF       ??
-DF8D: FF       ??
-DF8E: FF       ??
-DF8F: FF       ??
-DF90: FF       ??
-DF91: FF       ??
-DF92: FF       ??
-DF93: FF       ??
-DF94: FF       ??
-DF95: FF       ??
-DF96: FF       ??
-DF97: FF       ??
-DF98: FF       ??
-DF99: FF       ??
-DF9A: FF       ??
-DF9B: FF       ??
-DF9C: FF       ??
-DF9D: FF       ??
-DF9E: FF       ??
-DF9F: FF       ??
-DFA0: FF       ??
-DFA1: FF       ??
-DFA2: FF       ??
-DFA3: FF       ??
-DFA4: FF       ??
-DFA5: FF       ??
-DFA6: FF       ??
-DFA7: FF       ??
-DFA8: FF       ??
-DFA9: FF       ??
-DFAA: FF       ??
-DFAB: FF       ??
-DFAC: FF       ??
-DFAD: FF       ??
-DFAE: FF       ??
-DFAF: FF       ??
-DFB0: FF       ??
-DFB1: FF       ??
-DFB2: FF       ??
-DFB3: FF       ??
-DFB4: FF       ??
-DFB5: FF       ??
-DFB6: FF       ??
-DFB7: FF       ??
-DFB8: FF       ??
-DFB9: FF       ??
-DFBA: FF       ??
-DFBB: FF       ??
-DFBC: FF       ??
-DFBD: FF       ??
-DFBE: FF       ??
-DFBF: FF       ??
-DFC0: FF       ??
-DFC1: FF       ??
-DFC2: FF       ??
-DFC3: FF       ??
-DFC4: FF       ??
-DFC5: FF       ??
-DFC6: FF       ??
-DFC7: FF       ??
-DFC8: FF       ??
-DFC9: FF       ??
-DFCA: FF       ??
-DFCB: FF       ??
-DFCC: FF       ??
-DFCD: FF       ??
-DFCE: FF       ??
-DFCF: FF       ??
-DFD0: FF       ??
-DFD1: FF       ??
-DFD2: FF       ??
-DFD3: FF       ??
-DFD4: FF       ??
-DFD5: FF       ??
-DFD6: FF       ??
-DFD7: FF       ??
-DFD8: FF       ??
-DFD9: FF       ??
-DFDA: FF       ??
-DFDB: FF       ??
-DFDC: FF       ??
-DFDD: FF       ??
-DFDE: FF       ??
-DFDF: FF       ??
-DFE0: FF       ??
-DFE1: FF       ??
-DFE2: FF       ??
-DFE3: FF       ??
-DFE4: FF       ??
-DFE5: FF       ??
-DFE6: FF       ??
-DFE7: FF       ??
-DFE8: FF       ??
-DFE9: FF       ??
-DFEA: FF       ??
-DFEB: FF       ??
-DFEC: FF       ??
-DFED: FF       ??
-DFEE: FF       ??
-DFEF: FF       ??
-DFF0: FF       ??
-DFF1: FF       ??
-DFF2: FF       ??
-DFF3: FF       ??
-DFF4: FF       ??
-DFF5: FF       ??
-DFF6: FF       ??
-DFF7: FF       ??
-DFF8: FF       ??
-DFF9: FF       ??
-DFFA: FF       ??
-DFFB: FF       ??
-DFFC: FF       ??
-DFFD: FF       ??
-DFFE: FF       ??
-DFFF: FF       ??
+DBEB: F0
