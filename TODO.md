@@ -30,6 +30,7 @@
 - [x] 按键映射一个地址只能响应一个键？
   NO
 
+- [x] 补充 draw mode 文档
 - [x] 模拟器运行时禁用拖动打开文件
 - [x] C-f 如果 search text 显示并且没有焦点则 focus，而不是隐藏
 - [x] 编辑区按esc会隐藏search bar

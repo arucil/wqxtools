@@ -847,17 +847,14 @@ impl Device for DefaultDevice {
     let r = rx.max(ry);
     let mut inc_x = 0xffu8;
     let mut inc_y = 1u8;
-    let mut fx = r.wrapping_mul(2).wrapping_sub(1);
-    let mut fy = 1u8;
-    let mut fxy = 0u8;
+    let (mut fx, mut fx_neg) = (r.wrapping_mul(2).wrapping_sub(1), true);
+    let (mut fy, mut fy_neg) = (1u8, false);
+    let (mut fxy, mut fxy_neg) = (0u8, false);
     let mut delta_x = 0u8;
     let mut delta_y = 0u8;
     let mut tmp_x = rx;
     let mut tmp_y = 0u8;
     let mut part_start = false;
-    let mut t0 = false;
-    let mut t1 = true;
-    let mut t2 = false;
     let g = unsafe {
       self
         .memory
@@ -869,7 +866,7 @@ impl Device for DefaultDevice {
     }
 
     loop {
-      if t0 {
+      if fxy_neg {
         delta_y = delta_y.wrapping_add(ry);
         if (delta_y as i8).wrapping_sub(r as _) >= 0 {
           delta_y = delta_y.wrapping_sub(r);
@@ -887,19 +884,19 @@ impl Device for DefaultDevice {
           fxy -= fy;
         } else {
           fxy = fy - fxy;
-          t0 = false;
+          fxy_neg = false;
         }
-        if t2 {
+        if fy_neg {
           if fy > 2 {
             fy -= 2;
           } else {
             fy = 2 - fy;
-            t2 = false;
+            fy_neg = false;
           }
         } else {
           fy = fy.wrapping_add(2);
         }
-        if !t2 && fy <= 2 {
+        if !fy_neg && fy <= 2 {
           inc_x = inc_x.wrapping_neg();
           fx = fx.wrapping_neg().wrapping_add(2);
           fxy = fxy.wrapping_neg();
@@ -917,127 +914,30 @@ impl Device for DefaultDevice {
         }
         if fxy < fx {
           fxy = fx - fxy;
-          t0 = true;
+          fxy_neg = true;
         } else {
           fxy -= fx;
         }
-        if t1 {
+        if fx_neg {
           if fx > 2 {
             fx -= 2;
           } else {
             fx = 2 - fx;
-            t1 = false;
+            fx_neg = false;
           }
         } else {
           fx = fx.wrapping_add(2);
         }
-        if !t1 && fx < 3 {
+        if !fx_neg && fx < 3 {
           inc_y = inc_y.wrapping_neg();
           fy = fy.wrapping_neg().wrapping_add(2);
-          t0 = !t0;
+          fxy_neg = !fxy_neg;
         }
       }
       if tmp_x == 0 {
         break;
       }
     }
-
-    /*
-    let dist_x = rx;
-    let dist_y = ry;
-    let r = dist_x.max(dist_y);
-    let mut inc_x = -1u8;
-    let mut inc_y = 1u8;
-    let mut fy = 1u8;
-    let mut t1 = true;
-    let mut t2 = false;
-    let mut fy1 = 0u8;
-    let mut fx = r.wrapping_mul(2).wrapping_sub(1);
-    let mut fxy = false;
-    let mut delta_x = 0u8;
-    let mut delta_y = 0u8;
-    let mut tmp_x = rx;
-    let mut tmp_y = 0u8;
-    let mut part_start = false;
-    let g = unsafe {
-      self
-        .memory
-        .as_mut_ptr()
-        .add(self.props.graphics_base_addr as usize)
-    };
-    unsafe {
-      Self::ellipse_part(g, x, y, tmp_x, tmp_y, fill, mode);
-    }
-    while tmp_x != 0 {
-      if fxy {
-        delta_y += dist_y;
-        if (delta_y as i8).wrapping_sub(r as _) >= 0 {
-          delta_y = delta_y.wrapping_sub(r);
-          tmp_y = tmp_y.wrapping_add(inc_y);
-          unsafe {
-            if !part_start && (tmp_y == 1 || tmp_y == 2) {
-              Self::ellipse_part(g, x0, y0, dist_x, tmp_y, fill, mode);
-            } else {
-              part_start = true;
-              Self::ellipse_part(g, x0, y0, tmp_x, tmp_y, fill, mode);
-            }
-          }
-        }
-        if fxy {
-          if fy1 > fy {
-            fy1 = fy1 - fy;
-          } else {
-            fy1 = fy - fy1;
-            fxy = false;
-          }
-        } else {
-          fy1 = fy1.wrapping_add(fy);
-        }
-        t1 = t2;
-        fx = fy;
-        // jsr c795
-        if t1 {
-          if fx > 2 {
-            fx = fx - 2;
-          } else {
-            fx = 2u8 - fx;
-            t1 = false;
-          }
-        } else {
-          fx = fx.wrapping_add(2);
-        }
-        fy = fx;
-        t2 = t1;
-        // fxy += fy.abs();
-        // fy += 2;
-        // if fy < 0 || fy > 2 {
-        //   continue;
-        // }
-        // inc_x = -inc_x;
-        // fx = -fx + 2;
-        // fxy = -fxy;
-      } else {
-        delta_x += dist_x;
-        if (delta_x as i8).wrapping_sub(r as _) >= 0 {
-          tmp_x += inc_x;
-          delta_x = delta_x.wrapping_sub(r);
-          if tmp_x + 1 != dist_x {
-            unsafe {
-              Self::ellipse_part(g, x0, y0, tmp_x, tmp_y, fill, mode);
-            }
-          }
-        }
-        fxy -= fx.abs();
-        fx += 2;
-        if fx < 0 || fx >= 3 {
-          continue;
-        }
-        inc_y = -inc_y;
-        fy = -fy + 2;
-        fxy = -fxy;
-      }
-    }
-    */
 
     self.update_dirty_area(
       x0.checked_sub(rx).unwrap_or(0) as usize,
