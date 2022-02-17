@@ -280,8 +280,8 @@ impl DefaultDevice {
   ) {
     if left >= screen::WIDTH as u8 {
       left = screen::WIDTH as u8 - 1;
-    } else if left == 0 {
-      left = 1;
+    // } else if left == 0 {
+    //   left = 1;
     }
     if right >= screen::WIDTH as u8 {
       right = screen::WIDTH as u8 - 1;
@@ -321,7 +321,7 @@ impl DefaultDevice {
 
   /// `mode` != Unknown.
   fn draw_ver_line(&mut self, x: u8, top: u8, mut bottom: u8, mode: DrawMode) {
-    if x == 0 || x >= screen::WIDTH as u8 {
+    if x >= screen::WIDTH as u8 {
       return;
     }
 
@@ -362,7 +362,7 @@ impl DefaultDevice {
   }
 
   unsafe fn ellipse_point(ptr: *mut u8, x: u8, y: u8, mode: DrawMode) {
-    if x > 0 && x < screen::WIDTH as u8 && y < screen::HEIGHT as u8 {
+    if x < screen::WIDTH as u8 && y < screen::HEIGHT as u8 {
       mode.point(ptr, x, y);
     }
   }
@@ -660,7 +660,7 @@ impl Device for DefaultDevice {
   }
 
   fn draw_point(&mut self, (x, y): (u8, u8), mode: DrawMode) {
-    if x > 0 && x < screen::WIDTH as u8 && y < screen::HEIGHT as u8 {
+    if x < screen::WIDTH as u8 && y < screen::HEIGHT as u8 {
       unsafe {
         let g = self
           .memory
@@ -743,7 +743,7 @@ impl Device for DefaultDevice {
         .add(self.props.graphics_base_addr as usize)
     };
     for _ in 0..=dist_max {
-      if x > 0 && x < screen::WIDTH as u8 && y < screen::HEIGHT as u8 {
+      if x < screen::WIDTH as u8 && y < screen::HEIGHT as u8 {
         unsafe { mode.point(g, x, y) };
       }
       error_x = error_x.wrapping_add(dist_x);
