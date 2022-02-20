@@ -43,8 +43,8 @@
 - ~~改成GBK（有些汉字会和emoji重叠，优先使用emoji）~~
 - [x] drag and drop (初始界面支持所有文件，gvbeditor界面支持bas/txt文件)
 - [x] 初始界面显示功能列表
-- 如果打开gvbsim后打开其他类型文件，gvbsim窗口是否能正常关闭？
-- 搜索变量内容
+- [ ] 如果打开gvbsim后打开其他类型文件，gvbsim窗口是否能正常关闭？
+- [ ] 搜索变量内容
 - ~~移除 scintilla 依赖。替代物要有以下api：~~
     + get cursor pos, cursor line, cursor position
     + set font, font size

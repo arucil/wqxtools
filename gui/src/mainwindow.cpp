@@ -26,6 +26,7 @@
 #include "action.h"
 #include "api.h"
 #include "config.h"
+#include "help_dialog.h"
 #include "toast.h"
 #include "tool.h"
 #include "tool_registry.h"
@@ -193,6 +194,11 @@ void MainWindow::initMenu() {
   });
 
   mnuHelp->addSeparator();
+
+  auto actContent = mnuHelp->addAction("内容");
+  connect(actContent, &QAction::triggered, this, [this] {
+    HelpDialog(this).exec();
+  });
 
   auto actAbout = mnuHelp->addAction("关于");
   connect(actAbout, &QAction::triggered, this, [this] {
@@ -721,8 +727,9 @@ void MainWindow::checkNewVersion(bool manual) {
 }
 
 void MainWindow::notifyNewVersion(const QString &tag) {
-  auto reply = m_networkMan->get(
-    QNetworkRequest(QUrl(QString(VERSION_API_ENDPOINT "/%1?include_html_description=true").arg(tag))));
+  auto reply = m_networkMan->get(QNetworkRequest(
+    QUrl(QString(VERSION_API_ENDPOINT "/%1?include_html_description=true")
+           .arg(tag))));
   connect(reply, &QNetworkReply::finished, [=] {
     reply->deleteLater();
     if (reply->error()) {

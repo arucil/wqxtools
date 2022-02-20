@@ -7,3 +7,5 @@ Makefile*
 /include/
 /*.yaml
 /styles/
+/docs/help.qch
+/help.qhc

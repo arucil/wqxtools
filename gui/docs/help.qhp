@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<QtHelpProject version="1.0">
+  <namespace>wqxtools</namespace>
+  <virtualFolder>docs</virtualFolder>
+  <filterSection>
+    <toc>
+      <section title="WQX 工具箱" ref="index.html">
+        <section title="GVBASIC 模拟器" ref="gvbsim/index.html">
+          <section title="语法扩展" ref="gvbsim/extension.html"></section>
+          <section title="语义说明" ref="gvbsim/semantics.html">
+            <section title="语句" ref="gvbsim/semantics.html#语句"></section>
+            <section title="表达式" ref="gvbsim/semantics.html#表达式">
+              <section title="函数" ref="gvbsim/semantics.html#函数"></section>
+            </section>
+          </section>
+        </section>
+      </section>
+    </toc>
+    <files>
+      <file>*.html</file>
+      <file>gvbsim/*.html</file>
+    </files>
+  </filterSection>
+</QtHelpProject>
