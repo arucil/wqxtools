@@ -11,6 +11,20 @@
     <li>支持部分 PEEK/POKE 地址，支持在配置文件中为特定的机型配置 PEEK/POKE 地址</li>
     <li>支持嵌入 6502 机器码，支持少量 BRK/INT 中断</li>
   </ul>
+  <p>
+    未实现的语句：
+    <br />
+  <ul>
+    <li>BEEP 语句：原本为蜂鸣器发出哔声。模拟器上没有效果。</li>
+    <li>PLAY 语句：原本为根据字符串给出的音符演奏音乐。模拟器上没有效果。</li>
+    <li>TRACE 语句：原本为启用 tracing 模式，在该模式下，每执行一条语句之前，都会输出当前正在执行的语句的行号，执行完一条语句之后等待按键。模拟器上没有效果。</li>
+    <li>NOTRACE 语句：原本为关闭 tracing 模式。模拟器上没有效果。</li>
+  </ul>
+  </p>
+  <p>
+    GVBASIC 程序创建的文件位于本程序可执行文件所在目录下的 <i>dat_files</i> 目录中。
+  </p>
+  <hr />
   <ul>
     <li><a href="extension.html">语法扩展</a></li>
     <li><a href="semantics.html">语义说明</a></li>

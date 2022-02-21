@@ -196,6 +196,7 @@ void MainWindow::initMenu() {
   mnuHelp->addSeparator();
 
   auto actContent = mnuHelp->addAction("内容");
+  actContent->setShortcut(Qt::Key_F1);
   connect(actContent, &QAction::triggered, this, [this] {
     HelpDialog(this).exec();
   });

@@ -36,19 +36,7 @@ HelpDialog::HelpDialog(QWidget *parent) : QDialog(parent) {
   auto tab = new QTabWidget(splitter);
   tab->setMaximumWidth(200);
   tab->addTab(helpEngine->contentWidget(), "内容");
-
-  auto search = new QWidget;
-  tab->addTab(search, "搜索");
-
-  auto searchLayout = new QVBoxLayout(search);
-  auto searchEngine = helpEngine->searchEngine();
-  auto searchQuery = searchEngine->queryWidget();
-  auto searchResult = searchEngine->resultWidget();
-  searchLayout->addWidget(searchQuery);
-  searchLayout->addWidget(searchResult);
-  connect(searchQuery, &QHelpSearchQueryWidget::search, [=] {
-    searchEngine->search(searchQuery->searchInput());
-  });
+  tab->addTab(helpEngine->indexWidget(), "索引");
 
   auto textViewer = new HelpBrowser(helpEngine, splitter);
   textViewer->setSource(QUrl("qthelp://wqxtools/docs/index.html"));
@@ -57,6 +45,11 @@ HelpDialog::HelpDialog(QWidget *parent) : QDialog(parent) {
     &QHelpContentWidget::linkActivated,
     textViewer,
     [=](const QUrl &name) { textViewer->setSource(name); });
+  connect(
+    helpEngine->indexWidget(),
+    &QHelpIndexWidget::documentActivated,
+    textViewer,
+    [=](const QHelpLink &link) { textViewer->setSource(link.url); });
 
   resize(800, 500);
 }
