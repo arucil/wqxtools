@@ -40,12 +40,11 @@ struct DeleteText {
   size_t len;
 };
 
-struct GvbEditor:
-  ToolWidget,
-  EditCapabilities,
-  FileCapabilities,
-  ProgramCapabilities {
-private:
+class GvbEditor:
+  public ToolWidget,
+  public EditCapabilities,
+  public FileCapabilities,
+  public ProgramCapabilities {
   Q_OBJECT
 
 public:

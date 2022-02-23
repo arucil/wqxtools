@@ -23,6 +23,8 @@ struct EditCapabilities {
   Action *m_actReplace;
   BoolValue m_dirty;
 
+  virtual ~EditCapabilities() {}
+
   virtual QList<QAction *> extraActions() const = 0;
   virtual void setContextMenuActions(const QList<QAction *> &) = 0;
 };
@@ -33,6 +35,8 @@ struct EditCapabilities {
 using SaveResult = std::variant<QString, std::optional<QString>, Unit>;
 
 struct FileCapabilities {
+  virtual ~FileCapabilities() {}
+
   virtual SaveResult save(const QString &) = 0;
   virtual void create() = 0;
   virtual const char *defaultExt() const = 0;
@@ -42,6 +46,7 @@ public:
 };
 
 struct ProgramCapabilities {
+  virtual ~ProgramCapabilities() {}
 public:
   QState *m_stStarted;
   QState *m_stPaused;
