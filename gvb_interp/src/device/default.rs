@@ -280,8 +280,8 @@ impl DefaultDevice {
   ) {
     if left >= screen::WIDTH as u8 {
       left = screen::WIDTH as u8 - 1;
-    // } else if left == 0 {
-    //   left = 1;
+      // } else if left == 0 {
+      //   left = 1;
     }
     if right >= screen::WIDTH as u8 {
       right = screen::WIDTH as u8 - 1;
@@ -939,12 +939,20 @@ impl Device for DefaultDevice {
       }
     }
 
-    self.update_dirty_area(
-      x0.checked_sub(rx).unwrap_or(0) as usize,
-      y0.checked_sub(ry).unwrap_or(0) as usize,
-      (x0 as usize + rx as usize + 1).max(screen::WIDTH),
-      (y0 as usize + ry as usize + 1).max(screen::HEIGHT),
-    );
+    if rx > x0
+      || ry > y0
+      || x0.checked_add(rx).is_none()
+      || y0.checked_add(ry).is_none()
+    {
+      self.update_dirty_area(0, 0, screen::WIDTH, screen::HEIGHT);
+    } else {
+      self.update_dirty_area(
+        (x0 - rx) as _,
+        (y0 - ry) as _,
+        ((x0 + rx + 1) as usize).max(screen::WIDTH),
+        ((y0 + ry + 1) as usize).max(screen::HEIGHT),
+      );
+    }
   }
 
   fn check_key(&self, key: u8) -> bool {
