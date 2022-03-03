@@ -2228,87 +2228,84 @@ where
     lvalues: Vec<(Location, LValue)>,
     skip_first: bool,
   ) {
-    match input {
-      ExecInput::KeyboardInput(mut values) => {
-        let mut comma = false;
-        let mut lvalues = lvalues.into_iter().peekable();
-        if skip_first {
-          comma = true;
-          match &lvalues.peek().unwrap().1 {
-            LValue::Var { name } | LValue::Index { name, .. } => {
-              match symbol_type(&self.interner, *name) {
-                Type::Integer => values.insert(0, KeyboardInput::Integer(0)),
-                Type::Real => values.insert(0, KeyboardInput::Real(Mbf5::ZERO)),
-                Type::String => {
-                  values.insert(0, KeyboardInput::String(ByteString::new()))
-                }
+    if let ExecInput::KeyboardInput(mut values) = input {
+      let mut comma = false;
+      let mut lvalues = lvalues.into_iter().peekable();
+      if skip_first {
+        comma = true;
+        match &lvalues.peek().unwrap().1 {
+          LValue::Var { name } | LValue::Index { name, .. } => {
+            match symbol_type(&self.interner, *name) {
+              Type::Integer => values.insert(0, KeyboardInput::Integer(0)),
+              Type::Real => values.insert(0, KeyboardInput::Real(Mbf5::ZERO)),
+              Type::String => {
+                values.insert(0, KeyboardInput::String(ByteString::new()))
               }
             }
-            LValue::Fn { .. } => unreachable!(),
           }
-        }
-        for ((lval_loc, lvalue), value) in lvalues.zip(values) {
-          if comma {
-            self.device.print(b",");
-          }
-          comma = true;
-          match value {
-            KeyboardInput::Integer(num) => {
-              self.device.print(num.to_string().as_bytes());
-              self.bindings.store_value(lvalue, Value::Integer(num));
-            }
-            KeyboardInput::Real(num) => {
-              self.device.print(num.to_string().as_bytes());
-              self.bindings.store_value(lvalue, Value::Real(num));
-            }
-            KeyboardInput::String(s) => {
-              self.device.print(&s);
-              self.bindings.store_value(lvalue, Value::String(s));
-            }
-            KeyboardInput::Func { body } => {
-              let (name, param) = match &lvalue {
-                LValue::Fn { name, param } => {
-                  self.device.print(
-                    format!(
-                      "FN {}({})",
-                      self.interner.resolve(*name).unwrap(),
-                      self.interner.resolve(*param).unwrap()
-                    )
-                    .as_bytes(),
-                  );
-                  (*name, *param)
-                }
-                _ => unreachable!(),
-              };
-
-              let mut sym_map = HashMap::default();
-              for (sym, name) in &body.interner {
-                let new_sym = self.interner.get_or_intern(name);
-                sym_map.insert(sym, new_sym);
-              }
-
-              let body_addr = Addr(self.code.len());
-              self.code.extend(body.code.into_iter().map(|instr| Instr {
-                loc: lval_loc.clone(),
-                kind: instr.kind.map_symbol(&sym_map),
-              }));
-              self.code.push(Instr {
-                loc: lval_loc,
-                kind: InstrKind::ReturnFn,
-              });
-
-              self
-                .bindings
-                .user_funcs
-                .insert(name, UserFunc { param, body_addr });
-            }
-          };
+          LValue::Fn { .. } => unreachable!(),
         }
       }
-      _ => unreachable!(),
+      for ((lval_loc, lvalue), value) in lvalues.zip(values) {
+        if comma {
+          self.device.print(b",");
+        }
+        comma = true;
+        match value {
+          KeyboardInput::Integer(num) => {
+            self.device.print(num.to_string().as_bytes());
+            self.bindings.store_value(lvalue, Value::Integer(num));
+          }
+          KeyboardInput::Real(num) => {
+            self.device.print(num.to_string().as_bytes());
+            self.bindings.store_value(lvalue, Value::Real(num));
+          }
+          KeyboardInput::String(s) => {
+            self.device.print(&s);
+            self.bindings.store_value(lvalue, Value::String(s));
+          }
+          KeyboardInput::Func { body } => {
+            let (name, param) = match &lvalue {
+              LValue::Fn { name, param } => {
+                self.device.print(
+                  format!(
+                    "FN {}({})",
+                    self.interner.resolve(*name).unwrap(),
+                    self.interner.resolve(*param).unwrap()
+                  )
+                  .as_bytes(),
+                );
+                (*name, *param)
+              }
+              _ => unreachable!(),
+            };
+
+            let mut sym_map = HashMap::default();
+            for (sym, name) in &body.interner {
+              let new_sym = self.interner.get_or_intern(name);
+              sym_map.insert(sym, new_sym);
+            }
+
+            let body_addr = Addr(self.code.len());
+            self.code.extend(body.code.into_iter().map(|instr| Instr {
+              loc: lval_loc.clone(),
+              kind: instr.kind.map_symbol(&sym_map),
+            }));
+            self.code.push(Instr {
+              loc: lval_loc,
+              kind: InstrKind::ReturnFn,
+            });
+
+            self
+              .bindings
+              .user_funcs
+              .insert(name, UserFunc { param, body_addr });
+          }
+        };
+      }
+    } else {
+      unreachable!()
     }
-    // TODO this should be handled in device
-    //self.device.print(b"\0");
     self.device.newline();
     self.device.flush();
     self.pc += 1;
@@ -3161,7 +3158,7 @@ mod tests {
       &mut self,
       steps: &mut usize,
       state: AsmExecState<()>,
-    ) -> std::result::Result<Option<()>,String> {
+    ) -> std::result::Result<Option<()>, String> {
       if let AsmExecState::Start(addr) = state {
         add_log(
           self.log.clone(),
