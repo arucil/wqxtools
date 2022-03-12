@@ -16,6 +16,12 @@
   GVBASIC模拟器(Linux)：
   ![](./screenshots/linux-gvb-sim.png)
 
+  GVBASIC编辑器(Windows)：
+  ![](./screenshots/win-gvb-editor.png)
+
+  GVBASIC模拟器(Windows)：
+  ![](./screenshots/win-gvb-sim.png)
+
 </details>
 
 发版专用仓库：<https://gitlab.com/arucil/wqxtools-release>
