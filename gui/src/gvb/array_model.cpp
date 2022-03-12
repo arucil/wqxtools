@@ -149,7 +149,7 @@ void ArrayModel::setData(QWidget *editor, const QModelIndex &index) {
 }
 
 QVector<uint16_t> ArrayModel::getSubs(const QModelIndex &index) const {
-  QVector subs(m_subscripts);
+  QVector<uint16_t> subs(m_subscripts);
   subs[m_colDim] = index.column();
   if (m_bounds.len > 1) {
     subs[m_rowDim] = index.row();
@@ -211,7 +211,7 @@ void ArrayModel::loadData(size_t newRowDim, size_t newColDim) {
         if (auto iarr = get_if<0>(&m_data)) {
           iarr->push_back(values.integer._0);
         } else {
-          m_data = QVector {values.integer._0};
+          m_data = QVector<api::ArrayMut<short>> {values.integer._0};
         }
         break;
       }
@@ -219,7 +219,7 @@ void ArrayModel::loadData(size_t newRowDim, size_t newColDim) {
         if (auto iarr = get_if<1>(&m_data)) {
           iarr->push_back(values.real._0);
         } else {
-          m_data = QVector {values.real._0};
+          m_data = QVector<api::ArrayMut<api::GvbReal>> {values.real._0};
         }
         break;
       }
@@ -228,7 +228,7 @@ void ArrayModel::loadData(size_t newRowDim, size_t newColDim) {
           iarr->push_back(values.string._0);
         } else {
           fontChanged = true;
-          m_data = QVector {values.string._0};
+          m_data = QVector<api::ArrayMut<api::Array<unsigned char>>> {values.string._0};
         }
         break;
       }
@@ -243,16 +243,18 @@ void ArrayModel::loadData(size_t newRowDim, size_t newColDim) {
       endInsertRows();
     }
     m_rows = 1;
-  } else if (newRows != oldRows) {
-    if (newRows > oldRows) {
-      beginInsertRows(QModelIndex(), oldRows, newRows - 1);
-      endInsertRows();
-    } else if (newRows < oldRows) {
-      beginRemoveRows(QModelIndex(), newRows, oldRows - 1);
-      endRemoveRows();
+  } else {
+    if (newRows != oldRows) {
+      if (newRows > oldRows) {
+        beginInsertRows(QModelIndex(), oldRows, newRows - 1);
+        endInsertRows();
+      } else if (newRows < oldRows) {
+        beginRemoveRows(QModelIndex(), newRows, oldRows - 1);
+        endRemoveRows();
+      }
+      m_rows = newRows;
     }
     m_rowDim = newRowDim;
-    m_rows = newRows;
   }
 
   auto oldCols = m_cols;
@@ -265,9 +267,9 @@ void ArrayModel::loadData(size_t newRowDim, size_t newColDim) {
       beginRemoveColumns(QModelIndex(), newCols, oldCols - 1);
       endRemoveColumns();
     }
-    m_colDim = newColDim;
     m_cols = newCols;
   }
+  m_colDim = newColDim;
 
   QVector<int> changed {Qt::ToolTipRole, Qt::DisplayRole};
   if (fontChanged) {

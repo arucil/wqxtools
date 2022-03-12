@@ -62,6 +62,7 @@ private:
   Toast *m_toast;
   QNetworkAccessManager *m_networkMan;
   QMenu *m_mnuEdit;
+  QMenu *m_mnuNew;
 
   QAction *m_actOpen;
   QAction *m_actSave;

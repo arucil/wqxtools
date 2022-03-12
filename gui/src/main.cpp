@@ -1,6 +1,7 @@
 #include <QApplication>
 #include <QFontDatabase>
 #include <QVector>
+#include <QMessageBox>
 #include <QWidget>
 
 #include "mainwindow.h"
@@ -29,7 +30,10 @@ int main(int argc, char *argv[]) {
 }
 
 void loadResources() {
-  QFontDatabase::addApplicationFont(":/fonts/WenQuXing.ttf");
+  if (QFontDatabase::addApplicationFont(":/fonts/WenQuXing.ttf") == -1) {
+      QMessageBox::critical(nullptr, "错误", "字体文件加载失败");
+      QCoreApplication::exit(1);
+  }
 }
 
 void initTools() {

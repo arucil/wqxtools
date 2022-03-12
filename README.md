@@ -40,9 +40,14 @@ cargo install cargo-make cbindgen
 cargo make -p release all
 ```
 
-生成的可执行文件在 `gui/build/release` 目录中。
+生成的可执行文件在 `gui/build/release` 目录中，该程序的执行还依赖于 `gui` 目录下的 `machines.yaml`、`config.yaml`、`help.qhc`、`docs/help.qch` 文件和 `styles` 文件夹。
 
 测试：
 ```shell
 cargo test --all
+```
+
+在 Windows 下使用动态链接的 Qt 版本编译程序后，需要使用 `windeployqt` 工具拷贝 Qt 运行库：
+```shell
+windeployqt --compiler-runtime --no-translations --no-system-d3d-compiler --no-opengl-sw gui/build/release/wqxtools.exe
 ```

@@ -9,3 +9,5 @@ Makefile*
 /styles/
 /docs/help.qch
 /help.qhc
+/gui.pro.user
+/*.rc

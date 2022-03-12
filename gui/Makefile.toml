@@ -2,6 +2,19 @@
 CARGO_MAKE_EXTEND_WORKSPACE_MAKEFILE = false
 
 [tasks.build]
+windows_alias = "windows_build"
+alias = "unix_build"
+
+[tasks.windows_build]
+clear = true
+script_runner = "@shell"
+script = """
+qhelpgenerator-qt6 docs/help.qhcp -o help.qhc
+qmake6
+make ${PROFILE} -j8
+"""
+
+[tasks.unix_build]
 clear = true
 script_runner = "@shell"
 script = """

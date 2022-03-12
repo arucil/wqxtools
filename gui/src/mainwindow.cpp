@@ -112,11 +112,11 @@ void MainWindow::initMenu() {
   m_actOpen->setShortcut(Qt::CTRL | Qt::Key_O);
   connect(m_actOpen, &QAction::triggered, this, &MainWindow::openFile);
 
-  auto mnuNew = mnuFile->addMenu("新建(&N)");
+  m_mnuNew = mnuFile->addMenu("新建(&N)");
   const auto &tools = ToolRegistry::createFileTools();
   for (auto it = tools.constKeyValueBegin(); it != tools.constKeyValueEnd();
        it++) {
-    auto actNew = mnuNew->addAction(it->first);
+    auto actNew = m_mnuNew->addAction(it->first);
     auto tool = it->second;
     connect(actNew, &QAction::triggered, this, [tool, this] {
       createFile(tool);
@@ -419,8 +419,11 @@ void MainWindow::setupTool(ToolWidget *widget) {
     progCap->m_stPaused->assignProperty(m_actStop, "enabled", true);
     progCap->m_stStopped->assignProperty(m_actStop, "enabled", false);
     progCap->m_stStopped->assignProperty(m_actOpen, "enabled", true);
+    progCap->m_stStopped->assignProperty(m_mnuNew, "enabled", true);
     progCap->m_stStarted->assignProperty(m_actOpen, "enabled", false);
+    progCap->m_stStarted->assignProperty(m_mnuNew, "enabled", false);
     progCap->m_stPaused->assignProperty(m_actOpen, "enabled", false);
+    progCap->m_stPaused->assignProperty(m_mnuNew, "enabled", false);
     m_actStart->setEnabled(true);
     connect(
       m_actStart,

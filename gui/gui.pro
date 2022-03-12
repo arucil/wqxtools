@@ -16,7 +16,7 @@ INCLUDEPATH += \
 
 HEADERS += $$files(src/*.h, true)
 SOURCES += $$files(src/*.cpp, true) \
-    $$files(scintilla/src/*.cpp, true)
+    $$files(scintilla/src/*.cxx, true)
 
 QT += widgets network statemachine core5compat help
 
@@ -24,13 +24,13 @@ RESOURCES += resources/wqxtools.qrc
 
 RC_ICONS = resources/images/Icon.ico
 
-LIBS += $$PWD/scintilla/bin/libScintillaEdit.a \
-    $$PWD/../target/release/libapi_cpp_binding.a
+LIBS += $$PWD/../target/release/libapi_cpp_binding.a
 
 unix {
     LIBS += -ldl
 }
 win32 {
+    LIBS += -lbcrypt -lwsock32 -lws2_32 -luserenv
 }
 
 CONFIG(debug, debug|release) {
