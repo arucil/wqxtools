@@ -1,6 +1,7 @@
 use std::io;
 
 use super::{PrintMode, ScreenMode};
+use crate::machine::EofBehavior;
 
 pub mod default;
 
@@ -99,6 +100,8 @@ pub trait Device {
   fn play_notes(&mut self, notes: &[u8]);
 
   fn clear_cursor(&mut self);
+
+  fn eof_behavior(&self) -> EofBehavior;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

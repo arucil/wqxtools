@@ -10,7 +10,7 @@ use crate::ast::{self, Range, SysFuncKind};
 use crate::compiler::compile_fn_body;
 use crate::device::{AsmExecState, Device, DrawMode, FileHandle, KeyCode};
 use crate::diagnostic::{contains_errors, Diagnostic};
-use crate::machine::EmojiVersion;
+use crate::machine::{EmojiVersion, EofBehavior};
 use crate::parser::{parse_expr, read_number};
 use crate::util::mbf5::{Mbf5, ParseRealError, RealError};
 use crate::HashMap;
@@ -1538,7 +1538,11 @@ where
               self
                 .state
                 .io(loc.clone(), "获取文件指针", file.handle.pos())?;
-            self.num_stack.push((loc, Mbf5::from(pos >= len)));
+            let mut eof_reached = pos >= len;
+            if self.device.eof_behavior() == EofBehavior::Inverse {
+              eof_reached = !eof_reached;
+            }
+            self.num_stack.push((loc, Mbf5::from(eof_reached)));
             Ok(())
           }
           FileMode::None => {
@@ -3082,6 +3086,10 @@ mod tests {
     }
 
     fn clear_cursor(&mut self) {}
+
+    fn eof_behavior(&self) -> EofBehavior {
+      EofBehavior::Normal
+    }
 
     fn read_byte(&self, addr: u16) -> u8 {
       add_log(

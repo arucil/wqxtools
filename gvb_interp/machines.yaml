@@ -35,6 +35,13 @@ tc808:
   # 可用的值：true （检查），false （不检查）
   key-buffer-quit: false
 
+  # 一部分旧机型（例如 PC1000A）上，EOF函数的行为和后来机型的行为相反，即：如果文件指针到达
+  # 文件末尾，则返回 0，否则返回 1。这个字段用于设置EOF函数的行为。
+  # 可用的值：
+  # - normal：如果文件指针到达文件末尾，则返回1，否则返回0。
+  # - inverse：如果文件指针到达文件末尾，则返回0，否则返回1。
+  eof-behavior: normal
+
   # 按键的内存映射地址
   key-mappings:
     24 : { addr: 198, bit: 0 } # 关机
@@ -150,6 +157,7 @@ pc1000a:
   text-buffer-base-addr: 704
   key-buffer-addr: 199
   key-buffer-quit: true
+  eof-behavior: inverse
   key-mappings:
     28 : { addr: 200, bit: 2 } # F1
     29 : { addr: 200, bit: 3 } # F2
@@ -216,6 +224,7 @@ nc1020:
   text-buffer-base-addr: 704
   key-buffer-addr: 199
   key-buffer-quit: true
+  eof-behavior: normal
   key-mappings:
     28 : { addr: 195, bit: 2 } # F1
     29 : { addr: 194, bit: 2 } # F2
@@ -282,6 +291,7 @@ nc3000:
   text-buffer-base-addr: 704
   key-buffer-addr: 199
   key-buffer-quit: false
+  eof-behavior: normal
   key-mappings:
     24 : { addr: 198, bit: 0 } # 关机
 

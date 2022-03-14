@@ -23,11 +23,18 @@ pub(crate) struct MachineProps {
   pub key_mapping_addrs: Vec<u16>,
   pub key_masks: [Option<(u16, u8)>; 256],
   pub key_buffer_quit: bool,
+  pub eof_behavior: EofBehavior,
   pub addrs: IntMap<AddrProp>,
   pub extra_symbol_data: Vec<u8>,
   /// symbol code -> index of extra_symbol_data
   pub extra_symbols: IntMap<usize>,
   pub brks: IntMap<BrkKind>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum EofBehavior {
+  Normal,
+  Inverse,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -59,6 +66,7 @@ impl Default for MachineProps {
       key_mapping_addrs: vec![],
       key_masks: [None; 256],
       key_buffer_quit: false,
+      eof_behavior: EofBehavior::Normal,
       addrs: IntMap::new(),
       extra_symbol_data: vec![],
       extra_symbols: IntMap::new(),
@@ -378,6 +386,29 @@ pub fn init_machines() -> Result<(), InitError> {
     props.key_buffer_quit = key_buffer_quit
       .as_bool()
       .ok_or_else(|| format!("{}.key-buffer-quit is not boolean", mach_name))?;
+
+    // eof-behavior
+    let eof_behavior = obj
+      .remove(&Yaml::String("eof-behavior".into()))
+      .ok_or_else(|| {
+        format!("missing field 'eof-behavior' in '{}'", mach_name)
+      })?;
+    let eof_behavior = eof_behavior
+      .as_str()
+      .ok_or_else(|| format!("{}.eof-behavior is not string", mach_name))?;
+    match eof_behavior {
+      "normal" => {
+        props.eof_behavior = EofBehavior::Normal;
+      }
+      "inverse" => {
+        props.eof_behavior = EofBehavior::Inverse;
+      }
+      _ => {
+        return Err(
+          format!("invalid eof-behavior value in '{}'", mach_name).into(),
+        );
+      }
+    }
 
     // addrs
     let addrs = obj

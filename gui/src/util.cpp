@@ -1,6 +1,7 @@
 #include "util.h"
 
 #include <QApplication>
+#include <QDebug>
 #include <QDir>
 #include <QScreen>
 
@@ -22,11 +23,11 @@ QString getSystemDir(const char *name) {
   if (workDir.cd(name)) {
     return workDir.absolutePath();
   }
-  auto path = QDir::cleanPath(
-    QCoreApplication::applicationDirPath() + QDir::separator() + name);
+  auto path = QDir::cleanPath(QCoreApplication::applicationDirPath());
   QDir dir(path);
-  if (!dir.exists()) {
-    dir.mkdir(".");
+  if (!dir.cd(name)) {
+    dir.mkdir(name);
+    dir.cd(name);
   }
-  return path;
+  return dir.absolutePath();
 }

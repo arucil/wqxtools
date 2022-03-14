@@ -1,5 +1,5 @@
 use super::*;
-use crate::machine::{AddrProp, BrkKind, MachineProps};
+use crate::machine::{AddrProp, BrkKind, EofBehavior, MachineProps};
 use crate::ByteString;
 use chrono::prelude::*;
 use emulator_6502::{Interface6502, MOS6502};
@@ -1145,6 +1145,10 @@ impl Device for DefaultDevice {
     self.blink_cursor();
 
     self.cursor = CursorState::None;
+  }
+
+  fn eof_behavior(&self) -> EofBehavior {
+    self.props.eof_behavior
   }
 }
 
