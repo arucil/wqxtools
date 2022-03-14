@@ -13,11 +13,12 @@ ScintillaEdit::~ScintillaEdit() {
 }
 
 QByteArray ScintillaEdit::TextReturner(int message, uptr_t wParam) const {
-    int length = send(message, wParam, 0);
-    QByteArray ba(length, '\0');
+    // While Scintilla can return strings longer than maximum(int), QByteArray uses int size
+    const int length = static_cast<int>(send(message, wParam, 0));
+    QByteArray ba(length + 1, '\0');
     send(message, wParam, (sptr_t)ba.data());
     // Remove extra NULs
-    if (ba.size() > 0 && ba.at(ba.size()-1) == 0)
+    if (ba.at(ba.size()-1) == 0)
         ba.chop(1);
     return ba;
 }
@@ -2429,6 +2430,14 @@ void ScintillaEdit::setPositionCache(sptr_t size) {
 
 sptr_t ScintillaEdit::positionCache() const {
     return send(SCI_GETPOSITIONCACHE, 0, 0);
+}
+
+void ScintillaEdit::setLayoutThreads(sptr_t threads) {
+    send(SCI_SETLAYOUTTHREADS, threads, 0);
+}
+
+sptr_t ScintillaEdit::layoutThreads() const {
+    return send(SCI_GETLAYOUTTHREADS, 0, 0);
 }
 
 void ScintillaEdit::copyAllowLine() {

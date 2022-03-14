@@ -9,8 +9,8 @@ alias = "unix_build"
 clear = true
 script_runner = "@shell"
 script = """
-qhelpgenerator-qt6 docs/help.qhcp -o help.qhc
-qmake6
+qhelpgenerator docs/help.qhcp -o help.qhc
+qmake
 make ${PROFILE} -j8
 """
 
@@ -19,6 +19,6 @@ clear = true
 script_runner = "@shell"
 script = """
 qhelpgenerator docs/help.qhcp -o help.qhc
-qmake6
+qmake
 make ${PROFILE} -j8
 """

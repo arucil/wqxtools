@@ -28,11 +28,11 @@
 
 ## 编译
 
-编译本项目需要的环境：`Rust (nightly)`、`C++ 17及以上`、`Qt 6.0 及以上`。在 Windows 下编译时请使用基于 MinGW 的 Rust 和 Qt 版本。
+编译本项目需要的环境：`Rust (nightly)`、`C++ 17及以上`、`Qt 5.15.0 及以上`。在 Windows 下编译时请使用基于 MinGW 的 Rust 和 Qt 版本。
 
 clone 项目到本地，然后运行 `git submodule update --init --recursive` 下载 git submodule。
 
-把 `gui/scintilla515.zip` 解压到 gui 目录。
+把 `gui/scintilla521.zip` 解压到 gui 目录。
 
 安装编译辅助工具：
 

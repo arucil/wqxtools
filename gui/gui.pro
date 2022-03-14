@@ -18,7 +18,7 @@ HEADERS += $$files(src/*.h, true)
 SOURCES += $$files(src/*.cpp, true) \
     $$files(scintilla/src/*.cxx, true)
 
-QT += widgets network statemachine core5compat help
+QT += widgets network help
 
 RESOURCES += resources/wqxtools.qrc
 

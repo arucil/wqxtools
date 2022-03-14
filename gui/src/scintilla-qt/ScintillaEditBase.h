@@ -141,13 +141,13 @@ private:
 
 	QElapsedTimer time;
 
-	int preeditPos;
+	Scintilla::Position preeditPos;
 	QString preeditString;
 
 	int wheelDelta;
 
 	static bool IsHangul(const QChar qchar);
-	void MoveImeCarets(int offset);
+	void MoveImeCarets(Scintilla::Position offset);
 	void DrawImeIndicator(int indicator, int len);
 	static Scintilla::KeyMod ModifiersOfKeyboard();
 };
