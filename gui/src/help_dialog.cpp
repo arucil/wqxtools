@@ -16,7 +16,11 @@
 
 #include "help_browser.h"
 
-#define HELP_FILENAME "help.qhc"
+#ifdef _WIN32
+#define HELP_FILENAME "docs\\help.qhc"
+#else
+#define HELP_FILENAME "docs/help.qhc"
+#endif
 
 HelpDialog::HelpDialog(QWidget *parent) : QDialog(parent) {
   QHelpEngine *helpEngine;

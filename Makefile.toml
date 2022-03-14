@@ -15,11 +15,27 @@ script_runner = "@shell"
 script = """
 cp gvb_interp/machines.yaml gui/machines.yaml
 cp gvb_interp/config.yaml gui/config.yaml
-cp -r gvb_interp/styles gui/styles
 """
 dependencies = [
-  { name = "header", path = "api_cpp_binding" }
+  { name = "header", path = "api_cpp_binding" },
+  "cp-styles"
 ]
+
+[tasks.cp-styles]
+windows_alias = "windows-cp-styles"
+alias = "unix-cp-styles"
+
+[tasks.windows-cp-styles]
+workspace = false
+script = """
+cp -r gvb_interp/styles gui/styles
+"""
+
+[tasks.unix-cp-styles]
+workspace = false
+script = """
+cp -r gvb_interp/styles gui
+"""
 
 [tasks.build-api]
 workspace = false
