@@ -46,7 +46,7 @@ cargo install cargo-make cbindgen
 cargo make -p release all
 ```
 
-生成的可执行文件在 `gui/build/release` 目录中，该程序的执行还依赖于 `gui` 目录下的 `machines.yaml`、`config.yaml`、`help.qhc`、`docs/help.qch` 文件和 `styles` 文件夹。
+生成的可执行文件在 `gui/build/release` 目录中，该程序的执行还依赖于 `gui` 目录下的 `machines.yaml`、`config.yaml`、`docs/help.qhc`、`docs/help.qch` 文件和 `styles` 文件夹。
 
 测试：
 ```shell
