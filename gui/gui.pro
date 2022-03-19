@@ -24,7 +24,12 @@ RESOURCES += resources/wqxtools.qrc
 
 RC_ICONS = resources/images/Icon.ico
 
-LIBS += $$PWD/../target/release/libapi_cpp_binding.a
+
+contains(QMAKE_TARGET.arch, x86_64) {
+    LIBS += $$PWD/../target/release/libapi_cpp_binding.a
+} else {
+    LIBS += $$PWD/../target/i686-pc-windows-gnu/release/libapi_cpp_binding.a
+}
 
 unix {
     LIBS += -ldl

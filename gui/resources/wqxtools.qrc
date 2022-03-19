@@ -16,6 +16,6 @@
     <file>images/Error.svg</file>
     <file>images/Emoji.svg</file>
     <file>images/Refresh.svg</file>
-    <file>fonts/WenQuXing.otf</file>
+    <file>fonts/WenQuXing.ttf</file>
 </qresource>
 </RCC>

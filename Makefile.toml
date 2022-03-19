@@ -22,16 +22,6 @@ dependencies = [
 ]
 
 [tasks.cp-styles]
-windows_alias = "windows-cp-styles"
-alias = "unix-cp-styles"
-
-[tasks.windows-cp-styles]
-workspace = false
-script = """
-cp -r gvb_interp/styles gui/styles
-"""
-
-[tasks.unix-cp-styles]
 workspace = false
 script = """
 cp -r gvb_interp/styles gui
