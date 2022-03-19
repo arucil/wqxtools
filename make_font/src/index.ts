@@ -131,7 +131,7 @@ const tinyDigitPaths = Array.from(Array(16).keys())
 
 // gb2312
 {
-  console.log('generating WenQuXing.ttf...')
+  console.log('generating WenQuXing.otf...')
   const glyphs = [
     notdefGlyph,
     ...makeAsciiGlyphs(),
@@ -142,11 +142,11 @@ const tinyDigitPaths = Array.from(Array(16).keys())
     familyName: 'WenQuXing',
     styleName: 'Regular',
     unitsPerEm: 16 * SCALE,
-    ascender: 18 * SCALE,
-    descender: -4 * SCALE,
+    ascender: 15 * SCALE,
+    descender: -1 * SCALE,
     glyphs,
   })
-  font.download('WenQuXing.ttf')
+  font.download('WenQuXing.otf')
 }
 
 function makeAsciiGlyphs(): opentype.Glyph[] {

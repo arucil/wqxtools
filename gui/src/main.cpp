@@ -30,7 +30,7 @@ int main(int argc, char *argv[]) {
 }
 
 void loadResources() {
-  if (QFontDatabase::addApplicationFont(":/fonts/WenQuXing.ttf") == -1) {
+  if (QFontDatabase::addApplicationFont(":/fonts/WenQuXing.otf") == -1) {
       QMessageBox::critical(nullptr, "错误", "字体文件加载失败");
       QCoreApplication::exit(1);
   }
