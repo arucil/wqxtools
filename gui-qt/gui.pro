@@ -12,7 +12,7 @@ INCLUDEPATH += \
     src/scintilla-qt \
     scintilla/src \
     scintilla/include \
-    3rdparty
+    ../3rdparty
 
 HEADERS += $$files(src/*.h, true)
 SOURCES += $$files(src/*.cpp, true) \

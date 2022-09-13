@@ -1,0 +1,3 @@
+[submodule "3rdparty/interval-tree"]
+	path = 3rdparty/interval-tree
+	url = git@github.com:5cript/interval-tree.git
