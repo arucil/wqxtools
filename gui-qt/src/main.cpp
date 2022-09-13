@@ -13,9 +13,6 @@ void initTools();
 int main(int argc, char *argv[]) {
   QApplication app(argc, argv);
 
-  uint16_t shit[] = {0xd800};
-  QString::fromUtf16(shit, 1);
-
   loadResources();
   initTools();
 

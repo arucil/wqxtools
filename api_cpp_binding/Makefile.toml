@@ -1,6 +1,6 @@
 [tasks.header]
 command = "cbindgen"
-args = ["--output", "../gui/include/api.h"]
+args = ["--output", "../gui-wx/include/api.h"]
 
 [tasks.build]
 clear = true
