@@ -32,7 +32,7 @@
 
 clone 项目到本地，然后运行 `git submodule update --init --recursive` 下载 git submodule。
 
-把 `gui/scintilla521.zip` 解压到 gui 目录。
+把 `gui-qt/scintilla521.zip` 解压到 gui-qt 目录。
 
 安装编译辅助工具：
 
@@ -46,7 +46,7 @@ cargo install cargo-make cbindgen
 cargo make -p release all
 ```
 
-生成的可执行文件在 `gui/build/release` 目录中，该程序的执行还依赖于 `gui` 目录下的 `machines.yaml`、`config.yaml`、`docs/help.qhc`、`docs/help.qch` 文件和 `styles` 文件夹。
+生成的可执行文件在 `gui-qt/build/release` 目录中，该程序的执行还依赖于 `gui-qt` 目录下的 `machines.yaml`、`config.yaml`、`docs/help.qhc`、`docs/help.qch` 文件和 `styles` 文件夹。
 
 测试：
 ```shell
@@ -55,5 +55,5 @@ cargo test --all
 
 在 Windows 下使用动态链接的 Qt 版本编译程序后，需要使用 `windeployqt` 工具拷贝 Qt 运行库：
 ```shell
-windeployqt --compiler-runtime --no-translations --no-system-d3d-compiler --no-opengl-sw gui/build/release/wqxtools.exe
+windeployqt --compiler-runtime --no-translations --no-system-d3d-compiler --no-opengl-sw gui-qt/build/release/wqxtools.exe
 ```

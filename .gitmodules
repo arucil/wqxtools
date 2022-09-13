@@ -1,6 +1,0 @@
-[submodule "gui/3rdparty/QCodeEditor"]
-	path = gui/3rdparty/QCodeEditor
-	url = git@github.com:arucil/QCodeEditor.git
-[submodule "gui/3rdparty/interval-tree"]
-	path = gui/3rdparty/interval-tree
-	url = git@github.com:5cript/interval-tree.git

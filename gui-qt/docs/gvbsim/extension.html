@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8">
+</head>
+
+<body>
+  <h1 align="center">GVBASIC 语法扩展</h1>
+  <p>GVBASIC 模拟器扩展了若干语法，用于补充模拟器所缺失的真实机器上的特性。</p>
+  <hr />
+  <h3>大小写</h3>
+  <p>
+    所有标识符、关键字不区分大小写。
+  </p>
+  <h3 id="stmt-sleep">SLEEP语句</h3>
+  <p>
+    延时一段时间。
+    <br />
+    用法：SLEEP &nbsp; <code>&lt;数值表达式&gt;</code>
+    <br />
+    用于解决一部分 GVBASIC 程序在模拟器上运行速度过快，导致无法正常与程序交互的问题。
+    在程序的关键部分插入 SLEEP 语句，可以使程序的运行效果和真实机器上的运行效果接近。
+    <br />
+    例：
+  <pre><code>10 PRINT "延时...":SLEEP 1000:PRINT "延时结束。"</code></pre>
+  模拟器会将 <code>FOR I=1 to 2000:NEXT</code> 这种形式的空循环转换为 SLEEP 语句。
+  由于不同机型的 GVBASIC 运行速度不同，因此 SLEEP 语句延时的具体单位也随机型的不同而不同（程序的机型可以通过编辑器右上角的下拉菜单修改）。不同机型的延时单位可以在 <i>machines.yaml</i> 文件中配置。
+  <br />
+  例如：如果某个机型的延时单位是 6ms，那么 <code>SLEEP 500</code> 语句就会延迟 500*6ms = 3000ms = 3秒。
+  </p>
+  <h3 id="ext-input">INPUT 语句扩展</h3>
+  <p>
+    INPUT 语句支持输入自定义函数。例：
+  <pre><code>10 INPUT "请输入函数";FN F(X): PRINT FN F(10);" ";FN F(20)</code></pre>
+  运行上面的程序后，会弹出一个输入框，要求用户输入函数的表达式，例如 <code>X^2+1</code>，接下来程序会输出 <code>101 401</code>。
+  <br />
+  利用这个扩展，用户可以写出绘制任意函数图像的程序。
+  </p>
+  <h3 id="func-point">POINT 函数</h3>
+  <p>
+    判断指定坐标的像素点是否为黑，是则返回1，否则返回0。
+    <br />
+    用法：POINT(<code>&lt;横坐标数值表达式&gt;</code>, <code>&lt;纵坐标数值表达式&gt;</code>)
+  </p>
+  <h3 id="func-checkkey">CHECKKEY 函数</h3>
+  <p>
+    判断指定按键是否按下。
+    <br />
+    用法：CHECKKEY(<code>&lt;按键值表达式&gt;</code>)
+    <br />
+    例：
+  <pre><code>10 IF CHECKKEY(13) THEN PRINT "YES"
+20 GOTO 10</code></pre>
+  该程序检测用户是否按下了[输入]键，如果是则输出 YES。前往 <a href="../keycodes.html">按键值列表</a> 页面查阅按键值。
+  </p>
+  <h2>文件操作</h2>
+  <p>
+    模拟器扩展了文件操作，增加了 BINARY 模式及相应的语句/函数。
+  </p>
+  <h3 id="mode-binary">BINARY 模式</h3>
+  <p>
+    以 BINARY 模式操作文件。BINARY 模式和 RANDOM 类似，将文件中的数据视作二进制数据。
+    <br />
+    用法示例：OPEN &nbsp; <code>&lt;文件名表达式&gt;</code> &nbsp; FOR &nbsp; BINARY &nbsp; AS &nbsp; #1。
+    <br />
+    运行上面的语句后，就能以 BINARY 模式操作 1 号文件。如果要打开的文件不存在，OPEN 语句不会报告错误，也不会创建一个新的文件。可以使用 FOPEN 函数判断文件是否成功打开。
+    <br />
+    OPEN 语句以 BINARY 模式打开文件时不支持 LEN 属性。
+  </p>
+  <h3 id="func-fopen">FOPEN 函数</h3>
+  <p>
+    判断文件是否打开。
+    <br />
+    用法：FOPEN(<code>&lt;文件号表达式&gt;</code>)
+  </p>
+  <h3 id="func-fgetc">FGETC 函数</h3>
+  <p>
+    从当前文件指针处读取一个字节。只适用于 BINARY 或 RANDOM 模式。返回字节的数值（0~255之间）。
+    <br />
+    用法：FGETC(<code>&lt;文件号表达式&gt;</code>)
+  </p>
+  <h3 id="func-ftell">FTELL 函数</h3>
+  <p>
+    获取文件指针。只适用于 BINARY 或 RANDOM 模式。
+    <br />
+    用法：FTELL(<code>&lt;文件号表达式&gt;</code>)
+  </p>
+  <h3 id="stmt-fputc">FPUTC 函数</h3>
+  <p>
+    把一个字节写入文件的当前文件指针处。只适用于 BINARY 或 RANDOM 模式。
+    <br />
+    用法：FPUTC &nbsp; # <code>&lt;文件号表达式&gt;</code>, <code>&lt;字符串表达式&gt;</code>
+    <br />
+    井号可以省略。把字符串的第一个字节写入文件。
+  </p>
+  <h3 id="stmt-fread">FREAD 语句</h3>
+  <p>
+    从文件中读取指定数量的数据到指定的内存地址。只适用于 BINARY 或 RANDOM 模式。
+    <br />
+    用法：FREAD &nbsp; # <code>&lt;文件号表达式&gt;</code>, <code>&lt;内存地址表达式&gt;</code>, <code>&lt;数据长度表达式&gt;</code>
+    <br />
+    井号可以省略。
+  </p>
+  <h3 id="stmt-fwrite">FWRITE 语句</h3>
+  <p>
+    把指定内存地址的指定数量的内存数据写入到文件中。只适用于 BINARY 或 RANDOM 模式。
+    <br />
+    用法：FWRITE &nbsp; # <code>&lt;文件号表达式&gt;</code>, <code>&lt;内存地址表达式&gt;</code>, <code>&lt;数据长度表达式&gt;</code>
+    <br />
+    井号可以省略。
+  </p>
+  <h3 id="stmt-fseek">FSEEK 语句</h3>
+  <p>
+    设置文件指针。只适用于 BINARY 或 RANDOM 模式。
+    <br />
+    用法：FSEEK &nbsp; # <code>&lt;文件号表达式&gt;</code>, <code>&lt;文件指针表达式&gt;</code>
+    <br />
+    井号可以省略。
+  </p>
+</body>
+
+</html>

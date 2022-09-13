@@ -11,7 +11,7 @@ semver = "1.0.4"
 members = [
   "bin_dasm",
   "gvb_interp",
-  "api_cpp_binding",
+  "gui-sciter",
   "config",
   "util"
 ]

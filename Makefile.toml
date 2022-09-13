@@ -13,8 +13,8 @@ dependencies = ["prepare-gui", "build-gui"]
 workspace = false
 script_runner = "@shell"
 script = """
-cp gvb_interp/machines.yaml gui/machines.yaml
-cp gvb_interp/config.yaml gui/config.yaml
+cp gvb_interp/machines.yaml gui-qt/machines.yaml
+cp gvb_interp/config.yaml gui-qt/config.yaml
 """
 dependencies = [
   { name = "header", path = "api_cpp_binding" },
@@ -24,7 +24,7 @@ dependencies = [
 [tasks.cp-styles]
 workspace = false
 script = """
-cp -r gvb_interp/styles gui
+cp -r gvb_interp/styles gui-qt
 """
 
 [tasks.build-api]
@@ -37,5 +37,5 @@ dependencies = [
 workspace = false
 dependencies = [
   { name = "build-api" },
-  { name = "build", path = "gui" }
+  { name = "build", path = "gui-qt" }
 ]
