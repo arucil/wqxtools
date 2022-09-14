@@ -1,4 +1,5 @@
 <?xml version="1.0" ?>
 <resource version="2.3.0.1">
   <object class="wxIcon" name="AppIcon">images/Icon.ico</object>
+  <object class="data" name="Help">help.zip</object>
 </resource>

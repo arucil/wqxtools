@@ -3,11 +3,11 @@
 #include <wx/wx.h>
 #include <wx/xrc/xmlres.h>
 
-class WXDLLIMPEXP_XRC wxIconBundleXmlHandler: public wxXmlResourceHandler {
+class WXDLLIMPEXP_XRC BinaryDataXmlHandler: public wxXmlResourceHandler {
   wxDECLARE_DYNAMIC_CLASS(wxIconBundleXmlHandler);
 
 public:
-  wxIconBundleXmlHandler();
+  BinaryDataXmlHandler();
   virtual wxObject *DoCreateResource() wxOVERRIDE;
   virtual bool CanHandle(wxXmlNode *node) wxOVERRIDE;
 };

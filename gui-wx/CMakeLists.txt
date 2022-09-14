@@ -8,7 +8,13 @@ file(GLOB_RECURSE SOURCES src/*.cpp)
 
 add_executable(wqxtools ${SOURCES} src/resources.cpp)
 
-find_package(wxWidgets REQUIRED core base net html xrc)
+if(MSVC)
+  target_compile_options(wqxtools PRIVATE /W4 /WX)
+else()
+  target_compile_options(wqxtools PRIVATE -Wall -Wextra -Wpedantic -Werror)
+endif()
+
+find_package(wxWidgets REQUIRED core base net html xrc stc)
 include(${wxWidgets_USE_FILE})
 include_directories(${CMAKE_SOURCE_DIR}/include)
 # and for each of your dependent executable/library targets:
@@ -24,6 +30,6 @@ endif()
 add_custom_command(
   OUTPUT src/resources.cpp
   COMMAND wxrc resources/wqxtools.xrc -co src/resources.cpp
-  DEPENDS resources/wqxtools.xrc
+  DEPENDS resources/wqxtools.xrc resources/help.zip
   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 )

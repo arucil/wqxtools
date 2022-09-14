@@ -5,11 +5,11 @@
 #include <wx/wx.h>
 #include <wx/xml/xml.h>
 
-wxIMPLEMENT_DYNAMIC_CLASS(wxIconBundleXmlHandler, wxXmlResourceHandler);
+wxIMPLEMENT_DYNAMIC_CLASS(IconBundleXmlHandler, wxXmlResourceHandler);
 
-wxIconBundleXmlHandler::wxIconBundleXmlHandler() : wxXmlResourceHandler() {}
+IconBundleXmlHandler::IconBundleXmlHandler() : wxXmlResourceHandler() {}
 
-wxObject *wxIconBundleXmlHandler::DoCreateResource() {
+wxObject *IconBundleXmlHandler::DoCreateResource() {
   auto path = GetFilePath(m_node);
   if (path.empty()) {
     return new wxIconBundle();
@@ -20,20 +20,19 @@ wxObject *wxIconBundleXmlHandler::DoCreateResource() {
       m_node->GetName(),
       wxString::Format("cannot open bitmap resource \"%s\"", path));
     return new wxIconBundle();
-    return new wxIconBundle();
   }
   auto bundle = new wxIconBundle(*file->GetStream(), wxBITMAP_TYPE_ICO);
   delete file;
   if (!bundle->IsOk()) {
+    delete bundle;
     ReportParamError(
       m_node->GetName(),
       wxString::Format("cannot create icon from \"%s\"", path));
-    delete bundle;
     return new wxIconBundle();
   }
   return bundle;
 }
 
-bool wxIconBundleXmlHandler::CanHandle(wxXmlNode *node) {
+bool IconBundleXmlHandler::CanHandle(wxXmlNode *node) {
   return IsOfClass(node, wxT("wxIcon"));
 }

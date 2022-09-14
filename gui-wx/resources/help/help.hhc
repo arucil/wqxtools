@@ -1,0 +1,56 @@
+<ul>
+  <li>
+    <object type="text/sitemap">
+      <param name="Name" value="文曲星工具箱">
+      <param name="Local" value="index.html">
+    </object>
+    <ul>
+      <li>
+        <object type="text/sitemap">
+          <param name="Name" value="GVBASIC 模拟器">
+          <param name="Local" value="gvbsim/index.html">
+        </object>
+        <ul>
+          <li>
+            <object type="text/sitemap">
+              <param name="Name" value="语法扩展">
+              <param name="Local" value="gvbsim/extension.html">
+            </object>
+          </li>
+          <li>
+            <object type="text/sitemap">
+              <param name="Name" value="语义说明">
+              <param name="Local" value="gvbsim/semantics.html">
+            </object>
+            <ul>
+              <li>
+                <object type="text/sitemap">
+                  <param name="Name" value="语句">
+                  <param name="Local" value="gvbsim/semantics.html#语句">
+                </object>
+              </li>
+              <li>
+                <object type="text/sitemap">
+                  <param name="Name" value="表达式">
+                  <param name="Local" value="gvbsim/semantics.html#表达式">
+                </object>
+              </li>
+              <li>
+                <object type="text/sitemap">
+                  <param name="Name" value="函数">
+                  <param name="Local" value="gvbsim/semantics.html#函数">
+                </object>
+              </li>
+            </ul>
+          </li>
+        </ul>
+      </li>
+      <li>
+        <object type="text/sitemap">
+          <param name="Name" value="按键值列表">
+          <param name="Local" value="keycodes.html">
+        </object>
+      </li>
+    </ul>
+  </li>
+</ul>

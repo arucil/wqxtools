@@ -1,0 +1,593 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+</head>
+
+<body>
+  <article class="markdown-body">
+    <h1 align="center">GVBASIC 语义说明</h1>
+    <p>以下语句、函数的语义来自 NC3000 的 GVBASIC+。</p>
+    <p>以下的语义说明只包含 GVBASIC 中比较鲜为人知的细节部分，对 GVBASIC 入门教程中基本涵盖的基础部分不作额外说明。</p>
+    <h1 class="atx" id="语句">语句</h1>
+    <p>注：下文类似 <code>&lt;expr&gt;</code> 的文本表示表达式，<code>&lt;var&gt;</code>表示变量，<code>&lt;lvalue&gt;</code>
+      表示变量或数组，<code>&lt;integer&gt;</code> 表示行号（0~9999之间），<code>&lt;string&gt;</code>
+      表示字符串，<code>&lt;statements&gt;</code> 表示若干条语句。
+      <br/>
+      方括号（<code>[ ... ]</code>）之间的内容表示该内容可以省略。星号（<code>*</code>）表示前面的内容可以出现0次或多次。加号（<code>+</code>）表示前面的内容可以出现1次或多次。竖线（<code>|</code>）表示要么使用左边的内容，要么使用右边的内容。
+    </p>
+    <table border="1">
+      <thead>
+        <tr>
+          <th align="center">语句</th>
+          <th align="left">语义</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td align="center"><a name="stmt-auto">AUTO</a></td>
+          <td align="left">和 REM 一样</td>
+        </tr>
+        <tr>
+          <td align="center"><a name="stmt-beep">BEEP</a></td>
+          <td align="left">beep</td>
+        </tr>
+        <tr>
+          <td align="center"><a name="stmt-box">BOX</a> &nbsp; <code>&lt;X0 expr&gt;</code> , <code>&lt;Y0 expr&gt;</code> ,
+            <code>&lt;X1 expr&gt;</code> , <code>&lt;Y1 expr&gt;</code> [ , <code>&lt;fill mode expr&gt;</code> [ ,
+            <code>&lt;draw mode expr&gt;</code> ] ]</td>
+          <td align="left">画矩形。X0、Y0、X1、Y1、fill mode、draw mode 必须在 0～255 之间。<br>如果 fill mode 的 bit0 为
+            1，则画实心矩形，否则画空心矩形。<br>draw mode 的值在下面的注解中说明。</td>
+        </tr>
+        <tr>
+          <td align="center"><a name="stmt-call">CALL</a> &nbsp; <code>&lt;expr&gt;</code></td>
+          <td align="left">调用 <code>&lt;expr&gt;</code> 地址的机器码。<br><code>&lt;expr&gt;</code> 在 -65535～65535
+            之间，如果是负数则取补码。</td>
+        </tr>
+        <tr>
+          <td align="center"><a name="stmt-circle">CIRCLE</a> &nbsp; <code>&lt;X expr&gt;</code> , <code>&lt;Y expr&gt;</code> ,
+            <code>&lt;radius expr&gt;</code> [ , <code>&lt;fill mode expr&gt;</code> [ ,
+            <code>&lt;draw mode expr&gt;</code> ] ]</td>
+          <td align="left">画圆。X、Y、radius、fill mode、draw mode 必须在 0～255 之间。<br>如果 fill mode 的 bit0 为
+            1，则画实心圆，否则画空心圆。<br>draw mode 的值在下面的注解中说明。</td>
+        </tr>
+        <tr>
+          <td align="center"><a name="stmt-clear">CLEAR</a></td>
+          <td align="left">关闭所有文件、清空所有变量、重置 DATA 指针、清空所有循环和子程序</td>
+        </tr>
+        <tr>
+          <td align="center"><a name="stmt-close">CLOSE</a> &nbsp; [ # ] <code>&lt;file number expr&gt;</code></td>
+          <td align="left">关闭文件。file number 的结果必须在 1～3 之间。</td>
+        </tr>
+        <tr>
+          <td align="center"><a name="stmt-cls">CLS</a></td>
+          <td align="left">清空屏幕和文字缓冲区、清除所有文字的 INVERSE 属性。</td>
+        </tr>
+        <tr>
+          <td align="center"><a name="stmt-cont">CONT</a></td>
+          <td align="left">不做任何操作</td>
+        </tr>
+        <tr>
+          <td align="center"><a name="stmt-copy">COPY</a></td>
+          <td align="left">和 REM 一样</td>
+        </tr>
+        <tr>
+          <td align="center"><a name="stmt-data">DATA</a></td>
+          <td align="left">忽略其后的所有字符，直到行尾，或者遇到没有被双引号括起来的英文冒号。</td>
+        </tr>
+        <tr>
+          <td align="center"><a name="stmt-def">DEF</a> &nbsp; FN &nbsp; <code>&lt;name var&gt;</code>( <code>&lt;parameter var&gt;</code> ) =
+            <code>&lt;body expr&gt;</code></td>
+          <td align="left">定义函数。name 和 parameter 必须是实数类型。可以重定义之前定义的同名函数。</td>
+        </tr>
+        <tr>
+          <td align="center"><a name="stmt-del">DEL</a></td>
+          <td align="left">和 REM 一样</td>
+        </tr>
+        <tr>
+          <td align="center"><a name="stmt-dim">DIM</a> &nbsp; <code>&lt;lvalue&gt;</code> ( , <code>&lt;another lvalue&gt;</code> )*</td>
+          <td align="left">定义变量或数组。如果定义的变量已存在，则保留变量原有的值，不会重置变量。如果定义的数组已存在，则报错。不能定义名称相同（如果名称的后缀
+            <code>$</code>、<code>%</code> 不同，也算不同名称）但维度不同的数组，例如 <code>DIM A(1), A(1, 2)</code> 会报错，但是
+            <code>DIM A(1), A$(2)</code> 没有问题。数组下标的范围是 0～32767。</td>
+        </tr>
+        <tr>
+          <td align="center"><a name="stmt-draw">DRAW</a> &nbsp; <code>&lt;X expr&gt;</code> , <code>&lt;Y expr&gt;</code> [ ,
+            <code>&lt;draw mode expr&gt;</code> ]</td>
+          <td align="left">画点。X、Y、draw mode 必须在 0～255 之间。<br>draw mode 的值在下面的注解中说明。</td>
+        </tr>
+        <tr>
+          <td align="center"><a name="stmt-edit">EDIT</a></td>
+          <td align="left">和 REM 一样</td>
+        </tr>
+        <tr>
+          <td align="center"><a name="stmt-ellipse">ELLIPSE</a> &nbsp; <code>&lt;X expr&gt;</code> , <code>&lt;Y expr&gt;</code> ,
+            <code>&lt;X radius expr&gt;</code> , <code>&lt;Y radius expr&gt;</code> [ ,
+            <code>&lt;fill mode expr&gt;</code> [ , <code>&lt;draw mode expr&gt;</code> ] ]</td>
+          <td align="left">画椭圆。X、Y、X radius、Y radius、fill mode、draw mode 必须在 0～255 之间。<br>如果 fill mode 的 bit0 为
+            1，则画实心椭圆，否则画空心椭圆。<br>draw mode 的值在下面的注解中说明。</td>
+        </tr>
+        <tr>
+          <td align="center"><a name="stmt-end">END</a></td>
+          <td align="left">结束程序</td>
+        </tr>
+        <tr>
+          <td align="center"><a name="stmt-field">FIELD</a> &nbsp; [ # ] <code>&lt;file number expr&gt;</code> ( , <code>&lt;field len expr&gt;</code>
+            AS <code>&lt;field name lvalue&gt;</code> )+</td>
+          <td align="left">为打开的 RANDOM 模式的文件分配记录（record）的成员变量（field）。file number 必须在 1～3 之间。<br>field len 必须在 0～255
+            之间。field name 必须是字符串变量，可以是数组。<br>AS 中间可以有空格，不需要和后面的变量名用空格分隔。<br>所有 field len 加起来不能超过打开文件时设置的
+            LEN。<br>执行该语句后，所有 field name 的内容都是长度为对应的 field len、所有字节都为 <code>0x00</code> 的字符串。<br>在执行该语句后，如果对某个 field
+            name 重新赋值，则会导致原有的字符串丢失；如果要修改原字符串，则要使用 LSET / RSET 语句。</td>
+        </tr>
+        <tr>
+          <td align="center"><a name="stmt-files">FILES</a></td>
+          <td align="left">和 REM 一样</td>
+        </tr>
+        <tr>
+          <td align="center"><a name="stmt-flash">FLASH</a></td>
+          <td align="left">和 INVERSE 一样，但是先设置 INVERSE 再设置 FLASH 的话二者的效果会互相抵消，使得后续打印的字符没有反显效果；先设置 FLASH 后设置 INVERSE
+            不会发生这种情况。</td>
+        </tr>
+        <tr>
+          <td align="center"><a name="stmt-for">FOR</a> &nbsp; <code>&lt;var&gt;</code>=<code>&lt;from expr&gt;</code> &nbsp; TO &nbsp; <code>&lt;to expr&gt;</code>
+            &nbsp; [ STEP <code>&lt;step expr&gt;</code> ]</td>
+          <td align="left">FOR 循环。<code>&lt;var&gt;</code> 必须是实数类型（即不能有 <code>$</code> 或 <code>%</code>
+            后缀），并且不能是数组。<br><code>&lt;from expr&gt;</code>、<code>&lt;to expr&gt;</code> 和 <code>&lt;step expr&gt;</code>
+            在循环之前就会计算出结果，在后续的循环中不会重新计算。<br>如果省略 STEP，则步长默认为 1。如果步长为正数，则当 <code>&lt;var&gt;</code> 大于
+            <code>&lt;to expr&gt;</code> 时循环结束；如果步长为负数，则当 <code>&lt;var&gt;</code> 小于 <code>&lt;to expr&gt;</code>
+            时循环结束；如果步长为 0，则当 <code>&lt;var&gt;</code> 等于 <code>&lt;to expr&gt;</code>
+            时循环结束。<br>循环体至少会执行一次。<br>如果目前正在执行一个 <code>&lt;var&gt;</code> 相同的 FOR 循环，则会覆盖此 FOR 循环。</td>
+        </tr>
+        <tr>
+          <td align="center"><a name="stmt-get">GET</a> &nbsp; [ # ] <code>&lt;file number expr&gt;</code> , <code>&lt;record number expr&gt;</code>
+          </td>
+          <td align="left">从 RANDOM 文件读取一条记录（record）。file number 在 1～3 之间。<br>record number 在 -32768～32767 之间，不能为
+            0，如果是负数则取补码，因此最终得到的 record number 在 1～65535 之间。<br>读取的记录不能超出文件长度。</td>
+        </tr>
+        <tr>
+          <td align="center"><a name="stmt-gosub">GOSUB</a> &nbsp;[ <code>&lt;integer&gt;</code> ]</td>
+          <td align="left">跳转子程序。如果后面有跟上行号（行号的数字中间没有空格），则跳转到行号，<br>否则跳转到行号为 <code>0</code> 的行；如果没有行号为 <code>0</code>
+            的行，则报错 <code>UNDEF'D STATEMENT</code>。<br>执行 RETURN 返回到 GOSUB 语句后，行号后面的字符会被忽略，和 DATA 语句一样（这是为了把处理 GOSUB
+            的代码重用于 ON ... GOSUB 语句中）。</td>
+        </tr>
+        <tr>
+          <td align="center"><a name="stmt-goto">GOTO</a> &nbsp; [ <code>&lt;integer&gt;</code> ]</td>
+          <td align="left">
+            <p>无条件跳转。如果后面有跟上行号（行号的数字中间没有空格），则跳转到行号，<br>否则跳转到行号为 <code>0</code> 的行；如果没有行号为 <code>0</code> 的行，则报错
+              <code>UNDEF'D STATEMENT</code>。</p>
+            <p>由于在判断行号之后就立即跳转到目标行号继续执行，因此不会检查 GOTO 语句后面的内容。<br>例：<code>10 GOTO 20 something wrong</code> 这个 GOTO 语句后面的
+              <code>something wrong</code> 不会报错。</p>
+          </td>
+        </tr>
+        <tr>
+          <td align="center"><a name="stmt-graph">GRAPH</a></td>
+          <td align="left">设置为 GRAPH 模式，隐藏光标，然后执行 CLS。在 GRAPH 模式中打印文字时文本缓冲区中为 <code>0x00</code>
+            的部分不会刷新到屏幕，因此这些部分之前绘制的图形可以得到保留。</td>
+        </tr>
+        <tr>
+          <td align="center"><a name="stmt-if">IF</a> &nbsp; <code>&lt;cond expr&gt;</code> &nbsp; ( THEN | GOTO ) &nbsp; <code>&lt;then statements&gt;</code> &nbsp; (
+            ELSE <code>&lt;else statements&gt;</code> )*</td>
+          <td align="left">当 cond 不为 0 时，执行 THEN / GOTO 后面的语句（THEN 和 GOTO 等价，GOTO 后面不一定要跟上行号），否则如果有 ELSE 的话，执行 ELSE
+            后面的语句。<br>不会判断 cond 是否是数字，如果是字符串，该语句的行为未知。<br>可以有多个 ELSE，这是为了处理多个 IF 语句嵌套的情况，但是 GVBASIC 并没有判断 IF 和 ELSE
+            是否匹配，ELSE 的个数可以多于 IF。在按顺序执行 then 或 else 中的语句时，如果碰到 ELSE，则直接跳过这一行剩下的内容，继续执行下一行。<br>then
+            开头不能是冒号，结尾可以有一个冒号；语句之间只能用一个冒号分隔。<br>else 开头不能是冒号，如果不是最后一个 ELSE，则结尾可以有一个冒号；语句之间只能用一个冒号分隔。<br>如果 then 和 else
+            其中的语句是一个行号，则跳转到指定的行号。<br>在 then 或 else 中如果出现 GOSUB 或 ON ... GOSUB 语句，在使用 RETURN 回到这个 IF 语句中继续执行时，如果 GOSUB
+            后面的第一个冒号之后遇到 ELSE 或者行号语句就会报错 syntax error。<br><strong>注意</strong>：在 NC1020 模拟器上测试时发现 GOTO
+            之后只能跟上行号，为了直观起见，GVBASIC 模拟器遵循 NC1020 上 GVBASIC 的行为：GOTO 之后只能跟上行号，行号是可选的，如果省略行号则默认行号为
+            0。例如：<code>IF 1 GOTO</code>&nbsp;这个语句跳转到行号 0。</td>
+        </tr>
+        <tr>
+          <td align="center"><a name="stmt-inkey">INKEY$</a></td>
+          <td align="left">等待按键。按键值（长度为 1 的字符串）会保存到用于表达式计算的字符串操作数栈中，这个栈只能保存 3 个元素，因此在执行 4 次 INKEY$ 语句后就栈溢出了，发生
+            <code>formula too complex</code> 错误。</td>
+        </tr>
+        <tr>
+          <td align="center"><a name="stmt-input">INPUT</a> &nbsp; [ # <code>&lt;file number expr&gt;</code> , |
+            <code>&lt;input prompt string&gt;</code> ; ] <code>&lt;lvalue&gt;</code> ( ,
+            <code>&lt;another lvalue&gt;</code> )*</td>
+          <td align="left">从键盘或文件读取数据。如果有 file number（前面的 <code>#</code>
+            符号不能省略），则是从文件读取数据，否则从键盘读取数据。<br><br>从文件读取数据：<br>* EOF 被认为是 <code>0xff</code> 字符。<br>*
+            如果要读数字，但文件中数据不是合法的数字，或者数字没有以逗号或 <code>0xff</code> 字符结尾，则报错 type mismatch；<br>*
+            如果要读字符串，可以读有引号或无引号的字符串；有引号的字符串的引号必须闭合，否则报错 file read error；无引号的字符串读取到逗号或 <code>0xff</code>为止；<br>*
+            文件中每个数据（数字/字符串）必须以 <code>0xff</code> 字符或逗号结尾。<br><br>从键盘读取数据：<br>* 输出的 input prompt 会剔除其中汉字的
+            <code>0x1f</code> 前缀。<br>* input prompt 和输入的内容会受 INVERSE / FLASH 影响。<br>* 输入的多个数据可以用逗号分隔。<br>*
+            如果要求输入字符串，可以输入有引号或无引号的字符串：有引号的字符串的引号不需要闭合；无引号的字符串读取到逗号、冒号或末尾为止，如果字符串以冒号结尾，后面的内容会被忽略。<br>*
+            如果要求输入数字，但输入的不是合法的数字或者数字没有以逗号、冒号、输入末尾结尾，则打印 <code>?REENTER</code>，然后显示 input
+            prompt，要求用户从头输入所有数据。如果数字以冒号结尾，则冒号后面的内容会被忽略。<br>* 如果输入的数据不足以赋值给所有 INPUT 语句的变量，则继续从键盘输入，此时 input prompt 变成
+            <code>?</code> 符号。</td>
+        </tr>
+        <tr>
+          <td align="center"><a name="stmt-inverse">INVERSE</a></td>
+          <td align="left">设置 INVERSE 模式，后续打印的字符有反显效果。反显效果只能在 TEXT 模式中起作用，在 GRAPH 模式中不起作用。</td>
+        </tr>
+        <tr>
+          <td align="center"><a name="stmt-kill">KILL</a></td>
+          <td align="left">和 REM 一样</td>
+        </tr>
+        <tr>
+          <td align="center"><a name="stmt-let">[LET]</a> &nbsp; <code>&lt;lvalue&gt;</code> = <code>&lt;expr&gt;</code></td>
+          <td align="left">赋值。LET 关键字可以省略</td>
+        </tr>
+        <tr>
+          <td align="center"><a name="stmt-line">LINE</a> &nbsp; <code>&lt;X0 expr&gt;</code> , <code>&lt;Y0 expr&gt;</code> ,
+            <code>&lt;X1 expr&gt;</code> , <code>&lt;Y1 expr&gt;</code> [ , <code>&lt;draw mode expr&gt;</code> ]</td>
+          <td align="left">画线。X0、Y0、X1、Y1、draw mode 必须在 0～255 之间。<br>draw mode 的值在下面的注解中说明。</td>
+        </tr>
+        <tr>
+          <td align="center"><a name="stmt-list">LIST</a></td>
+          <td align="left">和 REM 一样</td>
+        </tr>
+        <tr>
+          <td align="center"><a name="stmt-load">LOAD</a></td>
+          <td align="left">和 REM 一样</td>
+        </tr>
+        <tr>
+          <td align="center"><a name="stmt-locate">LOCATE</a> &nbsp; [ <code>&lt;row expr&gt;</code> ] [ , <code>&lt;column expr&gt;</code> ]</td>
+          <td align="left">改变光标位置。row 必须在 1～5 之间，column 必须在 1～20 之间。<br>如果省略 row，则不改变光标纵坐标。如果省略 column，则不改变光标横坐标。<br>row
+            和 column 不能同时省略。</td>
+        </tr>
+        <tr>
+          <td align="center"><a name="stmt-lset">LSET</a> <code>&lt;lvalue&gt;</code> = <code>&lt;expr&gt;</code></td>
+          <td align="left">把等号右边表达式的结果（必须是字符串）复制到等号左边的 lvalue 中。<br>如果 lvalue 原有的字符串比新的字符串长，则超出的部分字符串不变；如果 lvalue
+            原有的字符串比新的字符串短，则超出的部分字符串会覆盖掉其他变量的字符串的空间（这是 bug）。</td>
+        </tr>
+        <tr>
+          <td align="center"><a name="stmt-new">NEW</a></td>
+          <td align="left">和 REM 一样</td>
+        </tr>
+        <tr>
+          <td align="center"><a name="stmt-next">NEXT</a> &nbsp; [ <code>&lt;var&gt;</code> ( , <code>&lt;another var&gt;</code> )* ]</td>
+          <td align="left">继续执行 FOR 循环。如果有 <code>&lt;var&gt;</code>，则继续执行最近的 <code>&lt;var&gt;</code> 相同的 FOR 循环。<br>在
+            <code>&lt;var&gt;</code> 对应的 FOR 循环结束后，继续执行 <code>&lt;another var&gt;</code> 对应的循环，以此类推。</td>
+        </tr>
+        <tr>
+          <td align="center"><a name="stmt-normal">NORMAL</a></td>
+          <td align="left">取消 INVERSE 模式，后续打印的字符没有反显效果。</td>
+        </tr>
+        <tr>
+          <td align="center"><a name="stmt-notrace">NOTRACE</a></td>
+          <td align="left">关闭 tracing</td>
+        </tr>
+        <tr>
+          <td align="center"><a name="stmt-on">ON</a> &nbsp; <code>&lt;expr&gt;</code> ( GOTO | GOSUB ) [ <code>&lt;integer&gt;</code> ( , [
+            <code>&lt;integer&gt;</code> ] )* ]</td>
+          <td align="left">根据 <code>&lt;expr&gt;</code> 的结果跳转到对应的行号。如果结果取整之后为 1，则跳转到第一个行号；为 2
+            则跳转到第二个行号，以此类推。如果没有对应的行号则往后面继续执行。<br><code>&lt;expr&gt;</code> 的结果必须在 0～255 之间。<br>行号可以省略，如果省略某个行号，则默认为
+            <code>0</code>。甚至所有行号都能省略，例如 <code>ON &lt;expr&gt; GOTO</code> 等价于 <code>ON &lt;expr&gt; GOTO 0</code>。</td>
+        </tr>
+        <tr>
+          <td align="center"><a name="stmt-open">OPEN</a> &nbsp; <code>&lt;filename expr&gt;</code> &nbsp; [ FOR ] [ INPUT | OUTPUT | APPEND | RANDOM ] &nbsp; AS &nbsp; [ #
+            ] <code>&lt;file number&gt;</code> &nbsp; [ LEN = <code>&lt;len expr&gt;</code> ]</td>
+          <td align="left">打开文件。filename 结果必须是字符串，不能为空，不能包含<code>/</code>字符，不能包含中文，可以包含 <code>0x00</code> 字符。filename 中的
+            <code>0x1F</code> 字符会被删除，经过处理的 filename 最长 14 字节，超出的部分将被截断。<br>如果省略 INPUT / OUTPUT / APPEND /
+            RANDOM，则要用一个任意的非空格字符代替，在这种情况下默认为 RANDOM，例如 <code>OPEN A$ FOR @ AS 1</code>。<br>OUTPUT、APPEND、RANDOM
+            不是关键字。<br>AS 中间可以有空格，并且可以和前面的文件打开模式连起来，例如 <code>APPENDA  S</code>；不需要和后面的变量名用空格分隔。<br>file number 必须在 1～3
+            之间。<br>LEN 只能用于 RANDOM 模式，len 必须在 0～255 之间，如果 len 等于 0 或大于 128，则改为 32。如果省略 LEN 则 len 默认为 32。</td>
+        </tr>
+        <tr>
+          <td align="center"><a name="stmt-play">PLAY</a></td>
+          <td align="left">和 REM 一样</td>
+        </tr>
+        <tr>
+          <td align="center"><a name="stmt-poke">POKE</a> &nbsp; <code>&lt;addr expr&gt;</code> , <code>&lt;value expr&gt;</code></td>
+          <td align="left">把 addr 地址的字节设置为 value。<br>addr 在 -65535～65535 之间，如果是负数则取补码。<br>value 必须在 0～255 之间。</td>
+        </tr>
+        <tr>
+          <td align="center"><a name="stmt-pop">POP</a></td>
+          <td align="left">最近的 GOSUB 记录出栈，然后从 POP 语句之后继续执行。</td>
+        </tr>
+        <tr>
+          <td align="center"><a name="stmt-print">PRINT</a> &nbsp; ( <code>&lt;expr&gt;</code> | <code>,</code> | <code>;</code> |
+            SPC(<code>&lt;spc expr</code>) | TAB(<code>&lt;tab expr&gt;</code>) )*</td>
+          <td align="left">打印文字。<br>* <code>;</code> 不做操作<br>* <code>,</code> 可能换行<br>* <code>&lt;expr&gt;</code>
+            打印表达式的结果。如果 <code>&lt;expr&gt;</code> 之后 PRINT 语句结束，则可能换行；否则如果 <code>&lt;expr&gt;</code>
+            后面跟上的不是<code>;</code> 和 <code>,</code>，则打印一个空格。<br>* <code>SPC</code> 打印 spc 个空格。spc 必须在 0～255
+            之间。<code>SPC</code> 后面不一定要跟上左括号，只要是一个非空格的字符就行，例如 <code>SPC A 1 )</code> 也是合法的。如果 <code>SPC</code> 表达式之后
+            PRINT 语句结束，则可能换行。<br>* <code>TAB</code> 把光标向右移动到 tab 列，同时用空格填充间隙。如果光标当前横坐标大于 tab，则先用空格填充到换行为止，再移动到 tab
+            列，同时用空格填充间隙。tab 必须在 1～20 之间。TAB 后面不一定要跟上左括号，只要是一个非空格的字符就行。如果 <code>TAB</code> 表达式之后 PRINT
+            语句结束，则可能换行。<br><strong>注</strong>：上面 <code>可能换行</code>
+            的意思是，如果光标当前横坐标不在第一列，则换行。<br>在打印汉字时，如果光标当前横坐标在最后一列，此时必须换行才有足够的屏幕空间打印出完整的汉字，先打印一个空格（这个空格受 INVERSE / FLASH
+            影响），换行，然后打印汉字。<br>在每次打印 <code>&lt;expr&gt;</code>、SPC 或 TAB 之后，会把从光标当前位置的后一个位置直到其后出现的第一个 <code>0x00</code>
+            为止的字符设置为 <code>0x00</code>。<br>对于字符串，如果字符串中间出现了 <code>0x00</code>，则从此位置截断，只打印前面的部分。<br>如果字符串中出现了
+            <code>0x1F</code>，则忽略这个字符，并且把其后的两个字节直接输出，而不管其中是否有 <code>0x1F</code>
+            字节；如果其后不足两个字节，则有多少字节就打印多少字节。<br>在打印时如果发生滚屏，在 GRAPH 模式下，屏幕上原先绘制的图形也会滚动。</td>
+        </tr>
+        <tr>
+          <td align="center"><a name="stmt-put">PUT</a> &nbsp; [ # ] <code>&lt;file number expr&gt;</code> , <code>&lt;record number expr&gt;</code>
+          </td>
+          <td align="left">向 RANDOM 文件写入一条记录（record）。file number 在 1～3 之间。<br>record number 在 -32768～32767 之间，不能为
+            0，如果是负数则取补码，因此最终得到的 record number 在 1～65535 之间。<br>可以在文件末尾追加记录，除此之外写入的记录不能超过文件长度。<br>写入文件之后文件长度不能超过 65534。
+          </td>
+        </tr>
+        <tr>
+          <td align="center"><a name="stmt-read">READ</a> <code>&lt;lvalue&gt;</code> ( , <code>&lt;another lvalue&gt;</code> )*</td>
+          <td align="left">从 DATA 指针指向的位置读取数据。READ 语句会确保 DATA
+            语句后面的数据是用逗号隔开的字符串（可能用引号括起来，或者没用引号括起来。没有用引号括起来的字符串可以为空，并且其中不能出现冒号或者逗号。没有引号的字符串开头的空格会被去除，末尾的空格保留）。<br>READ
+            语句后面的每个变量会接收 DATA
+            中一个字符串（有引号/无引号），如果是字符串变量，则可以接收有引号或无引号的字符串，把有引号的字符串去掉引号。<br>如果是数字（整数/浮点数）变量，则只能接收无引号的字符串，并且字符串必须是合法的浮点数；对于整数变量，会把接收到的浮点数转换为整数。如果接收到的字符串为空，则接收到的浮点数为
+            0。</td>
+        </tr>
+        <tr>
+          <td align="center"><a name="stmt-rem">REM</a></td>
+          <td align="left">注释。忽略其后到行尾的所有字符</td>
+        </tr>
+        <tr>
+          <td align="center"><a name="stmt-rename">RENAME</a></td>
+          <td align="left">和 REM 一样</td>
+        </tr>
+        <tr>
+          <td align="center"><a name="stmt-restore">RESTORE</a> &nbsp; [ <code>&lt;integer&gt;</code> ]</td>
+          <td align="left">重置 DATA 指针。如果后面跟上行号（行号的数字中间没有空格），则把 DATA 指针重置到指定的行号。<br>如果指定的行号不存在，则重置 DATA 指针到程序开头。</td>
+        </tr>
+        <tr>
+          <td align="center"><a name="stmt-return">RETURN</a></td>
+          <td align="left">返回最近一次执行的 GOSUB 语句的位置后继续执行</td>
+        </tr>
+        <tr>
+          <td align="center"><a name="stmt-rset">RSET</a> &nbsp; <code>&lt;lvalue&gt;</code> = <code>&lt;expr&gt;</code></td>
+          <td align="left">把等号右边表达式的结果（必须是字符串）复制到等号左边的 lvalue 中。<br>如果 lvalue 原有的字符串比新的字符串长，则把新字符串在原字符串中右对齐，左边填上空格；如果
+            lvalue 原有的字符串比新的字符串短，则新字符串末尾超出的部分直接丢弃。</td>
+        </tr>
+        <tr>
+          <td align="center"><a name="stmt-run">RUN</a></td>
+          <td align="left">清空屏幕和文字缓冲、设置为 TEXT 模式，执行 CLEAR，然后跳转到第一行执行。<br>不会检查 RUN 后面是否有参数。</td>
+        </tr>
+        <tr>
+          <td align="center"><a name="stmt-save">SAVE</a></td>
+          <td align="left">和 REM 一样</td>
+        </tr>
+        <tr>
+          <td align="center"><a name="stmt-stop">STOP</a></td>
+          <td align="left">和 REM 一样</td>
+        </tr>
+        <tr>
+          <td align="center"><a name="stmt-swap">SWAP</a> &nbsp; <code>&lt;lvalue 1&gt;</code> , <code>&lt;lvalue 2&gt;</code></td>
+          <td align="left">交换两个 lvalue 的值。两个 lvalue 的类型必须相同。</td>
+        </tr>
+        <tr>
+          <td align="center"><a name="stmt-system">SYSTEM</a></td>
+          <td align="left">在 GVBASIC 交互模式（PC1000时代的模式）中退出到系统。<br>在新机器上的 GVBASIC 移除了这个模式，执行这个语句时直接报错 syntax error。</td>
+        </tr>
+        <tr>
+          <td align="center"><a name="stmt-text">TEXT</a></td>
+          <td align="left">设置为文字模式，显示光标；然后执行 CLS。在 TEXT 模式中每次打印字符后，之前绘制到屏幕的图形都会被清除。</td>
+        </tr>
+        <tr>
+          <td align="center"><a name="stmt-trace">TRACE</a></td>
+          <td align="left">启用 tracing。启用 tracing 后，每执行一条语句之前，都会打印出当前的行号，执行完一条语句之后等待按键。</td>
+        </tr>
+        <tr>
+          <td align="center"><a name="stmt-wend">WEND</a></td>
+          <td align="left">跳转到最近的 WHILE 循环的位置后继续执行。<br>注意，如果 WHILE 循环结束，则会从和 WHILE 语句匹配的 WEND 语句后面继续执行，而不一定是当前的这个 WEND
+            语句。具体请看下面的注解。</td>
+        </tr>
+        <tr>
+          <td align="center"><a name="stmt-while">WHILE</a> &nbsp; <code>&lt;expr&gt;</code></td>
+          <td align="left">当前 <code>&lt;expr&gt;</code> 不为 0 时，执行循环。<br>不会检查 <code>&lt;expr&gt;</code>
+            的结果是否是数字；如果结果是字符串，该语句的行为未知。<br>当循环结束时，查找和这个 WHILE 语句匹配的 WEND 语句，然后从 WEND 语句后面继续执行。<br>查找匹配的 WEND
+            语句的具体方法请看下面的注解。</td>
+        </tr>
+        <tr>
+          <td align="center"><a name="stmt-write">WRITE</a> &nbsp; [ # <code>&lt;file number expr&gt;</code> , ] <code>&lt;datum expr&gt;</code> ( [ , ]
+            <code>&lt;datum expr&gt;</code> )* [ , ]</td>
+          <td align="left">输出数据到屏幕或文件。如果有 file number 则是输出到文件。<br>file number 在 1～3 之间。<br>如果 datum 是字符串则加上引号；如果字符串中有
+            <code>0x00</code> 则只输出 <code>0x00</code> 前面的部分（包括开头的引号，不包括末尾的引号），例如
+            <code>WRITE "ABC" + CHR$(0) + "DEF"</code> 输出 <code>"ABC</code>。<br>datum 之间的逗号可以省略，在这种情况下，忽略前面的
+            datum，只输出后面的 datum；例如 <code>WRITE "ABC" "DEF" "GHJ"</code> 输出 <code>"GHJ"</code>。<br>如果不省略 datum
+            之间的逗号则输出的结果中也有逗号，例如 <code>WRITE "ABC", "DEF"</code> 输出
+            <code>"ABC","DEF"</code>。<br>语句末尾额外的逗号不会输出。<br>在执行完该语句后，如果是输出到屏幕，则<strong>不会</strong>换行；如果是输出到文件，则输出一个额外的
+            <code>0xff</code> 字节。<br>WRITE语句会剔除字符串中的 0x1f 字符，规则和 PRINT 语句一样。<br>写入文件之后文件长度不能超过 65534。</td>
+        </tr>
+      </tbody>
+    </table>
+    <p>注：</p>
+    <ul>
+      <li>
+        <p>以上的语句如果没有特别说明，都不能跟上参数。</p>
+      </li>
+      <li>
+        <p>上面的 <code>lvalue</code> 表示变量或数组。</p>
+      </li>
+      <li>
+        <p>FOR 循环、WHILE 循环、GOSUB 共用一个栈。执行 FOR、NEXT、WEND、RETURN、POP 时，从栈顶到栈底查找对应的循环/子程序记录，如果找到了，则把找到的记录以及其上的所有记录弹出。<br>
+          例：</p>
+        <pre><code class="fenced-code-block">10 FOR I=1 TO 0
+20 GOSUB 30
+30 NEXT
+40 RETURN</code></pre>
+        <p> <code>10</code> 行的 FOR 循环首先入栈，然后 <code>20</code> 行的 GOSUB 入栈。<code>30</code> 行的 NEXT 从栈中弹出 FOR 循环，并且由于 GOSUB
+          子程序在 FOR 循环上面，也被弹出栈。<br> 在执行到 <code>40</code> 行时，由于 GOSUB 已经被弹出，发生 <code>RETURN WITHOUT GOSUB</code> 错误。</p>
+      </li>
+      <li>
+        <p>查找和 WHILE 语句匹配的 WEND 语句的方法：</p>
+        <pre><code class="fenced-code-block">nested-WHILEs = 0
+loop:
+    move to next token
+    if current token is WHILE
+        nested-WHILEs = nested-WHILEs + 1
+    if current token is WEND
+        if nested-WHILEs == 0
+            found the matching WEND and return
+        nested-WHILEs = nested-WHILEs - 1</code></pre>
+        <p> 查找 WEND 语句的过程中忽略所有跳转语句。例：</p>
+        <pre><code class="fenced-code-block">10 WHILE I &lt; 1
+20 GOTO 40
+30 WEND:END
+40 I=I+1:WEND</code></pre>
+        <p> 首先进入 WHILE 循环的循环体，跳转到 <code>40</code> 行，<code>I</code> 加 1 之后回到 <code>10</code> 行；然后循环结束，查找和 WHILE 语句匹配的
+          WEND 语句，由于查找过程会忽略 GOTO 语句，所以找到的 WEND 语句是 <code>30</code> 行的 WEND 语句。 </p>
+      </li>
+      <li>
+        <p>DRAW、LINE、BOX、CIRCLE、ELLIPSE 的 draw mode 取 bit0～bit2，如果为 6 则改为 1。draw mode 的值如下：</p>
+        <ul>
+          <li><code>0</code> erase</li>
+          <li><code>1</code> copy</li>
+          <li><code>2</code> not</li>
+          <li><code>3</code>、<code>4</code>、<code>5</code> 对于不同的语句有不同的效果：<ul>
+              <li>DRAW：忽略本语句</li>
+              <li>LINE：<ul>
+                  <li>横线：效果等同于 draw mode 2</li>
+                  <li>其他：忽略本语句</li>
+                </ul>
+              </li>
+              <li>BOX：<ul>
+                  <li>实心：效果等同于 draw mode 2</li>
+                  <li>空心：只画出上下两条边，效果等同于 draw mode 2</li>
+                </ul>
+              </li>
+              <li>CIRCLE 和 ELLIPSE：<ul>
+                  <li>实心：效果等同于 draw mode 2</li>
+                  <li>空心：忽略本语句</li>
+                </ul>
+              </li>
+            </ul>
+          </li>
+        </ul>
+      </li>
+    </ul>
+    <h1 class="atx" id="表达式">表达式</h1>
+    <ul>
+      <li>变量名最长 16 字节（不包括 <code>$</code> / <code>%</code> 后缀），超出的部分直接忽略。</li>
+      <li>变量名可以用空格分隔，但出现在第一个空格之后的部分将被忽略（不包括 <code>$</code> / <code>%</code> 后缀），例如 <code>AB CDE$</code> 会被认为和
+        <code>AB XY$</code> 是同一个变量。</li>
+      <li>字符串字面量的引号不必闭合。在引号不闭合的情况下，字符串的内容到行尾为止。</li>
+      <li>整数类型的变量在参与表达式计算时会自动转换为实数。</li>
+      <li>字符串最长 255 字节。</li>
+      <li>比较运算符 <code>&gt;=</code>、<code>&lt;=</code>、<code>&lt;&gt;</code> 中间可以出现空格。</li>
+      <li>实数字面值、READ 语句读取的实数、键盘 INPUT 读取的实数支持中间出现空格；文件 INPUT 读取的实数不支持中间出现空格。</li>
+      <li>表达式中所有转换为整数的操作都是截断小数部分。</li>
+      <li>匹配合法的实数的正则表达式是 <code>[-+]?\d*(\.\d*)?(E[-+]?\d*)?</code>。</li>
+      <li>数组下标的范围是 0～32767。</li>
+    </ul>
+    <h2 class="atx" id="函数">函数</h2>
+    <table border="1">
+      <thead>
+        <tr>
+          <th align="center">函数</th>
+          <th align="left">说明</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td align="center"><a name="func-abs">ABS</a>(<code>&lt;expr&gt;</code>)</td>
+          <td align="left">取绝对值。</td>
+        </tr>
+        <tr>
+          <td align="center"><a name="func-asc">ASC</a>(<code>&lt;expr&gt;</code>)</td>
+          <td align="left">取字符串的第一个字节（0～255）转换为数字。参数必须是字符串。如果字符串为空，则报错 illegal quantity。</td>
+        </tr>
+        <tr>
+          <td align="center"><a name="func-atn">ATN</a>(<code>&lt;expr&gt;</code>)</td>
+          <td align="left">反正切</td>
+        </tr>
+        <tr>
+          <td align="center"><a name="func-chr">CHR$</a>(<code>&lt;expr&gt;</code>)</td>
+          <td align="left">把实数转换为 1 个字节长的字符串。参数必须在 0～255 之间。</td>
+        </tr>
+        <tr>
+          <td align="center"><a name="func-cos">COS</a>(<code>&lt;expr&gt;</code>)</td>
+          <td align="left">余弦</td>
+        </tr>
+        <tr>
+          <td align="center"><a name="func-cvi">CVI$</a>(<code>&lt;expr&gt;</code>)</td>
+          <td align="left">把保存 16 位整数的二进制数据的字符串（2字节）转换为实数。参数必须是字符串。如果字符串长度不等于 2 字节，则报错 syntax error。</td>
+        </tr>
+        <tr>
+          <td align="center"><a name="func-cvs">CVS$</a>(<code>&lt;expr&gt;</code>)</td>
+          <td align="left">把保存实数的二进制数据的字符串（5字节）转换为实数。参数必须是字符串。如果字符串长度不等于 5 字节，则报错 syntax error。</td>
+        </tr>
+        <tr>
+          <td align="center"><a name="func-eof">EOF</a>(<code>&lt;expr&gt;</code>)</td>
+          <td align="left">判断 INPUT 模式文件是否已经读取到文件末尾。参数必须是实数，在 1～3 之间，对应的文件必须以 INPUT
+            模式打开。<br><strong>注意</strong>：不要求文件正处于打开的状态，只要最近一次以 INPUT 模式打开过就行。</td>
+        </tr>
+        <tr>
+          <td align="center"><a name="func-exp">EXP</a>(<code>&lt;expr&gt;</code>)</td>
+          <td align="left">e 的幂</td>
+        </tr>
+        <tr>
+          <td align="center"><a name="func-int">INT</a>(<code>&lt;expr&gt;</code>)</td>
+          <td align="left">参数截断小数部分。</td>
+        </tr>
+        <tr>
+          <td align="center"><a name="func-left">LEFT$</a>(<code>&lt;string expr&gt;</code>, <code>&lt;len expr&gt;</code>)</td>
+          <td align="left">取 string 字符串左边的 len 个字符。string 必须是字符串，len 必须在 1～255 之间。如果 len 超过字符串长度，则取整个字符串。</td>
+        </tr>
+        <tr>
+          <td align="center"><a name="func-len">LEN</a>(<code>&lt;expr&gt;</code>)</td>
+          <td align="left">取字符串的长度。参数必须是字符串类型。</td>
+        </tr>
+        <tr>
+          <td align="center"><a name="func-lof">LOF</a>(<code>&lt;expr&gt;</code>)</td>
+          <td align="left">获取 RANDOM 文件的大小。参数必须是实数，必须在 1～3 之间，对应的文件必须以 RANDOM
+            模式打开。<br><strong>注意</strong>：不要求文件正处于打开的状态，只要最近一次以 RANDOM 模式打开过就行。</td>
+        </tr>
+        <tr>
+          <td align="center"><a name="func-log">LOG</a>(<code>&lt;expr&gt;</code>)</td>
+          <td align="left">自然对数</td>
+        </tr>
+        <tr>
+          <td align="center"><a name="func-mid">MID$</a>(<code>&lt;string expr&gt;</code>, <code>&lt;pos expr&gt;</code> [ ,
+            <code>&lt;len expr&gt;</code> ] )</td>
+          <td align="left">从 string 字符串的第 pos 个字符开始取 len 个字符。string 必须是字符串，pos 必须在 1～255 之间，len 必须在 0～255 之间。如果省略 len 或
+            len 超过剩余的字符数，则默认取剩余的所有字符。如果 pos 超过字符串长度，则总是返回空字符串。</td>
+        </tr>
+        <tr>
+          <td align="center"><a name="func-mki">MKI$</a>(<code>&lt;expr&gt;</code>)</td>
+          <td align="left">把实数转换为 16 位整数，然后二进制数据转换为字符串（2字节）。参数必须是实数。</td>
+        </tr>
+        <tr>
+          <td align="center"><a name="func-mks">MKS$</a>(<code>&lt;expr&gt;</code>)</td>
+          <td align="left">把实数的二进制数据转换为字符串（5字节）。参数必须是实数。</td>
+        </tr>
+        <tr>
+          <td align="center"><a name="func-peek">PEEK</a>(<code>&lt;expr&gt;</code>)</td>
+          <td align="left">获取指定地址的值（0～255）。参数在 -65535～65535 之间，如果是负数则取补码。</td>
+        </tr>
+        <tr>
+          <td align="center"><a name="func-pos">POS</a>(<code>&lt;expr&gt;</code>)</td>
+          <td align="left">获取光标横坐标（从 0 开始）。参数没有作用</td>
+        </tr>
+        <tr>
+          <td align="center"><a name="func-right">RIGHT$</a>(<code>&lt;string expr&gt;</code>, <code>&lt;len expr&gt;</code>)</td>
+          <td align="left">取 string 字符串右边的 len 个字符。string 必须是字符串，len 必须在 1～255 之间。如果 len 超过字符串长度，则取整个字符串。</td>
+        </tr>
+        <tr>
+          <td align="center"><a name="func-rnd">RND</a>(<code>&lt;expr&gt;</code>)</td>
+          <td align="left">产生0～1之间（包含0，不包含1）的随机数。如果参数大于 0，则产生新的随机数；如果参数为 0，则返回上次产生的随机数；如果参数小于 0，则用参数作为随机数种子产生随机数。</td>
+        </tr>
+        <tr>
+          <td align="center"><a name="func-sgn">SGN</a>(<code>&lt;expr&gt;</code>)</td>
+          <td align="left">判断数字正负号，如果参数为正数，则返回 1；如果参数为 0，则返回 0；如果参数为负数，则返回 -1。</td>
+        </tr>
+        <tr>
+          <td align="center"><a name="func-sin">SIN</a>(<code>&lt;expr&gt;</code>)</td>
+          <td align="left">正弦</td>
+        </tr>
+        <tr>
+          <td align="center"><a name="func-sqr">SQR</a>(<code>&lt;expr&gt;</code>)</td>
+          <td align="left">平方根</td>
+        </tr>
+        <tr>
+          <td align="center"><a name="func-str">STR$</a>(<code>&lt;expr&gt;</code>)</td>
+          <td align="left">把数字转换为字符串。参数必须是数字类型。</td>
+        </tr>
+        <tr>
+          <td align="center"><a name="func-tan">TAN</a>(<code>&lt;expr&gt;</code>)</td>
+          <td align="left">正切</td>
+        </tr>
+        <tr>
+          <td align="center"><a name="func-val">VAL</a>(<code>&lt;expr&gt;</code>)</td>
+          <td align="left">把字符串转换为实数。参数必须是字符串。如果字符串为空或者不是合法的实数，则返回 0。字符串所表示的实数后面可以不是合法的实数部分，只要前面的部分是合法的实数就行（例如
+            <code>VAL("13ABC")</code> 返回 <code>13</code>）。实数中间可以有空格，例如 <code>1.6 7  E 3</code></td>
+        </tr>
+      </tbody>
+    </table>
+    <p>注：</p>
+    <ul>
+      <li>以上的函数参数如果没有特别说明，都不会检查类型。如果类型不匹配，函数的结果不确定。</li>
+    </ul>
+  </article>
+</body>
+
+</html>

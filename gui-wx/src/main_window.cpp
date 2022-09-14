@@ -1,15 +1,13 @@
 #include "main_window.h"
-#include <wx/notifmsg.h>
 
 #include <wx/aboutdlg.h>
+#include <wx/html/helpctrl.h>
+#include <wx/html/helpwnd.h>
 #include <wx/xrc/xmlres.h>
 
 #include "api.h"
 
 enum {
-  ID_Menu_Start,
-  ID_Menu_Stop,
-  ID_Menu_ReloadConfig,
   ID_Menu_CheckVersion,
 };
 
@@ -26,9 +24,27 @@ MainWindow::MainWindow() :
 }
 
 void MainWindow::initUi() {
-  SetIcons((const wxIconBundle &)*wxXmlResource::Get()
-             ->LoadObject(nullptr, "AppIcon", "wxIcon"));
+  auto icons = wxXmlResource::Get()->LoadObject(nullptr, "AppIcon", "wxIcon");
+  SetIcons((const wxIconBundle &)*icons);
+  delete icons;
   initMenu();
+
+  auto panel = new wxPanel(this, wxID_ANY);
+  auto panelSizer = new wxBoxSizer(wxHORIZONTAL);
+  panel->SetSizer(panelSizer);
+  auto box = new wxStaticBox(panel, wxID_ANY, wxString());
+  panelSizer->Add(box, 1, wxEXPAND | wxALL, 20);
+  auto boxSizer = new wxBoxSizer(wxHORIZONTAL);
+  box->SetSizer(boxSizer);
+  auto label = new wxStaticText(
+    box,
+    wxID_ANY,
+    wxT("点击菜单 [文件] -> [打开] 打开文件\n"
+        "或拖动文件到此窗口"),
+    wxDefaultPosition,
+    wxDefaultSize,
+    wxALIGN_CENTRE_HORIZONTAL | wxST_NO_AUTORESIZE);
+  boxSizer->Add(label, 1, wxALIGN_CENTER_VERTICAL);
 }
 
 void MainWindow::initMenu() {
@@ -82,11 +98,11 @@ void MainWindow::initMenu() {
   auto mnuProg = new wxMenu;
   menuBar->Append(mnuProg, wxT("程序(&P)"));
 
-  mnuProg->Append(ID_Menu_Start, wxT("运行\tF5"));
-  mnuProg->Append(ID_Menu_Stop, wxT("停止\tCtrl+F7"));
+  mnuProg->Append(wxID_EXECUTE, wxT("运行\tF5"));
+  mnuProg->Append(wxID_STOP, wxT("停止\tCtrl+F7"));
   mnuProg->AppendSeparator();
 
-  mnuProg->Append(ID_Menu_ReloadConfig, wxT("重新加载配置文件"));
+  mnuProg->Append(wxID_REFRESH, wxT("重新加载配置文件"));
   // TODO
   // connect(actConfig, &QAction::triggered, this, [this] { loadConfig(this); });
 
@@ -110,11 +126,11 @@ void MainWindow::initMenu() {
 }
 
 void MainWindow::onHelp(wxCommandEvent &) {
-  wxNotificationMessage notif;
-  notif.SetParent(this);
-  notif.SetTitle("wtf??? Hello");
-  notif.SetMessage("Yes some!!!!!!");
-  notif.Show(wxNotificationMessage::Timeout_Auto);
+  auto window = new wxHtmlHelpWindow(this, wxID_ANY);
+  wxHtmlHelpController ctrl;
+  ctrl.AddBook(wxT("memory:help.zip"));
+  ctrl.SetHelpWindow(window);
+  ctrl.DisplayContents();
 }
 
 void MainWindow::onAbout(wxCommandEvent &) {
@@ -124,6 +140,7 @@ void MainWindow::onAbout(wxCommandEvent &) {
   aboutInfo.SetVersion(wxString(version.data, version.len));
   aboutInfo.SetDescription(
     wxT("目前包含 GVBASIC 编辑器/模拟器。\n"
+        "\n"
         "GVBASIC 编辑器的图标来源：\n"
         "Noto Emoji: https://github.com/googlefonts/noto-emoji\n"
         "Elementary OS Icons: https://github.com/elementary/icons\n"));
