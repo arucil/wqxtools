@@ -6,7 +6,7 @@
 
 class MainWindow: public wxFrame {
 public:
-  MainWindow();
+  MainWindow(const wxString &filePath = wxString());
 
 private:
   void initUi();
@@ -16,6 +16,12 @@ private:
   void onHelp(wxCommandEvent &);
   void onAbout(wxCommandEvent &);
 
+  void setFileLoaded(bool);
+  void setOpenFile(const wxString &path);
+  void updateTitle();
+  void checkNewVersion(bool isManual);
+
 private:
   std::optional<wxHtmlHelpController> m_helpCtrl;
+  wxString m_openFilePath;
 };

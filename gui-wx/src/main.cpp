@@ -38,7 +38,14 @@ public:
       wxT("application/zip"));
     delete helpData;
 
-    auto window = new MainWindow;
+    MainWindow *window;
+    if (argc > 2) {
+      wxMessageBox(wxT("运行参数过多"), wxT("错误"), wxICON_ERROR);
+    } else if (argc == 2) {
+      window = new MainWindow(argv[0]);
+    } else {
+      window = new MainWindow;
+    }
     window->Show();
     return true;
   }

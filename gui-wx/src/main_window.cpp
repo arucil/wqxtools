@@ -3,26 +3,64 @@
 #include <wx/aboutdlg.h>
 #include <wx/html/helpctrl.h>
 #include <wx/html/helpwnd.h>
+#include <wx/webrequest.h>
 #include <wx/xrc/xmlres.h>
+
+#if wxUSE_WEBREQUEST_CURL
+  #include <curl/curl.h>
+#elif defined(__WXMSW__)
+  #include <winhttp.h>
+#endif
 
 #include <optional>
 
 #include "api.h"
 
+#define WINDOW_TITLE "文曲星工具箱"
+#define UNNAMED "未命名"
+#define STYLE_DIR "styles"
+
+#define VERSION_API_ENDPOINT \
+  "https://gitlab.com/api/v4/projects/32814745/releases"
+
 enum {
   ID_Menu_CheckVersion,
 };
 
-MainWindow::MainWindow() :
-  wxFrame(
-    nullptr,
-    wxID_ANY,
-    wxT("文曲星工具箱"),
-    wxDefaultPosition,
-    wxSize(400, 340)) {
-  Center();
+MainWindow::MainWindow(const wxString &filePath) :
+  wxFrame(nullptr, wxID_ANY, wxT(""), wxDefaultPosition, wxSize(400, 340)) {
+  auto &web = wxWebSession::GetDefault();
+#if wxUSE_WEBREQUEST_CURL
+  auto handle = reinterpret_cast<CURLM *>(web.GetNativeHandle());
+  curl_easy_setopt(handle, CURLOPT_TIMEOUT, 3);
+#elif defined(__MXMSW__)
+  auto handle = reinterpret_cast<HINTERNET>(web.GetNativeHandle());
+  WinHttpSetTimeouts(handle, 1000, 1000, 1000, 1000);
+#endif
+
   // TODO drag'n'drop
   initUi();
+
+  Center();
+
+  CallAfter([&] {
+    setFileLoaded(false);
+
+    auto menuBar = GetMenuBar();
+    menuBar->Enable(wxID_SAVE, false);
+    menuBar->Enable(wxID_SAVEAS, false);
+    menuBar->Enable(wxID_UNDO, false);
+    menuBar->Enable(wxID_REDO, false);
+    menuBar->Enable(wxID_COPY, false);
+    menuBar->Enable(wxID_CUT, false);
+    menuBar->Enable(wxID_PASTE, false);
+    menuBar->Enable(wxID_FIND, false);
+    menuBar->Enable(wxID_REPLACE, false);
+    menuBar->Enable(wxID_EXECUTE, false);
+    menuBar->Enable(wxID_STOP, false);
+
+    checkNewVersion(false);
+  });
 }
 
 void MainWindow::initUi() {
@@ -47,6 +85,8 @@ void MainWindow::initUi() {
     wxDefaultSize,
     wxALIGN_CENTRE_HORIZONTAL | wxST_NO_AUTORESIZE);
   boxSizer->Add(label, 1, wxALIGN_CENTER_VERTICAL);
+
+  updateTitle();
 }
 
 void MainWindow::initMenu() {
@@ -66,12 +106,10 @@ void MainWindow::initMenu() {
   mnuFile->Append(wxID_SAVE, wxT("保存(&S)\tCtrl+S"));
   // TODO save handler & enabled flag
   // connect(m_actSave, &QAction::triggered, this, &MainWindow::saveFile);
-  // connect(&m_loaded, &BoolValue::changed, m_actSave, &QAction::setEnabled);
 
   mnuFile->Append(wxID_SAVEAS, wxT("另存为..."));
   // TODO save handler & enabled flag
   // connect(m_actSaveAs, &QAction::triggered, this, &MainWindow::saveFileAs);
-  // connect(&m_loaded, &BoolValue::changed, m_actSaveAs, &QAction::setEnabled);
 
   mnuFile->AppendSeparator();
 
@@ -171,4 +209,53 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE\n\
 SOFTWARE."));
   aboutInfo.AddDeveloper(wxT("arucil"));
   wxAboutBox(aboutInfo, this);
+}
+
+void MainWindow::setFileLoaded(bool loaded) {
+  auto menuBar = GetMenuBar();
+  menuBar->Enable(wxID_SAVE, loaded);
+  menuBar->Enable(wxID_SAVEAS, loaded);
+}
+
+void MainWindow::setOpenFile(const wxString &path) {
+  m_openFilePath = path;
+  updateTitle();
+}
+
+void MainWindow::updateTitle() {
+  // TODO
+}
+
+void MainWindow::checkNewVersion(bool isManual) {
+  // Create the request object
+  auto request =
+    wxWebSession::GetDefault().CreateRequest(this, VERSION_API_ENDPOINT);
+
+  if (!request.IsOk()) {
+    if (isManual) {
+      wxMessageBox(
+        wxT("检查版本失败：无法初始化网络请求"),
+        wxT("错误"),
+        wxICON_ERROR,
+        this);
+    }
+    return;
+  }
+
+  Bind(wxEVT_WEBREQUEST_STATE, [=](wxWebRequestEvent &evt) {
+    switch (evt.GetState()) {
+      // Request completed
+      case wxWebRequest::State_Completed: {
+        wxImage logoImage(*evt.GetResponse().GetStream());
+      }
+      // Request failed
+      case wxWebRequest::State_Failed:
+        if (isManual) {
+        }
+        wxLogError("Could not load logo: %s", evt.GetErrorDescription());
+        break;
+    }
+  });
+
+  request.Start();
 }
