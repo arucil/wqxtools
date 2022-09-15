@@ -5,6 +5,8 @@
 #include <wx/html/helpwnd.h>
 #include <wx/xrc/xmlres.h>
 
+#include <optional>
+
 #include "api.h"
 
 enum {
@@ -126,11 +128,11 @@ void MainWindow::initMenu() {
 }
 
 void MainWindow::onHelp(wxCommandEvent &) {
-  auto window = new wxHtmlHelpWindow(this, wxID_ANY);
-  wxHtmlHelpController ctrl;
-  ctrl.AddBook(wxT("memory:help.zip"));
-  ctrl.SetHelpWindow(window);
-  ctrl.DisplayContents();
+  if (!m_helpCtrl.has_value()) {
+    m_helpCtrl.emplace();
+    m_helpCtrl.value().AddBook(wxT("memory:help.zip"));
+  }
+  m_helpCtrl.value().DisplayContents();
 }
 
 void MainWindow::onAbout(wxCommandEvent &) {

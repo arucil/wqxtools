@@ -17,6 +17,8 @@ extern void InitXmlResource();
 class App: public wxApp {
 public:
   virtual bool OnInit() override {
+    if (!wxApp::OnInit())
+      return false;
     wxImage::AddHandler(new wxPNGHandler);
     wxImage::AddHandler(new wxICOHandler);
     wxFileSystem::AddHandler(new wxMemoryFSHandler);
@@ -29,10 +31,11 @@ public:
     auto helpData = wxDynamicCast(
       wxXmlResource::Get()->LoadObject(nullptr, "Help", "data"),
       BinaryData);
-    wxMemoryFSHandler::AddFile(
+    wxMemoryFSHandler::AddFileWithMimeType(
       "help.zip",
       helpData->Buffer().GetData(),
-      helpData->Buffer().GetDataLen());
+      helpData->Buffer().GetDataLen(),
+      wxT("application/zip"));
     delete helpData;
 
     auto window = new MainWindow;

@@ -2,7 +2,8 @@
 <html lang="en">
 
 <head>
-  <meta charset="UTF-8">
+  <title>GVBASIC 语义说明</title>
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
 </head>
 
 <body>
@@ -10,12 +11,12 @@
     <h1 align="center">GVBASIC 语义说明</h1>
     <p>以下语句、函数的语义来自 NC3000 的 GVBASIC+。</p>
     <p>以下的语义说明只包含 GVBASIC 中比较鲜为人知的细节部分，对 GVBASIC 入门教程中基本涵盖的基础部分不作额外说明。</p>
-    <h1 class="atx" id="语句">语句</h1>
+    <h1 class="atx" id="语句"><a name="Statements">语句</a></h1>
     <p>注：下文类似 <code>&lt;expr&gt;</code> 的文本表示表达式，<code>&lt;var&gt;</code>表示变量，<code>&lt;lvalue&gt;</code>
       表示变量或数组，<code>&lt;integer&gt;</code> 表示行号（0~9999之间），<code>&lt;string&gt;</code>
       表示字符串，<code>&lt;statements&gt;</code> 表示若干条语句。
       <br/>
-      方括号（<code>[ ... ]</code>）之间的内容表示该内容可以省略。星号（<code>*</code>）表示前面的内容可以出现0次或多次。加号（<code>+</code>）表示前面的内容可以出现1次或多次。竖线（<code>|</code>）表示要么使用左边的内容，要么使用右边的内容。
+      方括号（<code>[ ... ]</code>）之间的内容表示该内容可以省略。<br/>星号（<code>*</code>）表示前面的内容可以出现0次或多次。<br/>加号（<code>+</code>）表示前面的内容可以出现1次或多次。<br/>竖线（<code>|</code>）表示要么使用左边的内容，要么使用右边的内容。
     </p>
     <table border="1">
       <thead>
@@ -445,7 +446,7 @@ loop:
         </ul>
       </li>
     </ul>
-    <h1 class="atx" id="表达式">表达式</h1>
+    <h1 class="atx" id="表达式"><a name="Expressions">表达式</a></h1>
     <ul>
       <li>变量名最长 16 字节（不包括 <code>$</code> / <code>%</code> 后缀），超出的部分直接忽略。</li>
       <li>变量名可以用空格分隔，但出现在第一个空格之后的部分将被忽略（不包括 <code>$</code> / <code>%</code> 后缀），例如 <code>AB CDE$</code> 会被认为和
@@ -459,7 +460,7 @@ loop:
       <li>匹配合法的实数的正则表达式是 <code>[-+]?\d*(\.\d*)?(E[-+]?\d*)?</code>。</li>
       <li>数组下标的范围是 0～32767。</li>
     </ul>
-    <h2 class="atx" id="函数">函数</h2>
+    <h2 class="atx" id="函数"><a name="Functions">函数</a></h2>
     <table border="1">
       <thead>
         <tr>
