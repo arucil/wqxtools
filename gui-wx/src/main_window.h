@@ -20,6 +20,7 @@ private:
   void setOpenFile(const wxString &path);
   void updateTitle();
   void checkNewVersion(bool isManual);
+  void notifyNewVersion(const wxString &tag);
 
 private:
   std::optional<wxHtmlHelpController> m_helpCtrl;

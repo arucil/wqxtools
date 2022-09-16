@@ -6,15 +6,21 @@
 #include <wx/webrequest.h>
 #include <wx/xrc/xmlres.h>
 
+#include <optional>
+
+#include "api.h"
+#include "new_version_dialog.h"
+#include "nlohmann/json.hpp"
+#include "notification.h"
+#include "utils.h"
+
 #if wxUSE_WEBREQUEST_CURL
   #include <curl/curl.h>
 #elif defined(__WXMSW__)
   #include <winhttp.h>
+#else
+  #error "this platform is not supported"
 #endif
-
-#include <optional>
-
-#include "api.h"
 
 #define WINDOW_TITLE "文曲星工具箱"
 #define UNNAMED "未命名"
@@ -23,11 +29,13 @@
 #define VERSION_API_ENDPOINT \
   "https://gitlab.com/api/v4/projects/32814745/releases"
 
+using json = nlohmann::json;
+
 enum {
   ID_Menu_CheckVersion,
 };
 
-MainWindow::MainWindow(const wxString &filePath) :
+MainWindow::MainWindow(const wxString &) :
   wxFrame(nullptr, wxID_ANY, wxT(""), wxDefaultPosition, wxSize(400, 340)) {
   auto &web = wxWebSession::GetDefault();
 #if wxUSE_WEBREQUEST_CURL
@@ -227,17 +235,12 @@ void MainWindow::updateTitle() {
 }
 
 void MainWindow::checkNewVersion(bool isManual) {
-  // Create the request object
   auto request =
     wxWebSession::GetDefault().CreateRequest(this, VERSION_API_ENDPOINT);
 
   if (!request.IsOk()) {
     if (isManual) {
-      wxMessageBox(
-        wxT("检查版本失败：无法初始化网络请求"),
-        wxT("错误"),
-        wxICON_ERROR,
-        this);
+      showErrorMessage(wxT("检查版本失败：无法初始化网络请求"), this);
     }
     return;
   }
@@ -246,13 +249,151 @@ void MainWindow::checkNewVersion(bool isManual) {
     switch (evt.GetState()) {
       // Request completed
       case wxWebRequest::State_Completed: {
-        wxImage logoImage(*evt.GetResponse().GetStream());
+        auto &resp = evt.GetResponse();
+        if (resp.GetStatus() != 200) {
+          if (isManual) {
+            showErrorMessage(
+              wxString::Format(
+                wxT("获取新版本信息失败：Gitlab 响应码 %d"),
+                resp.GetStatus()),
+              this);
+          }
+          return;
+        }
+
+        auto buffer = readAll(*evt.GetResponse().GetStream());
+        if (!buffer.has_value()) {
+          if (isManual) {
+            showErrorMessage(wxT("获取新版本信息失败：无法读取版本信息"), this);
+          }
+          return;
+        }
+
+        auto start = static_cast<const char *>(buffer.value().GetData());
+        json doc;
+        try {
+          doc = json::parse(start, start + buffer.value().GetDataLen());
+        } catch (json::parse_error &e) {
+          if (isManual) {
+            showErrorMessage(
+              wxString::Format(
+                wxT("获取新版本信息失败：JSON parse error: %s"),
+                wxString::FromUTF8(e.what())),
+              this);
+          }
+          return;
+        }
+
+        auto tag = doc[0]["tag_name"].get<json::string_t>();
+        auto result =
+          api::is_new_version({tag.data(), static_cast<size_t>(tag.size())});
+        if (result.tag == api::Maybe<bool>::Tag::Nothing) {
+          if (isManual) {
+            showErrorMessage(
+              wxT("检查版本失败：release tag_name is not semver"));
+          }
+          return;
+        }
+
+        if (isManual) {
+          if (result.just._0) {
+            notifyNewVersion(tag);
+          } else {
+            showNotification(
+              wxT("已经是最新版本"),
+              NotificationType::Information,
+              1);
+          }
+        } else if (result.just._0) {
+          showNotification(
+            wxT("有新版本，请点击菜单 [帮助] -> [检查新版本] 查看新版本"),
+            NotificationType::Information,
+            2);
+        }
+
+        break;
       }
       // Request failed
       case wxWebRequest::State_Failed:
         if (isManual) {
+          showErrorMessage(wxString::Format(
+            wxT("获取新版本失败：网络错误：%s"),
+            evt.GetErrorDescription()));
+          return;
         }
-        wxLogError("Could not load logo: %s", evt.GetErrorDescription());
+        break;
+      default:
+        break;
+    }
+  });
+
+  request.Start();
+}
+
+void MainWindow::notifyNewVersion(const wxString &tag) {
+  auto request = wxWebSession::GetDefault().CreateRequest(
+    this,
+    VERSION_API_ENDPOINT "/%1?include_html_description=true");
+
+  if (!request.IsOk()) {
+    showErrorMessage(wxT("检查版本失败：无法初始化网络请求"), this);
+    return;
+  }
+
+  Bind(wxEVT_WEBREQUEST_STATE, [=](wxWebRequestEvent &evt) {
+    switch (evt.GetState()) {
+      // Request completed
+      case wxWebRequest::State_Completed: {
+        hideNotification();
+
+        auto &resp = evt.GetResponse();
+        if (resp.GetStatus() != 200) {
+          showErrorMessage(
+            wxString::Format(
+              wxT("获取新版本信息失败：Gitlab 响应码 %d"),
+              resp.GetStatus()),
+            this);
+          return;
+        }
+
+        auto buffer = readAll(*evt.GetResponse().GetStream());
+        if (!buffer.has_value()) {
+          showErrorMessage(wxT("获取新版本信息失败：无法读取版本信息"), this);
+          return;
+        }
+
+        auto start = static_cast<const char *>(buffer.value().GetData());
+        json doc;
+        try {
+          doc = json::parse(start, start + buffer.value().GetDataLen());
+        } catch (json::parse_error &e) {
+          showErrorMessage(
+            wxString::Format(
+              wxT("获取新版本信息失败：JSON parse error: %s"),
+              wxString::FromUTF8(e.what())),
+            this);
+          return;
+        }
+
+        auto description = doc["description_html"].get<json::string_t>();
+        auto url = doc["_links"]["self"].get<json::string_t>();
+
+        NewVersionDialog dialog(
+          this,
+          wxString::FromUTF8(tag),
+          wxString::FromUTF8(description),
+          wxString::FromUTF8(url));
+        dialog.ShowModal();
+
+        break;
+      }
+      // Request failed
+      case wxWebRequest::State_Failed:
+        showErrorMessage(wxString::Format(
+          wxT("获取新版本失败：网络错误：%s"),
+          evt.GetErrorDescription()));
+        return;
+      default:
         break;
     }
   });

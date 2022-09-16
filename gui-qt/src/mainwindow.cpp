@@ -736,6 +736,8 @@ void MainWindow::notifyNewVersion(const QString &tag) {
            .arg(tag))));
   connect(reply, &QNetworkReply::finished, [=] {
     reply->deleteLater();
+    m_toast->hide();
+
     if (reply->error()) {
       QString msg;
       switch (reply->error()) {
@@ -768,8 +770,6 @@ void MainWindow::notifyNewVersion(const QString &tag) {
     auto release = json.object();
     auto description = release["description_html"].toString();
     auto url = release["_links"].toObject()["self"].toString();
-
-    m_toast->hide();
 
     QMessageBox::information(
       this,

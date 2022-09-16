@@ -6,6 +6,7 @@
 #include <wx/xml/xml.h>
 
 #include "../binary_data.h"
+#include "../utils.h"
 
 wxIMPLEMENT_DYNAMIC_CLASS(BinaryDataXmlHandler, wxXmlResourceHandler);
 
@@ -23,20 +24,15 @@ wxObject *BinaryDataXmlHandler::DoCreateResource() {
       wxString::Format("cannot open binary data resource \"%s\"", path));
     return new BinaryData;
   }
-  auto len = file->GetStream()->GetSize();
-  void *data = new char[len];
-  if (!file->GetStream()->ReadAll(data, len)) {
-    delete[] static_cast<char *>(data);
-    delete file;
+  auto buffer = readAll(*file->GetStream());
+  delete file;
+  if (!buffer.has_value()) {
     ReportParamError(
       m_node->GetName(),
       wxString::Format("cannot create binary data from \"%s\"", path));
     return new BinaryData;
   }
-  delete file;
-  auto bundle = new BinaryData(data, len);
-  delete[] static_cast<char *>(data);
-  return bundle;
+  return new BinaryData(buffer.value());
 }
 
 bool BinaryDataXmlHandler::CanHandle(wxXmlNode *node) {

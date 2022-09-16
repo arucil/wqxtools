@@ -1,13 +1,12 @@
 #pragma once
 
 #include <wx/wx.h>
+#include <utility>
 
 class BinaryData: public wxObject {
 public:
   BinaryData() {}
-  BinaryData(void *data, size_t len) : m_buffer(len) {
-    m_buffer.AppendData(data, len);
-  }
+  BinaryData(wxMemoryBuffer buf) : m_buffer(std::move(buf)) {}
   virtual ~BinaryData() {}
 
   const wxMemoryBuffer &Buffer() const {

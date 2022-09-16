@@ -11,6 +11,7 @@
 #include "main_window.h"
 #include "xrc/binary_data_handler.h"
 #include "xrc/icon_bundle_handler.h"
+#include "utils.h"
 
 extern void InitXmlResource();
 
@@ -40,7 +41,7 @@ public:
 
     MainWindow *window;
     if (argc > 2) {
-      wxMessageBox(wxT("运行参数过多"), wxT("错误"), wxICON_ERROR);
+      showErrorMessage(wxT("运行参数过多"));
     } else if (argc == 2) {
       window = new MainWindow(argv[0]);
     } else {
