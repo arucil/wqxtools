@@ -32,15 +32,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "api_cpp_binding"
-version = "0.1.0"
-dependencies = [
- "config",
- "gvb_interp",
- "wqxtools",
-]
-
-[[package]]
 name = "atty"
 version = "0.2.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -195,6 +186,10 @@ dependencies = [
  "libc",
  "wasi",
 ]
+
+[[package]]
+name = "gui_web"
+version = "0.1.0"
 
 [[package]]
 name = "gvb_interp"
