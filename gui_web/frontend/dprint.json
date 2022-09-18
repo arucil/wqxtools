@@ -1,0 +1,17 @@
+{
+  "typescript": {
+    "lineWidth": 100,
+    "semiColons": "asi",
+    "useBraces": "always",
+    "singleBodyPosition": "nextLine",
+    "arrowFunction.useParentheses": "preferNone",
+    "typeLiteral.separatorKind": "comma"
+  },
+  "includes": ["**/*.{ts,tsx,js,jsx,cjs,mjs}"],
+  "excludes": [
+    "**/node_modules"
+  ],
+  "plugins": [
+    "https://plugins.dprint.dev/typescript-0.73.1.wasm"
+  ]
+}
