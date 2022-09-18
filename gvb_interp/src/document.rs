@@ -161,8 +161,8 @@ impl From<binary::LoadError<(usize, usize)>> for MachinePropError {
   }
 }
 
-impl Document {
-  pub fn new() -> Self {
+impl Default for Document {
+  fn default() -> Self {
     Self {
       base_addr: binary::DEFAULT_BASE_ADDR,
       emoji_version: EmojiVersion::V2,
@@ -174,6 +174,14 @@ impl Document {
       version: DocVer(0),
       compile_cache: None,
     }
+  }
+}
+
+pub struct ContainsErrors;
+
+impl Document {
+  pub fn new() -> Self {
+    Self::default()
   }
 
   pub fn load<D>(data: D, is_bas: bool) -> Result<Self, LoadDocumentError>
@@ -323,7 +331,7 @@ impl Document {
       .get(i + 1)
       .map_or(self.text.len(), |line| line.line_start);
     let p = parse_line(&self.text[start..end]).0;
-    self.lines[i].parsed = Some(p.clone());
+    self.lines[i].parsed = Some(p);
     self.lines[i].parsed.as_ref().unwrap()
   }
 
@@ -715,13 +723,13 @@ impl Document {
   pub fn create_vm<'d, D>(
     &mut self,
     device: &'d mut D,
-  ) -> Result<VirtualMachine<'d, D>, ()>
+  ) -> Result<VirtualMachine<'d, D>, ContainsErrors>
   where
     D: Device,
   {
     let diagnostics = self.diagnostics();
     if diagnostics.iter().any(|d| d.contains_errors()) {
-      return Err(());
+      return Err(ContainsErrors);
     }
 
     let codegen = self.compile_cache.as_ref().unwrap().codegen.clone();
@@ -794,7 +802,7 @@ fn apply_edit(text: &mut String, lines: &mut Vec<DocLine>, edit: Edit) {
 
   match edit.kind {
     EditKind::Insert(str) => {
-      text.insert_str(edit.pos, &str);
+      text.insert_str(edit.pos, str);
       lines[i].parsed = None;
 
       if str.contains('\n') {
@@ -809,8 +817,8 @@ fn apply_edit(text: &mut String, lines: &mut Vec<DocLine>, edit: Edit) {
         }
         let num_new_lines = new_lines.len();
         lines.splice(i..i + 1, new_lines);
-        for i in i..i + num_new_lines {
-          lines[i].line_start += line_start;
+        for line in &mut lines[i..i + num_new_lines] {
+          line.line_start += line_start;
         }
         i += num_new_lines - 1;
       }
@@ -1202,7 +1210,7 @@ no";
       &mut lines,
       Edit {
         pos: 13,
-        kind: EditKind::Insert("123".into()),
+        kind: EditKind::Insert("123"),
       },
     );
 
@@ -1222,7 +1230,7 @@ no";
       &mut lines,
       Edit {
         pos: 0,
-        kind: EditKind::Insert("123".into()),
+        kind: EditKind::Insert("123"),
       },
     );
 
@@ -1239,7 +1247,7 @@ no";
       &mut lines,
       Edit {
         pos: 11,
-        kind: EditKind::Insert("123".into()),
+        kind: EditKind::Insert("123"),
       },
     );
 
@@ -1259,7 +1267,7 @@ no";
       &mut lines,
       Edit {
         pos: 0,
-        kind: EditKind::Insert("123".into()),
+        kind: EditKind::Insert("123"),
       },
     );
 
@@ -1279,7 +1287,7 @@ no";
       &mut lines,
       Edit {
         pos: 17,
-        kind: EditKind::Insert("123".into()),
+        kind: EditKind::Insert("123"),
       },
     );
 
@@ -1299,7 +1307,7 @@ no";
       &mut lines,
       Edit {
         pos: 19,
-        kind: EditKind::Insert("no".into()),
+        kind: EditKind::Insert("no"),
       },
     );
 
@@ -1319,7 +1327,7 @@ no";
       &mut lines,
       Edit {
         pos: 0,
-        kind: EditKind::Insert("123\r\n45\r\n".into()),
+        kind: EditKind::Insert("123\r\n45\r\n"),
       },
     );
 
@@ -1346,7 +1354,7 @@ no";
       &mut lines,
       Edit {
         pos: 0,
-        kind: EditKind::Insert("abcd\r\nefg\r\nhijklm\r\nno".into()),
+        kind: EditKind::Insert("abcd\r\nefg\r\nhijklm\r\nno"),
       },
     );
 
@@ -1371,7 +1379,7 @@ no";
       &mut lines,
       Edit {
         pos: 0,
-        kind: EditKind::Insert("abcd\r\nefg\r\nhijklm\r\nno\r\n".into()),
+        kind: EditKind::Insert("abcd\r\nefg\r\nhijklm\r\nno\r\n"),
       },
     );
 
@@ -1397,7 +1405,7 @@ no";
       &mut lines,
       Edit {
         pos: 13,
-        kind: EditKind::Insert("123\r\n45\r\n6789".into()),
+        kind: EditKind::Insert("123\r\n45\r\n6789"),
       },
     );
 
@@ -1427,7 +1435,7 @@ no";
       &mut lines,
       Edit {
         pos: 11,
-        kind: EditKind::Insert("123\r\n45\r\n6789".into()),
+        kind: EditKind::Insert("123\r\n45\r\n6789"),
       },
     );
 
@@ -1457,7 +1465,7 @@ no";
       &mut lines,
       Edit {
         pos: 11,
-        kind: EditKind::Insert("123\r\n45\r\n6789\r\n".into()),
+        kind: EditKind::Insert("123\r\n45\r\n6789\r\n"),
       },
     );
 
@@ -1488,7 +1496,7 @@ no";
       &mut lines,
       Edit {
         pos: 17,
-        kind: EditKind::Insert("123\r\n45\r\n6789".into()),
+        kind: EditKind::Insert("123\r\n45\r\n6789"),
       },
     );
 
@@ -1519,7 +1527,7 @@ no";
       &mut lines,
       Edit {
         pos: 17,
-        kind: EditKind::Insert("123\r\n45\r\n6789\r\n".into()),
+        kind: EditKind::Insert("123\r\n45\r\n6789\r\n"),
       },
     );
 
@@ -1550,7 +1558,7 @@ no";
       &mut lines,
       Edit {
         pos: 21,
-        kind: EditKind::Insert("123\r\n45\r\n6789".into()),
+        kind: EditKind::Insert("123\r\n45\r\n6789"),
       },
     );
 
@@ -1580,7 +1588,7 @@ no";
       &mut lines,
       Edit {
         pos: 21,
-        kind: EditKind::Insert("123\r\n45\r\n6789\r\n".into()),
+        kind: EditKind::Insert("123\r\n45\r\n6789\r\n"),
       },
     );
 
@@ -1611,7 +1619,7 @@ no";
       &mut lines,
       Edit {
         pos: 20,
-        kind: EditKind::Insert("123\r\n45\r\n6789".into()),
+        kind: EditKind::Insert("123\r\n45\r\n6789"),
       },
     );
 
@@ -1641,7 +1649,7 @@ no";
       &mut lines,
       Edit {
         pos: 20,
-        kind: EditKind::Insert("123\r\n45\r\n6789\r\n".into()),
+        kind: EditKind::Insert("123\r\n45\r\n6789\r\n"),
       },
     );
 
@@ -1753,7 +1761,7 @@ no";
         Ok(AddLabelResult {
           edit: ReplaceText {
             range: Range::empty(8),
-            str: format!("20"),
+            str: "20".to_owned(),
           },
           goto: None
         })
@@ -1776,7 +1784,7 @@ no";
         Ok(AddLabelResult {
           edit: ReplaceText {
             range: Range::empty(8),
-            str: format!("10 "),
+            str: "10 ".to_owned(),
           },
           goto: None
         })
@@ -1786,7 +1794,7 @@ no";
         Ok(AddLabelResult {
           edit: ReplaceText {
             range: Range::empty(22),
-            str: format!("30 \r\n"),
+            str: "30 \r\n".to_owned(),
           },
           goto: Some(25)
         })
@@ -1796,7 +1804,7 @@ no";
         Ok(AddLabelResult {
           edit: ReplaceText {
             range: Range::empty(22),
-            str: format!("30 \r\n"),
+            str: "30 \r\n".to_owned(),
           },
           goto: Some(25)
         })
@@ -1819,7 +1827,7 @@ no";
         Ok(AddLabelResult {
           edit: ReplaceText {
             range: Range::empty(8),
-            str: format!("11 "),
+            str: "11 ".to_owned(),
           },
           goto: None
         })
@@ -1829,7 +1837,7 @@ no";
         Ok(AddLabelResult {
           edit: ReplaceText {
             range: Range::empty(22),
-            str: format!("25 \r\n"),
+            str: "25 \r\n".to_owned(),
           },
           goto: Some(25)
         })
@@ -1839,7 +1847,7 @@ no";
         Ok(AddLabelResult {
           edit: ReplaceText {
             range: Range::empty(22),
-            str: format!("17 \r\n"),
+            str: "17 \r\n".to_owned(),
           },
           goto: Some(25)
         })
@@ -1884,7 +1892,7 @@ no";
         Ok(AddLabelResult {
           edit: ReplaceText {
             range: Range::empty(0),
-            str: format!("10 "),
+            str: "10 ".to_owned(),
           },
           goto: None
         })
@@ -1979,7 +1987,7 @@ no";
         Ok(AddLabelResult {
           edit: ReplaceText {
             range: Range::empty(0),
-            str: format!("10 "),
+            str: "10 ".to_owned(),
           },
           goto: None
         })
@@ -1996,7 +2004,7 @@ no";
         Ok(AddLabelResult {
           edit: ReplaceText {
             range: Range::empty(0),
-            str: format!("10 \r\n"),
+            str: "10 \r\n".to_owned(),
           },
           goto: Some(3)
         })
@@ -2017,7 +2025,7 @@ no";
         Ok(AddLabelResult {
           edit: ReplaceText {
             range: Range::empty(0),
-            str: format!("4 "),
+            str: "4 ".to_owned(),
           },
           goto: None
         })
@@ -2034,7 +2042,7 @@ no";
         Ok(AddLabelResult {
           edit: ReplaceText {
             range: Range::empty(0),
-            str: format!("4 \r\n"),
+            str: "4 \r\n".to_owned(),
           },
           goto: Some(2)
         })
@@ -2100,7 +2108,7 @@ cls
         Ok(AddLabelResult {
           edit: ReplaceText {
             range: Range::empty(10),
-            str: format!("9990 "),
+            str: "9990 ".to_owned(),
           },
           goto: None
         })
@@ -2117,7 +2125,7 @@ cls
         Ok(AddLabelResult {
           edit: ReplaceText {
             range: Range::empty(8),
-            str: format!("\r\n9990 "),
+            str: "\r\n9990 ".to_owned(),
           },
           goto: Some(15)
         })
@@ -2138,7 +2146,7 @@ cls
         Ok(AddLabelResult {
           edit: ReplaceText {
             range: Range::empty(10),
-            str: format!("9994 "),
+            str: "9994 ".to_owned(),
           },
           goto: None
         })
@@ -2155,7 +2163,7 @@ cls
         Ok(AddLabelResult {
           edit: ReplaceText {
             range: Range::empty(8),
-            str: format!("\r\n9994 "),
+            str: "\r\n9994 ".to_owned(),
           },
           goto: Some(15)
         })
@@ -2222,7 +2230,7 @@ cls
         Ok(AddLabelResult {
           edit: ReplaceText {
             range: Range::empty(8),
-            str: format!("11 "),
+            str: "11 ".to_owned(),
           },
           goto: Some(11)
         })
@@ -2232,7 +2240,7 @@ cls
         Ok(AddLabelResult {
           edit: ReplaceText {
             range: Range::empty(18),
-            str: format!("30 "),
+            str: "30 ".to_owned(),
           },
           goto: Some(21)
         })
@@ -2242,7 +2250,7 @@ cls
         Ok(AddLabelResult {
           edit: ReplaceText {
             range: Range::empty(31),
-            str: format!("60 "),
+            str: "60 ".to_owned(),
           },
           goto: Some(34)
         })

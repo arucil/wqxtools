@@ -50,10 +50,7 @@ pub fn load_bas(
     if content[0] != 0 {
       return Err(LoadError {
         location: offset,
-        message: format!(
-          "文件损坏：expected 0x00, found 0x{:02X}",
-          content[0]
-        ),
+        message: format!("文件损坏：expected 0x00, found 0x{:02X}", content[0]),
       });
     }
 
@@ -95,13 +92,13 @@ pub fn load_bas(
         }
 
         let gbcode = ((content[i + 1] as u16) << 8) + content[i + 2] as u16;
-        if !crate::gb2312::GB2312_TO_UNICODE.contains_key(&gbcode) {
-          if emoji_version.is_none() {
-            emoji_v1_count +=
-              EmojiVersion::V1.code_to_char(gbcode).is_some() as usize;
-            emoji_v2_count +=
-              EmojiVersion::V2.code_to_char(gbcode).is_some() as usize;
-          }
+        if !crate::gb2312::GB2312_TO_UNICODE.contains_key(&gbcode)
+          && emoji_version.is_none()
+        {
+          emoji_v1_count +=
+            EmojiVersion::V1.code_to_char(gbcode).is_some() as usize;
+          emoji_v2_count +=
+            EmojiVersion::V2.code_to_char(gbcode).is_some() as usize;
         }
         i += 3;
       } else {
@@ -119,7 +116,7 @@ pub fn load_bas(
     }
   }
 
-  let guessed_emoji_version = emoji_version.unwrap_or_else(|| {
+  let guessed_emoji_version = emoji_version.unwrap_or({
     if emoji_v1_count > emoji_v2_count {
       EmojiVersion::V1
     } else {
@@ -227,32 +224,30 @@ pub fn load_txt(
       let gbcode = ((content[i] as u16) << 8) + content[i + 1] as u16;
       if let Some(&u) = crate::gb2312::GB2312_TO_UNICODE.get(&gbcode) {
         text.push(char::from_u32(u as _).unwrap());
+      } else if let Some(v) = emoji_version {
+        let u = v
+          .code_to_char(gbcode)
+          .or_else(|| EmojiVersion::fallback_code_to_char(gbcode))
+          .unwrap();
+        text.push(char::from_u32(u as _).unwrap());
       } else {
-        if let Some(v) = emoji_version {
-          let u = v
-            .code_to_char(gbcode)
-            .or_else(|| EmojiVersion::fallback_code_to_char(gbcode))
-            .unwrap();
-          text.push(char::from_u32(u as _).unwrap());
+        emoji_v1_count +=
+          EmojiVersion::V1.code_to_char(gbcode).is_some() as usize;
+        emoji_v2_count +=
+          EmojiVersion::V2.code_to_char(gbcode).is_some() as usize;
+        let u;
+        if let Some(c) = EmojiVersion::V2
+          .code_to_char(gbcode)
+          .or_else(|| EmojiVersion::fallback_code_to_char(gbcode))
+        {
+          u = c;
         } else {
-          emoji_v1_count +=
-            EmojiVersion::V1.code_to_char(gbcode).is_some() as usize;
-          emoji_v2_count +=
-            EmojiVersion::V2.code_to_char(gbcode).is_some() as usize;
-          let u;
-          if let Some(c) = EmojiVersion::V2
-            .code_to_char(gbcode)
-            .or_else(|| EmojiVersion::fallback_code_to_char(gbcode))
-          {
-            u = c;
-          } else {
-            return Err(LoadError {
-              location: (line, i - line_offset),
-              message: format!("非法字符"),
-            });
-          }
-          text.push(char::from_u32(u as _).unwrap());
+          return Err(LoadError {
+            location: (line, i - line_offset),
+            message: format!("非法字符"),
+          });
         }
+        text.push(char::from_u32(u as _).unwrap());
       }
 
       i += 2;
@@ -262,7 +257,7 @@ pub fn load_txt(
     }
   }
 
-  let guessed_emoji_version = emoji_version.unwrap_or_else(|| {
+  let guessed_emoji_version = emoji_version.unwrap_or({
     if emoji_v1_count > emoji_v2_count {
       EmojiVersion::V1
     } else {

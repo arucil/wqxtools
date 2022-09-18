@@ -306,7 +306,7 @@ impl Expr {
         assert_eq!(
           text[op_range.start..op_range.end]
             .to_owned()
-            .replace(" ", "")
+            .replace(' ', "")
             .to_ascii_uppercase(),
           format!("{:?}", kind)
         );

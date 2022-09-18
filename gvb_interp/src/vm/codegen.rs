@@ -523,7 +523,7 @@ impl CodeEmitter for CodeGen {
     self.patch_while_instr();
     self.convert_for_loop_to_sleep();
     self.push_instr(Range::empty(0), InstrKind::End);
-    std::mem::replace(&mut self.diagnostics, vec![])
+    std::mem::take(&mut self.diagnostics)
   }
 }
 

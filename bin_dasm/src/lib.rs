@@ -41,8 +41,8 @@ where
     if let Some(inst) = &INSTRUCTION_TABLE[bytes[0] as usize] {
       let size = inst.addr_mode.instruction_size();
       pc += size as u16;
-      for i in 0..size {
-        write!(&mut output, "{:02X} ", bytes[i])?;
+      for &b in bytes {
+        write!(&mut output, "{:02X} ", b)?;
       }
       for _ in size..3 {
         write!(&mut output, "   ")?;

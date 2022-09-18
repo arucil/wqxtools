@@ -299,7 +299,7 @@ impl Display for Mbf5 {
     }
 
     base10_exponent += 10;
-    let mut point_index = if base10_exponent < 0 || base10_exponent > 10 {
+    let mut point_index = if !(0..=10).contains(&base10_exponent) {
       base10_exponent -= 2;
       1
     } else {
@@ -533,7 +533,7 @@ mod tests {
 
   #[test]
   fn f64_to_mbf5_accum_nan() {
-    assert_eq!(Err(RealError::Nan), Mbf5::try_from(0.0 / 0.0).map(|x| x.0));
+    assert_eq!(Err(RealError::Nan), Mbf5::try_from(f64::NAN).map(|x| x.0));
   }
 
   #[test]
@@ -663,55 +663,55 @@ mod tests {
   #[test]
   fn pos_is_pos() {
     let a = Mbf5::try_from(41.73).unwrap();
-    assert_eq!(true, a.is_positive());
+    assert!(a.is_positive());
   }
 
   #[test]
   fn zero_is_pos() {
     let a = Mbf5::try_from(0.0).unwrap();
-    assert_eq!(false, a.is_positive());
+    assert!(!a.is_positive());
   }
 
   #[test]
   fn neg_is_pos() {
     let a = Mbf5::try_from(-41.73).unwrap();
-    assert_eq!(false, a.is_positive());
+    assert!(!a.is_positive());
   }
 
   #[test]
   fn pos_is_neg() {
     let a = Mbf5::try_from(41.73).unwrap();
-    assert_eq!(false, a.is_negative());
+    assert!(!a.is_negative());
   }
 
   #[test]
   fn zero_is_neg() {
     let a = Mbf5::try_from(0.0).unwrap();
-    assert_eq!(false, a.is_negative());
+    assert!(!a.is_negative());
   }
 
   #[test]
   fn neg_is_neg() {
     let a = Mbf5::try_from(-41.73).unwrap();
-    assert_eq!(true, a.is_negative());
+    assert!(a.is_negative());
   }
 
   #[test]
   fn pos_is_zero() {
     let a = Mbf5::try_from(41.73).unwrap();
-    assert_eq!(false, a.is_zero());
+    assert!(!a.is_zero());
   }
 
   #[test]
   fn zero_is_zero() {
     let a = Mbf5::try_from(0.0).unwrap();
-    assert_eq!(true, a.is_zero());
+    assert!(a.is_zero());
   }
 
   #[test]
   fn neg_is_zero() {
     let a = Mbf5::try_from(-41.73).unwrap();
-    assert_eq!(false, a.is_zero());
+    assert!(!a.is_zero());
   }
 
   #[test]

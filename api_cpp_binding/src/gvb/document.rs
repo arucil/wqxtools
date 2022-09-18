@@ -2,7 +2,7 @@ use crate::{
   destroy_string, Array, Either, GvbDevice, GvbDiagnostic, GvbSeverity,
   GvbVirtualMachine, Maybe, Unit, Utf16Str, Utf8Str, Utf8String,
 };
-use gvb_interp as gvb;
+use gvb_interp::{self as gvb, ContainsErrors};
 use std::io;
 
 pub struct GvbDocument(gvb::Document);
@@ -106,7 +106,7 @@ pub extern "C" fn gvb_document_vm(
 ) -> Maybe<*mut GvbVirtualMachine> {
   match unsafe { (*doc).0.create_vm(&mut (*device).0) } {
     Ok(vm) => Maybe::Just(Box::into_raw(box GvbVirtualMachine(vm))),
-    Err(()) => Maybe::Nothing,
+    Err(ContainsErrors) => Maybe::Nothing,
   }
 }
 

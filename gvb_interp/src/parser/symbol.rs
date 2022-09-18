@@ -305,8 +305,10 @@ mod tests {
   #[test]
   fn iter() {
     let set = SymbolSet([
+      #[allow(clippy::unusual_byte_groupings)]
       0b100_0000_0000000000_0001001000,
       0,
+      #[allow(clippy::unusual_byte_groupings)]
       0b10_00_0000000000_0100000000,
     ]);
     let result: Vec<_> = set.iter().collect();
@@ -333,8 +335,10 @@ mod tests {
     assert_eq!(
       set,
       SymbolSet([
+        #[allow(clippy::unusual_byte_groupings)]
         0b100_0000_0000000000_0001001000,
         0,
+        #[allow(clippy::unusual_byte_groupings)]
         0b10_00_0000000000_0100000000,
       ])
     );
@@ -343,8 +347,10 @@ mod tests {
   #[test]
   fn contains_token() {
     let set = SymbolSet([
+      #[allow(clippy::unusual_byte_groupings)]
       0b100_0000_0000000000_0001001000,
       0,
+      #[allow(clippy::unusual_byte_groupings)]
       0b10_00_0000000000_0100000000,
     ]);
     assert!(set.contains_token(TokenKind::Punc(Punc::Gt)));

@@ -361,15 +361,15 @@ impl Debug for TokenKind {
 }
 
 impl TokenKind {
-  pub const fn to_usize(&self) -> usize {
+  pub const fn to_usize(self) -> usize {
     match self {
       TokenKind::Ident => 0,
       TokenKind::Label => 1,
       TokenKind::Float => 2,
       TokenKind::String => 3,
-      TokenKind::Punc(p) => 4 + *p as usize,
-      TokenKind::Keyword(k) => 24 + *k as usize,
-      TokenKind::SysFunc(k) => 110 + *k as usize,
+      TokenKind::Punc(p) => 4 + p as usize,
+      TokenKind::Keyword(k) => 24 + k as usize,
+      TokenKind::SysFunc(k) => 110 + k as usize,
       _ => unreachable!(),
     }
   }

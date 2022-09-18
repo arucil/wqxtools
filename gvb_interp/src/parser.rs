@@ -416,7 +416,6 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
     i
   }
 
-  #[must_use]
   fn match_token(
     &mut self,
     token: TokenKind,
@@ -1461,25 +1460,25 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
       self.put_back_token();
     }
 
-    let mode = loop {
+    let mode = 'read_mode: {
       if self.input.len() >= 5 {
         if self.input.as_bytes()[..5].eq_ignore_ascii_case(b"input") {
           self.advance(5);
-          break FileMode::Input;
+          break 'read_mode FileMode::Input;
         } else if self.input.len() >= 6 {
           let m = &self.input.as_bytes()[..6];
           if m.eq_ignore_ascii_case(b"output") {
             self.advance(6);
-            break FileMode::Output;
+            break 'read_mode FileMode::Output;
           } else if m.eq_ignore_ascii_case(b"append") {
             self.advance(6);
-            break FileMode::Append;
+            break 'read_mode FileMode::Append;
           } else if m.eq_ignore_ascii_case(b"random") {
             self.advance(6);
-            break FileMode::Random;
+            break 'read_mode FileMode::Random;
           } else if m.eq_ignore_ascii_case(b"binary") {
             self.advance(6);
-            break FileMode::Binary;
+            break 'read_mode FileMode::Binary;
           }
         }
       }
@@ -1489,7 +1488,7 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
       );
       setup_follow! { self, old_follow : (punc Hash) (id) }
       self.recover(false);
-      break FileMode::Error;
+      break 'read_mode FileMode::Error;
     };
 
     self.skip_space();
@@ -1941,9 +1940,7 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
       (punc Eq Gt Lt Plus Minus Times Slash Caret)
       (kw And Or)
     }
-    let expr = self.parse_expr_prec(Prec::None);
-
-    expr
+    self.parse_expr_prec(Prec::None)
   }
 
   fn parse_expr_prec(&mut self, prec: Prec) -> ExprId {
@@ -2179,17 +2176,15 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
         indices: args,
       };
       self.node_builder.new_expr(Expr::new(kind, range))
+    } else if let Some(id_range) = id_range {
+      self
+        .node_builder
+        .new_expr(Expr::new(ExprKind::Ident, id_range))
     } else {
-      if let Some(id_range) = id_range {
-        self
-          .node_builder
-          .new_expr(Expr::new(ExprKind::Ident, id_range))
-      } else {
-        let range = Range::empty(self.last_token_end);
-        self
-          .node_builder
-          .new_expr(Expr::new(ExprKind::Error, range))
-      }
+      let range = Range::empty(self.last_token_end);
+      self
+        .node_builder
+        .new_expr(Expr::new(ExprKind::Error, range))
     }
   }
 
@@ -2359,10 +2354,10 @@ pub fn read_number(
     }
   }
 
-  loop {
+  'read_frac: {
     if let Some(b'.') = input.get(i) {
       if read_label && is_nat {
-        break;
+        break 'read_frac;
       }
 
       is_nat = false;
@@ -2383,7 +2378,7 @@ pub fn read_number(
         .is_none()
       {
         if read_label && is_nat {
-          break;
+          break 'read_frac;
         }
         is_nat = false;
         i += 1;
@@ -2402,7 +2397,6 @@ pub fn read_number(
         }
       }
     }
-    break;
   }
 
   if allow_space {

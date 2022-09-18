@@ -112,6 +112,7 @@ pub enum DrawMode {
   Unknown,
 }
 
+#[allow(clippy::len_without_is_empty)]
 pub trait FileHandle {
   fn len(&self) -> io::Result<u64>;
 

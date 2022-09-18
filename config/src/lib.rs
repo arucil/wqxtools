@@ -1,3 +1,5 @@
+#![feature(stmt_expr_attributes)]
+
 use linked_hash_map::LinkedHashMap;
 use std::io;
 use util::config;
@@ -35,7 +37,8 @@ const DEFAULT_CONFIG: Config = Config {
     },
     simulator: GvbSimulatorConfig {
       pixel_scale: 2,
-      foreground: 0x31_31_32,
+      foreground: #[allow(clippy::mistyped_literal_suffixes)]
+      0x31_31_32,
       background: 0x7a_88_70,
     },
   },
@@ -85,12 +88,12 @@ pub fn load_config() -> Result<Config, ConfigError> {
     return Ok(config);
   }
 
-  let mut obj = doc.into_hash().ok_or_else(|| "toplevel is not object")?;
+  let mut obj = doc.into_hash().ok_or("toplevel is not object")?;
 
   // gvb
   if let Some(gvb) = obj.remove(&Yaml::String("gvbasic".to_owned())) {
     if !gvb.is_null() {
-      let gvb = gvb.into_hash().ok_or_else(|| "gvbasic is not object")?;
+      let gvb = gvb.into_hash().ok_or("gvbasic is not object")?;
       config.gvb = load_gvb_config(gvb)?;
     }
   }
@@ -110,16 +113,15 @@ fn load_gvb_config(
   // gvb.editor
   if let Some(editor) = gvb.remove(&Yaml::String("editor".into())) {
     if !editor.is_null() {
-      let mut editor = editor
-        .into_hash()
-        .ok_or_else(|| "gvbasic.editor is not object")?;
+      let mut editor =
+        editor.into_hash().ok_or("gvbasic.editor is not object")?;
 
       // gvb.editor.font-size
       if let Some(font_size) = editor.remove(&Yaml::String("font-size".into()))
       {
         let font_size = font_size
           .into_i64()
-          .ok_or_else(|| "gvbasic.editor.font-size is not integer")?;
+          .ok_or("gvbasic.editor.font-size is not integer")?;
         if font_size <= 0 {
           return Err("gvbasic.editor.font-size must be positive".into());
         }
@@ -130,7 +132,7 @@ fn load_gvb_config(
       if let Some(style) = editor.remove(&Yaml::String("style".into())) {
         let style = style
           .into_string()
-          .ok_or_else(|| "gvbasic.editor.style is not string")?;
+          .ok_or("gvbasic.editor.style is not string")?;
         gvb_config.editor.style = Some(style);
       }
 
@@ -151,14 +153,14 @@ fn load_gvb_config(
     if !simulator.is_null() {
       let mut simulator = simulator
         .into_hash()
-        .ok_or_else(|| "gvbasic.simulator is not object")?;
+        .ok_or("gvbasic.simulator is not object")?;
 
       if let Some(pixel_scale) =
         simulator.remove(&Yaml::String("pixel-scale".into()))
       {
         let pixel_scale = pixel_scale
           .into_i64()
-          .ok_or_else(|| "gvbasic.simulator.pixel-scale is not integer")?;
+          .ok_or("gvbasic.simulator.pixel-scale is not integer")?;
         if pixel_scale <= 0 {
           return Err("gvbasic.simulator.pixel-scale must be positive".into());
         }
@@ -220,7 +222,8 @@ fn read_rgb(
     match u32::from_str_radix(color, 16) {
       Ok(mut c) => {
         if color.len() == 3 {
-          c = (c & 0xf) * 0x11 | (c & 0xf0) * 0x110 | (c & 0xf00) * 0x1100;
+          c =
+            ((c & 0xf) * 0x11) | ((c & 0xf0) * 0x110) | ((c & 0xf00) * 0x1100);
         }
         Ok(Some(c))
       }
@@ -238,7 +241,7 @@ fn yaml_to_string(yaml: &Yaml) -> String {
     Yaml::Boolean(false) => "false".to_owned(),
     Yaml::Hash(_) => "<object>".to_owned(),
     Yaml::Array(_) => "<array>".to_owned(),
-    Yaml::String(s) => format!("'{}'", s.replace("'", "\\'")),
+    Yaml::String(s) => format!("'{}'", s.replace('\'', "\\'")),
     Yaml::Integer(n) => n.to_string(),
     Yaml::Real(n) => n.to_string(),
     _ => panic!(),

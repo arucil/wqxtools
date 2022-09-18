@@ -67,7 +67,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 }
 
 fn validate_hex(s: &str) -> Result<(), String> {
-  match u16::from_str_radix(&s, 16) {
+  match u16::from_str_radix(s, 16) {
     Ok(_) => Ok(()),
     Err(err) => match err.kind() {
       IntErrorKind::InvalidDigit => {

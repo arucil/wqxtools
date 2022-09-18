@@ -581,7 +581,7 @@ impl Device for DefaultDevice {
           data_ptr = unsafe {
             EMOJI_16_DATA.as_ptr().add(emoji_index * 2 * CHAR_HEIGHT)
           };
-        } else if c >= 161 && c < 248 && c2 >= 161 && c2 < 255 {
+        } else if (161..248).contains(&c) && (161..255).contains(&c2) {
           let mut sec = c as usize - 161;
           if sec > 8 {
             sec -= 6;
@@ -685,9 +685,7 @@ impl Device for DefaultDevice {
   ) {
     if y1 == y2 {
       if x1 > x2 {
-        let t = x1;
-        x1 = x2;
-        x2 = t;
+        std::mem::swap(&mut x1, &mut x2);
       }
       self.draw_hor_line(x1, x2, y1, mode);
       self.update_dirty_area(
@@ -705,9 +703,7 @@ impl Device for DefaultDevice {
 
     if x1 == x2 {
       if y1 > y2 {
-        let t = y1;
-        y1 = y2;
-        y2 = t;
+        std::mem::swap(&mut y1, &mut y2);
       }
       self.draw_ver_line(x1, y1, y2, mode);
       self.update_dirty_area(
@@ -720,12 +716,8 @@ impl Device for DefaultDevice {
     }
 
     if x1 > x2 {
-      let t = x1;
-      x1 = x2;
-      x2 = t;
-      let t = y1;
-      y1 = y2;
-      y2 = t;
+      std::mem::swap(&mut x1, &mut x2);
+      std::mem::swap(&mut y1, &mut y2);
     }
 
     let dist_x = x2 - x1;
@@ -759,9 +751,7 @@ impl Device for DefaultDevice {
     }
 
     if y1 > y2 {
-      let t = y1;
-      y1 = y2;
-      y2 = t;
+      std::mem::swap(&mut y1, &mut y2);
     }
     self.update_dirty_area(
       x1 as usize,
@@ -779,14 +769,10 @@ impl Device for DefaultDevice {
     mode: DrawMode,
   ) {
     if x1 > x2 {
-      let t = x1;
-      x1 = x2;
-      x2 = t;
+      std::mem::swap(&mut x1, &mut x2);
     }
     if y1 > y2 {
-      let t = y1;
-      y1 = y2;
-      y2 = t;
+      std::mem::swap(&mut y1, &mut y2);
     }
 
     if fill {
@@ -1086,7 +1072,7 @@ impl Device for DefaultDevice {
           let code = (self.memory[code_addr] as u16)
             + ((self.memory[code_addr + 1] as u16) << 8);
           self.memory[0x102 + sp] = code_addr_lo.wrapping_add(1);
-          if code_addr_lo >= 0xff {
+          if code_addr_lo == 0xff {
             self.memory[0x103 + sp] += 1;
           }
           sim.set_program_counter(0xffff); // run RTI
@@ -1458,7 +1444,7 @@ mod tests {
     s.extend(vec!['\0'; 18]);
     s.push_str("^$\\\x1e\x06`~");
     s.extend(vec!['\0'; 18]);
-    s.push_str("|");
+    s.push('|');
     let str = pad_text_buffer(string(&s));
     assert_eq!(device.text_buffer(), str.as_slice());
     assert_eq!(&inverse_buffer(&device), EMPTY_INVERSE_BUFFER);
@@ -1562,7 +1548,7 @@ mod tests {
     str.extend(vec!['\0'; 19]);
     str.push_str(" 集");
     str.extend(vec!['\0'; 17]);
-    str.push_str("啊");
+    str.push('啊');
     let mut str = string(&str);
     str.drop_0x1f();
     let str = pad_text_buffer(str);
