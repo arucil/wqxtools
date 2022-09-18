@@ -1,3 +1,5 @@
+#![allow(clippy::write_with_newline)]
+
 use super::{Label, Range, StmtId};
 use smallvec::SmallVec;
 #[cfg(test)]

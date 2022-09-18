@@ -167,22 +167,19 @@ pub fn init_machines() -> Result<(), InitError> {
 
   let doc = docs.pop().unwrap();
 
-  let mut obj = doc.into_hash().ok_or_else(|| "toplevel is not object")?;
+  let mut obj = doc.into_hash().ok_or("toplevel is not object")?;
 
   // default
   let default = obj
     .remove(&Yaml::String("default".to_owned()))
-    .ok_or_else(|| "missing field 'default'")?;
-  let mut default =
-    default.into_hash().ok_or_else(|| "default is not object")?;
+    .ok_or("missing field 'default'")?;
+  let mut default = default.into_hash().ok_or("default is not object")?;
 
   // default.emoji-v2
   let v2 = default
     .remove(&Yaml::String("emoji-v2".into()))
-    .ok_or_else(|| "missing field 'emoji-v2' in 'default'")?;
-  let v2 = v2
-    .into_string()
-    .ok_or_else(|| "default.emoji-v2 is not string")?;
+    .ok_or("missing field 'emoji-v2' in 'default'")?;
+  let v2 = v2.into_string().ok_or("default.emoji-v2 is not string")?;
   unsafe {
     DEFAULT_MACHINE_FOR_EMOJI_VERSION_2 = v2.to_ascii_uppercase();
   }
@@ -190,10 +187,8 @@ pub fn init_machines() -> Result<(), InitError> {
   // default.emoji-v1
   let v1 = default
     .remove(&Yaml::String("emoji-v1".into()))
-    .ok_or_else(|| "missing field 'emoji-v1' in 'default'")?;
-  let v1 = v1
-    .into_string()
-    .ok_or_else(|| "default.emoji-v1 is not string")?;
+    .ok_or("missing field 'emoji-v1' in 'default'")?;
+  let v1 = v1.into_string().ok_or("default.emoji-v1 is not string")?;
   unsafe {
     DEFAULT_MACHINE_FOR_EMOJI_VERSION_1 = v1.to_ascii_uppercase();
   }
@@ -213,8 +208,10 @@ pub fn init_machines() -> Result<(), InitError> {
       .into_hash()
       .ok_or_else(|| format!("'{}' is not object", mach_name))?;
 
-    let mut props = MachineProps::default();
-    props.name = mach_name.to_ascii_uppercase();
+    let mut props = MachineProps {
+      name: mach_name.to_ascii_uppercase(),
+      ..Default::default()
+    };
 
     // emoji-version
     let emoji_version = obj
@@ -344,7 +341,7 @@ pub fn init_machines() -> Result<(), InitError> {
       let bit = bit.as_i64().ok_or_else(|| {
         format!("{}.key-mappings.{}.bit is not integer", mach_name, key)
       })?;
-      if bit < 0 || bit > 7 {
+      if !(0..=7).contains(&bit) {
         return Err(
           format!(
             "{}.key-mappings.{}.bit is not within the range 0~7",
@@ -599,7 +596,7 @@ fn yaml_to_string(yaml: &Yaml) -> String {
     Yaml::Boolean(false) => "false".to_owned(),
     Yaml::Hash(_) => "<object>".to_owned(),
     Yaml::Array(_) => "<array>".to_owned(),
-    Yaml::String(s) => format!("'{}'", s.replace("'", "\\'")),
+    Yaml::String(s) => format!("'{}'", s.replace('\'', "\\'")),
     Yaml::Integer(n) => n.to_string(),
     Yaml::Real(n) => n.to_string(),
     _ => panic!(),

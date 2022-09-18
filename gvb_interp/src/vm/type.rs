@@ -3,7 +3,7 @@ use std::ops::{Deref, DerefMut};
 
 use crate::machine::EmojiVersion;
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Default)]
 pub struct ByteString(Vec<u8>);
 
 impl Deref for ByteString {
@@ -28,7 +28,7 @@ pub enum StringProblem {
 
 impl ByteString {
   pub fn new() -> Self {
-    Self(vec![])
+    Self::default()
   }
 
   pub fn from_str<S: AsRef<str>>(

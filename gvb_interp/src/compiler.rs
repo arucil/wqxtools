@@ -195,11 +195,25 @@ pub(crate) fn compile_fn_body<E: CodeEmitter>(
   }
 }
 
+struct PendingJumpLabel<E: CodeEmitter> {
+  source_addr: E::Addr,
+  source_line: usize,
+  source_range: Range,
+  target_label: Option<Label>,
+}
+
+struct PendingDatumIndex<E: CodeEmitter> {
+  source_addr: E::Addr,
+  source_line: usize,
+  source_range: Range,
+  target_label: Label,
+}
+
 struct CompileState<'a, 'b, E: CodeEmitter, T> {
   text: &'b str,
   code_emitter: &'a mut E,
-  pending_jump_labels: Vec<(E::Addr, (usize, Range), Option<Label>)>,
-  pending_datum_indices: Vec<(E::Addr, (usize, Range), Label)>,
+  pending_jump_labels: Vec<PendingJumpLabel<E>>,
+  pending_datum_indices: Vec<PendingDatumIndex<E>>,
   data_start: HashMap<Label, E::DatumIndex>,
   label_addrs: HashMap<Label, E::Addr>,
   parsed: *mut ParseResult<T>,
@@ -276,8 +290,12 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E, ProgramLine> {
   }
 
   fn resolve_labels(&mut self, prog: &mut Program) {
-    for (addr, (line, range), label) in
-      std::mem::replace(&mut self.pending_jump_labels, vec![])
+    for PendingJumpLabel {
+      source_addr: addr,
+      source_line: line,
+      source_range: range,
+      target_label: label,
+    } in std::mem::take(&mut self.pending_jump_labels)
     {
       let l = label.unwrap_or(Label(0));
       if let Some(&label_addr) = self.label_addrs.get(&l) {
@@ -296,8 +314,12 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E, ProgramLine> {
   }
 
   fn resolve_datum_indices(&mut self, prog: &mut Program) {
-    for (addr, (line, range), label) in
-      std::mem::replace(&mut self.pending_datum_indices, vec![])
+    for PendingDatumIndex {
+      source_addr: addr,
+      source_line: line,
+      source_range: range,
+      target_label: label,
+    } in std::mem::take(&mut self.pending_datum_indices)
     {
       if let Some(&index) = self.data_start.get(&label) {
         self.code_emitter.patch_datum_index(addr, index);
@@ -369,7 +391,7 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E, ProgramLine> {
       StmtKind::Auto(_) => self.code_emitter.emit_no_op(range),
       StmtKind::Beep => self.code_emitter.emit_op(range, &stmt.kind, 0),
       StmtKind::Box(args) => {
-        compile_draw_stmt!(&stmt, args, BOX, 4, 6);
+        compile_draw_stmt!(stmt, args, BOX, 4, 6);
       }
       StmtKind::Call(arg) => self.compile_unary_stmt(
         range,
@@ -380,7 +402,7 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E, ProgramLine> {
         "参数",
       ),
       StmtKind::Circle(args) => {
-        compile_draw_stmt!(&stmt, args, CIRCLE, 3, 5);
+        compile_draw_stmt!(stmt, args, CIRCLE, 3, 5);
       }
       StmtKind::Clear => self.code_emitter.emit_op(range, &stmt.kind, 0),
       StmtKind::Close { filenum } => self.compile_unary_stmt(
@@ -401,11 +423,11 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E, ProgramLine> {
       StmtKind::Del(_) => self.code_emitter.emit_no_op(range),
       StmtKind::Dim(vars) => self.compile_dim(vars),
       StmtKind::Draw(args) => {
-        compile_draw_stmt!(&stmt, args, DRAW, 2, 3);
+        compile_draw_stmt!(stmt, args, DRAW, 2, 3);
       }
       StmtKind::Edit(_) => self.code_emitter.emit_no_op(range),
       StmtKind::Ellipse(args) => {
-        compile_draw_stmt!(&stmt, args, ELLIPSE, 4, 6);
+        compile_draw_stmt!(stmt, args, ELLIPSE, 4, 6);
       }
       StmtKind::End => self.code_emitter.emit_op(range, &stmt.kind, 0),
       StmtKind::Field { filenum, fields } => {
@@ -461,7 +483,7 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E, ProgramLine> {
           }
         }
       }
-      StmtKind::Line(args) => compile_draw_stmt!(&stmt, args, LINE, 4, 5),
+      StmtKind::Line(args) => compile_draw_stmt!(stmt, args, LINE, 4, 5),
       StmtKind::List(_) => self.code_emitter.emit_no_op(range),
       StmtKind::Load(_) => self.code_emitter.emit_no_op(range),
       StmtKind::Locate { row, column } => self.compile_locate(*row, *column),
@@ -631,7 +653,10 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E, ProgramLine> {
     }
 
     if let Some(label) = self.label() {
-      self.data_start.entry(label).or_insert(data_index.unwrap());
+      self
+        .data_start
+        .entry(label)
+        .or_insert_with(|| data_index.unwrap());
     }
   }
 
@@ -948,11 +973,12 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E, ProgramLine> {
   fn compile_restore(&mut self, range: Range, label: &Option<(Range, Label)>) {
     let addr = self.code_emitter.emit_restore(range);
     if let Some((range, label)) = label {
-      self.pending_datum_indices.push((
-        addr,
-        (self.linenum, range.clone()),
-        *label,
-      ));
+      self.pending_datum_indices.push(PendingDatumIndex {
+        source_addr: addr,
+        source_line: self.linenum,
+        source_range: range.clone(),
+        target_label: *label,
+      });
     }
   }
 
@@ -1146,15 +1172,19 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E, ProgramLine> {
     };
 
     if let Some((range, label)) = label {
-      self.pending_jump_labels.push((
-        addr,
-        (self.linenum, range.clone()),
-        Some(*label),
-      ));
+      self.pending_jump_labels.push(PendingJumpLabel {
+        source_addr: addr,
+        source_line: self.linenum,
+        source_range: range.clone(),
+        target_label: Some(*label),
+      });
     } else {
-      self
-        .pending_jump_labels
-        .push((addr, (self.linenum, range), None));
+      self.pending_jump_labels.push(PendingJumpLabel {
+        source_addr: addr,
+        source_line: self.linenum,
+        source_range: range,
+        target_label: None,
+      });
     }
   }
 
@@ -1358,11 +1388,12 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E, ProgramLine> {
       } else {
         self.code_emitter.emit_goto(range.clone())
       };
-      self.pending_jump_labels.push((
-        addr,
-        (self.linenum, range.clone()),
-        *label,
-      ));
+      self.pending_jump_labels.push(PendingJumpLabel {
+        source_addr: addr,
+        source_line: self.linenum,
+        source_range: range.clone(),
+        target_label: *label,
+      });
     }
   }
 
@@ -1432,26 +1463,24 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E, ProgramLine> {
     if vars.is_empty() {
       self.code_emitter.emit_next(range, None);
     } else {
-      for var in vars.iter() {
-        if let Some(var_range) = var {
-          let (var, ty) = self.compile_sym(var_range.clone());
-          if !ty.matches(Type::Real) {
-            self.add_error(
+      for var_range in vars.iter().flatten() {
+        let (var, ty) = self.compile_sym(var_range.clone());
+        if !ty.matches(Type::Real) {
+          self.add_error(
                   var_range.clone(),
                   format!(
                     "变量类型错误。NEXT 语句的计数器变量必须是{}类型，而这个变量是{}类型",
                     Type::Real,
                     ty));
-          }
-          self.code_emitter.emit_next(
-            if vars.len() == 1 {
-              range.clone()
-            } else {
-              var_range.clone()
-            },
-            Some(var),
-          );
         }
+        self.code_emitter.emit_next(
+          if vars.len() == 1 {
+            range.clone()
+          } else {
+            var_range.clone()
+          },
+          Some(var),
+        );
       }
     }
   }
@@ -1522,19 +1551,17 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E, ProgramLine> {
 
             for (i, &arg) in args.iter().enumerate() {
               let ty = self.compile_expr(arg);
-              if i == 0 {
-                if !ty.matches(Type::Real) {
-                  let range = &self.expr_node(arg).range;
-                  self.add_error(
-                    range.clone(),
-                    format!(
-                      "表达式类型错误。{:?} 函数的参数必须是{}类型，而这个表达式是{}类型",
-                      kind,
-                      Type::Real,
-                      ty
-                    ),
-                  );
-                }
+              if i == 0 && !ty.matches(Type::Real) {
+                let range = &self.expr_node(arg).range;
+                self.add_error(
+                  range.clone(),
+                  format!(
+                    "表达式类型错误。{:?} 函数的参数必须是{}类型，而这个表达式是{}类型",
+                    kind,
+                    Type::Real,
+                    ty
+                  ),
+                );
               }
             }
 
@@ -1595,7 +1622,7 @@ impl<'a, 'b, E: CodeEmitter, T> CompileState<'a, 'b, E, T> {
           .code_emitter
           .emit_string(range.clone(), text.to_owned());
         if len > 255 {
-          self.add_error(range.clone(), "字符串太长，长度超出 255");
+          self.add_error(range, "字符串太长，长度超出 255");
         }
         Type::String
       }
@@ -1762,20 +1789,18 @@ impl<'a, 'b, E: CodeEmitter, T> CompileState<'a, 'b, E, T> {
 
     for (i, &arg) in args.iter().enumerate() {
       let ty = self.compile_expr(arg);
-      if i < max_arity {
-        if !ty.matches(arg_tys[i]) {
-          let range = &self.expr_node(arg).range;
-          self.add_error(
-            range.clone(),
-            format!(
-              "表达式类型错误。{:?} 函数的第 {} 个参数是{}类型，而这个表达式是{}类型",
-              func.1,
-              i + 1,
-              arg_tys[i],
-              ty
-            ),
-          );
-        }
+      if i < max_arity && !ty.matches(arg_tys[i]) {
+        let range = &self.expr_node(arg).range;
+        self.add_error(
+          range.clone(),
+          format!(
+            "表达式类型错误。{:?} 函数的第 {} 个参数是{}类型，而这个表达式是{}类型",
+            func.1,
+            i + 1,
+            arg_tys[i],
+            ty
+          ),
+        );
       }
     }
 
@@ -1924,7 +1949,7 @@ impl<'a, 'b, E: CodeEmitter, T> CompileState<'a, 'b, E, T> {
         name.push(ty.sigil().unwrap());
       }
       self.add_warning(
-        range.clone(),
+        range,
         format!(
           "该变量包含空格，空格之后的部分会被省略。该变量等价于 {}",
           name
@@ -1939,13 +1964,13 @@ impl<'a, 'b, E: CodeEmitter, T> CompileState<'a, 'b, E, T> {
 
 impl Type {
   fn matches(self, other: Type) -> bool {
-    match (self, other) {
-      (Self::Error, _) => true,
-      (_, Self::Error) => true,
-      (Self::Real | Self::Integer, Self::Real | Self::Integer) => true,
-      (Self::String, Self::String) => true,
-      _ => false,
-    }
+    matches!(
+      (self, other),
+      (Self::Error, _)
+        | (_, Self::Error)
+        | (Self::Real | Self::Integer, Self::Real | Self::Integer)
+        | (Self::String, Self::String)
+    )
   }
 
   fn exact_matches(self, other: Type) -> bool {

@@ -59,7 +59,7 @@ impl EmojiVersion {
 
   pub fn char_to_code(&self, c: char) -> Option<u16> {
     let c = c as u32;
-    if c < 0xe000 || c >= 0xe000 + 527 {
+    if !(0xe000..0xe000 + 527).contains(&c) {
       return None;
     }
 
@@ -84,12 +84,12 @@ impl EmojiVersion {
       return None;
     }
     let c = code as u32 - 0xf800;
-    return Some(unsafe { char::from_u32_unchecked(c + 0xe300) });
+    Some(unsafe { char::from_u32_unchecked(c + 0xe300) })
   }
 
   pub fn fallback_char_to_code(c: char) -> Option<u16> {
     let c = c as u32;
-    if c < 0xe300 || c > 0xeaff {
+    if !(0xe300..=0xeaff).contains(&c) {
       return None;
     }
     let c = c - 0xe300;

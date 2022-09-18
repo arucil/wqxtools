@@ -6,6 +6,7 @@
   io_error_more,
   const_maybe_uninit_assume_init
 )]
+#![allow(clippy::needless_late_init, clippy::useless_format, clippy::single_match)]
 
 mod ast;
 mod compiler;
@@ -28,6 +29,7 @@ mod gb2312 {
 use std::hash;
 
 type HashMap<K, V> = std::collections::HashMap<K, V, BuildSeaHasher>;
+type HashMapEntry<'a, K, V> = std::collections::hash_map::Entry<'a, K, V>;
 
 #[derive(Default)]
 pub struct BuildSeaHasher;

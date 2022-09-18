@@ -1,5 +1,5 @@
 use bstr::{ByteSlice, ByteVec};
-use nanorand::{Rng, WyRand};
+use nanorand::{Rng, SeedableRng, WyRand};
 use std::collections::BTreeMap;
 use std::fmt::{self, Display, Formatter};
 use std::io;
@@ -13,7 +13,7 @@ use crate::diagnostic::{contains_errors, Diagnostic};
 use crate::machine::{EmojiVersion, EofBehavior};
 use crate::parser::{parse_expr, read_number};
 use crate::util::mbf5::{Mbf5, ParseRealError, RealError};
-use crate::HashMap;
+use crate::{HashMap, HashMapEntry};
 
 pub(crate) use self::codegen::*;
 pub(crate) use self::instruction::*;
@@ -776,7 +776,7 @@ where
             self.num_stack.push((loc, arr[offset]));
           }
           ArrayData::String(arr) => {
-            self.str_stack.push((loc, arr[offset].clone().into()));
+            self.str_stack.push((loc, arr[offset].clone()));
           }
         };
       }
@@ -1206,7 +1206,7 @@ where
             offset += field.len as usize;
           }
 
-          self.state.io(loc.clone(), "写入文件", file.write(&buf))?;
+          self.state.io(loc, "写入文件", file.write(&buf))?;
         });
       }
       InstrKind::AssignInt => {
@@ -1318,11 +1318,9 @@ where
           self.state.error(loc, "未打开文件")?;
         }
         if matches!(&file.mode, FileMode::Binary | FileMode::Random { .. }) {
-          self.state.io(
-            loc.clone(),
-            "写入文件",
-            file.handle.write(&value[..1]),
-          )?;
+          self
+            .state
+            .io(loc, "写入文件", file.handle.write(&value[..1]))?;
         } else {
           self.state.error(
             loc,
@@ -1396,9 +1394,7 @@ where
           for i in 0..size {
             buf[i as usize] = self.device.read_byte(addr + i);
           }
-          self
-            .state
-            .io(loc.clone(), "写入文件", file.handle.write(&buf))?;
+          self.state.io(loc, "写入文件", file.handle.write(&buf))?;
         } else {
           self.state.error(
             loc,
@@ -1421,7 +1417,7 @@ where
         }
         if matches!(&file.mode, FileMode::Binary | FileMode::Random { .. }) {
           self.state.io(
-            loc.clone(),
+            loc,
             "设置文件指针",
             file.handle.seek(offset as u64),
           )?;
@@ -1701,7 +1697,9 @@ where
           return Ok(());
         }
         if value.is_negative() {
-          self.rng.reseed(&<[u8; 5]>::from(value));
+          let mut seed = [0u8; 8];
+          seed[..5].copy_from_slice(&<[u8; 5]>::from(value));
+          self.rng.reseed(seed);
         }
         let value: u32 = self.rng.generate();
         self.current_rand = value;
@@ -1711,11 +1709,11 @@ where
       SysFuncKind::Sgn => {
         let value = self.num_stack.pop().unwrap().1;
         let num = if value.is_positive() {
-          Mbf5::ONE.into()
+          Mbf5::ONE
         } else if value.is_negative() {
-          Mbf5::NEG_ONE.into()
+          Mbf5::NEG_ONE
         } else {
-          Mbf5::ZERO.into()
+          Mbf5::ZERO
         };
         self.num_stack.push((loc, num));
         Ok(())
@@ -1769,7 +1767,7 @@ where
       SysFuncKind::Val => {
         let mut value = self.str_stack.pop().unwrap().1;
         value.retain(|&b| b != b' ');
-        let (len, _) = read_number(&*value, false, false);
+        let (len, _) = read_number(&value, false, false);
         let num = unsafe { std::str::from_utf8_unchecked(&value[..len]) }
           .parse::<Mbf5>()
           .unwrap_or(Mbf5::ZERO);
@@ -1933,7 +1931,7 @@ where
         if matches!(&mode, FileMode::Binary) {
           return Ok(());
         } else {
-          self.state.io(loc.clone(), "打开文件", Err(err))?;
+          self.state.io(loc, "打开文件", Err(err))?;
         }
       }
     };
@@ -2158,7 +2156,7 @@ where
         Err(RealError::Infinite) => {
           self
             .state
-            .error(loc, format!("计数器数值过大，超出了实数的表示范围。"))?;
+            .error(loc, "计数器数值过大，超出了实数的表示范围。")?;
         }
         Err(_) => unreachable!(),
       };
@@ -2322,26 +2320,23 @@ where
   ) -> Result<usize> {
     let dimensions = dimensions.get();
 
-    if !self.bindings.arrays.contains_key(&name) {
+    if let HashMapEntry::Vacant(e) = self.bindings.arrays.entry(name) {
       let data = ArrayData::new(
         symbol_type(&self.interner, name),
         11usize.pow(dimensions as _),
       );
-      self.bindings.arrays.insert(
-        name,
-        Array {
-          dimensions: (0..dimensions)
-            .fold((vec![], 1), |(mut d, mult), _| {
-              d.push(Dimension {
-                bound: unsafe { NonZeroU16::new_unchecked(11) },
-                multiplier: mult,
-              });
-              (d, mult * 11)
-            })
-            .0,
-          data,
-        },
-      );
+      e.insert(Array {
+        dimensions: (0..dimensions)
+          .fold((vec![], 1), |(mut d, mult), _| {
+            d.push(Dimension {
+              bound: unsafe { NonZeroU16::new_unchecked(11) },
+              multiplier: mult,
+            });
+            (d, mult * 11)
+          })
+          .0,
+        data,
+      });
     }
 
     let array = &self.bindings.arrays[&name];
@@ -2414,7 +2409,7 @@ where
       self.num_stack.last().cloned().unwrap()
     };
     let int = f64::from(value) as i64;
-    if int >= 1 && int <= 3 {
+    if (1..=3).contains(&int) {
       Ok(int as u8 - 1)
     } else {
       self.state.error(loc, "文件号超出范围 1~3")?
@@ -2488,17 +2483,17 @@ fn exec_file_input<F: FileHandle, S>(
 ) -> Result<()> {
   let mut buf = vec![];
   let mut quoted = false;
-  loop {
+  'read_file: {
     let mut byte = [0];
     let len = state.io(loc.clone(), "读取文件", file.read(&mut byte))?;
     if len == 0 {
-      break;
+      break 'read_file;
     }
 
     if byte[0] == b'"' {
       quoted = true;
     } else if byte[0] == 0xff || byte[0] == b',' {
-      break;
+      break 'read_file;
     } else {
       buf.push(byte[0]);
     }
@@ -2509,7 +2504,7 @@ fn exec_file_input<F: FileHandle, S>(
       let len = state.io(loc.clone(), "读取文件", file.read(&mut byte))?;
       if len == 0 {
         if quoted && !str_end {
-          state.error(loc.clone(), "读取字符串时遇到未匹配的双引号")?
+          state.error(loc, "读取字符串时遇到未匹配的双引号")?
         }
         break;
       }
@@ -2535,8 +2530,6 @@ fn exec_file_input<F: FileHandle, S>(
       }
       buf.push(byte[0]);
     }
-
-    break;
   }
 
   let value = match lvalue.get_type(interner) {
@@ -2600,7 +2593,6 @@ fn exec_file_input<F: FileHandle, S>(
 }
 
 impl<S> ExecState<S> {
-  #[must_use]
   fn error<M: ToString>(
     &mut self,
     location: Location,
@@ -2613,13 +2605,11 @@ impl<S> ExecState<S> {
     })
   }
 
-  #[must_use]
   fn inkey(&mut self) -> Result<!> {
     *self = Self::WaitForKey;
     Err(ExecResult::InKey)
   }
 
-  #[must_use]
   fn input(
     &mut self,
     lvalues: Vec<(Location, LValue)>,
@@ -2634,19 +2624,16 @@ impl<S> ExecState<S> {
     Err(ExecResult::KeyboardInput { prompt, fields })
   }
 
-  #[must_use]
   fn suspend_asm(&mut self, loc: Location, state: S) -> Result<!> {
     *self = Self::AsmSuspend { loc, state };
     Err(ExecResult::Continue)
   }
 
-  #[must_use]
   fn end(&mut self) -> Result<!> {
     *self = Self::Done;
     Err(ExecResult::End)
   }
 
-  #[must_use]
   fn sleep(&mut self, duration: Duration) -> Result<!> {
     *self = Self::Normal;
     Err(ExecResult::Sleep(duration))
@@ -3115,7 +3102,7 @@ mod tests {
     }
 
     fn key(&mut self) -> Option<u8> {
-      add_log(self.log.clone(), format!("take key"));
+      add_log(self.log.clone(), "take key");
       None
     }
 
@@ -3138,7 +3125,7 @@ mod tests {
           if name.bytes().all(|b| b < 0x80) {
             format!("\"{}\"", unsafe { std::str::from_utf8_unchecked(name) })
           } else {
-            format!("{:?}", &name[..])
+            format!("{:?}", name)
           },
           read,
           write,
