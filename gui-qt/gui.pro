@@ -1,11 +1,8 @@
 TEMPLATE = app
-CONFIG += c++17 debug_and_release
+CONFIG += c++14 debug_and_release
 TARGET = wqxtools
 
-DEFINES += QT_DISABLE_DEPRECATED_BEFORE=0x050F00 \
-    NO_CXX11_REGEX \
-    SCINTILLA_QT \
-    _CRT_SECURE_NO_DEPRECATE
+DEFINES += _CRT_SECURE_NO_DEPRECATE
 
 INCLUDEPATH += \
     include \
