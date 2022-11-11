@@ -35,6 +35,8 @@
 - [x] C-f 如果 search text 显示并且没有焦点则 focus，而不是隐藏
 - [x] 编辑区按esc会隐藏search bar
 - [ ] QLineEdit 会把 control character 显示成空格，wqx字体的 control character glyph无法显示
+- [ ] gvb 读写文件名包含 0x0-0x1f 字符时转换成其他 unicode 字符 (PUA 字符)
+- [ ] 统计gvb各语句执行时间，为不同的字节码加上 cost，cost累加到某个阈值就 sleep
 - 关联 .bas  .lav  .pac 文件
 - [x] 在运行模拟器时不能加载其他文件
 - 检查内存泄漏
