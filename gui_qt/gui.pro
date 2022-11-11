@@ -6,14 +6,10 @@ DEFINES += _CRT_SECURE_NO_DEPRECATE
 
 INCLUDEPATH += \
     include \
-    src/scintilla-qt \
-    scintilla/src \
-    scintilla/include \
     ../3rdparty
 
 HEADERS += $$files(src/*.h, true)
-SOURCES += $$files(src/*.cpp, true) \
-    $$files(scintilla/src/*.cxx, true)
+SOURCES += $$files(src/*.cpp, true)
 
 QT += widgets network help
 

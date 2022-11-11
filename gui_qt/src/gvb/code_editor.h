@@ -1,6 +1,5 @@
 #pragma once
 
-#include <ScintillaEdit.h>
 #include <api.h>
 
 #include <QString>
