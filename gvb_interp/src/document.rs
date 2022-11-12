@@ -1684,7 +1684,7 @@ no";
     assert_eq!(
       doc.compute_machine_name_edit("PC1000A"),
       Ok(ReplaceText {
-        range: Range::empty(6),
+        range: Range::empty_ascii(6),
         str: ":REM {type:PC1000A}".to_owned(),
       })
     );
@@ -1702,7 +1702,7 @@ no";
     assert_eq!(
       doc.compute_machine_name_edit("pc1000a"),
       Ok(ReplaceText {
-        range: Range::empty(17),
+        range: Range::empty_ascii(17),
         str: "\":REM {type:PC1000A}".to_owned(),
       })
     );
@@ -1720,7 +1720,7 @@ no";
     assert_eq!(
       doc.compute_machine_name_edit("tc808"),
       Ok(ReplaceText {
-        range: Range::new(17, 24),
+        range: Range::new_ascii(17, 24),
         str: "TC808".to_owned(),
       })
     );
@@ -1760,7 +1760,7 @@ no";
         doc.compute_add_label_edit(LabelTarget::CurLine, 9),
         Ok(AddLabelResult {
           edit: ReplaceText {
-            range: Range::empty(8),
+            range: Range::empty_ascii(8),
             str: "20".to_owned(),
           },
           goto: None
@@ -1783,7 +1783,7 @@ no";
         doc.compute_add_label_edit(LabelTarget::CurLine, 9),
         Ok(AddLabelResult {
           edit: ReplaceText {
-            range: Range::empty(8),
+            range: Range::empty_ascii(8),
             str: "10 ".to_owned(),
           },
           goto: None
@@ -1793,7 +1793,7 @@ no";
         doc.compute_add_label_edit(LabelTarget::PrevLine, 22),
         Ok(AddLabelResult {
           edit: ReplaceText {
-            range: Range::empty(22),
+            range: Range::empty_ascii(22),
             str: "30 \r\n".to_owned(),
           },
           goto: Some(25)
@@ -1803,7 +1803,7 @@ no";
         doc.compute_add_label_edit(LabelTarget::NextLine, 14),
         Ok(AddLabelResult {
           edit: ReplaceText {
-            range: Range::empty(22),
+            range: Range::empty_ascii(22),
             str: "30 \r\n".to_owned(),
           },
           goto: Some(25)
@@ -1826,7 +1826,7 @@ no";
         doc.compute_add_label_edit(LabelTarget::CurLine, 9),
         Ok(AddLabelResult {
           edit: ReplaceText {
-            range: Range::empty(8),
+            range: Range::empty_ascii(8),
             str: "11 ".to_owned(),
           },
           goto: None
@@ -1836,7 +1836,7 @@ no";
         doc.compute_add_label_edit(LabelTarget::PrevLine, 22),
         Ok(AddLabelResult {
           edit: ReplaceText {
-            range: Range::empty(22),
+            range: Range::empty_ascii(22),
             str: "25 \r\n".to_owned(),
           },
           goto: Some(25)
@@ -1846,7 +1846,7 @@ no";
         doc.compute_add_label_edit(LabelTarget::NextLine, 14),
         Ok(AddLabelResult {
           edit: ReplaceText {
-            range: Range::empty(22),
+            range: Range::empty_ascii(22),
             str: "17 \r\n".to_owned(),
           },
           goto: Some(25)
@@ -1891,7 +1891,7 @@ no";
         doc.compute_add_label_edit(LabelTarget::CurLine, 2),
         Ok(AddLabelResult {
           edit: ReplaceText {
-            range: Range::empty(0),
+            range: Range::empty_ascii(0),
             str: "10 ".to_owned(),
           },
           goto: None
@@ -1986,7 +1986,7 @@ no";
         doc.compute_add_label_edit(LabelTarget::CurLine, 1),
         Ok(AddLabelResult {
           edit: ReplaceText {
-            range: Range::empty(0),
+            range: Range::empty_ascii(0),
             str: "10 ".to_owned(),
           },
           goto: None
@@ -2003,7 +2003,7 @@ no";
         doc.compute_add_label_edit(LabelTarget::PrevLine, 0),
         Ok(AddLabelResult {
           edit: ReplaceText {
-            range: Range::empty(0),
+            range: Range::empty_ascii(0),
             str: "10 \r\n".to_owned(),
           },
           goto: Some(3)
@@ -2024,7 +2024,7 @@ no";
         doc.compute_add_label_edit(LabelTarget::CurLine, 1),
         Ok(AddLabelResult {
           edit: ReplaceText {
-            range: Range::empty(0),
+            range: Range::empty_ascii(0),
             str: "4 ".to_owned(),
           },
           goto: None
@@ -2041,7 +2041,7 @@ no";
         doc.compute_add_label_edit(LabelTarget::PrevLine, 1),
         Ok(AddLabelResult {
           edit: ReplaceText {
-            range: Range::empty(0),
+            range: Range::empty_ascii(0),
             str: "4 \r\n".to_owned(),
           },
           goto: Some(2)
@@ -2107,7 +2107,7 @@ cls
         doc.compute_add_label_edit(LabelTarget::CurLine, 12),
         Ok(AddLabelResult {
           edit: ReplaceText {
-            range: Range::empty(10),
+            range: Range::empty_ascii(10),
             str: "9990 ".to_owned(),
           },
           goto: None
@@ -2124,7 +2124,7 @@ cls
         doc.compute_add_label_edit(LabelTarget::NextLine, 0),
         Ok(AddLabelResult {
           edit: ReplaceText {
-            range: Range::empty(8),
+            range: Range::empty_ascii(8),
             str: "\r\n9990 ".to_owned(),
           },
           goto: Some(15)
@@ -2145,7 +2145,7 @@ cls
         doc.compute_add_label_edit(LabelTarget::CurLine, 12),
         Ok(AddLabelResult {
           edit: ReplaceText {
-            range: Range::empty(10),
+            range: Range::empty_ascii(10),
             str: "9994 ".to_owned(),
           },
           goto: None
@@ -2162,7 +2162,7 @@ cls
         doc.compute_add_label_edit(LabelTarget::NextLine, 8),
         Ok(AddLabelResult {
           edit: ReplaceText {
-            range: Range::empty(8),
+            range: Range::empty_ascii(8),
             str: "\r\n9994 ".to_owned(),
           },
           goto: Some(15)
@@ -2229,7 +2229,7 @@ cls
         doc.compute_add_label_edit(LabelTarget::CurLine, 8),
         Ok(AddLabelResult {
           edit: ReplaceText {
-            range: Range::empty(8),
+            range: Range::empty_ascii(8),
             str: "11 ".to_owned(),
           },
           goto: Some(11)
@@ -2239,7 +2239,7 @@ cls
         doc.compute_add_label_edit(LabelTarget::CurLine, 18),
         Ok(AddLabelResult {
           edit: ReplaceText {
-            range: Range::empty(18),
+            range: Range::empty_ascii(18),
             str: "30 ".to_owned(),
           },
           goto: Some(21)
@@ -2249,7 +2249,7 @@ cls
         doc.compute_add_label_edit(LabelTarget::CurLine, 31),
         Ok(AddLabelResult {
           edit: ReplaceText {
-            range: Range::empty(31),
+            range: Range::empty_ascii(31),
             str: "60 ".to_owned(),
           },
           goto: Some(34)
@@ -2291,7 +2291,7 @@ cls
       doc.compute_relabel_edits(10, 10),
       Err(RelabelError::LabelNotFound {
         label: 0,
-        range: Range::empty(15),
+        range: Range::empty_ascii(15),
       })
     );
 
@@ -2307,7 +2307,7 @@ cls
       doc.compute_relabel_edits(10, 10),
       Err(RelabelError::LabelNotFound {
         label: 0,
-        range: Range::empty(15),
+        range: Range::empty_ascii(15),
       })
     );
 
@@ -2323,7 +2323,7 @@ cls
       doc.compute_relabel_edits(10, 10),
       Err(RelabelError::LabelNotFound {
         label: 20,
-        range: Range::new(16, 18),
+        range: Range::new_ascii(16, 18),
       })
     );
 
@@ -2339,7 +2339,7 @@ cls
       doc.compute_relabel_edits(10, 10),
       Err(RelabelError::LabelNotFound {
         label: 20,
-        range: Range::new(17, 19),
+        range: Range::new_ascii(17, 19),
       })
     );
 
@@ -2355,7 +2355,7 @@ cls
       doc.compute_relabel_edits(10, 10),
       Err(RelabelError::LabelNotFound {
         label: 20,
-        range: Range::new(19, 21),
+        range: Range::new_ascii(19, 21),
       })
     );
 
@@ -2371,7 +2371,7 @@ cls
       doc.compute_relabel_edits(10, 10),
       Err(RelabelError::LabelNotFound {
         label: 20,
-        range: Range::new(24, 26),
+        range: Range::new_ascii(24, 26),
       })
     );
 
@@ -2387,7 +2387,7 @@ cls
       doc.compute_relabel_edits(10, 10),
       Err(RelabelError::LabelNotFound {
         label: 0,
-        range: Range::empty(27),
+        range: Range::empty_ascii(27),
       })
     );
   }

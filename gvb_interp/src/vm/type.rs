@@ -1,7 +1,7 @@
 use bstr::ByteSlice;
 use std::ops::{Deref, DerefMut};
 
-use crate::machine::EmojiVersion;
+use crate::{ast::CharIndex, machine::EmojiVersion};
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Default)]
 pub struct ByteString(Vec<u8>);
@@ -22,8 +22,8 @@ impl DerefMut for ByteString {
 
 #[derive(Debug, Clone)]
 pub enum StringProblem {
-  UnrecogEmoji(usize, char, u16),
-  InvalidChar(usize, char),
+  UnrecogEmoji(CharIndex, char, u16),
+  InvalidChar(CharIndex, char),
 }
 
 impl ByteString {
@@ -39,6 +39,7 @@ impl ByteString {
     let str = str.as_ref();
     let mut bytes = vec![];
     let mut problems = vec![];
+    let mut utf16_idx = 0;
     for (i, c) in str.char_indices() {
       let b = c as u32;
       if b < 128 {
@@ -57,15 +58,29 @@ impl ByteString {
         bytes.push((code >> 8) as _);
         bytes.push(code as _);
       } else if let Some(code) = EmojiVersion::fallback_char_to_code(c) {
-        problems.push(StringProblem::UnrecogEmoji(i, c, code));
+        problems.push(StringProblem::UnrecogEmoji(
+          CharIndex {
+            utf8: i as u32,
+            utf16: utf16_idx,
+          },
+          c,
+          code,
+        ));
         if add_0x1f {
           bytes.push(0x1f);
         }
         bytes.push((code >> 8) as _);
         bytes.push(code as _);
       } else {
-        problems.push(StringProblem::InvalidChar(i, c));
+        problems.push(StringProblem::InvalidChar(
+          CharIndex {
+            utf8: i as u32,
+            utf16: utf16_idx,
+          },
+          c,
+        ));
       }
+      utf16_idx += c.len_utf16() as u32;
     }
     (Self(bytes), problems)
   }

@@ -4,7 +4,8 @@
   const_mut_refs,
   never_type,
   io_error_more,
-  const_maybe_uninit_assume_init
+  const_maybe_uninit_assume_init,
+  slice_index_methods
 )]
 #![allow(clippy::needless_late_init, clippy::useless_format, clippy::single_match)]
 

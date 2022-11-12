@@ -263,19 +263,19 @@ impl Expr {
   ) -> fmt::Result {
     let range = self.range.clone();
     match &self.kind {
-      ExprKind::Ident => write!(f, "<ID: {}>", &text[range.start..range.end]),
+      ExprKind::Ident => write!(f, "<ID: {}>", &text[range.utf8_range()]),
       ExprKind::StringLit => {
-        write!(f, "<STR: {}>", &text[range.start..range.end])
+        write!(f, "<STR: {}>", &text[range.utf8_range()])
       }
       ExprKind::NumberLit => {
-        write!(f, "<NUM: {}>", &text[range.start..range.end])
+        write!(f, "<NUM: {}>", &text[range.utf8_range()])
       }
       ExprKind::SysFuncCall {
         func: (func_range, kind),
         args,
       } => {
         assert_eq!(
-          text[func_range.start..func_range.end].to_ascii_uppercase(),
+          text[func_range.utf8_range()].to_ascii_uppercase(),
           format!("{:?}", kind)
         );
         write!(f, "{:?}(", kind)?;
@@ -291,7 +291,7 @@ impl Expr {
       }
       ExprKind::UserFuncCall { func, arg } => {
         if let Some(func) = func {
-          write!(f, "FN {}(", &text[func.start..func.end])?;
+          write!(f, "FN {}(", &text[func.utf8_range()])?;
         } else {
           write!(f, "FN ???(")?;
         }
@@ -304,7 +304,7 @@ impl Expr {
         rhs,
       } => {
         assert_eq!(
-          text[op_range.start..op_range.end]
+          text[op_range.utf8_range()]
             .to_owned()
             .replace(' ', "")
             .to_ascii_uppercase(),
@@ -321,9 +321,7 @@ impl Expr {
         arg,
       } => {
         assert_eq!(
-          text[op_range.start..op_range.end]
-            .to_owned()
-            .to_ascii_uppercase(),
+          text[op_range.utf8_range()].to_owned().to_ascii_uppercase(),
           format!("{:?}", kind)
         );
         write!(f, "({:?} ", kind)?;
@@ -332,7 +330,7 @@ impl Expr {
       }
       ExprKind::Index { name, indices } => {
         if let Some(name) = name {
-          write!(f, "{}[", &text[name.start..name.end])?;
+          write!(f, "{}[", &text[name.utf8_range()])?;
         } else {
           write!(f, "???[")?;
         }

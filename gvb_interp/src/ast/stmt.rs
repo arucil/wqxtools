@@ -275,7 +275,7 @@ fn print_stmt(
   write!(f, "{:<1$?}", stmt.range, indent + 10)?;
   match &stmt.kind {
     StmtKind::Auto(range) => {
-      writeln!(f, "AUTO [{:?}]", &text[range.start..range.end])
+      writeln!(f, "AUTO [{:?}]", &text[range.utf8_range()])
     }
     StmtKind::Beep => writeln!(f, "BEEP"),
     StmtKind::Box(args) => {
@@ -316,7 +316,7 @@ fn print_stmt(
     StmtKind::Cls => writeln!(f, "CLS"),
     StmtKind::Cont => writeln!(f, "CONT"),
     StmtKind::Copy(range) => {
-      writeln!(f, "COPY [{:?}]", &text[range.start..range.end])
+      writeln!(f, "COPY [{:?}]", &text[range.utf8_range()])
     }
     StmtKind::Data(data) => {
       write!(f, "DATA ")?;
@@ -327,9 +327,9 @@ fn print_stmt(
         }
         comma = true;
         if datum.is_quoted {
-          write!(f, "\"[{}]\"", &text[datum.range.start..datum.range.end])?;
+          write!(f, "\"[{}]\"", &text[datum.range.utf8_range()])?;
         } else {
-          write!(f, "[{}]", &text[datum.range.start..datum.range.end])?;
+          write!(f, "[{}]", &text[datum.range.utf8_range()])?;
         }
       }
       writeln!(f)
@@ -339,12 +339,12 @@ fn print_stmt(
         f,
         "DEF FN {}({}) = ",
         if let Some(name) = name {
-          &text[name.start..name.end]
+          &text[name.utf8_range()]
         } else {
           "???"
         },
         if let Some(param) = param {
-          &text[param.start..param.end]
+          &text[param.utf8_range()]
         } else {
           "???"
         },
@@ -353,7 +353,7 @@ fn print_stmt(
       writeln!(f)
     }
     StmtKind::Del(range) => {
-      writeln!(f, "DEL [{:?}]", &text[range.start..range.end])
+      writeln!(f, "DEL [{:?}]", &text[range.utf8_range()])
     }
     StmtKind::Dim(vars) => {
       write!(f, "DIM ")?;
@@ -380,7 +380,7 @@ fn print_stmt(
       writeln!(f)
     }
     StmtKind::Edit(range) => {
-      writeln!(f, "EDIT [{:?}]", &text[range.start..range.end])
+      writeln!(f, "EDIT [{:?}]", &text[range.utf8_range()])
     }
     StmtKind::Ellipse(args) => {
       write!(f, "ELLIPSE ")?;
@@ -407,7 +407,7 @@ fn print_stmt(
       writeln!(f)
     }
     StmtKind::Files(range) => {
-      writeln!(f, "FILES [{:?}]", &text[range.start..range.end])
+      writeln!(f, "FILES [{:?}]", &text[range.utf8_range()])
     }
     StmtKind::Flash => writeln!(f, "FLASH"),
     StmtKind::For {
@@ -417,7 +417,7 @@ fn print_stmt(
       step,
     } => {
       if let Some(var) = var {
-        write!(f, "FOR {} = ", &text[var.start..var.end])?;
+        write!(f, "FOR {} = ", &text[var.utf8_range()])?;
       } else {
         write!(f, "FOR ??? = ")?;
       }
@@ -439,7 +439,7 @@ fn print_stmt(
     }
     StmtKind::GoSub(label) => {
       if let Some((range, label)) = label {
-        assert_eq!(text[range.start..range.end].parse::<Label>(), Ok(*label));
+        assert_eq!(text[range.utf8_range()].parse::<Label>(), Ok(*label));
         writeln!(f, "GOSUB {}", label.0)
       } else {
         writeln!(f, "GOSUB")
@@ -451,7 +451,7 @@ fn print_stmt(
     } => {
       let goto = if *has_goto_keyword { "GOTO" } else { "[GOTO]" };
       if let Some((range, label)) = label {
-        assert_eq!(text[range.start..range.end].parse::<Label>(), Ok(*label));
+        assert_eq!(text[range.utf8_range()].parse::<Label>(), Ok(*label));
         writeln!(f, "{} {}", goto, label.0)
       } else {
         writeln!(f, "{}", goto)
@@ -492,7 +492,7 @@ fn print_stmt(
       write!(f, "INPUT ")?;
       match source {
         InputSource::Keyboard(Some(range)) => {
-          write!(f, "<STR: {}>; ", &text[range.start..range.end])?;
+          write!(f, "<STR: {}>; ", &text[range.utf8_range()])?;
         }
         InputSource::Keyboard(None) => {}
         InputSource::File(filenum) => {
@@ -513,7 +513,7 @@ fn print_stmt(
     }
     StmtKind::Inverse => writeln!(f, "INVERSE"),
     StmtKind::Kill(range) => {
-      writeln!(f, "KILL [{:?}]", &text[range.start..range.end])
+      writeln!(f, "KILL [{:?}]", &text[range.utf8_range()])
     }
     StmtKind::Let { var, value } => {
       write!(f, "LET ")?;
@@ -535,10 +535,10 @@ fn print_stmt(
       writeln!(f)
     }
     StmtKind::List(range) => {
-      writeln!(f, "LIST [{:?}]", &text[range.start..range.end])
+      writeln!(f, "LIST [{:?}]", &text[range.utf8_range()])
     }
     StmtKind::Load(range) => {
-      writeln!(f, "LOAD [{:?}]", &text[range.start..range.end])
+      writeln!(f, "LOAD [{:?}]", &text[range.utf8_range()])
     }
     StmtKind::Locate { row, column } => {
       write!(f, "LOCATE ")?;
@@ -559,7 +559,7 @@ fn print_stmt(
       writeln!(f)
     }
     StmtKind::New(range) => {
-      writeln!(f, "NEW [{:?}]", &text[range.start..range.end])
+      writeln!(f, "NEW [{:?}]", &text[range.utf8_range()])
     }
     StmtKind::Next { vars } => {
       write!(f, "NEXT ")?;
@@ -570,7 +570,7 @@ fn print_stmt(
         }
         comma = true;
         if let Some(var) = var {
-          write!(f, "{}", &text[var.start..var.end])?;
+          write!(f, "{}", &text[var.utf8_range()])?;
         } else {
           write!(f, "???")?;
         }
@@ -598,7 +598,7 @@ fn print_stmt(
         }
         comma = true;
         if let Some(label) = label {
-          assert_eq!(text[range.start..range.end].parse::<Label>(), Ok(*label));
+          assert_eq!(text[range.utf8_range()].parse::<Label>(), Ok(*label));
           write!(f, "{}", label.0)?;
         } else {
           write!(f, "<{:?}>", range)?;
@@ -669,14 +669,14 @@ fn print_stmt(
       writeln!(f)
     }
     StmtKind::Rem(range) => {
-      writeln!(f, "REM [{:?}]", &text[range.start..range.end])
+      writeln!(f, "REM [{:?}]", &text[range.utf8_range()])
     }
     StmtKind::Rename(range) => {
-      writeln!(f, "RENAME [{:?}]", &text[range.start..range.end])
+      writeln!(f, "RENAME [{:?}]", &text[range.utf8_range()])
     }
     StmtKind::Restore(label) => {
       if let Some((range, label)) = label {
-        assert_eq!(text[range.start..range.end].parse::<Label>(), Ok(*label));
+        assert_eq!(text[range.utf8_range()].parse::<Label>(), Ok(*label));
         writeln!(f, "RESTORE {}", label.0)
       } else {
         writeln!(f, "RESTORE")
@@ -691,13 +691,13 @@ fn print_stmt(
       writeln!(f)
     }
     StmtKind::Run(range) => {
-      writeln!(f, "RUN [{:?}]", &text[range.start..range.end])
+      writeln!(f, "RUN [{:?}]", &text[range.utf8_range()])
     }
     StmtKind::Save(range) => {
-      writeln!(f, "SAVE [{:?}]", &text[range.start..range.end])
+      writeln!(f, "SAVE [{:?}]", &text[range.utf8_range()])
     }
     StmtKind::Stop(range) => {
-      writeln!(f, "STOP [{:?}]", &text[range.start..range.end])
+      writeln!(f, "STOP [{:?}]", &text[range.utf8_range()])
     }
     StmtKind::Swap { left, right } => {
       write!(f, "SWAP ")?;

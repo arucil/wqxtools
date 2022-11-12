@@ -8,7 +8,8 @@ use super::{
   PrintMode, ScreenMode, StringProblem, Symbol, DUMMY_ADDR, FISRT_DATUM_INDEX,
 };
 use crate::ast::{
-  BinaryOpKind, FileMode, Range, StmtKind, SysFuncKind, UnaryOpKind,
+  BinaryOpKind, CharOffset, FileMode, Range, StmtKind, SysFuncKind,
+  UnaryOpKind,
 };
 use crate::diagnostic::Diagnostic;
 use crate::util::mbf5::Mbf5;
@@ -64,7 +65,7 @@ impl CodeGen {
   fn add_string_problems(
     &mut self,
     problems: Vec<StringProblem>,
-    range_offset: isize,
+    range_offset: CharOffset,
   ) {
     for problem in problems {
       match problem {
@@ -522,7 +523,7 @@ impl CodeEmitter for CodeGen {
   fn clean_up(&mut self) -> Vec<(usize, Diagnostic)> {
     self.patch_while_instr();
     self.convert_for_loop_to_sleep();
-    self.push_instr(Range::empty(0), InstrKind::End);
+    self.push_instr(Range::start(), InstrKind::End);
     std::mem::take(&mut self.diagnostics)
   }
 }

@@ -629,7 +629,7 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E, ProgramLine> {
   fn compile_data(&mut self, data: &NonEmptyVec<[Datum; 1]>) {
     let mut data_index = None;
     for datum in data.iter() {
-      let text = &self.text[datum.range.start..datum.range.end];
+      let text = &self.text[datum.range.utf8_range()];
       let text = if datum.is_quoted {
         if text.ends_with('"') {
           text[1..text.len() - 1].to_owned()
@@ -1627,7 +1627,7 @@ impl<'a, 'b, E: CodeEmitter, T> CompileState<'a, 'b, E, T> {
         Type::String
       }
       ExprKind::NumberLit => {
-        let mut text = self.text[range.start..range.end].to_owned();
+        let mut text = self.text[range.utf8_range()].to_owned();
         text.retain(|c| c != ' ');
         match text.parse::<Mbf5>() {
           Ok(num) => self.code_emitter.emit_number(range, num),
@@ -1936,7 +1936,7 @@ impl<'a, 'b, E: CodeEmitter, T> CompileState<'a, 'b, E, T> {
 
   #[must_use]
   fn compile_sym(&mut self, range: Range) -> (E::Symbol, Type) {
-    let mut name = self.text[range.start..range.end].to_ascii_uppercase();
+    let mut name = self.text[range.utf8_range()].to_ascii_uppercase();
     let ty = match name.as_bytes().last() {
       Some(b'%') => Type::Integer,
       Some(b'$') => Type::String,
@@ -2075,11 +2075,11 @@ mod tests {
       r#"30 a$=1:c%(2)="""#,
       vec![vec![
         Diagnostic::new_error(
-          Range::new(3, 7),
+          Range::new_ascii(3, 7),
           "赋值语句类型错误。等号左边的变量是字符串类型，而等号右边的表达式是数值类型",
         ),
         Diagnostic::new_error(
-          Range::new(8, 16),
+          Range::new_ascii(8, 16),
           "赋值语句类型错误。等号左边的数组是整数类型，而等号右边的表达式是字符串类型",
         ),
       ]],
