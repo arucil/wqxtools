@@ -1,5 +1,7 @@
 #![allow(clippy::write_with_newline)]
 
+use crate::util::utf16string::Utf16Str;
+
 use super::{Label, Range, StmtId};
 use smallvec::SmallVec;
 #[cfg(test)]
@@ -25,7 +27,7 @@ pub enum Eol {
 
 #[cfg(test)]
 impl crate::parser::ParseResult<ProgramLine> {
-  pub fn to_string(&self, text: &str) -> String {
+  pub fn to_string(&self, text: &Utf16Str) -> String {
     let mut f = String::new();
     writeln!(&mut f, "label: {:?}", self.content.label).unwrap();
     writeln!(&mut f, "len: {}", self.content.source_len).unwrap();

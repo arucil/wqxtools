@@ -8,11 +8,11 @@ use super::{
   PrintMode, ScreenMode, StringProblem, Symbol, DUMMY_ADDR, FISRT_DATUM_INDEX,
 };
 use crate::ast::{
-  BinaryOpKind, CharOffset, FileMode, Range, StmtKind, SysFuncKind,
-  UnaryOpKind,
+  BinaryOpKind, FileMode, Range, StmtKind, SysFuncKind, UnaryOpKind,
 };
 use crate::diagnostic::Diagnostic;
 use crate::util::mbf5::Mbf5;
+use crate::util::utf16string::Utf16String;
 use crate::{compiler::CodeEmitter, machine::EmojiVersion};
 use string_interner::StringInterner;
 
@@ -65,7 +65,7 @@ impl CodeGen {
   fn add_string_problems(
     &mut self,
     problems: Vec<StringProblem>,
-    range_offset: CharOffset,
+    range_offset: isize,
   ) {
     for problem in problems {
       match problem {
@@ -194,12 +194,12 @@ impl CodeEmitter for CodeGen {
   fn emit_datum(
     &mut self,
     range: Range,
-    value: String,
+    value: Utf16String,
     is_quoted: bool,
   ) -> (Self::DatumIndex, usize) {
     let index = DatumIndex(self.data.len());
     let (value, problems) =
-      ByteString::from_str(value, self.emoji_version, true);
+      ByteString::from_utf16str(value, self.emoji_version, true);
     let range_offset = range.start as isize + is_quoted as isize;
     self.add_string_problems(problems, range_offset);
     let len = value.len();
@@ -301,7 +301,7 @@ impl CodeEmitter for CodeGen {
     self.push_instr(range, InstrKind::AssignStr);
   }
 
-  fn make_symbol(&mut self, name: String) -> Self::Symbol {
+  fn make_symbol(&mut self, name: Utf16String) -> Self::Symbol {
     self.interner.get_or_intern(name)
   }
 
@@ -444,8 +444,8 @@ impl CodeEmitter for CodeGen {
     self.push_instr(range, InstrKind::PushVar(sym));
   }
 
-  fn emit_string(&mut self, range: Range, str: String) -> usize {
-    let (str, problems) = ByteString::from_str(str, self.emoji_version, true);
+  fn emit_string(&mut self, range: Range, str: Utf16String) -> usize {
+    let (str, problems) = ByteString::from_utf16str(str, self.emoji_version, true);
     let range_offset = (range.start + 1) as _;
     self.add_string_problems(problems, range_offset);
     let len = str.len();
@@ -523,7 +523,7 @@ impl CodeEmitter for CodeGen {
   fn clean_up(&mut self) -> Vec<(usize, Diagnostic)> {
     self.patch_while_instr();
     self.convert_for_loop_to_sleep();
-    self.push_instr(Range::start(), InstrKind::End);
+    self.push_instr(Range::empty(0), InstrKind::End);
     std::mem::take(&mut self.diagnostics)
   }
 }

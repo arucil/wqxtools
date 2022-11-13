@@ -5,7 +5,8 @@
   never_type,
   io_error_more,
   const_maybe_uninit_assume_init,
-  slice_index_methods
+  slice_index_methods,
+  utf16_extra
 )]
 #![allow(clippy::needless_late_init, clippy::useless_format, clippy::single_match)]
 

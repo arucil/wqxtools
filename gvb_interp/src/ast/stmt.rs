@@ -2,6 +2,8 @@
 use std::fmt::Write;
 use std::fmt::{self, Debug, Formatter};
 
+use crate::util::utf16string::Utf16Str;
+
 #[cfg(test)]
 use super::Expr;
 use super::{ExprId, Label, NonEmptyVec, Range, StmtId};
@@ -256,7 +258,7 @@ impl Stmt {
     &self,
     stmt_arena: &Arena<Stmt>,
     expr_arena: &Arena<Expr>,
-    text: &str,
+    text: &Utf16Str,
     f: &mut impl Write,
   ) -> fmt::Result {
     print_stmt(self, 0, stmt_arena, expr_arena, text, f)
@@ -269,13 +271,13 @@ fn print_stmt(
   indent: usize,
   stmt_arena: &Arena<Stmt>,
   expr_arena: &Arena<Expr>,
-  text: &str,
+  text: &Utf16Str,
   f: &mut impl Write,
 ) -> fmt::Result {
   write!(f, "{:<1$?}", stmt.range, indent + 10)?;
   match &stmt.kind {
     StmtKind::Auto(range) => {
-      writeln!(f, "AUTO [{:?}]", &text[range.utf8_range()])
+      writeln!(f, "AUTO [{:?}]", &text[range.range()])
     }
     StmtKind::Beep => writeln!(f, "BEEP"),
     StmtKind::Box(args) => {
@@ -316,7 +318,7 @@ fn print_stmt(
     StmtKind::Cls => writeln!(f, "CLS"),
     StmtKind::Cont => writeln!(f, "CONT"),
     StmtKind::Copy(range) => {
-      writeln!(f, "COPY [{:?}]", &text[range.utf8_range()])
+      writeln!(f, "COPY [{:?}]", &text[range.range()])
     }
     StmtKind::Data(data) => {
       write!(f, "DATA ")?;
@@ -327,9 +329,9 @@ fn print_stmt(
         }
         comma = true;
         if datum.is_quoted {
-          write!(f, "\"[{}]\"", &text[datum.range.utf8_range()])?;
+          write!(f, "\"[{}]\"", &text[datum.range.range()])?;
         } else {
-          write!(f, "[{}]", &text[datum.range.utf8_range()])?;
+          write!(f, "[{}]", &text[datum.range.range()])?;
         }
       }
       writeln!(f)
@@ -339,12 +341,12 @@ fn print_stmt(
         f,
         "DEF FN {}({}) = ",
         if let Some(name) = name {
-          &text[name.utf8_range()]
+          &text[name.range()]
         } else {
           "???"
         },
         if let Some(param) = param {
-          &text[param.utf8_range()]
+          &text[param.range()]
         } else {
           "???"
         },
@@ -353,7 +355,7 @@ fn print_stmt(
       writeln!(f)
     }
     StmtKind::Del(range) => {
-      writeln!(f, "DEL [{:?}]", &text[range.utf8_range()])
+      writeln!(f, "DEL [{:?}]", &text[range.range()])
     }
     StmtKind::Dim(vars) => {
       write!(f, "DIM ")?;
@@ -380,7 +382,7 @@ fn print_stmt(
       writeln!(f)
     }
     StmtKind::Edit(range) => {
-      writeln!(f, "EDIT [{:?}]", &text[range.utf8_range()])
+      writeln!(f, "EDIT [{:?}]", &text[range.range()])
     }
     StmtKind::Ellipse(args) => {
       write!(f, "ELLIPSE ")?;
@@ -407,7 +409,7 @@ fn print_stmt(
       writeln!(f)
     }
     StmtKind::Files(range) => {
-      writeln!(f, "FILES [{:?}]", &text[range.utf8_range()])
+      writeln!(f, "FILES [{:?}]", &text[range.range()])
     }
     StmtKind::Flash => writeln!(f, "FLASH"),
     StmtKind::For {
@@ -417,7 +419,7 @@ fn print_stmt(
       step,
     } => {
       if let Some(var) = var {
-        write!(f, "FOR {} = ", &text[var.utf8_range()])?;
+        write!(f, "FOR {} = ", &text[var.range()])?;
       } else {
         write!(f, "FOR ??? = ")?;
       }
@@ -439,7 +441,7 @@ fn print_stmt(
     }
     StmtKind::GoSub(label) => {
       if let Some((range, label)) = label {
-        assert_eq!(text[range.utf8_range()].parse::<Label>(), Ok(*label));
+        assert_eq!(text[range.range()].parse::<Label>(), Ok(*label));
         writeln!(f, "GOSUB {}", label.0)
       } else {
         writeln!(f, "GOSUB")
@@ -451,7 +453,7 @@ fn print_stmt(
     } => {
       let goto = if *has_goto_keyword { "GOTO" } else { "[GOTO]" };
       if let Some((range, label)) = label {
-        assert_eq!(text[range.utf8_range()].parse::<Label>(), Ok(*label));
+        assert_eq!(text[range.range()].parse::<Label>(), Ok(*label));
         writeln!(f, "{} {}", goto, label.0)
       } else {
         writeln!(f, "{}", goto)
@@ -492,7 +494,7 @@ fn print_stmt(
       write!(f, "INPUT ")?;
       match source {
         InputSource::Keyboard(Some(range)) => {
-          write!(f, "<STR: {}>; ", &text[range.utf8_range()])?;
+          write!(f, "<STR: {}>; ", &text[range.range()])?;
         }
         InputSource::Keyboard(None) => {}
         InputSource::File(filenum) => {
@@ -513,7 +515,7 @@ fn print_stmt(
     }
     StmtKind::Inverse => writeln!(f, "INVERSE"),
     StmtKind::Kill(range) => {
-      writeln!(f, "KILL [{:?}]", &text[range.utf8_range()])
+      writeln!(f, "KILL [{:?}]", &text[range.range()])
     }
     StmtKind::Let { var, value } => {
       write!(f, "LET ")?;
@@ -535,10 +537,10 @@ fn print_stmt(
       writeln!(f)
     }
     StmtKind::List(range) => {
-      writeln!(f, "LIST [{:?}]", &text[range.utf8_range()])
+      writeln!(f, "LIST [{:?}]", &text[range.range()])
     }
     StmtKind::Load(range) => {
-      writeln!(f, "LOAD [{:?}]", &text[range.utf8_range()])
+      writeln!(f, "LOAD [{:?}]", &text[range.range()])
     }
     StmtKind::Locate { row, column } => {
       write!(f, "LOCATE ")?;
@@ -559,7 +561,7 @@ fn print_stmt(
       writeln!(f)
     }
     StmtKind::New(range) => {
-      writeln!(f, "NEW [{:?}]", &text[range.utf8_range()])
+      writeln!(f, "NEW [{:?}]", &text[range.range()])
     }
     StmtKind::Next { vars } => {
       write!(f, "NEXT ")?;
@@ -570,7 +572,7 @@ fn print_stmt(
         }
         comma = true;
         if let Some(var) = var {
-          write!(f, "{}", &text[var.utf8_range()])?;
+          write!(f, "{}", &text[var.range()])?;
         } else {
           write!(f, "???")?;
         }
@@ -598,7 +600,7 @@ fn print_stmt(
         }
         comma = true;
         if let Some(label) = label {
-          assert_eq!(text[range.utf8_range()].parse::<Label>(), Ok(*label));
+          assert_eq!(text[range.range()].parse::<Label>(), Ok(*label));
           write!(f, "{}", label.0)?;
         } else {
           write!(f, "<{:?}>", range)?;
@@ -669,14 +671,14 @@ fn print_stmt(
       writeln!(f)
     }
     StmtKind::Rem(range) => {
-      writeln!(f, "REM [{:?}]", &text[range.utf8_range()])
+      writeln!(f, "REM [{:?}]", &text[range.range()])
     }
     StmtKind::Rename(range) => {
-      writeln!(f, "RENAME [{:?}]", &text[range.utf8_range()])
+      writeln!(f, "RENAME [{:?}]", &text[range.range()])
     }
     StmtKind::Restore(label) => {
       if let Some((range, label)) = label {
-        assert_eq!(text[range.utf8_range()].parse::<Label>(), Ok(*label));
+        assert_eq!(text[range.range()].parse::<Label>(), Ok(*label));
         writeln!(f, "RESTORE {}", label.0)
       } else {
         writeln!(f, "RESTORE")
@@ -691,13 +693,13 @@ fn print_stmt(
       writeln!(f)
     }
     StmtKind::Run(range) => {
-      writeln!(f, "RUN [{:?}]", &text[range.utf8_range()])
+      writeln!(f, "RUN [{:?}]", &text[range.range()])
     }
     StmtKind::Save(range) => {
-      writeln!(f, "SAVE [{:?}]", &text[range.utf8_range()])
+      writeln!(f, "SAVE [{:?}]", &text[range.range()])
     }
     StmtKind::Stop(range) => {
-      writeln!(f, "STOP [{:?}]", &text[range.utf8_range()])
+      writeln!(f, "STOP [{:?}]", &text[range.range()])
     }
     StmtKind::Swap { left, right } => {
       write!(f, "SWAP ")?;

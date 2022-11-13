@@ -1272,7 +1272,8 @@ impl FileHandle for DefaultFileHandle {
 mod tests {
   use super::*;
   use crate::machine::EmojiVersion;
-  use crate::vm::ByteString;
+  use crate::util::utf16string::Utf16String;
+use crate::vm::ByteString;
   use insta::assert_snapshot;
   use pretty_assertions::assert_eq;
   use std::sync::Once;
@@ -1322,7 +1323,7 @@ mod tests {
   }
 
   fn string(str: &str) -> ByteString {
-    ByteString::from_str(str, EmojiVersion::V2, true).0
+    ByteString::from_utf16str(Utf16String::from(str), EmojiVersion::V2, true).0
   }
 
   fn pad_text_buffer(mut s: ByteString) -> ByteString {

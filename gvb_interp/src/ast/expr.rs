@@ -1,6 +1,9 @@
 #[cfg(test)]
 use id_arena::Arena;
 
+#[cfg(test)]
+use crate::util::utf16string::Utf16Str;
+
 use super::{ExprId, NonEmptyVec, Range};
 use num_derive::FromPrimitive;
 #[cfg(test)]
@@ -258,24 +261,24 @@ impl Expr {
   pub fn print(
     &self,
     expr_arena: &Arena<Expr>,
-    text: &str,
+    text: &Utf16Str,
     f: &mut impl Write,
   ) -> fmt::Result {
     let range = self.range.clone();
     match &self.kind {
-      ExprKind::Ident => write!(f, "<ID: {}>", &text[range.utf8_range()]),
+      ExprKind::Ident => write!(f, "<ID: {}>", &text[range.range()]),
       ExprKind::StringLit => {
-        write!(f, "<STR: {}>", &text[range.utf8_range()])
+        write!(f, "<STR: {}>", &text[range.range()])
       }
       ExprKind::NumberLit => {
-        write!(f, "<NUM: {}>", &text[range.utf8_range()])
+        write!(f, "<NUM: {}>", &text[range.range()])
       }
       ExprKind::SysFuncCall {
         func: (func_range, kind),
         args,
       } => {
         assert_eq!(
-          text[func_range.utf8_range()].to_ascii_uppercase(),
+          text[func_range.range()].to_ascii_uppercase(),
           format!("{:?}", kind)
         );
         write!(f, "{:?}(", kind)?;
@@ -291,7 +294,7 @@ impl Expr {
       }
       ExprKind::UserFuncCall { func, arg } => {
         if let Some(func) = func {
-          write!(f, "FN {}(", &text[func.utf8_range()])?;
+          write!(f, "FN {}(", &text[func.range()])?;
         } else {
           write!(f, "FN ???(")?;
         }
@@ -304,7 +307,7 @@ impl Expr {
         rhs,
       } => {
         assert_eq!(
-          text[op_range.utf8_range()]
+          text[op_range.range()]
             .to_owned()
             .replace(' ', "")
             .to_ascii_uppercase(),
@@ -321,7 +324,7 @@ impl Expr {
         arg,
       } => {
         assert_eq!(
-          text[op_range.utf8_range()].to_owned().to_ascii_uppercase(),
+          text[op_range.range()].to_owned().to_ascii_uppercase(),
           format!("{:?}", kind)
         );
         write!(f, "({:?} ", kind)?;
@@ -330,7 +333,7 @@ impl Expr {
       }
       ExprKind::Index { name, indices } => {
         if let Some(name) = name {
-          write!(f, "{}[", &text[name.utf8_range()])?;
+          write!(f, "{}[", &text[name.range()])?;
         } else {
           write!(f, "???[")?;
         }

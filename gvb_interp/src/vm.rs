@@ -295,11 +295,11 @@ where
     Ok(())
   }
 
-  pub fn byte_string_from_str(
+  pub fn byte_string_from_utf16str(
     &self,
-    s: &str,
+    s: &Utf16Str,
   ) -> (crate::ByteString, Vec<crate::StringProblem>) {
-    ByteString::from_str(s, self.emoji_version, false)
+    ByteString::from_utf16str(s, self.emoji_version, false)
   }
 
   pub fn string_from_byte_string_lossy(&self, s: ByteString) -> String {

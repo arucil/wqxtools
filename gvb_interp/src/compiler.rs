@@ -1,5 +1,6 @@
 use crate::parser::ParseResult;
 use crate::util::mbf5::{Mbf5, ParseRealError};
+use crate::util::utf16string::{Utf16Str, Utf16String};
 use crate::{ast::*, diagnostic::*, HashMap};
 use smallvec::SmallVec;
 use std::fmt::{self, Display, Formatter};
@@ -22,7 +23,7 @@ pub trait CodeEmitter {
   fn emit_datum(
     &mut self,
     range: Range,
-    datum: String,
+    datum: Utf16String,
     is_quoted: bool,
   ) -> (Self::DatumIndex, usize);
 
@@ -67,7 +68,7 @@ pub trait CodeEmitter {
   fn emit_assign_real(&mut self, range: Range);
   fn emit_assign_str(&mut self, range: Range);
 
-  fn make_symbol(&mut self, name: String) -> Self::Symbol;
+  fn make_symbol(&mut self, name: Utf16String) -> Self::Symbol;
 
   fn emit_gosub(&mut self, range: Range) -> Self::Addr;
 
@@ -122,7 +123,7 @@ pub trait CodeEmitter {
   /// Returns length of string.
   ///
   /// `range` includes quotes
-  fn emit_string(&mut self, range: Range, str: String) -> usize;
+  fn emit_string(&mut self, range: Range, str: Utf16String) -> usize;
 
   fn emit_inkey(&mut self, range: Range);
   fn emit_index(
@@ -152,7 +153,7 @@ pub fn compile_prog<E: CodeEmitter>(
 ) {
   let text = text.as_ref();
   let mut state = CompileState {
-    text: "",
+    text: Utf16String::new(),
     code_emitter,
     pending_jump_labels: vec![],
     pending_datum_indices: vec![],
@@ -166,7 +167,7 @@ pub fn compile_prog<E: CodeEmitter>(
 }
 
 pub(crate) fn compile_fn_body<E: CodeEmitter>(
-  text: impl AsRef<str>,
+  text: impl AsRef<Utf16Str>,
   expr: &mut ParseResult<ExprId>,
   code_emitter: &mut E,
 ) {
@@ -210,7 +211,7 @@ struct PendingDatumIndex<E: CodeEmitter> {
 }
 
 struct CompileState<'a, 'b, E: CodeEmitter, T> {
-  text: &'b str,
+  text: &'b Utf16Str,
   code_emitter: &'a mut E,
   pending_jump_labels: Vec<PendingJumpLabel<E>>,
   pending_datum_indices: Vec<PendingDatumIndex<E>>,

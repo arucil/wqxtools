@@ -5,9 +5,10 @@ use crate::ast::{
   BinaryOpKind, Datum, Eol, Expr, ExprId, ExprKind, FieldSpec, FileMode,
   InputSource, Keyword, Label, NodeBuilder, NonEmptyVec, ParseLabelError,
   PrintElement, ProgramLine, Punc, Range, Stmt, StmtId, StmtKind, SysFuncKind,
-  TokenKind, UnaryOpKind, WriteElement, CharIndex, CharOffset,
+  TokenKind, UnaryOpKind, WriteElement,
 };
 use crate::diagnostic::Diagnostic;
+use crate::util::utf16string::Utf16Str;
 use id_arena::Arena;
 use smallvec::{smallvec, Array, SmallVec};
 use std::fmt::Write;
@@ -23,7 +24,7 @@ pub struct ParseResult<T> {
 }
 
 #[cfg(test)]
-pub fn parse_prog(input: &str) -> Program {
+pub fn parse_prog(input: &Utf16Str) -> Program {
   let mut line_start = 0;
   let mut lines = vec![];
   while let Some(eol) = input[line_start..].find('\n') {
@@ -36,7 +37,9 @@ pub fn parse_prog(input: &str) -> Program {
   Program { lines }
 }
 
-pub fn parse_expr(input: &str) -> (ParseResult<ExprId>, Option<SymbolSet>) {
+pub fn parse_expr(
+  input: &Utf16Str,
+) -> (ParseResult<ExprId>, Option<SymbolSet>) {
   let node_builder = ArenaNodeBuilder {
     stmt_arena: Arena::new(),
     expr_arena: Arena::new(),
@@ -47,7 +50,7 @@ pub fn parse_expr(input: &str) -> (ParseResult<ExprId>, Option<SymbolSet>) {
   let expr = parser.parse_expr();
   if parser.token.1 != TokenKind::Eof {
     parser
-      .add_error(Range::new(parser.token.0.start, CharIndex::end_of(input)), "多余的代码");
+      .add_error(Range::new(parser.token.0.start, input.len()), "多余的代码");
   }
 
   let expected_symbols_at_eof = parser.expected_symbols_at_eof.take();
@@ -57,13 +60,13 @@ pub fn parse_expr(input: &str) -> (ParseResult<ExprId>, Option<SymbolSet>) {
 
 /// `line_with_eol` may contain newline.
 pub fn parse_line(
-  line_with_eol: &str,
+  line_with_eol: &Utf16Str,
 ) -> (ParseResult<ProgramLine>, Option<SymbolSet>) {
-  let bytes = line_with_eol.as_bytes();
+  let code_units = line_with_eol.as_slice();
   let line;
   let eol;
-  if let Some(b'\n') = bytes.last().copied() {
-    if bytes.len() > 1 && bytes[bytes.len() - 2] == b'\r' {
+  if let Some(b'\n' as u16) = code_units.last() {
+    if code_units.len() > 1 && code_units[code_units.len() - 2] == b'\r' {
       eol = Eol::CrLf;
       line = &line_with_eol[..line_with_eol.len() - 2];
     } else {
@@ -105,7 +108,10 @@ pub fn parse_line(
 
   let stmts = parser.parse_stmts(false);
   if stmts.is_empty() {
-    parser.add_error(Range::new(CharIndex::start(), CharIndex::end_of(line)), "缺少语句");
+    parser.add_error(
+      Range::new(CharIndex::start(), CharIndex::end_of(line)),
+      "缺少语句",
+    );
   }
 
   let expected_symbols_at_eof = parser.expected_symbols_at_eof.take();
@@ -137,11 +143,11 @@ impl NodeBuilder for ArenaNodeBuilder {
 }
 
 struct LineParser<'a, T: NodeBuilder> {
-  offset: CharIndex,
-  input: &'a str,
+  offset: usize,
+  input: &'a Utf16Str,
   token: (Range, TokenKind),
   label_value: Option<Result<Label, ParseLabelError>>,
-  last_token_end: CharIndex,
+  last_token_end: usize,
   node_builder: T,
   diagnostics: Vec<Diagnostic>,
   expected_symbols_at_eof: Option<SymbolSet>,
@@ -204,7 +210,7 @@ macro_rules! setup_follow {
 }
 
 impl<'a, T: NodeBuilder> LineParser<'a, T> {
-  fn new(input: &'a str, node_builder: T) -> Self {
+  fn new(input: &'a Utf16Str, node_builder: T) -> Self {
     Self {
       offset: CharIndex::start(),
       input,
@@ -229,7 +235,7 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
   }
 
   fn advance_ascii(&mut self, count: i32) {
-    self.offset += CharOffset::new_ascii(count);
+    self.offset += CharOffset::new(count);
     self.input = &self.input[count as usize..];
   }
 
@@ -751,7 +757,13 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
         Some(b':') | None => break,
         Some(b',') => self.advance(1),
         _ => {
-          self.add_error(Range::new(self.offset, self.offset.offset(self.input.chars().next().unwrap())), "缺少逗号");
+          self.add_error(
+            Range::new(
+              self.offset,
+              self.offset.offset(self.input.chars().next().unwrap()),
+            ),
+            "缺少逗号",
+          );
         }
       }
     }
@@ -2459,13 +2471,13 @@ mod lex_tests {
     assert_eq!(
       read_tokens(r#"   ><  =^ ; (   "#),
       vec![
-        (Range::new_ascii(3, 4), TokenKind::Punc(Punc::Gt)),
-        (Range::new_ascii(4, 5), TokenKind::Punc(Punc::Lt)),
-        (Range::new_ascii(7, 8), TokenKind::Punc(Punc::Eq)),
-        (Range::new_ascii(8, 9), TokenKind::Punc(Punc::Caret)),
-        (Range::new_ascii(10, 11), TokenKind::Punc(Punc::Semicolon)),
-        (Range::new_ascii(12, 13), TokenKind::Punc(Punc::LParen)),
-        (Range::empty_ascii(16), TokenKind::Eof),
+        (Range::new(3, 4), TokenKind::Punc(Punc::Gt)),
+        (Range::new(4, 5), TokenKind::Punc(Punc::Lt)),
+        (Range::new(7, 8), TokenKind::Punc(Punc::Eq)),
+        (Range::new(8, 9), TokenKind::Punc(Punc::Caret)),
+        (Range::new(10, 11), TokenKind::Punc(Punc::Semicolon)),
+        (Range::new(12, 13), TokenKind::Punc(Punc::LParen)),
+        (Range::empty(16), TokenKind::Eof),
       ]
     );
   }
@@ -2475,9 +2487,9 @@ mod lex_tests {
     assert_eq!(
       read_tokens(r#"   "Fo和1" "3   "#),
       vec![
-        (Range::new_ascii(3, 11), TokenKind::String),
-        (Range::new_ascii(12, 17), TokenKind::String),
-        (Range::empty_ascii(17), TokenKind::Eof),
+        (Range::new(3, 11), TokenKind::String),
+        (Range::new(12, 17), TokenKind::String),
+        (Range::empty(17), TokenKind::Eof),
       ]
     );
   }
@@ -2491,10 +2503,10 @@ mod lex_tests {
       assert_eq!(
         read_tokens(r#"  134A$ 0"#),
         vec![
-          (Range::new_ascii(2, 5), TokenKind::Float),
-          (Range::new_ascii(5, 7), TokenKind::Ident),
-          (Range::new_ascii(8, 9), TokenKind::Float),
-          (Range::empty_ascii(9), TokenKind::Eof),
+          (Range::new(2, 5), TokenKind::Float),
+          (Range::new(5, 7), TokenKind::Ident),
+          (Range::new(8, 9), TokenKind::Float),
+          (Range::empty(9), TokenKind::Eof),
         ]
       );
     }
@@ -2504,11 +2516,11 @@ mod lex_tests {
       assert_eq!(
         read_tokens(r#"  0.14   -147.  .1"#),
         vec![
-          (Range::new_ascii(2, 6), TokenKind::Float),
-          (Range::new_ascii(9, 10), TokenKind::Punc(Punc::Minus)),
-          (Range::new_ascii(10, 14), TokenKind::Float),
-          (Range::new_ascii(16, 18), TokenKind::Float),
-          (Range::empty_ascii(18), TokenKind::Eof),
+          (Range::new(2, 6), TokenKind::Float),
+          (Range::new(9, 10), TokenKind::Punc(Punc::Minus)),
+          (Range::new(10, 14), TokenKind::Float),
+          (Range::new(16, 18), TokenKind::Float),
+          (Range::empty(18), TokenKind::Eof),
         ]
       );
     }
@@ -2518,15 +2530,15 @@ mod lex_tests {
       assert_eq!(
         read_tokens(r#"  5E+17 .E3 , 1.e-14 , 12.3e45 , .E+  "#),
         vec![
-          (Range::new_ascii(2, 7), TokenKind::Float),
-          (Range::new_ascii(8, 11), TokenKind::Float),
-          (Range::new_ascii(12, 13), TokenKind::Punc(Punc::Comma)),
-          (Range::new_ascii(14, 20), TokenKind::Float),
-          (Range::new_ascii(21, 22), TokenKind::Punc(Punc::Comma)),
-          (Range::new_ascii(23, 30), TokenKind::Float),
-          (Range::new_ascii(31, 32), TokenKind::Punc(Punc::Comma)),
-          (Range::new_ascii(33, 36), TokenKind::Float),
-          (Range::empty_ascii(38), TokenKind::Eof),
+          (Range::new(2, 7), TokenKind::Float),
+          (Range::new(8, 11), TokenKind::Float),
+          (Range::new(12, 13), TokenKind::Punc(Punc::Comma)),
+          (Range::new(14, 20), TokenKind::Float),
+          (Range::new(21, 22), TokenKind::Punc(Punc::Comma)),
+          (Range::new(23, 30), TokenKind::Float),
+          (Range::new(31, 32), TokenKind::Punc(Punc::Comma)),
+          (Range::new(33, 36), TokenKind::Float),
+          (Range::empty(38), TokenKind::Eof),
         ]
       );
     }
@@ -2536,14 +2548,14 @@ mod lex_tests {
       assert_eq!(
         read_tokens(r#"  123 456  7   8 , 12 . 3 , 12 . 3 E + 4 5, . e  -  "#),
         vec![
-          (Range::new_ascii(2, 16), TokenKind::Float),
-          (Range::new_ascii(17, 18), TokenKind::Punc(Punc::Comma)),
-          (Range::new_ascii(19, 25), TokenKind::Float),
-          (Range::new_ascii(26, 27), TokenKind::Punc(Punc::Comma)),
-          (Range::new_ascii(28, 42), TokenKind::Float),
-          (Range::new_ascii(42, 43), TokenKind::Punc(Punc::Comma)),
-          (Range::new_ascii(44, 50), TokenKind::Float),
-          (Range::empty_ascii(52), TokenKind::Eof),
+          (Range::new(2, 16), TokenKind::Float),
+          (Range::new(17, 18), TokenKind::Punc(Punc::Comma)),
+          (Range::new(19, 25), TokenKind::Float),
+          (Range::new(26, 27), TokenKind::Punc(Punc::Comma)),
+          (Range::new(28, 42), TokenKind::Float),
+          (Range::new(42, 43), TokenKind::Punc(Punc::Comma)),
+          (Range::new(44, 50), TokenKind::Float),
+          (Range::empty(52), TokenKind::Eof),
         ]
       );
     }
@@ -2558,10 +2570,10 @@ mod lex_tests {
       assert_eq!(
         read_tokens(r#"  foo : Ba7 123 "#),
         vec![
-          (Range::new_ascii(2, 5), TokenKind::Ident),
-          (Range::new_ascii(6, 7), TokenKind::Punc(Punc::Colon)),
-          (Range::new_ascii(8, 15), TokenKind::Ident),
-          (Range::empty_ascii(16), TokenKind::Eof),
+          (Range::new(2, 5), TokenKind::Ident),
+          (Range::new(6, 7), TokenKind::Punc(Punc::Colon)),
+          (Range::new(8, 15), TokenKind::Ident),
+          (Range::empty(16), TokenKind::Eof),
         ]
       );
     }
@@ -2571,10 +2583,10 @@ mod lex_tests {
       assert_eq!(
         read_tokens(r#"  foo%bar$ foo bar "#),
         vec![
-          (Range::new_ascii(2, 6), TokenKind::Ident),
-          (Range::new_ascii(6, 10), TokenKind::Ident),
-          (Range::new_ascii(11, 18), TokenKind::Ident),
-          (Range::empty_ascii(19), TokenKind::Eof),
+          (Range::new(2, 6), TokenKind::Ident),
+          (Range::new(6, 10), TokenKind::Ident),
+          (Range::new(11, 18), TokenKind::Ident),
+          (Range::empty(19), TokenKind::Eof),
         ]
       );
     }
@@ -2584,10 +2596,10 @@ mod lex_tests {
       assert_eq!(
         read_tokens(r#"  foo b7R 123 Z%  a b c $x y z "#),
         vec![
-          (Range::new_ascii(2, 16), TokenKind::Ident),
-          (Range::new_ascii(18, 25), TokenKind::Ident),
-          (Range::new_ascii(25, 30), TokenKind::Ident),
-          (Range::empty_ascii(31), TokenKind::Eof),
+          (Range::new(2, 16), TokenKind::Ident),
+          (Range::new(18, 25), TokenKind::Ident),
+          (Range::new(25, 30), TokenKind::Ident),
+          (Range::empty(31), TokenKind::Eof),
         ]
       );
     }
@@ -2597,9 +2609,9 @@ mod lex_tests {
       assert_eq!(
         read_tokens(r#"  lEt foo leti%  "#),
         vec![
-          (Range::new_ascii(2, 5), TokenKind::Keyword(Keyword::Let)),
-          (Range::new_ascii(6, 15), TokenKind::Ident),
-          (Range::empty_ascii(17), TokenKind::Eof),
+          (Range::new(2, 5), TokenKind::Keyword(Keyword::Let)),
+          (Range::new(6, 15), TokenKind::Ident),
+          (Range::empty(17), TokenKind::Eof),
         ]
       );
     }
@@ -2609,10 +2621,13 @@ mod lex_tests {
       assert_eq!(
         read_tokens(r#"  AsC cHr$ leti%  "#),
         vec![
-          (Range::new_ascii(2, 5), TokenKind::SysFunc(SysFuncKind::Asc)),
-          (Range::new_ascii(6, 10), TokenKind::SysFunc(SysFuncKind::Chr)),
-          (Range::new_ascii(11, 16), TokenKind::Ident),
-          (Range::empty_ascii(18), TokenKind::Eof),
+          (Range::new(2, 5), TokenKind::SysFunc(SysFuncKind::Asc)),
+          (
+            Range::new(6, 10),
+            TokenKind::SysFunc(SysFuncKind::Chr)
+          ),
+          (Range::new(11, 16), TokenKind::Ident),
+          (Range::empty(18), TokenKind::Eof),
         ]
       );
     }
