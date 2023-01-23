@@ -2,7 +2,7 @@
 use id_arena::Arena;
 
 #[cfg(test)]
-use crate::util::utf16string::Utf16Str;
+use widestring::Utf16Str;
 
 use super::{ExprId, NonEmptyVec, Range};
 use num_derive::FromPrimitive;
@@ -10,6 +10,8 @@ use num_derive::FromPrimitive;
 use std::fmt::Write;
 use std::fmt::{self, Debug, Display, Formatter};
 use std::str::FromStr;
+#[cfg(test)]
+use widestring::utf16str;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Expr {
@@ -117,47 +119,48 @@ impl Expr {
   }
 }
 
+static STR_TO_SYS_FUNC_KIND: phf::Map<&str, SysFuncKind> = phf::phf_map! {
+  "abs" => SysFuncKind::Abs,
+  "asc" => SysFuncKind::Asc,
+  "atn" => SysFuncKind::Atn,
+  "chr$" => SysFuncKind::Chr,
+  "cos" => SysFuncKind::Cos,
+  "cvi$" => SysFuncKind::Cvi,
+  "cvs$" => SysFuncKind::Cvs,
+  "eof" => SysFuncKind::Eof,
+  "exp" => SysFuncKind::Exp,
+  "int" => SysFuncKind::Int,
+  "left$" => SysFuncKind::Left,
+  "len" => SysFuncKind::Len,
+  "lof" => SysFuncKind::Lof,
+  "log" => SysFuncKind::Log,
+  "mid$" => SysFuncKind::Mid,
+  "mki$" => SysFuncKind::Mki,
+  "mks$" => SysFuncKind::Mks,
+  "peek" => SysFuncKind::Peek,
+  "pos" => SysFuncKind::Pos,
+  "right$" => SysFuncKind::Right,
+  "rnd" => SysFuncKind::Rnd,
+  "sgn" => SysFuncKind::Sgn,
+  "sin" => SysFuncKind::Sin,
+  "sqr" => SysFuncKind::Sqr,
+  "str$" => SysFuncKind::Str,
+  "tan" => SysFuncKind::Tan,
+  "val" => SysFuncKind::Val,
+  "spc" => SysFuncKind::Spc,
+  "tab" => SysFuncKind::Tab,
+
+  "fopen" => SysFuncKind::Fopen,
+  "fgetc" => SysFuncKind::Fgetc,
+  "ftell" => SysFuncKind::Ftell,
+  "point" => SysFuncKind::Point,
+  "checkkey" => SysFuncKind::CheckKey,
+};
+
 impl FromStr for SysFuncKind {
   type Err = ();
   fn from_str(s: &str) -> Result<Self, ()> {
-    match s {
-      "abs" => Ok(Self::Abs),
-      "asc" => Ok(Self::Asc),
-      "atn" => Ok(Self::Atn),
-      "chr$" => Ok(Self::Chr),
-      "cos" => Ok(Self::Cos),
-      "cvi$" => Ok(Self::Cvi),
-      "cvs$" => Ok(Self::Cvs),
-      "eof" => Ok(Self::Eof),
-      "exp" => Ok(Self::Exp),
-      "int" => Ok(Self::Int),
-      "left$" => Ok(Self::Left),
-      "len" => Ok(Self::Len),
-      "lof" => Ok(Self::Lof),
-      "log" => Ok(Self::Log),
-      "mid$" => Ok(Self::Mid),
-      "mki$" => Ok(Self::Mki),
-      "mks$" => Ok(Self::Mks),
-      "peek" => Ok(Self::Peek),
-      "pos" => Ok(Self::Pos),
-      "right$" => Ok(Self::Right),
-      "rnd" => Ok(Self::Rnd),
-      "sgn" => Ok(Self::Sgn),
-      "sin" => Ok(Self::Sin),
-      "sqr" => Ok(Self::Sqr),
-      "str$" => Ok(Self::Str),
-      "tan" => Ok(Self::Tan),
-      "val" => Ok(Self::Val),
-      "spc" => Ok(Self::Spc),
-      "tab" => Ok(Self::Tab),
-
-      "fopen" => Ok(Self::Fopen),
-      "fgetc" => Ok(Self::Fgetc),
-      "ftell" => Ok(Self::Ftell),
-      "point" => Ok(Self::Point),
-      "checkkey" => Ok(Self::CheckKey),
-      _ => Err(()),
-    }
+    STR_TO_SYS_FUNC_KIND.get(s).ok_or(()).copied()
   }
 }
 
@@ -264,6 +267,8 @@ impl Expr {
     text: &Utf16Str,
     f: &mut impl Write,
   ) -> fmt::Result {
+    use crate::util::utf16str_ext::Utf16StrExt;
+
     let range = self.range.clone();
     match &self.kind {
       ExprKind::Ident => write!(f, "<ID: {}>", &text[range.range()]),
@@ -309,7 +314,7 @@ impl Expr {
         assert_eq!(
           text[op_range.range()]
             .to_owned()
-            .replace(' ', "")
+            .replace_char(' ', utf16str!(""))
             .to_ascii_uppercase(),
           format!("{:?}", kind)
         );

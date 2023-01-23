@@ -1,10 +1,11 @@
 use crate::parser::ParseResult;
 use crate::util::mbf5::{Mbf5, ParseRealError};
-use crate::util::utf16string::{Utf16Str, Utf16String};
+use crate::util::utf16str_ext::Utf16StrExt;
 use crate::{ast::*, diagnostic::*, HashMap};
 use smallvec::SmallVec;
 use std::fmt::{self, Display, Formatter};
 use std::num::NonZeroUsize;
+use widestring::{Utf16Str, Utf16String};
 
 pub trait CodeEmitter {
   type Symbol: Copy;
@@ -68,7 +69,7 @@ pub trait CodeEmitter {
   fn emit_assign_real(&mut self, range: Range);
   fn emit_assign_str(&mut self, range: Range);
 
-  fn make_symbol(&mut self, name: Utf16String) -> Self::Symbol;
+  fn make_symbol(&mut self, name: String) -> Self::Symbol;
 
   fn emit_gosub(&mut self, range: Range) -> Self::Addr;
 
@@ -147,13 +148,13 @@ pub trait CodeEmitter {
 }
 
 pub fn compile_prog<E: CodeEmitter>(
-  text: impl AsRef<str>,
+  text: impl AsRef<Utf16Str>,
   prog: &mut Program,
   code_emitter: &mut E,
 ) {
   let text = text.as_ref();
   let mut state = CompileState {
-    text: Utf16String::new(),
+    text,
     code_emitter,
     pending_jump_labels: vec![],
     pending_datum_indices: vec![],
@@ -256,7 +257,7 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E, ProgramLine> {
     unsafe { (*self.parsed).content.label.as_ref().map(|x| x.1) }
   }
 
-  fn compile_prog(&mut self, text: &'b str, prog: &mut Program) {
+  fn compile_prog(&mut self, text: &'b Utf16Str, prog: &mut Program) {
     let mut last_label = -1;
     let mut text_offset = 0;
 
@@ -630,9 +631,9 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E, ProgramLine> {
   fn compile_data(&mut self, data: &NonEmptyVec<[Datum; 1]>) {
     let mut data_index = None;
     for datum in data.iter() {
-      let text = &self.text[datum.range.utf8_range()];
+      let text = &self.text[datum.range.start..datum.range.end];
       let text = if datum.is_quoted {
-        if text.ends_with('"') {
+        if text.ends_with_char('"') {
           text[1..text.len() - 1].to_owned()
         } else {
           text[1..].to_owned()
@@ -1290,7 +1291,7 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E, ProgramLine> {
     match source {
       InputSource::Keyboard(Some(prompt)) => {
         let mut text = &self.text[prompt.start + 1..prompt.end];
-        if text.ends_with('"') {
+        if text.ends_with_char('"') {
           text = &text[..text.len() - 1];
         }
         let len = self
@@ -1616,7 +1617,7 @@ impl<'a, 'b, E: CodeEmitter, T> CompileState<'a, 'b, E, T> {
       }
       ExprKind::StringLit => {
         let mut text = &self.text[range.start + 1..range.end];
-        if text.ends_with('"') {
+        if text.ends_with_char('"') {
           text = &text[..text.len() - 1];
         }
         let len = self
@@ -1628,7 +1629,7 @@ impl<'a, 'b, E: CodeEmitter, T> CompileState<'a, 'b, E, T> {
         Type::String
       }
       ExprKind::NumberLit => {
-        let mut text = self.text[range.utf8_range()].to_owned();
+        let mut text = self.text[range.start..range.end].to_string();
         text.retain(|c| c != ' ');
         match text.parse::<Mbf5>() {
           Ok(num) => self.code_emitter.emit_number(range, num),
@@ -1937,7 +1938,7 @@ impl<'a, 'b, E: CodeEmitter, T> CompileState<'a, 'b, E, T> {
 
   #[must_use]
   fn compile_sym(&mut self, range: Range) -> (E::Symbol, Type) {
-    let mut name = self.text[range.utf8_range()].to_ascii_uppercase();
+    let mut name = self.text[range.start..range.end].to_string().to_ascii_uppercase();
     let ty = match name.as_bytes().last() {
       Some(b'%') => Type::Integer,
       Some(b'$') => Type::String,
@@ -2027,9 +2028,11 @@ mod tests {
   use crate::vm::codegen::CodeGen;
   use insta::assert_debug_snapshot;
   use pretty_assertions::assert_eq;
+  use widestring::utf16str;
 
   fn compile(text: &str) -> CodeGen {
-    let mut prog = parse_prog(text);
+    let text = Utf16String::from(text);
+    let mut prog = parse_prog(&text);
     let mut codegen = CodeGen::new(EmojiVersion::V2);
     compile_prog(text, &mut prog, &mut codegen);
     for (i, line) in prog.lines.iter().enumerate() {
@@ -2045,7 +2048,8 @@ mod tests {
   }
 
   fn compile_error(text: &str, errors: Vec<Vec<Diagnostic>>) {
-    let mut prog = parse_prog(text);
+    let text = Utf16String::from(text);
+    let mut prog = parse_prog(&text);
     let mut codegen = CodeGen::new(EmojiVersion::V2);
     compile_prog(text, &mut prog, &mut codegen);
     for (i, line) in prog.lines.iter().enumerate() {
@@ -2076,11 +2080,11 @@ mod tests {
       r#"30 a$=1:c%(2)="""#,
       vec![vec![
         Diagnostic::new_error(
-          Range::new_ascii(3, 7),
+          Range::new(3, 7),
           "赋值语句类型错误。等号左边的变量是字符串类型，而等号右边的表达式是数值类型",
         ),
         Diagnostic::new_error(
-          Range::new_ascii(8, 16),
+          Range::new(8, 16),
           "赋值语句类型错误。等号左边的数组是整数类型，而等号右边的表达式是字符串类型",
         ),
       ]],
@@ -2421,7 +2425,7 @@ mod tests {
 
   #[test]
   fn fn_body() {
-    let text = r#"x + 3 * fn f(7) - 2"#;
+    let text = utf16str!(r#"x + 3 * fn f(7) - 2"#);
     let mut prog = parse_expr(text).0;
     let mut codegen = CodeGen::new(EmojiVersion::V2);
     compile_fn_body(text, &mut prog, &mut codegen);
@@ -2431,7 +2435,7 @@ mod tests {
 
   #[test]
   fn fn_body_type_mismatch() {
-    let text = r#"x$ + chr$(i)"#;
+    let text = utf16str!(r#"x$ + chr$(i)"#);
     let mut prog = parse_expr(text).0;
     let mut codegen = CodeGen::new(EmojiVersion::V2);
     compile_fn_body(text, &mut prog, &mut codegen);

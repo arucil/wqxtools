@@ -1,5 +1,7 @@
 use crate::machine::EmojiVersion;
+use crate::util::ascii_ext::AsciiExt;
 use std::fmt::Write;
+use widestring::{Utf16String, Utf16Str};
 
 include!(concat!(env!("OUT_DIR"), "/keyword.rs"));
 
@@ -8,7 +10,7 @@ pub const DEFAULT_BASE_ADDR: u16 = 0x7000;
 pub struct BasTextDocument {
   pub base_addr: u16,
   pub guessed_emoji_version: EmojiVersion,
-  pub text: String,
+  pub text: Utf16String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -123,7 +125,7 @@ pub fn load_bas(
       EmojiVersion::V2
     }
   });
-  let mut text = String::new();
+  let mut text = Utf16String::new();
   let mut newline = false;
 
   for line in lines {
@@ -154,14 +156,14 @@ pub fn load_bas(
         i += 3;
       } else if b >= 0x80 {
         let kw = BYTE_TO_KEYWORD[&b];
-        let last = *text.as_bytes().last().unwrap();
+        let last = *text.as_slice().last().unwrap();
         let first = kw.as_bytes().first().unwrap();
         if first.is_ascii_alphabetic()
-          && (last == b'$' || last.is_ascii_alphanumeric())
+          && (last == b'$' as u16 || last.is_ascii_alphanumeric())
         {
           text.push(' ');
         } else if let "THEN" | "ELSE" | "TO" = kw {
-          if last != b' ' {
+          if last != b' ' as u16 {
             text.push(' ');
           }
         }
@@ -173,8 +175,8 @@ pub fn load_bas(
         i += 1;
       } else {
         if last_is_keyword && b.is_ascii_alphanumeric() {
-          let last = *text.as_bytes().last().unwrap();
-          if last == b'$'
+          let last = *text.as_slice().last().unwrap();
+          if last == b'$' as u16
             || last.is_ascii_alphanumeric() && (b as u8).is_ascii_alphanumeric()
           {
             text.push(' ');
@@ -201,7 +203,7 @@ pub fn load_txt(
   let base_addr = DEFAULT_BASE_ADDR;
   let mut emoji_v1_count = 0;
   let mut emoji_v2_count = 0;
-  let mut text = String::new();
+  let mut text = Utf16String::new();
 
   let mut i = 0;
   let mut line = 0;
@@ -273,7 +275,7 @@ pub fn load_txt(
 }
 
 pub fn save_bas(
-  text: impl AsRef<str>,
+  text: impl AsRef<Utf16Str>,
   emoji_version: EmojiVersion,
   base_addr: u16,
 ) -> Result<Vec<u8>, SaveError> {
@@ -463,7 +465,7 @@ pub fn save_bas(
 }
 
 pub fn save_txt(
-  text: impl AsRef<str>,
+  text: impl AsRef<Utf16Str>,
   emoji_version: EmojiVersion,
 ) -> Result<Vec<u8>, SaveError> {
   let text = text.as_ref();

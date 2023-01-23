@@ -1,6 +1,8 @@
+use std::collections::hash_map;
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
+use widestring::{utf16str, Utf16Str, Utf16String};
 
 use crate::ast::{Eol, Label, Program, ProgramLine, Range, StmtKind};
 use crate::compiler::compile_prog;
@@ -9,19 +11,20 @@ use crate::device::Device;
 use crate::machine::EmojiVersion;
 use crate::machine::MachineProps;
 use crate::parser::{parse_line, ParseResult};
+use crate::util::ascii_ext::AsciiExt;
+use crate::util::utf16str_ext::Utf16StrExt;
 use crate::HashMap;
 use crate::{CodeGen, Diagnostic, VirtualMachine};
-use std::collections::hash_map;
 
 mod binary;
 
-const DEFAULT_TEXT: &str = "10 ";
+const DEFAULT_TEXT: &Utf16Str = utf16str!("10 ");
 
 pub struct Document {
   base_addr: u16,
   emoji_version: EmojiVersion,
   machine_props: MachineProps,
-  text: String,
+  text: Utf16String,
   lines: Vec<DocLine>,
   version: DocVer,
   compile_cache: Option<CompileCache>,
@@ -71,14 +74,14 @@ pub struct Edit<'a> {
 
 #[derive(Debug)]
 pub enum EditKind<'a> {
-  Insert(&'a str),
+  Insert(&'a Utf16Str),
   Delete(usize),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ReplaceText {
   pub range: Range,
-  pub str: String,
+  pub str: Utf16String,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -144,7 +147,7 @@ impl From<binary::SaveError> for SaveDocumentError {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum MachinePropError {
-  NotFound(String),
+  NotFound(Utf16String),
   Save(binary::SaveError),
   Load(binary::LoadError<(usize, usize)>),
 }
@@ -169,7 +172,7 @@ impl Default for Document {
       machine_props: crate::machine::machines()
         [EmojiVersion::V2.default_machine_name()]
       .clone(),
-      text: DEFAULT_TEXT.to_owned(),
+      text: Utf16String::from(DEFAULT_TEXT),
       lines: text_to_doc_lines(DEFAULT_TEXT),
       version: DocVer(0),
       compile_cache: None,
@@ -340,7 +343,7 @@ impl Document {
     self.version.0 += 1;
   }
 
-  pub fn text(&self) -> &str {
+  pub fn text(&self) -> &Utf16Str {
     &self.text
   }
 
@@ -384,7 +387,7 @@ impl Document {
 
   pub fn compute_machine_name_edit(
     &self,
-    name: &str,
+    name: &Utf16Str,
   ) -> Result<ReplaceText, MachinePropError> {
     let name = name.to_ascii_uppercase();
     if let Some(props) = crate::machine::machines().get(&name) {
@@ -401,13 +404,12 @@ impl Document {
       None => {
         use std::fmt::Write;
 
-        let first_line = self.text.lines().next().unwrap();
-        let quotes =
-          first_line.as_bytes().iter().filter(|&&c| c == b'"').count();
-        let mut str = String::new();
+        let first_line = self.text.first_line();
+        let quotes = first_line.count_char('"');
+        let mut str = Utf16String::new();
         if quotes % 2 != 0 {
           str.push_str("\":");
-        } else if self.text.as_bytes()[first_line.len() - 1] != b':' {
+        } else if self.text.as_slice()[first_line.len() - 1] != b':' as u16 {
           str.push(':');
         }
         str.push_str("REM {type:");
@@ -505,7 +507,7 @@ impl Document {
         let pos = self.lines[i].line_start;
         let goto;
         let str;
-        if self.text.as_bytes().get(pos) == Some(&b' ') {
+        if match_u16c!(self.text.as_slice().get(pos), b' ') {
           goto = None;
           str = label.to_string();
         } else {
@@ -519,7 +521,7 @@ impl Document {
         Ok(AddLabelResult {
           edit: ReplaceText {
             range: Range::empty(pos),
-            str,
+            str: str.into(),
           },
           goto,
         })
@@ -540,7 +542,7 @@ impl Document {
           goto: Some(goto),
           edit: ReplaceText {
             range: Range::empty(pos),
-            str,
+            str: str.into(),
           },
         })
       }
@@ -569,7 +571,7 @@ impl Document {
           goto: Some(goto),
           edit: ReplaceText {
             range: Range::empty(pos),
-            str,
+            str: str.into(),
           },
         })
       }
@@ -675,10 +677,10 @@ impl Document {
           let str;
           if ref_range.is_empty() {
             if matches!(
-              self.text.as_bytes().get(ref_range.start - 1),
+              self.text.as_slice().get(ref_range.start - 1),
               Some(c) if c.is_ascii_alphabetic()
             ) {
-              if self.text.as_bytes().get(ref_range.start) == Some(&b' ') {
+              if match_u16c!(self.text.as_slice().get(ref_range.start), b' ') {
                 range = ref_range.offset(1);
                 str = label.to_string();
               } else {
@@ -693,17 +695,21 @@ impl Document {
             range = ref_range.clone();
             str = label.to_string();
           }
-          edits.push(ReplaceText { range, str });
+          edits.push(ReplaceText {
+            range,
+            str: str.into(),
+          });
         }
       } else {
         let pos = self.lines[i].line_start;
         edits.push(ReplaceText {
           range: Range::empty(pos),
-          str: if self.text.as_bytes().get(pos) == Some(&b' ') {
+          str: if match_u16c!(self.text.as_slice().get(pos), b' ') {
             label.to_string()
           } else {
             format!("{} ", label)
-          },
+          }
+          .into(),
         });
       }
       label -= inc;
@@ -744,13 +750,13 @@ impl LineDiagnosis {
 }
 
 fn detect_machine_props(
-  text: impl AsRef<str>,
-) -> Option<((usize, usize), Result<MachineProps, String>)> {
-  let first_line = text.as_ref().lines().next().unwrap();
-  if let Some(start) = first_line.rfind("{type:") {
+  text: impl AsRef<Utf16Str>,
+) -> Option<((usize, usize), Result<MachineProps, Utf16String>)> {
+  let first_line = text.as_ref().first_line();
+  if let Some(start) = first_line.rfind_str(utf16str!("{type:")) {
     let start = start + "{type:".len();
     let first_line = &first_line[start..];
-    if let Some(end) = first_line.find('}') {
+    if let Some(end) = first_line.find_char('}') {
       let name = first_line[..end].trim().to_ascii_uppercase();
       if !name.is_empty() {
         match crate::machine::machines().get(&name) {
@@ -765,11 +771,11 @@ fn detect_machine_props(
   None
 }
 
-fn text_to_doc_lines(text: impl AsRef<str>) -> Vec<DocLine> {
+fn text_to_doc_lines(text: impl AsRef<Utf16Str>) -> Vec<DocLine> {
   let text = text.as_ref();
   let mut lines: Vec<DocLine> = vec![];
   let mut line_start = 0;
-  while let Some(eol) = text[line_start..].find('\n') {
+  while let Some(eol) = text[line_start..].find_char('\n') {
     lines.push(DocLine {
       line_start,
       parsed: None,
@@ -797,22 +803,22 @@ fn find_line_by_position(lines: &[DocLine], pos: usize) -> usize {
   lo - 1
 }
 
-fn apply_edit(text: &mut String, lines: &mut Vec<DocLine>, edit: Edit) {
+fn apply_edit(text: &mut Utf16String, lines: &mut Vec<DocLine>, edit: Edit) {
   let mut i = find_line_by_position(lines, edit.pos);
 
   match edit.kind {
     EditKind::Insert(str) => {
-      text.insert_str(edit.pos, str);
+      text.insert_utfstr(edit.pos, str);
       lines[i].parsed = None;
 
-      if str.contains('\n') {
+      if str.contains_char('\n') {
         let line_start = lines[i].line_start;
         let line_end = lines
           .get(i + 1)
           .map_or(text.len(), |line| line.line_start + str.len());
         let line = &text[line_start..line_end];
         let mut new_lines = text_to_doc_lines(line);
-        if line.ends_with('\n') {
+        if line.ends_with_char('\n') {
           new_lines.pop();
         }
         let num_new_lines = new_lines.len();
@@ -830,10 +836,10 @@ fn apply_edit(text: &mut String, lines: &mut Vec<DocLine>, edit: Edit) {
     EditKind::Delete(del_len) => {
       lines[i].parsed = None;
       let deleted_part = &text[edit.pos..edit.pos + del_len];
-      if deleted_part.contains('\n') {
-        let deleted_lines = deleted_part.matches('\n').count();
+      if deleted_part.contains_char('\n') {
+        let deleted_lines = deleted_part.count_char('\n');
         let line_start = lines[i].line_start;
-        if edit.pos == line_start && deleted_part.ends_with('\n') {
+        if edit.pos == line_start && deleted_part.ends_with_char('\n') {
           lines.drain(i..i + deleted_lines);
           lines[i].line_start = line_start;
         } else {
@@ -843,12 +849,13 @@ fn apply_edit(text: &mut String, lines: &mut Vec<DocLine>, edit: Edit) {
       for line in &mut lines[i + 1..] {
         line.line_start -= del_len;
       }
-      text.replace_range(edit.pos..edit.pos + del_len, "");
+      text.replace_range(edit.pos..edit.pos + del_len, utf16str!(""));
     }
   }
 
   if lines.is_empty()
-    || text.ends_with('\n') && lines.last().unwrap().line_start < text.len()
+    || text.ends_with_char('\n')
+      && lines.last().unwrap().line_start < text.len()
   {
     lines.push(DocLine {
       line_start: text.len(),
@@ -903,8 +910,9 @@ mod tests {
     }
   }
 
-  fn make_lines(text: &str) -> (String, Vec<DocLine>) {
+  fn make_lines(text: &str) -> (Utf16String, Vec<DocLine>) {
     let text = text.replace('\n', "\r\n");
+    let text = Utf16String::from(text);
     let mut lines = text_to_doc_lines(&text);
     for line in &mut lines {
       line.parsed = Some(dummy_parsed());
@@ -935,7 +943,7 @@ no";
       },
     );
 
-    assert_eq!(text.as_str(), "abcd\r\nefg\r\nhim\r\nno");
+    assert_eq!(text.to_string(), "abcd\r\nefg\r\nhim\r\nno");
 
     assert_eq!(
       doc_lines(lines),
@@ -955,7 +963,7 @@ no";
       },
     );
 
-    assert_eq!(text.as_str(), "a\r\nefg\r\nhijklm\r\nno");
+    assert_eq!(text.to_string(), "a\r\nefg\r\nhijklm\r\nno");
 
     assert_eq!(
       doc_lines(lines),
@@ -975,7 +983,7 @@ no";
       },
     );
 
-    assert_eq!(text.as_str(), "aefg\r\nhijklm\r\nno");
+    assert_eq!(text.to_string(), "aefg\r\nhijklm\r\nno");
 
     assert_eq!(
       doc_lines(lines),
@@ -995,7 +1003,7 @@ no";
       },
     );
 
-    assert_eq!(text.as_str(), "abcdefg\r\nhijklm\r\nno");
+    assert_eq!(text.to_string(), "abcdefg\r\nhijklm\r\nno");
 
     assert_eq!(
       doc_lines(lines),
@@ -1015,7 +1023,7 @@ no";
       },
     );
 
-    assert_eq!(text.as_str(), "abcfg\r\nhijklm\r\nno");
+    assert_eq!(text.to_string(), "abcfg\r\nhijklm\r\nno");
 
     assert_eq!(
       doc_lines(lines),
@@ -1035,7 +1043,7 @@ no";
       },
     );
 
-    assert_eq!(text.as_str(), "efg\r\nhijklm\r\nno");
+    assert_eq!(text.to_string(), "efg\r\nhijklm\r\nno");
 
     assert_eq!(
       doc_lines(lines),
@@ -1055,7 +1063,7 @@ no";
       },
     );
 
-    assert_eq!(text.as_str(), "abcd\r\nefg\r\nhijklm\r\n");
+    assert_eq!(text.to_string(), "abcd\r\nefg\r\nhijklm\r\n");
 
     assert_eq!(
       doc_lines(lines),
@@ -1075,7 +1083,7 @@ no";
       },
     );
 
-    assert_eq!(text.as_str(), "abcd\r\nefg\r\nno");
+    assert_eq!(text.to_string(), "abcd\r\nefg\r\nno");
 
     assert_eq!(
       doc_lines(lines),
@@ -1095,7 +1103,7 @@ no";
       },
     );
 
-    assert_eq!(text.as_str(), "no");
+    assert_eq!(text.to_string(), "no");
 
     assert_eq!(doc_lines(lines), vec![doc_line(0)]);
   }
@@ -1112,7 +1120,7 @@ no";
       },
     );
 
-    assert_eq!(text.as_str(), "abcd\r\n");
+    assert_eq!(text.to_string(), "abcd\r\n");
 
     assert_eq!(doc_lines(lines), vec![doc_line(0), dirty_doc_line(6)]);
   }
@@ -1129,7 +1137,7 @@ no";
       },
     );
 
-    assert_eq!(text.as_str(), "abcd\r\nno");
+    assert_eq!(text.to_string(), "abcd\r\nno");
 
     assert_eq!(doc_lines(lines), vec![doc_line(0), doc_line(6)]);
   }
@@ -1146,7 +1154,7 @@ no";
       },
     );
 
-    assert_eq!(text.as_str(), "abjklm\r\nno");
+    assert_eq!(text.to_string(), "abjklm\r\nno");
 
     assert_eq!(doc_lines(lines), vec![dirty_doc_line(0), doc_line(8)]);
   }
@@ -1163,7 +1171,7 @@ no";
       },
     );
 
-    assert_eq!(text.as_str(), "ab\r\nno");
+    assert_eq!(text.to_string(), "ab\r\nno");
 
     assert_eq!(doc_lines(lines), vec![dirty_doc_line(0), doc_line(4)]);
   }
@@ -1180,7 +1188,7 @@ no";
       },
     );
 
-    assert_eq!(text.as_str(), "abno");
+    assert_eq!(text.to_string(), "abno");
 
     assert_eq!(doc_lines(lines), vec![dirty_doc_line(0)]);
   }
@@ -1197,7 +1205,7 @@ no";
       },
     );
 
-    assert_eq!(text.as_str(), "");
+    assert_eq!(text.to_string(), "");
 
     assert_eq!(doc_lines(lines), vec![dirty_doc_line(0),]);
   }
@@ -1210,11 +1218,11 @@ no";
       &mut lines,
       Edit {
         pos: 13,
-        kind: EditKind::Insert("123"),
+        kind: EditKind::Insert(utf16str!("123")),
       },
     );
 
-    assert_eq!(text.as_str(), "abcd\r\nefg\r\nhi123jklm\r\nno");
+    assert_eq!(text.to_string(), "abcd\r\nefg\r\nhi123jklm\r\nno");
 
     assert_eq!(
       doc_lines(lines),
@@ -1230,11 +1238,11 @@ no";
       &mut lines,
       Edit {
         pos: 0,
-        kind: EditKind::Insert("123"),
+        kind: EditKind::Insert(utf16str!("123")),
       },
     );
 
-    assert_eq!(text.as_str(), "123");
+    assert_eq!(text.to_string(), "123");
 
     assert_eq!(doc_lines(lines), vec![dirty_doc_line(0)]);
   }
@@ -1247,11 +1255,11 @@ no";
       &mut lines,
       Edit {
         pos: 11,
-        kind: EditKind::Insert("123"),
+        kind: EditKind::Insert(utf16str!("123")),
       },
     );
 
-    assert_eq!(text.as_str(), "abcd\r\nefg\r\n123hijklm\r\nno");
+    assert_eq!(text.to_string(), "abcd\r\nefg\r\n123hijklm\r\nno");
 
     assert_eq!(
       doc_lines(lines),
@@ -1267,11 +1275,11 @@ no";
       &mut lines,
       Edit {
         pos: 0,
-        kind: EditKind::Insert("123"),
+        kind: EditKind::Insert(utf16str!("123")),
       },
     );
 
-    assert_eq!(text.as_str(), "123abcd\r\nefg\r\nhijklm\r\nno");
+    assert_eq!(text.to_string(), "123abcd\r\nefg\r\nhijklm\r\nno");
 
     assert_eq!(
       doc_lines(lines),
@@ -1287,11 +1295,11 @@ no";
       &mut lines,
       Edit {
         pos: 17,
-        kind: EditKind::Insert("123"),
+        kind: EditKind::Insert(utf16str!("123")),
       },
     );
 
-    assert_eq!(text.as_str(), "abcd\r\nefg\r\nhijklm123\r\nno");
+    assert_eq!(text.to_string(), "abcd\r\nefg\r\nhijklm123\r\nno");
 
     assert_eq!(
       doc_lines(lines),
@@ -1307,11 +1315,11 @@ no";
       &mut lines,
       Edit {
         pos: 19,
-        kind: EditKind::Insert("no"),
+        kind: EditKind::Insert(utf16str!("no")),
       },
     );
 
-    assert_eq!(text.as_str(), "abcd\r\nefg\r\nhijklm\r\nno");
+    assert_eq!(text.to_string(), "abcd\r\nefg\r\nhijklm\r\nno");
 
     assert_eq!(
       doc_lines(lines),
@@ -1327,11 +1335,11 @@ no";
       &mut lines,
       Edit {
         pos: 0,
-        kind: EditKind::Insert("123\r\n45\r\n"),
+        kind: EditKind::Insert(utf16str!("123\r\n45\r\n")),
       },
     );
 
-    assert_eq!(text.as_str(), "123\r\n45\r\nabcd\r\nefg\r\nhijklm\r\nno");
+    assert_eq!(text.to_string(), "123\r\n45\r\nabcd\r\nefg\r\nhijklm\r\nno");
 
     assert_eq!(
       doc_lines(lines),
@@ -1354,11 +1362,11 @@ no";
       &mut lines,
       Edit {
         pos: 0,
-        kind: EditKind::Insert("abcd\r\nefg\r\nhijklm\r\nno"),
+        kind: EditKind::Insert(utf16str!("abcd\r\nefg\r\nhijklm\r\nno")),
       },
     );
 
-    assert_eq!(text.as_str(), "abcd\r\nefg\r\nhijklm\r\nno");
+    assert_eq!(text.to_string(), "abcd\r\nefg\r\nhijklm\r\nno");
 
     assert_eq!(
       doc_lines(lines),
@@ -1379,11 +1387,11 @@ no";
       &mut lines,
       Edit {
         pos: 0,
-        kind: EditKind::Insert("abcd\r\nefg\r\nhijklm\r\nno\r\n"),
+        kind: EditKind::Insert(utf16str!("abcd\r\nefg\r\nhijklm\r\nno\r\n")),
       },
     );
 
-    assert_eq!(text.as_str(), "abcd\r\nefg\r\nhijklm\r\nno\r\n");
+    assert_eq!(text.to_string(), "abcd\r\nefg\r\nhijklm\r\nno\r\n");
 
     assert_eq!(
       doc_lines(lines),
@@ -1405,12 +1413,12 @@ no";
       &mut lines,
       Edit {
         pos: 13,
-        kind: EditKind::Insert("123\r\n45\r\n6789"),
+        kind: EditKind::Insert(utf16str!("123\r\n45\r\n6789")),
       },
     );
 
     assert_eq!(
-      text.as_str(),
+      text.to_string(),
       "abcd\r\nefg\r\nhi123\r\n45\r\n6789jklm\r\nno"
     );
 
@@ -1435,12 +1443,12 @@ no";
       &mut lines,
       Edit {
         pos: 11,
-        kind: EditKind::Insert("123\r\n45\r\n6789"),
+        kind: EditKind::Insert(utf16str!("123\r\n45\r\n6789")),
       },
     );
 
     assert_eq!(
-      text.as_str(),
+      text.to_string(),
       "abcd\r\nefg\r\n123\r\n45\r\n6789hijklm\r\nno"
     );
 
@@ -1465,12 +1473,12 @@ no";
       &mut lines,
       Edit {
         pos: 11,
-        kind: EditKind::Insert("123\r\n45\r\n6789\r\n"),
+        kind: EditKind::Insert(utf16str!("123\r\n45\r\n6789\r\n")),
       },
     );
 
     assert_eq!(
-      text.as_str(),
+      text.to_string(),
       "abcd\r\nefg\r\n123\r\n45\r\n6789\r\nhijklm\r\nno"
     );
 
@@ -1496,12 +1504,12 @@ no";
       &mut lines,
       Edit {
         pos: 17,
-        kind: EditKind::Insert("123\r\n45\r\n6789"),
+        kind: EditKind::Insert(utf16str!("123\r\n45\r\n6789")),
       },
     );
 
     assert_eq!(
-      text.as_str(),
+      text.to_string(),
       "abcd\r\nefg\r\nhijklm123\r\n45\r\n6789\r\nno\r\n"
     );
 
@@ -1527,12 +1535,12 @@ no";
       &mut lines,
       Edit {
         pos: 17,
-        kind: EditKind::Insert("123\r\n45\r\n6789\r\n"),
+        kind: EditKind::Insert(utf16str!("123\r\n45\r\n6789\r\n")),
       },
     );
 
     assert_eq!(
-      text.as_str(),
+      text.to_string(),
       "abcd\r\nefg\r\nhijklm123\r\n45\r\n6789\r\n\r\nno"
     );
 
@@ -1558,12 +1566,12 @@ no";
       &mut lines,
       Edit {
         pos: 21,
-        kind: EditKind::Insert("123\r\n45\r\n6789"),
+        kind: EditKind::Insert(utf16str!("123\r\n45\r\n6789")),
       },
     );
 
     assert_eq!(
-      text.as_str(),
+      text.to_string(),
       "abcd\r\nefg\r\nhijklm\r\nno123\r\n45\r\n6789"
     );
 
@@ -1588,12 +1596,12 @@ no";
       &mut lines,
       Edit {
         pos: 21,
-        kind: EditKind::Insert("123\r\n45\r\n6789\r\n"),
+        kind: EditKind::Insert(utf16str!("123\r\n45\r\n6789\r\n")),
       },
     );
 
     assert_eq!(
-      text.as_str(),
+      text.to_string(),
       "abcd\r\nefg\r\nhijklm\r\nno123\r\n45\r\n6789\r\n"
     );
 
@@ -1619,12 +1627,12 @@ no";
       &mut lines,
       Edit {
         pos: 20,
-        kind: EditKind::Insert("123\r\n45\r\n6789"),
+        kind: EditKind::Insert(utf16str!("123\r\n45\r\n6789")),
       },
     );
 
     assert_eq!(
-      text.as_str(),
+      text.to_string(),
       "abcd\r\nefg\r\nhijklm\r\nn123\r\n45\r\n6789o"
     );
 
@@ -1649,12 +1657,12 @@ no";
       &mut lines,
       Edit {
         pos: 20,
-        kind: EditKind::Insert("123\r\n45\r\n6789\r\n"),
+        kind: EditKind::Insert(utf16str!("123\r\n45\r\n6789\r\n")),
       },
     );
 
     assert_eq!(
-      text.as_str(),
+      text.to_string(),
       "abcd\r\nefg\r\nhijklm\r\nn123\r\n45\r\n6789\r\no"
     );
 
@@ -1682,10 +1690,10 @@ no";
       .trim(),
     );
     assert_eq!(
-      doc.compute_machine_name_edit("PC1000A"),
+      doc.compute_machine_name_edit(utf16str!("PC1000A")),
       Ok(ReplaceText {
-        range: Range::empty_ascii(6),
-        str: ":REM {type:PC1000A}".to_owned(),
+        range: Range::empty(6),
+        str: ":REM {type:PC1000A}".into(),
       })
     );
   }
@@ -1700,10 +1708,10 @@ no";
       .trim(),
     );
     assert_eq!(
-      doc.compute_machine_name_edit("pc1000a"),
+      doc.compute_machine_name_edit(utf16str!("pc1000a")),
       Ok(ReplaceText {
-        range: Range::empty_ascii(17),
-        str: "\":REM {type:PC1000A}".to_owned(),
+        range: Range::empty(17),
+        str: "\":REM {type:PC1000A}".into(),
       })
     );
   }
@@ -1718,10 +1726,10 @@ no";
       .trim(),
     );
     assert_eq!(
-      doc.compute_machine_name_edit("tc808"),
+      doc.compute_machine_name_edit(utf16str!("tc808")),
       Ok(ReplaceText {
-        range: Range::new_ascii(17, 24),
-        str: "TC808".to_owned(),
+        range: Range::new(17, 24),
+        str: "TC808".into(),
       })
     );
   }
@@ -1760,8 +1768,8 @@ no";
         doc.compute_add_label_edit(LabelTarget::CurLine, 9),
         Ok(AddLabelResult {
           edit: ReplaceText {
-            range: Range::empty_ascii(8),
-            str: "20".to_owned(),
+            range: Range::empty(8),
+            str: "20".into(),
           },
           goto: None
         })
@@ -1783,8 +1791,8 @@ no";
         doc.compute_add_label_edit(LabelTarget::CurLine, 9),
         Ok(AddLabelResult {
           edit: ReplaceText {
-            range: Range::empty_ascii(8),
-            str: "10 ".to_owned(),
+            range: Range::empty(8),
+            str: "10 ".into(),
           },
           goto: None
         })
@@ -1793,8 +1801,8 @@ no";
         doc.compute_add_label_edit(LabelTarget::PrevLine, 22),
         Ok(AddLabelResult {
           edit: ReplaceText {
-            range: Range::empty_ascii(22),
-            str: "30 \r\n".to_owned(),
+            range: Range::empty(22),
+            str: "30 \r\n".into(),
           },
           goto: Some(25)
         })
@@ -1803,8 +1811,8 @@ no";
         doc.compute_add_label_edit(LabelTarget::NextLine, 14),
         Ok(AddLabelResult {
           edit: ReplaceText {
-            range: Range::empty_ascii(22),
-            str: "30 \r\n".to_owned(),
+            range: Range::empty(22),
+            str: "30 \r\n".into(),
           },
           goto: Some(25)
         })
@@ -1826,8 +1834,8 @@ no";
         doc.compute_add_label_edit(LabelTarget::CurLine, 9),
         Ok(AddLabelResult {
           edit: ReplaceText {
-            range: Range::empty_ascii(8),
-            str: "11 ".to_owned(),
+            range: Range::empty(8),
+            str: "11 ".into(),
           },
           goto: None
         })
@@ -1836,8 +1844,8 @@ no";
         doc.compute_add_label_edit(LabelTarget::PrevLine, 22),
         Ok(AddLabelResult {
           edit: ReplaceText {
-            range: Range::empty_ascii(22),
-            str: "25 \r\n".to_owned(),
+            range: Range::empty(22),
+            str: "25 \r\n".into(),
           },
           goto: Some(25)
         })
@@ -1846,8 +1854,8 @@ no";
         doc.compute_add_label_edit(LabelTarget::NextLine, 14),
         Ok(AddLabelResult {
           edit: ReplaceText {
-            range: Range::empty_ascii(22),
-            str: "17 \r\n".to_owned(),
+            range: Range::empty(22),
+            str: "17 \r\n".into(),
           },
           goto: Some(25)
         })
@@ -1891,8 +1899,8 @@ no";
         doc.compute_add_label_edit(LabelTarget::CurLine, 2),
         Ok(AddLabelResult {
           edit: ReplaceText {
-            range: Range::empty_ascii(0),
-            str: "10 ".to_owned(),
+            range: Range::empty(0),
+            str: "10 ".into(),
           },
           goto: None
         })
@@ -1986,8 +1994,8 @@ no";
         doc.compute_add_label_edit(LabelTarget::CurLine, 1),
         Ok(AddLabelResult {
           edit: ReplaceText {
-            range: Range::empty_ascii(0),
-            str: "10 ".to_owned(),
+            range: Range::empty(0),
+            str: "10 ".into(),
           },
           goto: None
         })
@@ -2003,8 +2011,8 @@ no";
         doc.compute_add_label_edit(LabelTarget::PrevLine, 0),
         Ok(AddLabelResult {
           edit: ReplaceText {
-            range: Range::empty_ascii(0),
-            str: "10 \r\n".to_owned(),
+            range: Range::empty(0),
+            str: "10 \r\n".into(),
           },
           goto: Some(3)
         })
@@ -2024,8 +2032,8 @@ no";
         doc.compute_add_label_edit(LabelTarget::CurLine, 1),
         Ok(AddLabelResult {
           edit: ReplaceText {
-            range: Range::empty_ascii(0),
-            str: "4 ".to_owned(),
+            range: Range::empty(0),
+            str: "4 ".into(),
           },
           goto: None
         })
@@ -2041,8 +2049,8 @@ no";
         doc.compute_add_label_edit(LabelTarget::PrevLine, 1),
         Ok(AddLabelResult {
           edit: ReplaceText {
-            range: Range::empty_ascii(0),
-            str: "4 \r\n".to_owned(),
+            range: Range::empty(0),
+            str: "4 \r\n".into(),
           },
           goto: Some(2)
         })
@@ -2107,8 +2115,8 @@ cls
         doc.compute_add_label_edit(LabelTarget::CurLine, 12),
         Ok(AddLabelResult {
           edit: ReplaceText {
-            range: Range::empty_ascii(10),
-            str: "9990 ".to_owned(),
+            range: Range::empty(10),
+            str: "9990 ".into(),
           },
           goto: None
         })
@@ -2124,8 +2132,8 @@ cls
         doc.compute_add_label_edit(LabelTarget::NextLine, 0),
         Ok(AddLabelResult {
           edit: ReplaceText {
-            range: Range::empty_ascii(8),
-            str: "\r\n9990 ".to_owned(),
+            range: Range::empty(8),
+            str: "\r\n9990 ".into(),
           },
           goto: Some(15)
         })
@@ -2145,8 +2153,8 @@ cls
         doc.compute_add_label_edit(LabelTarget::CurLine, 12),
         Ok(AddLabelResult {
           edit: ReplaceText {
-            range: Range::empty_ascii(10),
-            str: "9994 ".to_owned(),
+            range: Range::empty(10),
+            str: "9994 ".into(),
           },
           goto: None
         })
@@ -2162,8 +2170,8 @@ cls
         doc.compute_add_label_edit(LabelTarget::NextLine, 8),
         Ok(AddLabelResult {
           edit: ReplaceText {
-            range: Range::empty_ascii(8),
-            str: "\r\n9994 ".to_owned(),
+            range: Range::empty(8),
+            str: "\r\n9994 ".into(),
           },
           goto: Some(15)
         })
@@ -2229,8 +2237,8 @@ cls
         doc.compute_add_label_edit(LabelTarget::CurLine, 8),
         Ok(AddLabelResult {
           edit: ReplaceText {
-            range: Range::empty_ascii(8),
-            str: "11 ".to_owned(),
+            range: Range::empty(8),
+            str: "11 ".into(),
           },
           goto: Some(11)
         })
@@ -2239,8 +2247,8 @@ cls
         doc.compute_add_label_edit(LabelTarget::CurLine, 18),
         Ok(AddLabelResult {
           edit: ReplaceText {
-            range: Range::empty_ascii(18),
-            str: "30 ".to_owned(),
+            range: Range::empty(18),
+            str: "30 ".into(),
           },
           goto: Some(21)
         })
@@ -2249,8 +2257,8 @@ cls
         doc.compute_add_label_edit(LabelTarget::CurLine, 31),
         Ok(AddLabelResult {
           edit: ReplaceText {
-            range: Range::empty_ascii(31),
-            str: "60 ".to_owned(),
+            range: Range::empty(31),
+            str: "60 ".into(),
           },
           goto: Some(34)
         })
@@ -2291,7 +2299,7 @@ cls
       doc.compute_relabel_edits(10, 10),
       Err(RelabelError::LabelNotFound {
         label: 0,
-        range: Range::empty_ascii(15),
+        range: Range::empty(15),
       })
     );
 
@@ -2307,7 +2315,7 @@ cls
       doc.compute_relabel_edits(10, 10),
       Err(RelabelError::LabelNotFound {
         label: 0,
-        range: Range::empty_ascii(15),
+        range: Range::empty(15),
       })
     );
 
@@ -2323,7 +2331,7 @@ cls
       doc.compute_relabel_edits(10, 10),
       Err(RelabelError::LabelNotFound {
         label: 20,
-        range: Range::new_ascii(16, 18),
+        range: Range::new(16, 18),
       })
     );
 
@@ -2339,7 +2347,7 @@ cls
       doc.compute_relabel_edits(10, 10),
       Err(RelabelError::LabelNotFound {
         label: 20,
-        range: Range::new_ascii(17, 19),
+        range: Range::new(17, 19),
       })
     );
 
@@ -2355,7 +2363,7 @@ cls
       doc.compute_relabel_edits(10, 10),
       Err(RelabelError::LabelNotFound {
         label: 20,
-        range: Range::new_ascii(19, 21),
+        range: Range::new(19, 21),
       })
     );
 
@@ -2371,7 +2379,7 @@ cls
       doc.compute_relabel_edits(10, 10),
       Err(RelabelError::LabelNotFound {
         label: 20,
-        range: Range::new_ascii(24, 26),
+        range: Range::new(24, 26),
       })
     );
 
@@ -2387,7 +2395,7 @@ cls
       doc.compute_relabel_edits(10, 10),
       Err(RelabelError::LabelNotFound {
         label: 0,
-        range: Range::empty_ascii(27),
+        range: Range::empty(27),
       })
     );
   }

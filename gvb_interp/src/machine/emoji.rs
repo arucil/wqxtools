@@ -1,3 +1,5 @@
+use widestring::Utf16Str;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum EmojiVersion {
   V1,
@@ -96,7 +98,7 @@ impl EmojiVersion {
     Some(0xf800 + c as u16)
   }
 
-  pub fn default_machine_name(&self) -> &'static str {
+  pub fn default_machine_name(&self) -> &'static Utf16Str {
     unsafe {
       match self {
         Self::V2 => super::DEFAULT_MACHINE_FOR_EMOJI_VERSION_2.as_ref(),

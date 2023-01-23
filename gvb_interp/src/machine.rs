@@ -1,4 +1,4 @@
-use crate::HashMap;
+use crate::{HashMap, util::utf16str_ext::Utf16StrExt};
 use intmap::IntMap;
 use std::collections::BTreeMap;
 use std::io;
@@ -7,6 +7,7 @@ use std::str::FromStr;
 use std::time::Duration;
 use util::config;
 use yaml_rust::{Yaml, YamlLoader};
+use widestring::{Utf16String, Utf16Str};
 
 pub(crate) mod emoji;
 
@@ -102,23 +103,23 @@ impl FromStr for BrkKind {
   }
 }
 
-pub fn names() -> impl Iterator<Item = &'static str> {
-  unsafe { MACHINES.assume_init_ref().keys().map(|s| s.as_str()) }
+pub fn names() -> impl Iterator<Item = &'static Utf16Str> {
+  unsafe { MACHINES.assume_init_ref().keys().map(|s| s.as_ref()) }
 }
 
-pub(crate) fn machines() -> &'static BTreeMap<String, MachineProps> {
+pub(crate) fn machines() -> &'static BTreeMap<Utf16String, MachineProps> {
   unsafe { MACHINES.assume_init_ref() }
 }
 
-static mut MACHINES: MaybeUninit<BTreeMap<String, MachineProps>> =
+static mut MACHINES: MaybeUninit<BTreeMap<Utf16String, MachineProps>> =
   MaybeUninit::uninit();
 static mut MACHINES_INITED: bool = false;
 
-pub(crate) static mut DEFAULT_MACHINE_FOR_EMOJI_VERSION_2: String =
-  String::new();
+pub(crate) static mut DEFAULT_MACHINE_FOR_EMOJI_VERSION_2: Utf16String =
+  Utf16String::new();
 
-pub(crate) static mut DEFAULT_MACHINE_FOR_EMOJI_VERSION_1: String =
-  String::new();
+pub(crate) static mut DEFAULT_MACHINE_FOR_EMOJI_VERSION_1: Utf16String =
+  Utf16String::new();
 
 #[derive(Debug)]
 pub enum InitError {
@@ -179,18 +180,20 @@ pub fn init_machines() -> Result<(), InitError> {
   let v2 = default
     .remove(&Yaml::String("emoji-v2".into()))
     .ok_or("missing field 'emoji-v2' in 'default'")?;
-  let v2 = v2.into_string().ok_or("default.emoji-v2 is not string")?;
+  let mut v2 = v2.into_string().ok_or("default.emoji-v2 is not string")?;
+  v2.make_ascii_uppercase();
   unsafe {
-    DEFAULT_MACHINE_FOR_EMOJI_VERSION_2 = v2.to_ascii_uppercase();
+    DEFAULT_MACHINE_FOR_EMOJI_VERSION_2 = v2.into();
   }
 
   // default.emoji-v1
   let v1 = default
     .remove(&Yaml::String("emoji-v1".into()))
     .ok_or("missing field 'emoji-v1' in 'default'")?;
-  let v1 = v1.into_string().ok_or("default.emoji-v1 is not string")?;
+  let mut v1 = v1.into_string().ok_or("default.emoji-v1 is not string")?;
+  v1.make_ascii_uppercase();
   unsafe {
-    DEFAULT_MACHINE_FOR_EMOJI_VERSION_1 = v1.to_ascii_uppercase();
+    DEFAULT_MACHINE_FOR_EMOJI_VERSION_1 = v1.into();
   }
 
   if let Some((key, _)) = default.pop_front() {
@@ -544,10 +547,13 @@ pub fn init_machines() -> Result<(), InitError> {
       );
     }
 
+    let mut mach_name = Utf16String::from(mach_name);
+    mach_name.make_ascii_uppercase();
+
     unsafe {
       MACHINES
         .assume_init_mut()
-        .insert(mach_name.to_ascii_uppercase(), props);
+        .insert(mach_name, props);
     }
   }
 

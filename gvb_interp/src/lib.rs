@@ -5,11 +5,16 @@
   never_type,
   io_error_more,
   const_maybe_uninit_assume_init,
-  slice_index_methods,
-  utf16_extra
+  iter_order_by
 )]
-#![allow(clippy::needless_late_init, clippy::useless_format, clippy::single_match)]
+#![allow(
+  clippy::needless_late_init,
+  clippy::useless_format,
+  clippy::single_match
+)]
 
+#[macro_use]
+pub mod util;
 mod ast;
 mod compiler;
 pub mod device;
@@ -17,7 +22,6 @@ pub mod diagnostic;
 pub mod document;
 pub mod machine;
 mod parser;
-pub mod util;
 pub mod vm;
 
 pub use self::diagnostic::*;

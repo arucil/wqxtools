@@ -12,7 +12,7 @@ use crate::ast::{
 };
 use crate::diagnostic::Diagnostic;
 use crate::util::mbf5::Mbf5;
-use crate::util::utf16string::Utf16String;
+use widestring::Utf16String;
 use crate::{compiler::CodeEmitter, machine::EmojiVersion};
 use string_interner::StringInterner;
 
@@ -301,7 +301,7 @@ impl CodeEmitter for CodeGen {
     self.push_instr(range, InstrKind::AssignStr);
   }
 
-  fn make_symbol(&mut self, name: Utf16String) -> Self::Symbol {
+  fn make_symbol(&mut self, name: String) -> Self::Symbol {
     self.interner.get_or_intern(name)
   }
 

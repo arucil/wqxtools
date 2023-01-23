@@ -8,10 +8,12 @@ use crate::ast::{
   TokenKind, UnaryOpKind, WriteElement,
 };
 use crate::diagnostic::Diagnostic;
-use crate::util::utf16string::Utf16Str;
+use crate::util::ascii_ext::AsciiExt;
+use crate::util::utf16str_ext::Utf16StrExt;
 use id_arena::Arena;
 use smallvec::{smallvec, Array, SmallVec};
 use std::fmt::Write;
+use widestring::{utf16str, Utf16Str};
 
 pub mod symbol;
 
@@ -27,7 +29,7 @@ pub struct ParseResult<T> {
 pub fn parse_prog(input: &Utf16Str) -> Program {
   let mut line_start = 0;
   let mut lines = vec![];
-  while let Some(eol) = input[line_start..].find('\n') {
+  while let Some(eol) = input[line_start..].find_char('\n') {
     lines.push(parse_line(&input[line_start..line_start + eol + 1]).0);
     line_start += eol + 1;
   }
@@ -65,8 +67,9 @@ pub fn parse_line(
   let code_units = line_with_eol.as_slice();
   let line;
   let eol;
-  if let Some(b'\n' as u16) = code_units.last() {
-    if code_units.len() > 1 && code_units[code_units.len() - 2] == b'\r' {
+  if match_u16c!(code_units.last(), b'\n') {
+    if code_units.len() > 1 && code_units[code_units.len() - 2] == b'\r' as u16
+    {
       eol = Eol::CrLf;
       line = &line_with_eol[..line_with_eol.len() - 2];
     } else {
@@ -85,7 +88,7 @@ pub fn parse_line(
   let mut parser = LineParser::new(line, node_builder);
 
   let mut label = None;
-  if !matches!(line.as_bytes().first(), Some(b' ')) {
+  if !match_u16c!(line.as_slice().first(), b' ') {
     parser.read_token(true);
     if parser.token.1 == TokenKind::Label {
       match parser.label_value.take().unwrap() {
@@ -96,22 +99,19 @@ pub fn parse_line(
     } else {
       parser.report_label_error(
         ParseLabelError::NotALabel,
-        Range::new(CharIndex::start(), CharIndex::end_of(line)),
+        Range::new(0, line.len()),
       );
     }
   } else {
     parser.report_label_error(
       ParseLabelError::NotALabel,
-      Range::new(CharIndex::start(), CharIndex::end_of(line)),
+      Range::new(0, line.len()),
     );
   }
 
   let stmts = parser.parse_stmts(false);
   if stmts.is_empty() {
-    parser.add_error(
-      Range::new(CharIndex::start(), CharIndex::end_of(line)),
-      "缺少语句",
-    );
+    parser.add_error(Range::new(0, line.len()), "缺少语句");
   }
 
   let expected_symbols_at_eof = parser.expected_symbols_at_eof.take();
@@ -212,11 +212,11 @@ macro_rules! setup_follow {
 impl<'a, T: NodeBuilder> LineParser<'a, T> {
   fn new(input: &'a Utf16Str, node_builder: T) -> Self {
     Self {
-      offset: CharIndex::start(),
+      offset: 0,
       input,
-      token: (Range::empty(CharIndex::start()), TokenKind::Eof),
+      token: (Range::empty(0), TokenKind::Eof),
       label_value: None,
-      last_token_end: CharIndex::start(),
+      last_token_end: 0,
       node_builder,
       diagnostics: vec![],
       expected_symbols_at_eof: None,
@@ -229,14 +229,9 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
     self.diagnostics.push(Diagnostic::new_error(range, message));
   }
 
-  fn advance(&mut self, count: CharOffset) {
+  fn advance(&mut self, count: usize) {
     self.offset += count;
-    self.input = &self.input[count.utf8 as usize..];
-  }
-
-  fn advance_ascii(&mut self, count: i32) {
-    self.offset += CharOffset::new(count);
-    self.input = &self.input[count as usize..];
+    self.input = &self.input[count..];
   }
 
   fn report_label_error(&mut self, err: ParseLabelError, range: Range) {
@@ -251,15 +246,15 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
   }
 
   fn skip_space(&mut self) {
-    self.advance(count_space(self.input.as_bytes(), 0));
+    self.advance(count_space(self.input.as_slice(), 0));
   }
 
   fn skip_line(&mut self) {
     self.offset += self.input.len();
-    self.input = "";
+    self.input = utf16str!("");
   }
 
-  fn set_token(&mut self, start: CharIndex, kind: TokenKind) {
+  fn set_token(&mut self, start: usize, kind: TokenKind) {
     self.token = (Range::new(start, self.offset), kind);
   }
 
@@ -267,7 +262,7 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
     let len = self.token.0.len();
     self.offset -= len;
     self.input = unsafe {
-      std::str::from_utf8_unchecked(std::slice::from_raw_parts(
+      Utf16Str::from_slice_unchecked(std::slice::from_raw_parts(
         self.input.as_ptr().sub(len),
         self.input.len() + len,
       ))
@@ -281,142 +276,159 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
     loop {
       self.skip_space();
       let start = self.offset;
-      let c;
-      if let Some(&c1) = self.input.as_bytes().first() {
+      let c: u16;
+      if let Some(&c1) = self.input.as_slice().first() {
         c = c1;
       } else {
         return self.set_token(start, TokenKind::Eof);
       }
 
-      match c {
-        b'=' | b'<' | b'>' | b'+' | b'-' | b'*' | b'/' | b'^' | b':' | b'('
-        | b')' | b';' | b',' | b'#' => {
-          self.advance(1);
-          self.set_token(start, TokenKind::Punc(Punc::from(c)));
-        }
-        b'"' => {
-          let len = self.read_quoted_string();
-          let start = self.offset;
-          self.advance(len);
-          self.set_token(start, TokenKind::String);
-        }
-        b'0'..=b'9' | b'.' => {
-          let (len, is_nat) =
-            read_number(self.input.as_bytes(), true, read_label);
-          let start = self.offset;
-          if is_nat && read_label {
-            let label = self.input[..len].parse::<Label>();
+      if c < 0x100 {
+        match c as u8 {
+          b'=' | b'<' | b'>' | b'+' | b'-' | b'*' | b'/' | b'^' | b':'
+          | b'(' | b')' | b';' | b',' | b'#' => {
+            self.advance(1);
+            self.set_token(start, TokenKind::Punc(Punc::from(c as u8)));
+          }
+          b'"' => {
+            let len = self.read_quoted_string();
+            let start = self.offset;
             self.advance(len);
-            self.label_value = Some(label);
-            self.set_token(start, TokenKind::Label);
-          } else {
-            self.advance(len);
-            self.set_token(start, TokenKind::Float);
+            self.set_token(start, TokenKind::String);
           }
-        }
-        b'a'..=b'z' | b'A'..=b'Z' => {
-          let start = self.offset;
-          let mut i = 0;
-          while matches!(
-            self.input.as_bytes().get(i),
-            Some(c) if c.is_ascii_alphanumeric()
-          ) {
-            i += 1;
+          b'0'..=b'9' | b'.' => {
+            let (len, is_nat) =
+              read_number(self.input.as_slice(), true, read_label);
+            let start = self.offset;
+            if is_nat && read_label {
+              let label = self.input[..len].to_string().parse::<Label>();
+              self.advance(len);
+              self.label_value = Some(label);
+              self.set_token(start, TokenKind::Label);
+            } else {
+              self.advance(len);
+              self.set_token(start, TokenKind::Float);
+            }
           }
-          let mut sigil = false;
-          if let Some(b'%' | b'$') = self.input.as_bytes().get(i) {
-            i += 1;
-            sigil = true;
-          }
+          b'a'..=b'z' | b'A'..=b'Z' => {
+            let start = self.offset;
+            let mut i = 0;
+            while matches!(
+              self.input.as_slice().get(i),
+              Some(&c) if c.is_ascii_alphanumeric()
+            ) {
+              i += 1;
+            }
+            let mut sigil = false;
+            if match_u16c!(self.input.as_slice().get(i), b'%' | b'$') {
+              i += 1;
+              sigil = true;
+            }
 
-          let str = self.input[..i].to_ascii_lowercase();
-          self.advance(i);
-          if let Ok(kw) = str.parse::<Keyword>() {
-            return self.set_token(start, TokenKind::Keyword(kw));
-          } else if let Ok(f) = str.parse::<SysFuncKind>() {
-            return self.set_token(start, TokenKind::SysFunc(f));
-          } else if sigil {
-            return self.set_token(start, TokenKind::Ident);
-          }
+            let mut str = self.input[..i].to_string();
+            str.make_ascii_lowercase();
+            self.advance(i);
+            if let Ok(kw) = str.parse::<Keyword>() {
+              return self.set_token(start, TokenKind::Keyword(kw));
+            } else if let Ok(f) = str.parse::<SysFuncKind>() {
+              return self.set_token(start, TokenKind::SysFunc(f));
+            } else if sigil {
+              return self.set_token(start, TokenKind::Ident);
+            }
 
-          let mut i = 0;
-          let mut seg_start = 0;
-          let mut in_seg = false;
+            let mut i = 0;
+            let mut seg_start = 0;
+            let mut in_seg = false;
 
-          loop {
-            match self.input.as_bytes().get(i) {
-              Some(c) if c.is_ascii_alphanumeric() => {
-                if !in_seg {
-                  seg_start = i;
-                  in_seg = true;
-                }
-                i += 1;
-              }
-              Some(b'%' | b'$') => {
-                i += 1;
-                if in_seg {
-                  let str = self.input[seg_start..i].to_ascii_lowercase();
-                  if str.parse::<Keyword>().is_ok()
-                    || str.parse::<SysFuncKind>().is_ok()
-                  {
-                    i = seg_start;
+            loop {
+              const PERCENT: Option<&u16> = Some(&(b'%' as _));
+              const DOLLAR: Option<&u16> = Some(&(b'$' as _));
+              match self.input.as_slice().get(i) {
+                Some(&c) if c.is_ascii_alphanumeric() => {
+                  if !in_seg {
+                    seg_start = i;
+                    in_seg = true;
                   }
+                  i += 1;
                 }
-                break;
-              }
-              c => {
-                if in_seg {
-                  in_seg = false;
-                  let str = self.input[seg_start..i].to_ascii_lowercase();
-                  if str.parse::<Keyword>().is_ok()
-                    || str.parse::<SysFuncKind>().is_ok()
-                  {
-                    i = seg_start;
+                PERCENT | DOLLAR => {
+                  i += 1;
+                  if in_seg {
+                    let mut str = self.input[seg_start..i].to_string();
+                    str.make_ascii_lowercase();
+                    if str.parse::<Keyword>().is_ok()
+                      || str.parse::<SysFuncKind>().is_ok()
+                    {
+                      i = seg_start;
+                    }
+                  }
+                  break;
+                }
+                c => {
+                  if in_seg {
+                    in_seg = false;
+                    let mut str = self.input[seg_start..i].to_string();
+                    str.make_ascii_lowercase();
+                    if str.parse::<Keyword>().is_ok()
+                      || str.parse::<SysFuncKind>().is_ok()
+                    {
+                      i = seg_start;
+                      break;
+                    }
+                  }
+                  if match_u16c!(c, b' ') {
+                    i += 1;
+                  } else {
                     break;
                   }
                 }
-                if c == Some(&b' ') {
-                  i += 1;
-                } else {
-                  break;
-                }
               }
             }
-          }
 
-          while i > 0 && self.input.as_bytes()[i - 1] == b' ' {
-            i -= 1;
-          }
+            while i > 0 && self.input.as_slice()[i - 1] == b' ' as u16 {
+              i -= 1;
+            }
 
-          self.advance(i);
-          self.set_token(start, TokenKind::Ident);
+            self.advance(i);
+            self.set_token(start, TokenKind::Ident);
+          }
+          _ => {
+            let start = self.offset;
+            self.advance(1);
+            self.add_error(
+              Range::new(start, self.offset),
+              format!("非法字符：U+{:04X}", c as u32),
+            );
+            // self.read_token(read_label);
+            continue;
+          }
         }
-        _ => {
-          let start = self.offset;
-          let c = self.input.chars().next().unwrap();
-          self.advance(c.len_utf8());
-          self.add_error(
-            Range::new(start, self.offset),
-            // TODO check if c is printable
-            if (c as u32) < 0x10000 {
-              format!("非法字符：U+{:04X}", c as u32)
-            } else {
-              format!("非法字符：U+{:06X}", c as u32)
-            },
-          );
-          self.read_token(read_label);
-          continue;
-        }
+      } else {
+        let start = self.offset;
+        let c = self.input.chars().next().unwrap();
+        self.advance(c.len_utf16());
+        self.add_error(
+          Range::new(start, self.offset),
+          // TODO check if c is printable
+          if (c as u32) < 0x10000 {
+            format!("非法字符：U+{:04X}", c as u32)
+          } else {
+            format!("非法字符：U+{:06X}", c as u32)
+          },
+        );
+        // self.read_token(read_label);
+        continue;
       }
       break;
     }
   }
 
-  fn read_quoted_string(&self) -> CharOffset {
+  fn read_quoted_string(&self) -> usize {
     let mut i = 1;
     loop {
-      match self.input.as_bytes().get(i) {
-        Some(b'"') => {
+      const QUOTE: Option<&u16> = Some(&(b'"' as _));
+      match self.input.as_slice().get(i) {
+        QUOTE => {
           i += 1;
           break;
         }
@@ -733,7 +745,7 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
     loop {
       self.skip_space();
       let datum_start = self.offset;
-      if let Some(b'"') = self.input.as_bytes().first() {
+      if match_u16c!(self.input.as_slice().first(), b'"') {
         self.advance(self.read_quoted_string());
         data.push(Datum {
           range: Range::new(datum_start, self.offset),
@@ -742,8 +754,7 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
         self.skip_space();
       } else {
         let mut i = 0;
-        while !matches!(self.input.as_bytes().get(i), Some(b',' | b':') | None)
-        {
+        while !match_u16c!(self.input.as_slice().get(i), b',' | b':' | None) {
           i += 1;
         }
         self.advance(i);
@@ -753,14 +764,16 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
         });
       }
 
-      match self.input.as_bytes().first() {
-        Some(b':') | None => break,
-        Some(b',') => self.advance(1),
+      const COLON: Option<&u16> = Some(&(b':' as _));
+      const COMMA: Option<&u16> = Some(&(b',' as _));
+      match self.input.as_slice().first() {
+        COLON | None => break,
+        COMMA => self.advance(1),
         _ => {
           self.add_error(
             Range::new(
               self.offset,
-              self.offset.offset(self.input.chars().next().unwrap()),
+              self.offset + self.input.chars().next().unwrap().len_utf16(),
             ),
             "缺少逗号",
           );
@@ -937,11 +950,11 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
   fn read_as(&mut self) {
     let start = self.offset;
     let end = start + (!self.input.is_empty()) as usize;
-    if let Some(b'A' | b'a') = self.input.as_bytes().first() {
-      self.advance_ascii(1);
+    if let Some(65 | 97) = self.input.as_slice().first() {
+      self.advance(1);
       self.skip_space();
-      if let Some(b'S' | b's') = self.input.as_bytes().first() {
-        self.advance_ascii(1);
+      if let Some(115 | 83) = self.input.as_slice().first() {
+        self.advance(1);
         return;
       }
     }
@@ -1479,22 +1492,22 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
 
     let mode = 'read_mode: {
       if self.input.len() >= 5 {
-        if self.input.as_bytes()[..5].eq_ignore_ascii_case(b"input") {
-          self.advance_ascii(5);
+        if self.input[..5].eq_ignore_ascii_case(utf16str!("input")) {
+          self.advance(5);
           break 'read_mode FileMode::Input;
         } else if self.input.len() >= 6 {
-          let m = &self.input.as_bytes()[..6];
-          if m.eq_ignore_ascii_case(b"output") {
-            self.advance_ascii(6);
+          let m = &self.input[..6];
+          if m.eq_ignore_ascii_case(utf16str!("output")) {
+            self.advance(6);
             break 'read_mode FileMode::Output;
-          } else if m.eq_ignore_ascii_case(b"append") {
-            self.advance_ascii(6);
+          } else if m.eq_ignore_ascii_case(utf16str!("append")) {
+            self.advance(6);
             break 'read_mode FileMode::Append;
-          } else if m.eq_ignore_ascii_case(b"random") {
-            self.advance_ascii(6);
+          } else if m.eq_ignore_ascii_case(utf16str!("random")) {
+            self.advance(6);
             break 'read_mode FileMode::Random;
-          } else if m.eq_ignore_ascii_case(b"binary") {
-            self.advance_ascii(6);
+          } else if m.eq_ignore_ascii_case(utf16str!("binary")) {
+            self.advance(6);
             break 'read_mode FileMode::Binary;
           }
         }
@@ -2301,7 +2314,7 @@ fn token_prec(kind: TokenKind) -> Prec {
 impl<'a> LineParser<'a, ArenaNodeBuilder> {
   fn into_line(
     self,
-    line: &str,
+    line: &Utf16Str,
     eol: Eol,
     label: Option<(Range, Label)>,
     stmts: SmallVec<[StmtId; 1]>,
@@ -2330,9 +2343,9 @@ impl<'a> LineParser<'a, ArenaNodeBuilder> {
   }
 }
 
-fn count_space(input: &[u8], start: usize) -> usize {
+fn count_space(input: &[u16], start: usize) -> usize {
   let mut i = start;
-  while let Some(b' ') = input.get(i) {
+  while match_u16c!(input.get(i), b' ') {
     i += 1;
   }
   i - start
@@ -2344,18 +2357,18 @@ fn count_space(input: &[u8], start: usize) -> usize {
 /// [-+]?\d*(\.\d*)?(E[-+]?\d*)?
 /// ```
 pub fn read_number(
-  input: &[u8],
+  input: &[u16],
   allow_space: bool,
   read_label: bool,
 ) -> (usize, bool) {
   let mut i = 0;
-  let mut is_nat = !matches!(input.first(), Some(b'.'));
+  let mut is_nat = !match_u16c!(input.first(), b'.');
 
   if allow_space {
     i += count_space(input, i);
   }
 
-  if let Some(b'+' | b'-') = input.first() {
+  if match_u16c!(input.first(), b'+' | b'-') {
     is_nat = false;
     i += 1;
   }
@@ -2363,16 +2376,18 @@ pub fn read_number(
     i += count_space(input, i);
   }
 
+  const SPACE: Option<&u16> = Some(&(b' ' as _));
+
   loop {
     match input.get(i) {
-      Some(c) if c.is_ascii_digit() => i += 1,
-      Some(b' ') if allow_space => i += 1,
+      Some(&c) if c.is_ascii_digit() => i += 1,
+      SPACE if allow_space => i += 1,
       _ => break,
     }
   }
 
   'read_frac: {
-    if let Some(b'.') = input.get(i) {
+    if match_u16c!(input.get(i), b'.') {
       if read_label && is_nat {
         break 'read_frac;
       }
@@ -2381,14 +2396,14 @@ pub fn read_number(
       i += 1;
       loop {
         match input.get(i) {
-          Some(c) if c.is_ascii_digit() => i += 1,
-          Some(b' ') if allow_space => i += 1,
+          Some(&c) if c.is_ascii_digit() => i += 1,
+          SPACE if allow_space => i += 1,
           _ => break,
         }
       }
     }
 
-    if let Some(b'e' | b'E') = input.get(i) {
+    if match_u16c!(input.get(i), b'e' | b'E') {
       if input
         .get(i + 1)
         .filter(|c| c.is_ascii_alphabetic())
@@ -2402,13 +2417,13 @@ pub fn read_number(
         if allow_space {
           i += count_space(input, i);
         }
-        if let Some(b'+' | b'-') = input.get(i) {
+        if match_u16c!(input.get(i), b'+' | b'-') {
           i += 1;
         }
         loop {
           match input.get(i) {
-            Some(c) if c.is_ascii_digit() => i += 1,
-            Some(b' ') if allow_space => i += 1,
+            Some(&c) if c.is_ascii_digit() => i += 1,
+            SPACE if allow_space => i += 1,
             _ => break,
           }
         }
@@ -2417,7 +2432,7 @@ pub fn read_number(
   }
 
   if allow_space {
-    while i > 0 && input[i - 1] == b' ' {
+    while i > 0 && input[i - 1] == b' ' as u16 {
       i -= 1;
     }
   }
@@ -2452,9 +2467,11 @@ mod lex_tests {
   use super::*;
   use insta::assert_debug_snapshot;
   use pretty_assertions::assert_eq;
+  use widestring::Utf16String;
 
   fn read_tokens(input: &str) -> Vec<(Range, TokenKind)> {
-    let mut parser = LineParser::new(input, DummyNodeBuilder);
+    let input = Utf16String::from(input);
+    let mut parser = LineParser::new(&input, DummyNodeBuilder);
     let mut tokens = vec![];
     loop {
       parser.read_token(false);
@@ -2622,10 +2639,7 @@ mod lex_tests {
         read_tokens(r#"  AsC cHr$ leti%  "#),
         vec![
           (Range::new(2, 5), TokenKind::SysFunc(SysFuncKind::Asc)),
-          (
-            Range::new(6, 10),
-            TokenKind::SysFunc(SysFuncKind::Chr)
-          ),
+          (Range::new(6, 10), TokenKind::SysFunc(SysFuncKind::Chr)),
           (Range::new(11, 16), TokenKind::Ident),
           (Range::empty(18), TokenKind::Eof),
         ]
@@ -2644,7 +2658,7 @@ mod lex_tests {
 
 #[cfg(test)]
 impl ParseResult<ExprId> {
-  fn to_string(&self, text: &str) -> String {
+  fn to_string(&self, text: &Utf16Str) -> String {
     let mut f = String::new();
     writeln!(&mut f, "diagnostics: ").unwrap();
     for diag in &self.diagnostics {
@@ -2665,254 +2679,268 @@ mod parser_tests {
 
   #[test]
   fn assign() {
-    let line = r#"10 ab$ = 3"#;
+    let line = utf16str!(r#"10 ab$ = 3"#);
     assert_snapshot!(parse_line(line).0.to_string(line));
   }
 
   #[test]
   fn two_assign() {
-    let line = r#"10 ab$=3: foo %=2+2"#;
+    let line = utf16str!(r#"10 ab$=3: foo %=2+2"#);
     assert_snapshot!(parse_line(line).0.to_string(line));
   }
 
   #[test]
   fn no_label() {
-    let line = r#"ab$=3 :fO3 %=2-3*1  "#;
+    let line = utf16str!(r#"ab$=3 :fO3 %=2-3*1  "#);
     assert_snapshot!(parse_line(line).0.to_string(line));
   }
 
   #[test]
   fn no_stmts() {
-    let line = r#"10"#;
+    let line = utf16str!(r#"10"#);
     assert_snapshot!(parse_line(line).0.to_string(line));
   }
 
   #[test]
   fn blank_line() {
-    let line = r#"    "#;
+    let line = utf16str!(r#"    "#);
     assert_snapshot!(parse_line(line).0.to_string(line));
   }
 
   #[test]
   fn empty_line() {
-    let line = r#""#;
+    let line = utf16str!(r#""#);
     assert_snapshot!(parse_line(line).0.to_string(line));
   }
 
   #[test]
   fn colon_line() {
-    let line = r#"10 :"#;
+    let line = utf16str!(r#"10 :"#);
     assert_snapshot!(parse_line(line).0.to_string(line));
   }
 
   #[test]
   fn nullary_cmd() {
-    let line = r#"10 ::::Beep::enD:::fLAsh:::inkEy$::"#;
+    let line = utf16str!(r#"10 ::::Beep::enD:::fLAsh:::inkEy$::"#);
     assert_snapshot!(parse_line(line).0.to_string(line));
   }
 
   #[test]
   fn real_world_example() {
-    let line = r#"17 LOCaTe 3,2:PRinT "A";,3:locaTE 3,18-LeN(StR$(ET)):PRINT ET:DRAW 100,38"#;
+    let line = utf16str!(
+      r#"17 LOCaTe 3,2:PRinT "A";,3:locaTE 3,18-LeN(StR$(ET)):PRINT ET:DRAW 100,38"#
+    );
     assert_snapshot!(parse_line(line).0.to_string(line));
   }
 
   #[test]
   fn r#box() {
-    let line = r#"10 boX 2*3,A/2,INT(INKEY$),1 : BOX 1,2,3,4,-0"#;
+    let line = utf16str!(r#"10 boX 2*3,A/2,INT(INKEY$),1 : BOX 1,2,3,4,-0"#);
     assert_snapshot!(parse_line(line).0.to_string(line));
   }
 
   #[test]
   fn unary_cmd() {
-    let line =
-      r#"10 calL  1340+A*10: CALl T%: play A b $+"DE#" :while not a(i)"#;
+    let line = utf16str!(
+      r#"10 calL  1340+A*10: CALl T%: play A b $+"DE#" :while not a(i)"#
+    );
     assert_snapshot!(parse_line(line).0.to_string(line));
   }
 
   #[test]
   fn close() {
-    let line = r#"10 close # 2+1:clOSe 2+1"#;
+    let line = utf16str!(r#"10 close # 2+1:clOSe 2+1"#);
     assert_snapshot!(parse_line(line).0.to_string(line));
   }
 
   #[test]
   fn rem() {
-    let line = r#"10 cls:rem machine: tc808"#;
+    let line = utf16str!(r#"10 cls:rem machine: tc808"#);
     assert_snapshot!(parse_line(line).0.to_string(line));
   }
 
   #[test]
   fn data1() {
-    let line = r#"10 daTA   ,," : A,",12,3  : Data A  ,A B  C,  , "#;
+    let line = utf16str!(r#"10 daTA   ,," : A,",12,3  : Data A  ,A B  C,  , "#);
     assert_snapshot!(parse_line(line).0.to_string(line));
   }
 
   #[test]
   fn data2() {
-    let line = r#"10 daTA   1,  2  ,  : data "aA","bB"#;
+    let line = utf16str!(r#"10 daTA   1,  2  ,  : data "aA","bB"#);
     assert_snapshot!(parse_line(line).0.to_string(line));
   }
 
   #[test]
   fn def() {
-    let line =
-      r#"10   def Fn a b c%(x Y 3  1) = sin(X / 2) : DEF   fN  f (X)=fn F(x)"#;
+    let line = utf16str!(
+      r#"10   def Fn a b c%(x Y 3  1) = sin(X / 2) : DEF   fN  f (X)=fn F(x)"#
+    );
     assert_snapshot!(parse_line(line).0.to_string(line));
   }
 
   #[test]
   fn dim() {
-    let line = r#"10 DIm  A:dIm  B$(k+1,tan(x,y)) , C, O(3*2)"#;
+    let line = utf16str!(r#"10 DIm  A:dIm  B$(k+1,tan(x,y)) , C, O(3*2)"#);
     assert_snapshot!(parse_line(line).0.to_string(line));
   }
 
   #[test]
   fn field() {
-    let line = r#"10 field # 1*2 , 3*5-1ASA b $  : fiEld 1*2 , 1  A Sx%(3) , 7.5ASA$(A,B)"#;
+    let line = utf16str!(
+      r#"10 field # 1*2 , 3*5-1ASA b $  : fiEld 1*2 , 1  A Sx%(3) , 7.5ASA$(A,B)"#
+    );
     assert_snapshot!(parse_line(line).0.to_string(line));
   }
 
   #[test]
   fn r#for() {
-    let line = r#"10 for I%=K*2 to I%*2: FoR i=0 To 1e3 sTep k"#;
+    let line = utf16str!(r#"10 for I%=K*2 to I%*2: FoR i=0 To 1e3 sTep k"#);
     assert_snapshot!(parse_line(line).0.to_string(line));
   }
 
   #[test]
   fn get_put() {
-    let line = r#"10 Get # 7/2 , 2*5 : PuT 3*2,k"#;
+    let line = utf16str!(r#"10 Get # 7/2 , 2*5 : PuT 3*2,k"#);
     assert_snapshot!(parse_line(line).0.to_string(line));
   }
 
   #[test]
   fn gosub_goto() {
-    let line = r#"10 gosub : goto: gosub 771 : goto 21742: goto"#;
+    let line = utf16str!(r#"10 gosub : goto: gosub 771 : goto 21742: goto"#);
     assert_snapshot!(parse_line(line).0.to_string(line));
   }
 
   #[test]
   fn r#if1() {
-    let line = r#"10 If A>2 then:if not 1 then print "a":else"#;
+    let line = utf16str!(r#"10 If A>2 then:if not 1 then print "a":else"#);
     assert_snapshot!(parse_line(line).0.to_string(line));
   }
 
   #[test]
   fn r#if2() {
-    let line = r#"10 IF 1 THEN 10:ELSE S=S+1:NEXT:IF S> =10 THEN"#;
+    let line = utf16str!(r#"10 IF 1 THEN 10:ELSE S=S+1:NEXT:IF S> =10 THEN"#);
     assert_snapshot!(parse_line(line).0.to_string(line));
   }
 
   #[test]
   fn r#if3() {
-    let line = r#"10 IF K THEN ELSE 2:13:7:"#;
+    let line = utf16str!(r#"10 IF K THEN ELSE 2:13:7:"#);
     assert_snapshot!(parse_line(line).0.to_string(line));
   }
 
   #[test]
   fn r#if4() {
-    let line = r#"10 IF K GOTO 30:else if j goto else :"#;
+    let line = utf16str!(r#"10 IF K GOTO 30:else if j goto else :"#);
     assert_snapshot!(parse_line(line).0.to_string(line));
   }
 
   #[test]
   fn input() {
-    let line =
-      r#"10 inPUT # s, A$, a$(3,i) : InPuT "ENTER:";A,B:INPUT A%, fn f(x+1)"#;
+    let line = utf16str!(
+      r#"10 inPUT # s, A$, a$(3,i) : InPuT "ENTER:";A,B:INPUT A%, fn f(x+1)"#
+    );
     assert_snapshot!(parse_line(line).0.to_string(line));
   }
 
   #[test]
   fn locate() {
-    let line = r#"10 locAte 1,A+2:locate A+1: locate , 2:"#;
+    let line = utf16str!(r#"10 locAte 1,A+2:locate A+1: locate , 2:"#);
     assert_snapshot!(parse_line(line).0.to_string(line));
   }
 
   #[test]
   fn lset_rset() {
-    let line = r#"10 lset A$=MID$(B$,2):rSEt  a b$(2,k*3+m) =CHr$(x)"#;
+    let line =
+      utf16str!(r#"10 lset A$=MID$(B$,2):rSEt  a b$(2,k*3+m) =CHr$(x)"#);
     assert_snapshot!(parse_line(line).0.to_string(line));
   }
 
   #[test]
   fn next() {
-    let line = r#"10 next:Next I  : NExT A,B b% , c , i"#;
+    let line = utf16str!(r#"10 next:Next I  : NExT A,B b% , c , i"#);
     assert_snapshot!(parse_line(line).0.to_string(line));
   }
 
   #[test]
   fn on() {
-    let line = r#"10 ON (k+2)*b goto:on x goSub ,:on x+1 goto 10,,30,,,"#;
+    let line =
+      utf16str!(r#"10 ON (k+2)*b goto:on x goSub ,:on x+1 goto 10,,30,,,"#);
     assert_snapshot!(parse_line(line).0.to_string(line));
   }
 
   #[test]
   fn open1() {
-    let line = r#"10 opeN A$+".dat" appendA sa+1 : open b$for input as#2"#;
+    let line =
+      utf16str!(r#"10 opeN A$+".dat" appendA sa+1 : open b$for input as#2"#);
     assert_snapshot!(parse_line(line).0.to_string(line));
   }
 
   #[test]
   fn open2() {
-    let line = r#"10 OPEN file$ randomas3:OPen f$output as 1"#;
+    let line = utf16str!(r#"10 OPEN file$ randomas3:OPen f$output as 1"#);
     assert_snapshot!(parse_line(line).0.to_string(line));
   }
 
   #[test]
   fn open3() {
-    let line = r#"10 OPEN P$FOR inputas1 len=k*2"#;
+    let line = utf16str!(r#"10 OPEN P$FOR inputas1 len=k*2"#);
     assert_snapshot!(parse_line(line).0.to_string(line));
   }
 
   #[test]
   fn poke() {
-    let line = r#"10 poKE a(i),30+I*2"#;
+    let line = utf16str!(r#"10 poKE a(i),30+I*2"#);
     assert_snapshot!(parse_line(line).0.to_string(line));
   }
 
   #[test]
   fn print() {
-    let line =
-      r#"10 print 10 ; , "k"+2; spc(3+k) tab(i) 3 +2fn f(4) ,:print,:print"#;
+    let line = utf16str!(
+      r#"10 print 10 ; , "k"+2; spc(3+k) tab(i) 3 +2fn f(4) ,:print,:print"#
+    );
     assert_snapshot!(parse_line(line).0.to_string(line));
   }
 
   #[test]
   fn read() {
-    let line = r#"10 reaD a$ : READ b$(i,j),c,d%"#;
+    let line = utf16str!(r#"10 reaD a$ : READ b$(i,j),c,d%"#);
     assert_snapshot!(parse_line(line).0.to_string(line));
   }
 
   #[test]
   fn swap() {
-    let line = r#"10 SwaP a$(i),b c"#;
+    let line = utf16str!(r#"10 SwaP a$(i),b c"#);
     assert_snapshot!(parse_line(line).0.to_string(line));
   }
 
   #[test]
   fn write() {
-    let line =
-      r#"10 write a$(i+j*10),b fn f(x):wriTE #3-a,asc(a)x+2 x*6 , o$,"#;
+    let line = utf16str!(
+      r#"10 write a$(i+j*10),b fn f(x):wriTE #3-a,asc(a)x+2 x*6 , o$,"#
+    );
     assert_snapshot!(parse_line(line).0.to_string(line));
   }
 
   #[test]
   fn label_followed_by_e() {
-    let line = r#"10 e=1"#;
+    let line = utf16str!(r#"10 e=1"#);
     assert_snapshot!(parse_line(line).0.to_string(line));
   }
 
   #[test]
   fn dot_label() {
-    let line = r#"."#;
+    let line = utf16str!(r#"."#);
     assert_snapshot!(parse_line(line).0.to_string(line));
   }
 
   #[test]
   fn program() {
-    let prog = r#"10 graph:cls:print "a"::
+    let prog = utf16str!(
+      r#"10 graph:cls:print "a"::
 20 a=inkey$:if a>1 then cont:30:else trace
-30 let x$(2,3)=asc(inkey$)"#;
+30 let x$(2,3)=asc(inkey$)"#
+    );
     assert_snapshot!(parse_prog(prog).to_string(prog));
   }
 
@@ -2922,55 +2950,55 @@ mod parser_tests {
 
     #[test]
     fn missing_rparen_in_expr() {
-      let line = r#"10 if 3 > (chr$(( k),2 then 10 else 20"#;
+      let line = utf16str!(r#"10 if 3 > (chr$(( k),2 then 10 else 20"#);
       assert_snapshot!(parse_line(line).0.to_string(line));
     }
 
     #[test]
     fn expected_symbols_after_if() {
-      let line = r#"10 poke a+b,c-1: if  not a then if"#;
+      let line = utf16str!(r#"10 poke a+b,c-1: if  not a then if"#);
       assert_debug_snapshot!(parse_line(line).1);
     }
 
     #[test]
     fn expected_symbols_after_then() {
-      let line = r#"10 poke a+b,c-1: if  not a then"#;
+      let line = utf16str!(r#"10 poke a+b,c-1: if  not a then"#);
       assert_debug_snapshot!(parse_line(line).1);
     }
 
     #[test]
     fn expected_symbols_after_stmt_in_if() {
-      let line = r#"10 poke a+b,c-1: if  not a then print "a":"#;
+      let line = utf16str!(r#"10 poke a+b,c-1: if  not a then print "a":"#);
       assert_debug_snapshot!(parse_line(line).1);
     }
 
     #[test]
     fn expected_symbols_after_print() {
-      let line = r#"10 print"#;
+      let line = utf16str!(r#"10 print"#);
       assert_debug_snapshot!(parse_line(line).1);
     }
 
     #[test]
     fn expected_symbols_after_if_cond() {
-      let line = r#"10 if a > 1"#;
+      let line = utf16str!(r#"10 if a > 1"#);
       assert_debug_snapshot!(parse_line(line).1);
     }
 
     #[test]
     fn expected_symbols_after_on_cond() {
-      let line = r#"10 on a > 1"#;
+      let line = utf16str!(r#"10 on a > 1"#);
       assert_debug_snapshot!(parse_line(line).1);
     }
 
     #[test]
     fn expected_symbols_after_colon() {
-      let line = r#"10 poke a+b,c-1: cls:  "#;
+      let line = utf16str!(r#"10 poke a+b,c-1: cls:  "#);
       assert_debug_snapshot!(parse_line(line).1);
     }
 
     #[test]
     fn print_after_semicolon() {
-      let line = r#"print a$+b$; print a$b$:"#;
+      let line = utf16str!(r#"print a$+b$; print a$b$:"#);
       assert_snapshot!(parse_line(line).0.to_string(line));
     }
   }
@@ -2980,38 +3008,42 @@ mod parser_tests {
 
     #[test]
     fn precedence() {
-      let line = r#"10 a(b+1,2)=-70.1++2+fn foo$(k*3-2*(k-3>=2))-5/ab 3 * 2^t  $
-"#;
+      let line = utf16str!(
+        r#"10 a(b+1,2)=-70.1++2+fn foo$(k*3-2*(k-3>=2))-5/ab 3 * 2^t  $
+"#
+      );
       assert_snapshot!(parse_line(line).0.to_string(line));
     }
 
     #[test]
     fn relation() {
-      let line = r#"10 A b$=b*3>5 < > (1 2 . 3 e - 5 6 < = not chr$ ( "1" = inkey$ ))  "#;
+      let line = utf16str!(
+        r#"10 A b$=b*3>5 < > (1 2 . 3 e - 5 6 < = not chr$ ( "1" = inkey$ ))  "#
+      );
       assert_snapshot!(parse_line(line).0.to_string(line));
     }
 
     #[test]
     fn string() {
-      let line = r#"10 A b$=""+"ab cd E"#;
+      let line = utf16str!(r#"10 A b$=""+"ab cd E"#);
       assert_snapshot!(parse_line(line).0.to_string(line));
     }
 
     #[test]
     fn logical() {
-      let line = r#"10 A b % =a and not 4 + 2 or -asc(left$(f$,k))"#;
+      let line = utf16str!(r#"10 A b % =a and not 4 + 2 or -asc(left$(f$,k))"#);
       assert_snapshot!(parse_line(line).0.to_string(line));
     }
 
     #[test]
     fn parse() {
-      let line = r#"a + b%(2, fn k(7)) * 3"#;
+      let line = utf16str!(r#"a + b%(2, fn k(7)) * 3"#);
       assert_snapshot!(parse_expr(line).0.to_string(line));
     }
 
     #[test]
     fn parse_redundant_tokens() {
-      let line = r#"a + b%(2, fn k(7)) * 3 print, 2"#;
+      let line = utf16str!(r#"a + b%(2, fn k(7)) * 3 print, 2"#);
       assert_snapshot!(parse_expr(line).0.to_string(line));
     }
   }

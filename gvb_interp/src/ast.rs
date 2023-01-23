@@ -5,7 +5,7 @@ use std::num::NonZeroUsize;
 use std::ops::{Deref, DerefMut};
 
 #[cfg(test)]
-use crate::util::utf16string::Utf16Str;
+use widestring::Utf16Str;
 
 pub mod expr;
 pub mod label;

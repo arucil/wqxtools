@@ -1272,11 +1272,11 @@ impl FileHandle for DefaultFileHandle {
 mod tests {
   use super::*;
   use crate::machine::EmojiVersion;
-  use crate::util::utf16string::Utf16String;
-use crate::vm::ByteString;
+  use crate::vm::ByteString;
   use insta::assert_snapshot;
   use pretty_assertions::assert_eq;
   use std::sync::Once;
+  use widestring::Utf16String;
 
   static INIT: Once = Once::new();
 

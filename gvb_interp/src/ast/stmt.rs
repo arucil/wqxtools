@@ -2,14 +2,16 @@
 use std::fmt::Write;
 use std::fmt::{self, Debug, Formatter};
 
-use crate::util::utf16string::Utf16Str;
-
 #[cfg(test)]
 use super::Expr;
 use super::{ExprId, Label, NonEmptyVec, Range, StmtId};
 #[cfg(test)]
 use id_arena::Arena;
 use smallvec::SmallVec;
+#[cfg(test)]
+use widestring::utf16str;
+#[cfg(test)]
+use widestring::Utf16Str;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Stmt {
@@ -343,12 +345,12 @@ fn print_stmt(
         if let Some(name) = name {
           &text[name.range()]
         } else {
-          "???"
+          utf16str!("???")
         },
         if let Some(param) = param {
           &text[param.range()]
         } else {
-          "???"
+          utf16str!("???")
         },
       )?;
       expr_arena[*body].print(expr_arena, text, f)?;
@@ -441,7 +443,7 @@ fn print_stmt(
     }
     StmtKind::GoSub(label) => {
       if let Some((range, label)) = label {
-        assert_eq!(text[range.range()].parse::<Label>(), Ok(*label));
+        assert_eq!(text[range.range()].to_string().parse::<Label>(), Ok(*label));
         writeln!(f, "GOSUB {}", label.0)
       } else {
         writeln!(f, "GOSUB")
@@ -453,7 +455,7 @@ fn print_stmt(
     } => {
       let goto = if *has_goto_keyword { "GOTO" } else { "[GOTO]" };
       if let Some((range, label)) = label {
-        assert_eq!(text[range.range()].parse::<Label>(), Ok(*label));
+        assert_eq!(text[range.range()].to_string().parse::<Label>(), Ok(*label));
         writeln!(f, "{} {}", goto, label.0)
       } else {
         writeln!(f, "{}", goto)
@@ -600,7 +602,7 @@ fn print_stmt(
         }
         comma = true;
         if let Some(label) = label {
-          assert_eq!(text[range.range()].parse::<Label>(), Ok(*label));
+          assert_eq!(text[range.range()].to_string().parse::<Label>(), Ok(*label));
           write!(f, "{}", label.0)?;
         } else {
           write!(f, "<{:?}>", range)?;
@@ -678,7 +680,7 @@ fn print_stmt(
     }
     StmtKind::Restore(label) => {
       if let Some((range, label)) = label {
-        assert_eq!(text[range.range()].parse::<Label>(), Ok(*label));
+        assert_eq!(text[range.range()].to_string().parse::<Label>(), Ok(*label));
         writeln!(f, "RESTORE {}", label.0)
       } else {
         writeln!(f, "RESTORE")

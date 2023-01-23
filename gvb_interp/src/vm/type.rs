@@ -1,7 +1,8 @@
 use bstr::ByteSlice;
 use std::ops::{Deref, DerefMut};
 
-use crate::{machine::EmojiVersion, util::utf16string::Utf16Str};
+use crate::machine::EmojiVersion;
+use widestring::Utf16Str;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Default)]
 pub struct ByteString(Vec<u8>);

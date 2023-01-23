@@ -5,6 +5,7 @@ use std::fmt::{self, Display, Formatter};
 use std::io;
 use std::num::{NonZeroU16, NonZeroUsize};
 use std::time::Duration;
+use widestring::Utf16Str;
 
 use crate::ast::{self, Range, SysFuncKind};
 use crate::compiler::compile_fn_body;
@@ -13,6 +14,7 @@ use crate::diagnostic::{contains_errors, Diagnostic};
 use crate::machine::{EmojiVersion, EofBehavior};
 use crate::parser::{parse_expr, read_number};
 use crate::util::mbf5::{Mbf5, ParseRealError, RealError};
+use crate::util::utf16str_ext::Utf16StrExt;
 use crate::{HashMap, HashMapEntry};
 
 pub(crate) use self::codegen::*;
@@ -1767,7 +1769,8 @@ where
       SysFuncKind::Val => {
         let mut value = self.str_stack.pop().unwrap().1;
         value.retain(|&b| b != b' ');
-        let (len, _) = read_number(&value, false, false);
+        let u16_value = value.into_iter().map(|c| c as u16).collect::<Vec<_>>();
+        let (len, _) = read_number(&u16_value, false, false);
         let num = unsafe { std::str::from_utf8_unchecked(&value[..len]) }
           .parse::<Mbf5>()
           .unwrap_or(Mbf5::ZERO);
@@ -2445,17 +2448,17 @@ where
 
   pub fn compile_fn(
     &self,
-    input: &str,
+    input: &Utf16Str,
   ) -> (Option<InputFuncBody>, Vec<Diagnostic>) {
     compile_fn(input, self.emoji_version)
   }
 }
 
 fn compile_fn(
-  input: &str,
+  input: &Utf16Str,
   emoji_version: EmojiVersion,
 ) -> (Option<InputFuncBody>, Vec<Diagnostic>) {
-  if input.trim_matches(|c: char| c == ' ').is_empty() {
+  if input.is_blank() {
     return (
       None,
       vec![Diagnostic::new_error(Range::empty(0), "表达式不能为空")],
@@ -2813,11 +2816,13 @@ mod tests {
   use pretty_assertions::assert_eq;
   use std::cell::RefCell;
   use std::rc::Rc;
+  use widestring::{utf16str, Utf16String};
 
   fn compile(text: &str) -> CodeGen {
-    let mut prog = parse_prog(text);
+    let text = Utf16String::from(text);
+    let mut prog = parse_prog(&text);
     let mut codegen = CodeGen::new(EmojiVersion::V2);
-    compile_prog(text, &mut prog, &mut codegen);
+    compile_prog(&text, &mut prog, &mut codegen);
     for (i, line) in prog.lines.iter().enumerate() {
       let diags: Vec<_> = line
         .diagnostics
@@ -3512,7 +3517,9 @@ mod tests {
             ],
           },
           {
-            let body = compile_fn("fn g(y)+2", EmojiVersion::V2).0.unwrap();
+            let body = compile_fn(utf16str!("fn g(y)+2"), EmojiVersion::V2)
+              .0
+              .unwrap();
             ExecInput::KeyboardInput(vec![
               KeyboardInput::Integer(37),
               KeyboardInput::Func { body },

@@ -1,2 +1,5 @@
 pub mod mbf5;
-pub mod utf16string;
+#[macro_use]
+pub mod utf16str_ext;
+
+pub mod ascii_ext;
