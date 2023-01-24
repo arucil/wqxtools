@@ -1,5 +1,5 @@
 use bin_dasm::DasmOptions;
-use clap::{crate_version, App, Arg};
+use clap::{crate_version, Command, Arg};
 use std::error::Error;
 use std::fs::File;
 use std::io::{BufReader, BufWriter, Read};
@@ -7,7 +7,7 @@ use std::num::IntErrorKind;
 use std::path::{Path, PathBuf};
 
 fn main() -> Result<(), Box<dyn Error>> {
-  let matches = App::new("dasm")
+  let matches = Command::new("dasm")
     .version(crate_version!())
     .about("Disassemble 6502")
     .arg(
@@ -37,9 +37,9 @@ fn main() -> Result<(), Box<dyn Error>> {
     .arg(Arg::new("FILE").help("source .BIN file").required(true))
     .get_matches();
 
-  let file = matches.value_of("FILE").unwrap();
+  let file = matches.get_one("FILE").unwrap();
   let origin = matches
-    .value_of("origin")
+    .get_one("origin")
     .map(|o| u16::from_str_radix(o, 16).unwrap());
   let output = matches.value_of("output").map_or_else(
     || {

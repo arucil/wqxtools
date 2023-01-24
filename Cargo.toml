@@ -13,5 +13,6 @@ members = [
   "gvb_interp",
   "api_cpp_binding",
   "config",
-  "util"
+  "util",
+  "misc"
 ]
