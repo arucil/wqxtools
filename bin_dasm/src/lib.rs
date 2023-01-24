@@ -28,7 +28,7 @@ where
 
   if options.bin {
     let entry = header[8] as u16 + ((header[9] as u16) << 8);
-    writeln!(&mut output, "; entry = ${:04X}", entry)?;
+    writeln!(&mut output, "; entry = ${entry:04X}")?;
   }
 
   let mut pc = options.starting_address.unwrap_or(DEFAULT_ORIGIN);
@@ -37,12 +37,12 @@ where
   }
 
   while !bytes.is_empty() {
-    write!(&mut output, "{:04X}: ", pc)?;
+    write!(&mut output, "{pc:04X}: ")?;
     if let Some(inst) = &INSTRUCTION_TABLE[bytes[0] as usize] {
       let size = inst.addr_mode.instruction_size();
       pc += size as u16;
       for &b in bytes {
-        write!(&mut output, "{:02X} ", b)?;
+        write!(&mut output, "{b:02X} ")?;
       }
       for _ in size..3 {
         write!(&mut output, "   ")?;

@@ -7,26 +7,27 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-bstr = "1.0.1"
+bstr = "1.1.0"
 emulator_6502 = { version = "1.1.0", features = ["implementation_transparency"] }
 id-arena = "2.2.1"
 nanorand = "0.7.0"
 num-derive = "0.3.3"
-num-traits = "0.2.14"
+num-traits = "0.2.15"
 phf = { version = "0.11.1", features = ["macros"] }
-rand = "0.8.4"
-smallvec = "1.8.0"
+rand = "0.8.5"
+smallvec = "1.10.0"
 string-interner = "0.14.0"
 yaml-rust = "0.4.5"
 util = { path = "../util" }
 intmap = "2.0.0"
-chrono = "0.4.19"
+chrono = "0.4.23"
 seahash = "4.1.0"
 widestring = "1.0.2"
+memchr = "2.5.0"
 
 [dev-dependencies]
-insta = "1.11.0"
-pretty_assertions = "1.0.0"
+insta = "1.26.0"
+pretty_assertions = "1.3.0"
 quickcheck = "1.0.3"
 quickcheck_macros = "1.0.0"
 

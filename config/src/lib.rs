@@ -211,13 +211,13 @@ fn read_rgb(
   if let Some(color) = obj.remove(&Yaml::String(name.clone())) {
     let color = color
       .into_string()
-      .ok_or_else(|| format!("{}.{} is not string", ctx, name))?;
+      .ok_or_else(|| format!("{ctx}.{name} is not string"))?;
     if !color.starts_with('#') {
-      return Err(format!("{}.{} is invalid color", ctx, name).into());
+      return Err(format!("{ctx}.{name} is invalid color").into());
     }
     let color = &color[1..];
     if color.len() != 3 && color.len() != 6 {
-      return Err(format!("{}.{} is invalid color", ctx, name).into());
+      return Err(format!("{ctx}.{name} is invalid color").into());
     }
     match u32::from_str_radix(color, 16) {
       Ok(mut c) => {
@@ -227,7 +227,7 @@ fn read_rgb(
         }
         Ok(Some(c))
       }
-      Err(_) => Err(format!("{}.{} is invalid color", ctx, name).into()),
+      Err(_) => Err(format!("{ctx}.{name} is invalid color").into()),
     }
   } else {
     Ok(None)

@@ -44,7 +44,7 @@ fn build_gb2312_mapping() -> Result<(), Box<dyn Error>> {
     "pub(crate) static GB2312_TO_UNICODE: ::phf::Map<u16, u16> = phf_map! {{"
   )?;
   for (gbcode, unicode) in &mapping {
-    writeln!(&mut file, "  {}u16 => {}u16,", gbcode, unicode)?;
+    writeln!(&mut file, "  {gbcode}u16 => {unicode}u16,")?;
   }
   writeln!(&mut file, "}};")?;
   writeln!(
@@ -52,7 +52,7 @@ fn build_gb2312_mapping() -> Result<(), Box<dyn Error>> {
     "pub(crate) static UNICODE_TO_GB2312: ::phf::Map<u16, u16> = phf_map! {{"
   )?;
   for (gbcode, unicode) in &mapping {
-    writeln!(&mut file, "  {}u16 => {}u16,", unicode, gbcode)?;
+    writeln!(&mut file, "  {unicode}u16 => {gbcode}u16,")?;
   }
   writeln!(&mut file, "}};")?;
 
@@ -93,7 +93,7 @@ fn build_gvb_keyword_mapping() -> Result<(), Box<dyn Error>> {
     "pub(crate) static BYTE_TO_KEYWORD: ::phf::Map<u8, &'static str> = phf_map! {{"
   )?;
   for (byte, str) in &mapping {
-    writeln!(&mut file, "  {}u8 => \"{}\",", byte, str)?;
+    writeln!(&mut file, "  {byte}u8 => \"{str}\",")?;
   }
   writeln!(&mut file, "}};")?;
 
@@ -102,7 +102,7 @@ fn build_gvb_keyword_mapping() -> Result<(), Box<dyn Error>> {
     "pub(crate) static KEYWORD_TO_BYTE: ::phf::Map<&'static str, u8> = phf_map! {{"
   )?;
   for (byte, str) in &mapping {
-    writeln!(&mut file, "  \"{}\" => {}u8,", str, byte)?;
+    writeln!(&mut file, "  \"{str}\" => {byte}u8,")?;
   }
   writeln!(&mut file, "}};")?;
 
@@ -111,7 +111,7 @@ fn build_gvb_keyword_mapping() -> Result<(), Box<dyn Error>> {
     "pub(crate) static KEYWORD_REQUIRES_SPACE: ::phf::Set<u8> = phf_set! {{"
   )?;
   for byte in space {
-    writeln!(&mut file, " {}u8,", byte)?;
+    writeln!(&mut file, " {byte}u8,")?;
   }
   writeln!(&mut file, "}};")?;
 

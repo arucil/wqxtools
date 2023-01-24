@@ -1,4 +1,5 @@
 use super::ascii_ext::AsciiExt;
+use memchr::memmem;
 use std::borrow::ToOwned;
 use widestring::{Utf16Str, Utf16String};
 
@@ -62,7 +63,7 @@ impl Utf16StrExt for Utf16Str {
     }
 
     for (&a, &b) in std::iter::zip(self.as_slice(), other.as_slice()) {
-      if a.to_ascii_lowercase() != a.to_ascii_lowercase() {
+      if a.to_ascii_lowercase() != b.to_ascii_lowercase() {
         return false;
       }
     }
@@ -129,6 +130,33 @@ impl Utf16StrExt for Utf16Str {
   }
 
   fn rfind_str(&self, other: &Self) -> Option<usize> {
+    let mut haystack = unsafe {
+      std::slice::from_raw_parts(
+        self.as_slice().as_ptr() as *const u8,
+        self.len() << 1,
+      )
+    };
+    let needle = unsafe {
+      std::slice::from_raw_parts(
+        other.as_slice().as_ptr() as *const u8,
+        other.len() << 1,
+      )
+    };
+    loop {
+      match memmem::rfind(haystack, needle) {
+        Some(i) => {
+          if i & 1 == 0 {
+            return Some(i >> 1);
+          } else {
+            haystack = &haystack[..haystack.len() - 2];
+            if haystack.len() == 0 {
+              return None;
+            }
+          }
+        }
+        None => return None,
+      }
+    }
   }
 }
 
@@ -170,18 +198,6 @@ fn utf16str_find_char_from(
     }
   }
   None
-}
-
-pub struct UtfLines<'a> {
-  str: &'a Utf16Str,
-}
-
-impl<'a> Iterator for UtfLines<'a> {
-  type Item = &'a Utf16Str;
-
-  fn next(&mut self) -> Option<Self::Item> {
-    None
-  }
 }
 
 macro_rules! match_u16c {

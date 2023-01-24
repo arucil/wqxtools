@@ -2403,29 +2403,28 @@ pub fn read_number(
       }
     }
 
-    if match_u16c!(input.get(i), b'e' | b'E') {
-      if input
+    if match_u16c!(input.get(i), b'e' | b'E')
+      && input
         .get(i + 1)
         .filter(|c| c.is_ascii_alphabetic())
         .is_none()
-      {
-        if read_label && is_nat {
-          break 'read_frac;
-        }
-        is_nat = false;
+    {
+      if read_label && is_nat {
+        break 'read_frac;
+      }
+      is_nat = false;
+      i += 1;
+      if allow_space {
+        i += count_space(input, i);
+      }
+      if match_u16c!(input.get(i), b'+' | b'-') {
         i += 1;
-        if allow_space {
-          i += count_space(input, i);
-        }
-        if match_u16c!(input.get(i), b'+' | b'-') {
-          i += 1;
-        }
-        loop {
-          match input.get(i) {
-            Some(&c) if c.is_ascii_digit() => i += 1,
-            SPACE if allow_space => i += 1,
-            _ => break,
-          }
+      }
+      loop {
+        match input.get(i) {
+          Some(&c) if c.is_ascii_digit() => i += 1,
+          SPACE if allow_space => i += 1,
+          _ => break,
         }
       }
     }

@@ -1769,7 +1769,7 @@ where
       SysFuncKind::Val => {
         let mut value = self.str_stack.pop().unwrap().1;
         value.retain(|&b| b != b' ');
-        let u16_value = value.into_iter().map(|c| c as u16).collect::<Vec<_>>();
+        let u16_value = value.iter().map(|&c| c as u16).collect::<Vec<_>>();
         let (len, _) = read_number(&u16_value, false, false);
         let num = unsafe { std::str::from_utf8_unchecked(&value[..len]) }
           .parse::<Mbf5>()

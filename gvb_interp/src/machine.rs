@@ -1,4 +1,4 @@
-use crate::{HashMap, util::utf16str_ext::Utf16StrExt};
+use crate::{util::utf16str_ext::Utf16StrExt, HashMap};
 use intmap::IntMap;
 use std::collections::BTreeMap;
 use std::io;
@@ -6,8 +6,8 @@ use std::mem::MaybeUninit;
 use std::str::FromStr;
 use std::time::Duration;
 use util::config;
+use widestring::{Utf16Str, Utf16String};
 use yaml_rust::{Yaml, YamlLoader};
-use widestring::{Utf16String, Utf16Str};
 
 pub(crate) mod emoji;
 
@@ -183,7 +183,7 @@ pub fn init_machines() -> Result<(), InitError> {
   let mut v2 = v2.into_string().ok_or("default.emoji-v2 is not string")?;
   v2.make_ascii_uppercase();
   unsafe {
-    DEFAULT_MACHINE_FOR_EMOJI_VERSION_2 = v2.into();
+    DEFAULT_MACHINE_FOR_EMOJI_VERSION_2 = Utf16String::from(v2.as_str());
   }
 
   // default.emoji-v1
@@ -193,7 +193,7 @@ pub fn init_machines() -> Result<(), InitError> {
   let mut v1 = v1.into_string().ok_or("default.emoji-v1 is not string")?;
   v1.make_ascii_uppercase();
   unsafe {
-    DEFAULT_MACHINE_FOR_EMOJI_VERSION_1 = v1.into();
+    DEFAULT_MACHINE_FOR_EMOJI_VERSION_1 = Utf16String::from(v1.as_str());
   }
 
   if let Some((key, _)) = default.pop_front() {
@@ -551,9 +551,7 @@ pub fn init_machines() -> Result<(), InitError> {
     mach_name.make_ascii_uppercase();
 
     unsafe {
-      MACHINES
-        .assume_init_mut()
-        .insert(mach_name, props);
+      MACHINES.assume_init_mut().insert(mach_name, props);
     }
   }
 
@@ -563,7 +561,7 @@ pub fn init_machines() -> Result<(), InitError> {
       .contains_key(&DEFAULT_MACHINE_FOR_EMOJI_VERSION_2)
     {
       return Err(
-        format!("emoji version 2 default machine '{}' not found", v2).into(),
+        format!("emoji version 2 default machine '{v2}' not found").into(),
       );
     }
 
@@ -572,7 +570,7 @@ pub fn init_machines() -> Result<(), InitError> {
       .contains_key(&DEFAULT_MACHINE_FOR_EMOJI_VERSION_1)
     {
       return Err(
-        format!("emoji version 1 default machine '{}' not found", v1).into(),
+        format!("emoji version 1 default machine '{v1}' not found").into(),
       );
     }
   }
