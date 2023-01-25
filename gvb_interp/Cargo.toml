@@ -23,7 +23,6 @@ intmap = "2.0.0"
 chrono = "0.4.23"
 seahash = "4.1.0"
 widestring = "1.0.2"
-memchr = "2.5.0"
 
 [dev-dependencies]
 insta = "1.26.0"

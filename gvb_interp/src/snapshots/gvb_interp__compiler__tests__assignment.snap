@@ -1,8 +1,6 @@
 ---
 source: gvb_interp/src/compiler.rs
-assertion_line: 2056
 expression: "compile(r#\"\n10 a=a*b+coo%/2^len(a$+\"xx和\")\n20 b%=1+3:c$(2)=\"a\"+chr$(2):\n\"#.trim())"
-
 ---
 emoji_version: V2
 --------- data ----------
@@ -14,13 +12,13 @@ emoji_version: V2
 4     0:9..13   push var COO%
 5     0:14..15  push number 2
 6     0:20..22  push var A$
-7     0:23..30  push string "xx和"
-8     0:20..30  concat
-9     0:16..31  call sys func LEN, arity: 1
-10    0:14..31  pow
-11    0:9..31   div
-12    0:5..31   add
-13    0:3..31   assign real
+7     0:23..28  push string "xx和"
+8     0:20..28  concat
+9     0:16..29  call sys func LEN, arity: 1
+10    0:14..29  pow
+11    0:9..29   div
+12    0:5..29   add
+13    0:3..29   assign real
 14    1:3..5    push var lvalue B%
 15    1:6..7    push number 1
 16    1:8..9    push number 3
