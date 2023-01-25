@@ -1,6 +1,5 @@
 ---
 source: gvb_interp/src/compiler.rs
-assertion_line: 2158
 expression: "compile(r#\"\n10 def fn k(x )=sin(i/2)+3:def fn F (x) = fn f (x)\n20 let k=1+fn k(37+fn k(0))\n    \"#.trim())"
 ---
 emoji_version: V2

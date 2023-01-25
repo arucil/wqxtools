@@ -1,0 +1,13 @@
+---
+source: gvb_interp/src/vm.rs
+expression: "run(r#\"\n10 def fn pi(x)=atn(1)*4*x:x=3:print x;:print fn pi(1);:print x;:\n20 def fn pi(y)=int(y)*10:print fn pi(3.5);\n30 clear:print fn pi(1)\n    \"#.trim(),\n    vec![(exec_error(2, 15, 23, \"自定义函数不存在\"), ExecInput ::\n        None)])"
+---
+print "3"
+flush
+print "3.14159265"
+flush
+print "3"
+flush
+print "30"
+flush
+

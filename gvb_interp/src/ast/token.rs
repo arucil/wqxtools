@@ -229,7 +229,7 @@ impl From<u8> for Punc {
       b';' => Self::Semicolon,
       b',' => Self::Comma,
       b'#' => Self::Hash,
-      _ => panic!("invalid char {}", c),
+      _ => panic!("invalid char {c}"),
     }
   }
 }
@@ -320,7 +320,7 @@ impl Debug for Keyword {
       Fseek => "FSEEK",
       DebugPrint => "DEBUGPRINT",
     };
-    write!(f, "{}", kw)
+    write!(f, "{kw}")
   }
 }
 
@@ -342,7 +342,7 @@ impl Debug for Punc {
       Self::Comma => ",",
       Self::Hash => "#",
     };
-    write!(f, "{}", kind)
+    write!(f, "{kind}")
   }
 }
 
@@ -353,9 +353,9 @@ impl Debug for TokenKind {
       Self::Label => write!(f, "<label>"),
       Self::Float => write!(f, "<float>"),
       Self::String => write!(f, "<string>"),
-      Self::Punc(p) => write!(f, "\"{:?}\"", p),
-      Self::Keyword(p) => write!(f, "{:?}", p),
-      Self::SysFunc(p) => write!(f, "{:?}", p),
+      Self::Punc(p) => write!(f, "\"{p:?}\""),
+      Self::Keyword(p) => write!(f, "{p:?}"),
+      Self::SysFunc(p) => write!(f, "{p:?}"),
       Self::Eof => write!(f, "<eof>"),
     }
   }

@@ -1,0 +1,11 @@
+---
+source: gvb_interp/src/vm.rs
+expression: "run(r#\"\n10 a=1:b=2:if a>=b then print \"a\";:30 else print \"b\";:40\n20 print \"come\";:end\n30 graph:end\n40 if a<>b then print \"GO\";:gosub 20:text:else print \"go\";:gosub 20:inverse\n    \"#.trim(),\n    vec![(ExecResult :: End, ExecInput :: None)])"
+---
+print "b"
+flush
+print "GO"
+flush
+print "come"
+flush
+

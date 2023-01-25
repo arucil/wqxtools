@@ -1212,7 +1212,7 @@ impl FileHandle for DefaultFileHandle {
           if data_end > 65534 {
             return Err(io::Error::new(
               io::ErrorKind::FileTooLarge,
-              format!("文件大小为 {} 字节，超出文件大小上限 65534", data_end),
+              format!("文件大小为 {data_end} 字节，超出文件大小上限 65534"),
             ));
           }
           data.resize(data_end, 0);

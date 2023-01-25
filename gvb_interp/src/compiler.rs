@@ -620,8 +620,7 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E, ProgramLine> {
       self.add_error(
         range.clone(),
         format!(
-          "表达式类型错误。{} 语句的{}是{}类型，而这个表达式是{}类型",
-          stmt_name, param_name, arg_type, ty
+          "表达式类型错误。{stmt_name} 语句的{param_name}是{arg_type}类型，而这个表达式是{ty}类型"
         ),
       );
     }
@@ -631,7 +630,7 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E, ProgramLine> {
   fn compile_data(&mut self, data: &NonEmptyVec<[Datum; 1]>) {
     let mut data_index = None;
     for datum in data.iter() {
-      let text = &self.text[datum.range.start..datum.range.end];
+      let text = &self.text[datum.range.range()];
       let text = if datum.is_quoted {
         if text.ends_with_char('"') {
           text[1..text.len() - 1].to_owned()
@@ -1546,7 +1545,7 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E, ProgramLine> {
                 let arg = &self.expr_node(arg);
                 self.add_error(
                   arg.range.clone(),
-                  format!("多余的参数。{:?} 函数只接受 1 个参数", kind),
+                  format!("多余的参数。{kind:?} 函数只接受 1 个参数"),
                 );
               }
             }
@@ -1629,7 +1628,7 @@ impl<'a, 'b, E: CodeEmitter, T> CompileState<'a, 'b, E, T> {
         Type::String
       }
       ExprKind::NumberLit => {
-        let mut text = self.text[range.start..range.end].to_string();
+        let mut text = self.text[range.range()].to_string();
         text.retain(|c| c != ' ');
         match text.parse::<Mbf5>() {
           Ok(num) => self.code_emitter.emit_number(range, num),
@@ -1845,10 +1844,7 @@ impl<'a, 'b, E: CodeEmitter, T> CompileState<'a, 'b, E, T> {
         } else {
           self.add_error(
             op.0.clone(),
-            format!(
-              "运算数类型不匹配，左边是{}类型，右边是{}类型",
-              lhs_ty, rhs_ty
-            ),
+            format!("运算数类型不匹配，左边是{lhs_ty}类型，右边是{rhs_ty}类型"),
           );
           if let BinaryOpKind::Add = op.1 {
             Type::Error
@@ -1938,7 +1934,7 @@ impl<'a, 'b, E: CodeEmitter, T> CompileState<'a, 'b, E, T> {
 
   #[must_use]
   fn compile_sym(&mut self, range: Range) -> (E::Symbol, Type) {
-    let mut name = self.text[range.start..range.end].to_string().to_ascii_uppercase();
+    let mut name = self.text[range.range()].to_string().to_ascii_uppercase();
     let ty = match name.as_bytes().last() {
       Some(b'%') => Type::Integer,
       Some(b'$') => Type::String,
@@ -1952,10 +1948,7 @@ impl<'a, 'b, E: CodeEmitter, T> CompileState<'a, 'b, E, T> {
       }
       self.add_warning(
         range,
-        format!(
-          "该变量包含空格，空格之后的部分会被省略。该变量等价于 {}",
-          name
-        ),
+        format!("该变量包含空格，空格之后的部分会被省略。该变量等价于 {name}"),
       );
     }
 

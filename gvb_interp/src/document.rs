@@ -413,7 +413,7 @@ impl Document {
           str.push(':');
         }
         str.push_str("REM {type:");
-        write!(&mut str, "{}", name).unwrap();
+        write!(&mut str, "{name}").unwrap();
         str.push('}');
         Ok(ReplaceText {
           range: Range::empty(first_line.len()),
@@ -511,7 +511,7 @@ impl Document {
           goto = None;
           str = label.to_string();
         } else {
-          str = format!("{} ", label);
+          str = format!("{label} ");
           if pos == cursor_pos {
             goto = Some(pos + str.len());
           } else {
@@ -685,7 +685,7 @@ impl Document {
                 str = label.to_string();
               } else {
                 range = ref_range.clone();
-                str = format!(" {}", label);
+                str = format!(" {label}");
               }
             } else {
               range = ref_range.clone();
@@ -707,7 +707,7 @@ impl Document {
           str: if match_u16c!(self.text.as_slice().get(pos), b' ') {
             label.to_string()
           } else {
-            format!("{} ", label)
+            format!("{label} ")
           }
           .into(),
         });

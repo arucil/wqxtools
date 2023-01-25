@@ -477,9 +477,9 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
           TokenKind::Label => msg += "行号",
           TokenKind::Float => msg += "实数",
           TokenKind::String => msg += "字符串",
-          TokenKind::Punc(p) => write!(&mut msg, "\"{:?}\"", p).unwrap(),
-          TokenKind::Keyword(p) => write!(&mut msg, "{:?}", p).unwrap(),
-          TokenKind::SysFunc(p) => write!(&mut msg, "{:?}", p).unwrap(),
+          TokenKind::Punc(p) => write!(&mut msg, "\"{p:?}\"").unwrap(),
+          TokenKind::Keyword(p) => write!(&mut msg, "{p:?}").unwrap(),
+          TokenKind::SysFunc(p) => write!(&mut msg, "{p:?}").unwrap(),
           TokenKind::Eof => msg += "行尾",
         },
         Symbol::Nonterm(n) => match n {
@@ -2503,9 +2503,9 @@ mod lex_tests {
     assert_eq!(
       read_tokens(r#"   "Fo和1" "3   "#),
       vec![
-        (Range::new(3, 11), TokenKind::String),
-        (Range::new(12, 17), TokenKind::String),
-        (Range::empty(17), TokenKind::Eof),
+        (Range::new(3, 9), TokenKind::String),
+        (Range::new(10, 15), TokenKind::String),
+        (Range::empty(15), TokenKind::Eof),
       ]
     );
   }
@@ -2661,7 +2661,7 @@ impl ParseResult<ExprId> {
     let mut f = String::new();
     writeln!(&mut f, "diagnostics: ").unwrap();
     for diag in &self.diagnostics {
-      writeln!(&mut f, "  {:?}", diag).unwrap();
+      writeln!(&mut f, "  {diag:?}").unwrap();
     }
     writeln!(&mut f, "-----------------").unwrap();
     self.expr_arena[self.content]

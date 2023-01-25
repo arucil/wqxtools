@@ -250,7 +250,7 @@ impl Debug for FileMode {
       Self::Binary => "BINARY",
       Self::Error => "ERROR",
     };
-    write!(f, "{}", kind)
+    write!(f, "{kind}")
   }
 }
 
@@ -443,7 +443,10 @@ fn print_stmt(
     }
     StmtKind::GoSub(label) => {
       if let Some((range, label)) = label {
-        assert_eq!(text[range.range()].to_string().parse::<Label>(), Ok(*label));
+        assert_eq!(
+          text[range.range()].to_string().parse::<Label>(),
+          Ok(*label)
+        );
         writeln!(f, "GOSUB {}", label.0)
       } else {
         writeln!(f, "GOSUB")
@@ -455,10 +458,13 @@ fn print_stmt(
     } => {
       let goto = if *has_goto_keyword { "GOTO" } else { "[GOTO]" };
       if let Some((range, label)) = label {
-        assert_eq!(text[range.range()].to_string().parse::<Label>(), Ok(*label));
+        assert_eq!(
+          text[range.range()].to_string().parse::<Label>(),
+          Ok(*label)
+        );
         writeln!(f, "{} {}", goto, label.0)
       } else {
-        writeln!(f, "{}", goto)
+        writeln!(f, "{goto}")
       }
     }
     StmtKind::Graph => writeln!(f, "GRAPH"),
@@ -602,10 +608,13 @@ fn print_stmt(
         }
         comma = true;
         if let Some(label) = label {
-          assert_eq!(text[range.range()].to_string().parse::<Label>(), Ok(*label));
+          assert_eq!(
+            text[range.range()].to_string().parse::<Label>(),
+            Ok(*label)
+          );
           write!(f, "{}", label.0)?;
         } else {
-          write!(f, "<{:?}>", range)?;
+          write!(f, "<{range:?}>")?;
         }
       }
       writeln!(f)
@@ -618,7 +627,7 @@ fn print_stmt(
     } => {
       write!(f, "OPEN ")?;
       expr_arena[*filename].print(expr_arena, text, f)?;
-      write!(f, " FOR {:?} AS # ", mode)?;
+      write!(f, " FOR {mode:?} AS # ")?;
       expr_arena[*filenum].print(expr_arena, text, f)?;
       if let Some((_, len)) = len {
         write!(f, " LEN = ")?;
@@ -680,7 +689,10 @@ fn print_stmt(
     }
     StmtKind::Restore(label) => {
       if let Some((range, label)) = label {
-        assert_eq!(text[range.range()].to_string().parse::<Label>(), Ok(*label));
+        assert_eq!(
+          text[range.range()].to_string().parse::<Label>(),
+          Ok(*label)
+        );
         writeln!(f, "RESTORE {}", label.0)
       } else {
         writeln!(f, "RESTORE")

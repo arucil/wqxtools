@@ -18,6 +18,7 @@ pub trait Utf16StrExt: ToOwned {
   fn contains_char(&self, c: char) -> bool;
   fn count_char(&self, c: char) -> usize;
   fn first_line(&self) -> &Self;
+  fn find_str(&self, other: &Self) -> Option<usize>;
   fn rfind_str(&self, other: &Self) -> Option<usize>;
 }
 
@@ -128,25 +129,40 @@ impl Utf16StrExt for Utf16Str {
     }
   }
 
+  fn find_str(&self, needle: &Self) -> Option<usize> {
+    if needle.is_empty() {
+      return Some(self.len());
+    }
+    let mut searcher = UtfTwoWaySearcher::new(needle.as_slice(), self.len());
+    let is_long = searcher.memory == usize::MAX;
+    // write out `true` and `false` cases to encourage the compiler
+    // to specialize the two cases separately.
+    if is_long {
+      searcher
+        .next::<MatchOnly>(self.as_slice(), needle.as_slice(), true)
+        .map(|x| x.0)
+    } else {
+      searcher
+        .next::<MatchOnly>(self.as_slice(), needle.as_slice(), false)
+        .map(|x| x.0)
+    }
+  }
+
   fn rfind_str(&self, needle: &Self) -> Option<usize> {
     if needle.is_empty() {
       return Some(self.len());
     }
-    let mut searcher = UtfTwoWaySearcher::new(self.as_slice(), self.len());
+    let mut searcher = UtfTwoWaySearcher::new(needle.as_slice(), self.len());
     let is_long = searcher.memory == usize::MAX;
     // write out `true` and `false`, like `next_match`
     if is_long {
-      searcher.next_back::<MatchOnly>(
-        self.as_slice(),
-        needle.as_slice(),
-        true,
-      ).map(|x| x.0)
+      searcher
+        .next_back::<MatchOnly>(self.as_slice(), needle.as_slice(), true)
+        .map(|x| x.0)
     } else {
-      searcher.next_back::<MatchOnly>(
-        self.as_slice(),
-        needle.as_slice(),
-        false,
-      ).map(|x| x.0)
+      searcher
+        .next_back::<MatchOnly>(self.as_slice(), needle.as_slice(), false)
+        .map(|x| x.0)
     }
   }
 }
@@ -171,10 +187,10 @@ impl<'a> Iterator for CharIdxIter<'a> {
   }
 }
 
-fn utf16str_match_char_indices<'a>(
-  s: &'a Utf16Str,
+fn utf16str_match_char_indices(
+  s: &Utf16Str,
   c: char,
-) -> impl Iterator<Item = usize> + 'a {
+) -> impl Iterator<Item = usize> + '_ {
   CharIdxIter { s, c, offset: 0 }
 }
 
@@ -233,10 +249,8 @@ struct UtfTwoWaySearcher {
 
 impl UtfTwoWaySearcher {
   fn new(needle: &[u16], end: usize) -> Self {
-    let (crit_pos_false, period_false) =
-      Self::maximal_suffix(needle, false);
-    let (crit_pos_true, period_true) =
-      Self::maximal_suffix(needle, true);
+    let (crit_pos_false, period_false) = Self::maximal_suffix(needle, false);
+    let (crit_pos_true, period_true) = Self::maximal_suffix(needle, true);
 
     let (crit_pos, period) = if crit_pos_false > crit_pos_true {
       (crit_pos_false, period_false)
@@ -646,16 +660,16 @@ impl UtfTwoWayStrategy for RejectAndMatch {
 /// Result of calling [`Searcher::next()`] or [`ReverseSearcher::next_back()`].
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
 pub enum UtfSearchStep {
-    /// Expresses that a match of the pattern has been found at
-    /// `haystack[a..b]`.
-    Match(usize, usize),
-    /// Expresses that `haystack[a..b]` has been rejected as a possible match
-    /// of the pattern.
-    ///
-    /// Note that there might be more than one `Reject` between two `Match`es,
-    /// there is no requirement for them to be combined into one.
-    Reject(usize, usize),
-    /// Expresses that every byte of the haystack has been visited, ending
-    /// the iteration.
-    Done,
+  /// Expresses that a match of the pattern has been found at
+  /// `haystack[a..b]`.
+  Match(usize, usize),
+  /// Expresses that `haystack[a..b]` has been rejected as a possible match
+  /// of the pattern.
+  ///
+  /// Note that there might be more than one `Reject` between two `Match`es,
+  /// there is no requirement for them to be combined into one.
+  Reject(usize, usize),
+  /// Expresses that every byte of the haystack has been visited, ending
+  /// the iteration.
+  Done,
 }

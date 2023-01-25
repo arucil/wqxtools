@@ -72,7 +72,7 @@ impl CodeGen {
         StringProblem::UnrecogEmoji(i, c, code) => {
           self.add_warning(
             Range::new(i, i + c.len_utf8()).offset(range_offset),
-            format!("无法识别的符号 0x{:04X}。可能是选择了错误的机型", code),
+            format!("无法识别的符号 0x{code:04X}。可能是选择了错误的机型"),
           );
         }
         StringProblem::InvalidChar(i, c) => {

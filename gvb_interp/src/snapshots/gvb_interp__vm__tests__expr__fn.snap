@@ -1,0 +1,9 @@
+---
+source: gvb_interp/src/vm.rs
+expression: "run(r#\"\n10 def fn f(x)=x*x+fn g(x):def fn g(x)=x*2+7\n20 x=1:print fn f(10);:print x;\n    \"#.trim(),\n    vec![(ExecResult :: End, ExecInput :: None)])"
+---
+print "127"
+flush
+print "1"
+flush
+

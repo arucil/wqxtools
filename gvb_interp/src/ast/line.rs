@@ -35,7 +35,7 @@ impl crate::parser::ParseResult<ProgramLine> {
     writeln!(&mut f, "eol: {:?}", self.content.eol).unwrap();
     writeln!(&mut f, "diagnostics: ").unwrap();
     for diag in &self.diagnostics {
-      writeln!(&mut f, "  {:?}", diag).unwrap();
+      writeln!(&mut f, "  {diag:?}").unwrap();
     }
     writeln!(&mut f, "-----------------").unwrap();
     for &stmt in self.content.stmts.iter() {

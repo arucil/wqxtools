@@ -312,7 +312,7 @@ impl InstrKind {
         format!("push lvalue FN {}({})", sym!(name), sym!(param))
       }
       Self::SetRecordFields { fields } => {
-        format!("set record fields, num fields: {}", fields)
+        format!("set record fields, num fields: {fields}")
       }
       Self::ForLoop { name, has_step } => format!(
         "start for loop, var: {}, has_step: {}",
@@ -331,13 +331,13 @@ impl InstrKind {
       Self::JumpIfZero(addr) => format!("if zero goto {}", addr.0),
       Self::CallFn(name) => format!("call FN {}", sym!(name)),
       Self::ReturnFn => format!("return from FN"),
-      Self::Switch(branches) => format!("switch, num branches: {}", branches),
+      Self::Switch(branches) => format!("switch, num branches: {branches}"),
       Self::RestoreDataPtr(ptr) => format!("restore data ptr: {}", ptr.0),
       Self::Return => format!("return"),
       Self::Pop => format!("pop sub"),
       Self::PopNum => format!("pop num"),
       Self::PopStr => format!("pop str"),
-      Self::PushNum(num) => format!("push number {}", num),
+      Self::PushNum(num) => format!("push number {num}"),
       Self::PushVar(name) => format!("push var {}", sym!(name)),
       Self::PushStr(str) => {
         format!("push string \"{}\"", str.to_string_lossy(emoji_version))
@@ -348,8 +348,8 @@ impl InstrKind {
       }
       Self::Not => format!("not"),
       Self::Neg => format!("neg"),
-      Self::CmpStr(op) => format!("str {:?}", op),
-      Self::CmpNum(op) => format!("num {:?}", op),
+      Self::CmpStr(op) => format!("str {op:?}"),
+      Self::CmpNum(op) => format!("num {op:?}"),
       Self::Add => format!("add"),
       Self::Sub => format!("sub"),
       Self::Mul => format!("mul"),
@@ -359,7 +359,7 @@ impl InstrKind {
       Self::Or => format!("or"),
       Self::Concat => format!("concat"),
       Self::SysFuncCall { kind, arity } => {
-        format!("call sys func {:?}, arity: {}", kind, arity)
+        format!("call sys func {kind:?}, arity: {arity}")
       }
       Self::NewLine => format!("newline"),
       Self::PrintSpc => format!("print SPC"),
@@ -385,37 +385,34 @@ impl InstrKind {
       }
       Self::KeyboardInput { has_prompt, fields } => {
         format!(
-          "keyboard input, has_prompt: {:?}, num fields: {}",
-          has_prompt, fields
+          "keyboard input, has_prompt: {has_prompt:?}, num fields: {fields}"
         )
       }
       Self::FileInput { fields } => {
-        format!("file input, num fields: {}", fields)
+        format!("file input, num fields: {fields}")
       }
       Self::ReadData => format!("read data"),
       Self::OpenFile { mode, has_len } => {
-        format!("open file, mode: {:?}, has_len: {}", mode, has_len)
+        format!("open file, mode: {mode:?}, has_len: {has_len}")
       }
       Self::Beep => format!("beep"),
       Self::DrawBox { has_fill, has_mode } => {
-        format!("draw box, has_fill: {}, has_mode: {}", has_fill, has_mode)
+        format!("draw box, has_fill: {has_fill}, has_mode: {has_mode}")
       }
       Self::Call => format!("call asm"),
-      Self::DrawCircle { has_fill, has_mode } => format!(
-        "draw circle, has_fill: {}, has_mode: {}",
-        has_fill, has_mode
-      ),
+      Self::DrawCircle { has_fill, has_mode } => {
+        format!("draw circle, has_fill: {has_fill}, has_mode: {has_mode}")
+      }
       Self::Clear => format!("clear"),
       Self::CloseFile => format!("close file"),
       Self::Cls => format!("cls"),
       Self::NoOp => format!("no op"),
       Self::DrawPoint { has_mode } => {
-        format!("draw point, has_mode: {}", has_mode)
+        format!("draw point, has_mode: {has_mode}")
       }
-      Self::DrawEllipse { has_fill, has_mode } => format!(
-        "draw ellipse, has_fill: {}, has_mode: {}",
-        has_fill, has_mode
-      ),
+      Self::DrawEllipse { has_fill, has_mode } => {
+        format!("draw ellipse, has_fill: {has_fill}, has_mode: {has_mode}")
+      }
       Self::End => format!("end"),
       Self::ReadRecord => format!("read record"),
       Self::WriteRecord => format!("write record"),
@@ -423,18 +420,18 @@ impl InstrKind {
       Self::AssignReal => format!("assign real"),
       Self::AssignStr => format!("assign str"),
       Self::DrawLine { has_mode } => {
-        format!("draw line, has_mode: {}", has_mode)
+        format!("draw line, has_mode: {has_mode}")
       }
       Self::AlignedAssign(align) => {
-        format!("aligned assign, align: {:?}", align)
+        format!("aligned assign, align: {align:?}")
       }
-      Self::SetTrace(mode) => format!("set trace mode: {}", mode),
-      Self::SetScreenMode(mode) => format!("set screen mode: {:?}", mode),
+      Self::SetTrace(mode) => format!("set trace mode: {mode}"),
+      Self::SetScreenMode(mode) => format!("set screen mode: {mode:?}"),
       Self::PlayNotes => format!("play notes"),
       Self::Poke => format!("poke"),
       Self::Swap => format!("swap"),
       Self::Restart => format!("restart"),
-      Self::SetPrintMode(mode) => format!("set print mode: {:?}", mode),
+      Self::SetPrintMode(mode) => format!("set print mode: {mode:?}"),
       Self::Wend => format!("wend"),
       Self::WhileLoop { start, end } => format!(
         "start while loop, cond start addr: {}, end addr: {}",

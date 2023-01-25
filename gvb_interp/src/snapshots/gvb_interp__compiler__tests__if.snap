@@ -1,6 +1,5 @@
 ---
 source: gvb_interp/src/compiler.rs
-assertion_line: 2190
 expression: "compile(r#\"\n0  if a+b then print:20:\n10 if f(x)>3 then cont:else graph:cls:gosub 00\n20 if a< >b then x=x+1:10:20:if x>10 then play \"abc\" else 30:t(i)=int(x/2):else 00\n30 if 37 goto else 20:if 0 goto 50\n50 rem x\n    \"#.trim())"
 ---
 emoji_version: V2

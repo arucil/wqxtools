@@ -128,7 +128,7 @@ impl Range {
   }
 
   pub fn range(&self) -> std::ops::Range<usize> {
-    (self.start as usize)..(self.end as usize)
+    self.start..self.end
   }
 }
 

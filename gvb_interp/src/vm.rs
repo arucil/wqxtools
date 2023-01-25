@@ -824,9 +824,7 @@ where
             self.state.error(
               loc,
               format!(
-                "运算结果数值过大，超出了实数的表示范围。加法运算的两个运算数分别为：{}，{}",
-                lhs,
-                rhs
+                "运算结果数值过大，超出了实数的表示范围。加法运算的两个运算数分别为：{lhs}，{rhs}"
               ))?;
           }
           Err(RealError::Nan) => unreachable!(),
@@ -841,9 +839,7 @@ where
             self.state.error(
               loc,
               format!(
-                "运算结果数值过大，超出了实数的表示范围。减法运算的两个运算数分别为：{}，{}",
-                lhs,
-                rhs
+                "运算结果数值过大，超出了实数的表示范围。减法运算的两个运算数分别为：{lhs}，{rhs}"
               ))?;
           }
           Err(RealError::Nan) => unreachable!(),
@@ -858,9 +854,7 @@ where
             self.state.error(
               loc,
               format!(
-                "运算结果数值过大，超出了实数的表示范围。乘法运算的两个运算数分别为：{}，{}",
-                lhs,
-                rhs
+                "运算结果数值过大，超出了实数的表示范围。乘法运算的两个运算数分别为：{lhs}，{rhs}"
               ))?;
           }
           Err(RealError::Nan) => unreachable!(),
@@ -878,9 +872,7 @@ where
             self.state.error(
               loc,
               format!(
-                "运算结果数值过大，超出了实数的表示范围。除法运算的两个运算数分别为：{}，{}",
-                lhs,
-                rhs
+                "运算结果数值过大，超出了实数的表示范围。除法运算的两个运算数分别为：{lhs}，{rhs}"
               ))?;
           }
           Err(RealError::Nan) => unreachable!(),
@@ -895,15 +887,13 @@ where
             self.state.error(
               loc,
               format!(
-                "运算结果数值过大，超出了实数的表示范围。底数为：{}，指数为：{}",
-                lhs,
-                rhs
+                "运算结果数值过大，超出了实数的表示范围。底数为：{lhs}，指数为：{rhs}"
               ))?;
           }
           Err(RealError::Nan) => {
             self.state.error(
               loc,
-              format!("超出乘方运算的定义域。底数为：{}，指数为：{}", lhs, rhs),
+              format!("超出乘方运算的定义域。底数为：{lhs}，指数为：{rhs}"),
             )?;
           }
         }
@@ -1566,10 +1556,7 @@ where
           }
           Err(RealError::Infinite) => self.state.error(
             loc,
-            format!(
-              "运算结果数值过大，超出实数的表示范围。参数值是：{}",
-              value
-            ),
+            format!("运算结果数值过大，超出实数的表示范围。参数值是：{value}"),
           )?,
           Err(RealError::Nan) => unreachable!(),
         }
@@ -1628,14 +1615,11 @@ where
           }
           Err(RealError::Infinite) => self.state.error(
             loc,
-            format!(
-              "运算结果数值过大，超出实数的表示范围。参数值是：{}",
-              value
-            ),
+            format!("运算结果数值过大，超出实数的表示范围。参数值是：{value}"),
           )?,
           Err(RealError::Nan) => self.state.error(
             arg_loc,
-            format!("超出 LOG 函数的定义域。参数值是：{}", value),
+            format!("超出 LOG 函数的定义域。参数值是：{value}"),
           )?,
         }
       }
@@ -1734,7 +1718,7 @@ where
           }
           Err(RealError::Nan) => self.state.error(
             arg_loc,
-            format!("超出 SQR 函数的定义域。参数值是：{}", value),
+            format!("超出 SQR 函数的定义域。参数值是：{value}"),
           )?,
           Err(RealError::Infinite) => unreachable!(),
         }
@@ -1755,14 +1739,11 @@ where
           }
           Err(RealError::Infinite) => self.state.error(
             loc,
-            format!(
-              "运算结果数值过大，超出实数的表示范围。参数值是：{}",
-              value
-            ),
+            format!("运算结果数值过大，超出实数的表示范围。参数值是：{value}"),
           )?,
           Err(RealError::Nan) => self.state.error(
             arg_loc,
-            format!("超出 TAN 函数的定义域。参数值是：{}", value),
+            format!("超出 TAN 函数的定义域。参数值是：{value}"),
           )?,
         }
       }
@@ -2070,8 +2051,7 @@ where
       self.state.error(
         loc,
         format!(
-          "FIELD 语句定义的字段总长度 {} 超出了打开文件时所指定的记录长度 {}",
-          total_len, record_len
+          "FIELD 语句定义的字段总长度 {total_len} 超出了打开文件时所指定的记录长度 {record_len}"
         ),
       )?;
     }
@@ -2398,7 +2378,7 @@ where
     if value <= min as f64 - 1.0 || value >= max as f64 + 1.0 {
       self.state.error(
         value_loc,
-        format!("参数超出范围 {}~{}。运算结果为：{}", min, max, value),
+        format!("参数超出范围 {min}~{max}。运算结果为：{value}"),
       )?;
     }
     Ok(value as _)
@@ -2659,7 +2639,7 @@ impl<S> ExecState<S> {
           io::ErrorKind::FileTooLarge => "文件大小超出64KB的限制".to_owned(),
           _ => err.to_string(),
         };
-        self.error(loc, format!("{}时发生错误：{}", op, err))?
+        self.error(loc, format!("{op}时发生错误：{err}"))?
       }
     }
   }
@@ -2977,12 +2957,12 @@ mod tests {
     }
 
     fn set_row(&mut self, row: u8) {
-      add_log(self.log.clone(), format!("set row to {}", row));
+      add_log(self.log.clone(), format!("set row to {row}"));
       self.cursor.0 = row;
     }
 
     fn set_column(&mut self, column: u8) {
-      add_log(self.log.clone(), format!("set column to {}", column));
+      add_log(self.log.clone(), format!("set column to {column}"));
       self.cursor.1 = column;
     }
 
@@ -2995,7 +2975,7 @@ mod tests {
           }),
         );
       } else {
-        add_log(self.log.clone(), format!("print {:?}", str));
+        add_log(self.log.clone(), format!("print {str:?}"));
       }
     }
 
@@ -3010,7 +2990,7 @@ mod tests {
     fn draw_point(&mut self, (x, y): (u8, u8), mode: DrawMode) {
       add_log(
         self.log.clone(),
-        format!("draw point at ({}, {}), {:?}", x, y, mode),
+        format!("draw point at ({x}, {y}), {mode:?}"),
       );
     }
 
@@ -3022,10 +3002,7 @@ mod tests {
     ) {
       add_log(
         self.log.clone(),
-        format!(
-          "draw line from ({}, {}) to ({}, {}), {:?}",
-          x1, y1, x2, y2, mode
-        ),
+        format!("draw line from ({x1}, {y1}) to ({x2}, {y2}), {mode:?}"),
       );
     }
 
@@ -3039,8 +3016,7 @@ mod tests {
       add_log(
         self.log.clone(),
         format!(
-          "draw box from ({}, {}) to ({}, {}), fill: {:?}, {:?}",
-          x1, y1, x2, y2, fill, mode
+          "draw box from ({x1}, {y1}) to ({x2}, {y2}), fill: {fill:?}, {mode:?}"
         ),
       );
     }
@@ -3055,8 +3031,7 @@ mod tests {
       add_log(
         self.log.clone(),
         format!(
-          "draw circle at ({}, {}), radius: {}, fill: {:?}, {:?}",
-          x, y, r, fill, mode
+          "draw circle at ({x}, {y}), radius: {r}, fill: {fill:?}, {mode:?}"
         ),
       );
     }
@@ -3071,8 +3046,7 @@ mod tests {
       add_log(
         self.log.clone(),
         format!(
-          "draw ellipse at ({}, {}), rx: {}, ry: {}, fill: {:?}, {:?}",
-          x, y, rx, ry, fill, mode
+          "draw ellipse at ({x}, {y}), rx: {rx}, ry: {ry}, fill: {fill:?}, {mode:?}"
         ),
       );
     }
@@ -3092,17 +3066,17 @@ mod tests {
     }
 
     fn write_byte(&mut self, addr: u16, byte: u8) {
-      add_log(self.log.clone(), format!("poke {}, {}", addr, byte));
+      add_log(self.log.clone(), format!("poke {addr}, {byte}"));
       self.mem[addr as usize] = byte;
     }
 
     fn check_point(&self, (x, y): (i32, i32)) -> bool {
-      add_log(self.log.clone(), format!("check point ({}, {})", x, y));
+      add_log(self.log.clone(), format!("check point ({x}, {y})"));
       false
     }
 
     fn check_key(&self, key: u8) -> bool {
-      add_log(self.log.clone(), format!("check key {}", key));
+      add_log(self.log.clone(), format!("check key {key}"));
       false
     }
 
@@ -3130,7 +3104,7 @@ mod tests {
           if name.bytes().all(|b| b < 0x80) {
             format!("\"{}\"", unsafe { std::str::from_utf8_unchecked(name) })
           } else {
-            format!("{:?}", name)
+            format!("{name:?}")
           },
           read,
           write,
@@ -3162,20 +3136,20 @@ mod tests {
       if let AsmExecState::Start(addr) = state {
         add_log(
           self.log.clone(),
-          format!("call Some({}), steps: {}", addr, steps),
+          format!("call Some({addr}), steps: {steps}"),
         );
       } else {
-        add_log(self.log.clone(), format!("call None, steps: {}", steps));
+        add_log(self.log.clone(), format!("call None, steps: {steps}"));
       }
       Ok(None)
     }
 
     fn set_screen_mode(&mut self, mode: ScreenMode) {
-      add_log(self.log.clone(), format!("set screen mode to {:?}", mode));
+      add_log(self.log.clone(), format!("set screen mode to {mode:?}"));
     }
 
     fn set_print_mode(&mut self, mode: PrintMode) {
-      add_log(self.log.clone(), format!("set print mode to {:?}", mode));
+      add_log(self.log.clone(), format!("set print mode to {mode:?}"));
     }
 
     fn sleep_unit(&self) -> std::time::Duration {
@@ -3206,7 +3180,7 @@ mod tests {
     }
 
     fn seek(&mut self, pos: u64) -> io::Result<()> {
-      add_log(self.log.clone(), format!("seek file: {}", pos));
+      add_log(self.log.clone(), format!("seek file: {pos}"));
       if pos > self.data.borrow().len() as u64 {
         Err(io::Error::new(io::ErrorKind::Other, "out of range"))
       } else {
@@ -3221,7 +3195,7 @@ mod tests {
     }
 
     fn write(&mut self, data: &[u8]) -> io::Result<()> {
-      add_log(self.log.clone(), format!("write to file: {:?} ", data));
+      add_log(self.log.clone(), format!("write to file: {data:?} "));
       if self.pos + data.len() > self.data.borrow().len() {
         self.data.borrow_mut().resize(self.pos + data.len(), 0);
       }
@@ -3238,7 +3212,7 @@ mod tests {
       }
       data[..len]
         .copy_from_slice(&self.data.borrow()[self.pos..self.pos + len]);
-      add_log(self.log.clone(), format!("read from file: {:?} ", data));
+      add_log(self.log.clone(), format!("read from file: {data:?} "));
       self.pos += len;
       Ok(len)
     }

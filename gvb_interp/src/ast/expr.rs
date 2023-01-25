@@ -181,7 +181,7 @@ impl Debug for BinaryOpKind {
       Self::And => "AND",
       Self::Or => "OR",
     };
-    write!(f, "{}", kind)
+    write!(f, "{kind}")
   }
 }
 
@@ -202,7 +202,7 @@ impl Display for BinaryOpKind {
       Self::And => "AND",
       Self::Or => "OR",
     };
-    write!(f, "{}", kind)
+    write!(f, "{kind}")
   }
 }
 
@@ -244,7 +244,7 @@ impl Debug for SysFuncKind {
       Self::Fgetc => "FGETC",
       Self::Ftell => "FTELL",
     };
-    write!(f, "{}", kind)
+    write!(f, "{kind}")
   }
 }
 
@@ -255,7 +255,7 @@ impl Debug for UnaryOpKind {
       Self::Not => "NOT",
       Self::Pos => "+",
     };
-    write!(f, "{}", kind)
+    write!(f, "{kind}")
   }
 }
 
@@ -284,9 +284,9 @@ impl Expr {
       } => {
         assert_eq!(
           text[func_range.range()].to_ascii_uppercase(),
-          format!("{:?}", kind)
+          format!("{kind:?}")
         );
-        write!(f, "{:?}(", kind)?;
+        write!(f, "{kind:?}(")?;
         let mut comma = false;
         for &arg in args.iter() {
           if comma {
@@ -316,11 +316,11 @@ impl Expr {
             .to_owned()
             .replace_char(' ', utf16str!(""))
             .to_ascii_uppercase(),
-          format!("{:?}", kind)
+          format!("{kind:?}")
         );
         write!(f, "(")?;
         expr_arena[*lhs].print(expr_arena, text, f)?;
-        write!(f, " {:?} ", kind)?;
+        write!(f, " {kind:?} ")?;
         expr_arena[*rhs].print(expr_arena, text, f)?;
         write!(f, ")")
       }
@@ -330,9 +330,9 @@ impl Expr {
       } => {
         assert_eq!(
           text[op_range.range()].to_owned().to_ascii_uppercase(),
-          format!("{:?}", kind)
+          format!("{kind:?}")
         );
-        write!(f, "({:?} ", kind)?;
+        write!(f, "({kind:?} ")?;
         expr_arena[*arg].print(expr_arena, text, f)?;
         write!(f, ")")
       }
