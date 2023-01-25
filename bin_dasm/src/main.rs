@@ -1,5 +1,5 @@
 use bin_dasm::DasmOptions;
-use clap::{crate_version, Command, Arg};
+use clap::{crate_version, Arg, Command};
 use std::error::Error;
 use std::fs::File;
 use std::io::{BufReader, BufWriter, Read};
@@ -23,25 +23,23 @@ fn main() -> Result<(), Box<dyn Error>> {
         .help(
           "the starting address of the .BIN program, in hexadecimal notation",
         )
-        .takes_value(true)
-        .validator(validate_hex),
+        .value_parser(parse_hex)
     )
     .arg(
       Arg::new("output")
         .short('o')
         .long("output")
         .value_name("OUTPUT")
-        .help("file for dumping assembly")
-        .takes_value(true),
+        .help("file for dumping assembly"),
     )
     .arg(Arg::new("FILE").help("source .BIN file").required(true))
     .get_matches();
 
-  let file = matches.get_one("FILE").unwrap();
+  let file = matches.get_one::<String>("FILE").unwrap();
   let origin = matches
     .get_one("origin")
-    .map(|o| u16::from_str_radix(o, 16).unwrap());
-  let output = matches.value_of("output").map_or_else(
+    .map(|&o| u16::from_str_radix(o, 16).unwrap());
+  let output = matches.get_one::<String>("output").map_or_else(
     || {
       let mut path = Path::new(file).file_stem().unwrap().to_owned();
       path.push(".txt");
@@ -59,24 +57,23 @@ fn main() -> Result<(), Box<dyn Error>> {
     output,
     DasmOptions {
       starting_address: origin,
-      bin: matches.is_present("bin"),
+      bin: matches.contains_id("bin"),
     },
   )?;
 
   Ok(())
 }
 
-fn validate_hex(s: &str) -> Result<(), String> {
-  match u16::from_str_radix(s, 16) {
-    Ok(_) => Ok(()),
-    Err(err) => match err.kind() {
+fn parse_hex(s: &str) -> Result<u16, String> {
+  u16::from_str_radix(s, 16).map_err(|err| {
+    match err.kind() {
       IntErrorKind::InvalidDigit => {
-        Err("origin must be a hexadecimal number".to_owned())
+        "origin must be a hexadecimal number".to_owned()
       }
       IntErrorKind::NegOverflow | IntErrorKind::PosOverflow => {
-        Err("origin must be in the range of [0, 0xffff]".to_owned())
+        "origin must be in the range of [0, 0xffff]".to_owned()
       }
-      _ => Err(err.to_string()),
-    },
-  }
+      _ => err.to_string(),
+    }
+  })
 }

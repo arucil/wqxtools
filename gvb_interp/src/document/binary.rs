@@ -1,7 +1,7 @@
 use crate::machine::EmojiVersion;
 use crate::util::ascii_ext::AsciiExt;
 use std::fmt::Write;
-use widestring::{Utf16String, Utf16Str};
+use widestring::{Utf16Str, Utf16String};
 
 include!(concat!(env!("OUT_DIR"), "/keyword.rs"));
 
@@ -135,7 +135,7 @@ pub fn load_bas(
     newline = true;
 
     let label = line[3] as u16 + ((line[4] as u16) << 8);
-    write!(&mut text, "{} ", label).unwrap();
+    write!(&mut text, "{label} ").unwrap();
 
     let mut last_is_keyword = false;
     let mut i = 5;
@@ -177,7 +177,7 @@ pub fn load_bas(
         if last_is_keyword && b.is_ascii_alphanumeric() {
           let last = *text.as_slice().last().unwrap();
           if last == b'$' as u16
-            || last.is_ascii_alphanumeric() && (b as u8).is_ascii_alphanumeric()
+            || last.is_ascii_alphanumeric() && b.is_ascii_alphanumeric()
           {
             text.push(' ');
           }
@@ -333,7 +333,7 @@ pub fn save_bas(
           } else {
             return Err(SaveError {
               line,
-              message: format!("非法字符：U+{:04X}", b),
+              message: format!("非法字符：U+{b:04X}"),
               bas_specific: true,
             });
           }
@@ -389,7 +389,7 @@ pub fn save_bas(
               } else {
                 return Err(SaveError {
                   line,
-                  message: format!("非法字符：U+{:04X}", b),
+                  message: format!("非法字符：U+{b:04X}"),
                   bas_specific: true,
                 });
               }
