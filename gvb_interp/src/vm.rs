@@ -1563,7 +1563,7 @@ where
       }
       SysFuncKind::Int => {
         let value = self.num_stack.pop().unwrap().1;
-        self.num_stack.push((loc, value.truncate()));
+        self.num_stack.push((loc, value.floor()));
         Ok(())
       }
       SysFuncKind::Left => {
