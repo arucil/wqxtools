@@ -1,7 +1,7 @@
 use crate::parser::ParseResult;
 use crate::util::mbf5::{Mbf5, ParseRealError};
 use crate::util::utf16str_ext::Utf16StrExt;
-use crate::{ast::*, diagnostic::*, HashMap};
+use crate::{HashMap, ast::*, diagnostic::*};
 use smallvec::SmallVec;
 use std::fmt::{self, Display, Formatter};
 use std::num::NonZeroUsize;
@@ -17,6 +17,7 @@ pub trait CodeEmitter {
   fn emit_no_op(&mut self, range: Range);
 
   fn emit_op(&mut self, range: Range, kind: &StmtKind, arity: usize);
+  fn emit_load_bytes(&mut self, range: Range, bytes: Vec<u8>);
 
   /// Returns datum index and length of string.
   ///
@@ -191,7 +192,8 @@ pub(crate) fn compile_fn_body<E: CodeEmitter>(
       range.clone(),
       format!(
         "表达式类型错误。自定义函数的函数体表达式必须是{}类型，而这个表达式是{}类型",
-        Type::Real, ty
+        Type::Real,
+        ty
       ),
     );
   }
@@ -244,11 +246,11 @@ impl<'a, 'b, E: CodeEmitter, T> CompileState<'a, 'b, E, T> {
   }
 
   fn expr_node(&self, expr: ExprId) -> &'a Expr {
-    unsafe { &(*self.parsed).expr_arena[expr] }
+    unsafe { &(&(*self.parsed).expr_arena)[expr] }
   }
 
   fn stmt_node(&self, stmt: StmtId) -> &'a Stmt {
-    unsafe { &(*self.parsed).stmt_arena[stmt] }
+    unsafe { &(&(*self.parsed).stmt_arena)[stmt] }
   }
 }
 
@@ -470,7 +472,7 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E, ProgramLine> {
             range.clone(),
             format!(
               "赋值语句类型错误。等号左边的{}是{:#}类型，而等号右边的表达式是{}类型",
-              if is_array {"数组"}else{"变量"},
+              if is_array { "数组" } else { "变量" },
               lhs_ty,
               rhs_ty,
             ),
@@ -487,7 +489,7 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E, ProgramLine> {
       }
       StmtKind::Line(args) => compile_draw_stmt!(stmt, args, LINE, 4, 5),
       StmtKind::List(_) => self.code_emitter.emit_no_op(range),
-      StmtKind::Load(_) => self.code_emitter.emit_no_op(range),
+      StmtKind::Load(args) => self.compile_load(range, args),
       StmtKind::Locate { row, column } => self.compile_locate(*row, *column),
       StmtKind::LSet { var, value } => {
         self.compile_set(range, &stmt.kind, *var, *value, "LSET")
@@ -515,6 +517,7 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E, ProgramLine> {
         *filenum,
         len.as_ref().cloned(),
       ),
+      StmtKind::Paint(args) => compile_draw_stmt!(stmt, args, PAINT, 5, 6),
       StmtKind::Play(arg) => self.compile_unary_stmt(
         range,
         &stmt.kind,
@@ -764,7 +767,9 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E, ProgramLine> {
           format!(
             "表达式类型错误。FIELD 语句的字段长度必须是{}类型，而这个表达式是{}类型",
             Type::Real,
-            ty));
+            ty
+          ),
+        );
       }
 
       let (is_array, ty) = self.compile_lvalue(field.var);
@@ -790,7 +795,9 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E, ProgramLine> {
         format!(
           "表达式类型错误。FIELD 语句的文件号必须是{}类型，而这个表达式是{}类型",
           Type::Real,
-          ty));
+          ty
+        ),
+      );
     }
 
     self
@@ -1033,7 +1040,9 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E, ProgramLine> {
         format!(
           "表达式类型错误。WHILE 语句的条件表达式必须是{}类型，而这个表达式是{}类型",
           Type::Real,
-          ty));
+          ty
+        ),
+      );
     }
     self.code_emitter.emit_while(range, cond_start);
   }
@@ -1053,7 +1062,9 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E, ProgramLine> {
           format!(
             "表达式类型错误。WRITE 语句的文件号必须是{}类型，而这个表达式是{}类型",
             Type::Real,
-            ty));
+            ty
+          ),
+        );
       }
     }
 
@@ -1106,7 +1117,7 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E, ProgramLine> {
             "变量类型错误。FOR 语句的计数器变量必须是{:#}类型，而这个变量是{:#}类型",
             Type::Real,
             ty,
-          )
+          ),
         );
       }
       Some(var)
@@ -1123,7 +1134,7 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E, ProgramLine> {
           "表达式类型错误。FOR 语句的计数器初始值必须是{}类型，而这个表达式是{}类型",
           Type::Real,
           ty,
-        )
+        ),
       );
     }
 
@@ -1136,7 +1147,7 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E, ProgramLine> {
           "表达式类型错误。FOR 语句的计数器终止值必须是{}类型，而这个表达式是{}类型",
           Type::Real,
           ty,
-        )
+        ),
       );
     }
 
@@ -1150,7 +1161,7 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E, ProgramLine> {
             "表达式类型错误。FOR 语句的计数器步长必须是{}类型，而这个表达式是{}类型",
             Type::Real,
             ty,
-          )
+          ),
         );
       }
     }
@@ -1468,11 +1479,13 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E, ProgramLine> {
         let (var, ty) = self.compile_sym(var_range.clone());
         if !ty.matches(Type::Real) {
           self.add_error(
-                  var_range.clone(),
-                  format!(
-                    "变量类型错误。NEXT 语句的计数器变量必须是{}类型，而这个变量是{}类型",
-                    Type::Real,
-                    ty));
+            var_range.clone(),
+            format!(
+              "变量类型错误。NEXT 语句的计数器变量必须是{}类型，而这个变量是{}类型",
+              Type::Real,
+              ty
+            ),
+          );
         }
         self.code_emitter.emit_next(
           if vars.len() == 1 {
@@ -1520,6 +1533,48 @@ impl<'a, 'b, E: CodeEmitter> CompileState<'a, 'b, E, ProgramLine> {
     }
 
     self.code_emitter.emit_op(range, kind, 2);
+  }
+
+  fn compile_load(&mut self, range: Range, args: &NonEmptyVec<[ExprId; 2]>) {
+    let addr = args[0];
+    let ty = self.compile_expr(addr);
+    if !ty.matches(Type::Real) {
+      self.add_error(
+        self.expr_node(addr).range.clone(),
+        format!(
+          "LOAD 语句的地址必须是{}类型，而这个表达式是{}类型",
+          Type::Real,
+          ty
+        ),
+      );
+    }
+    if args.len().get() < 2 {
+      self.add_error(range, "LOAD 语句至少需要一个字节常量");
+      return;
+    }
+
+    let mut bytes = Vec::with_capacity(args.len().get() - 1);
+    for &arg in &args[1..] {
+      let node = self.expr_node(arg);
+      let value = if matches!(node.kind, ExprKind::NumberLit) {
+        let mut text = self.text[node.range.range()].to_string();
+        text.retain(|c| c != ' ');
+        text.parse::<u8>().ok()
+      } else {
+        None
+      };
+      if let Some(byte) = value {
+        bytes.push(byte);
+      } else {
+        self.add_error(
+          node.range.clone(),
+          "LOAD 语句的数据必须是 0~255 的十进制整数字面量",
+        );
+      }
+    }
+    if bytes.len() == args.len().get() - 1 {
+      self.code_emitter.emit_load_bytes(range, bytes);
+    }
   }
 
   fn compile_print(
@@ -1661,7 +1716,8 @@ impl<'a, 'b, E: CodeEmitter, T> CompileState<'a, 'b, E, T> {
             format!(
               "表达式类型错误。自定义函数的参数必须是{}类型，而这个表达式是{}类型",
               Type::Real,
-              ty),
+              ty
+            ),
           );
         }
         if let Some(func) = func {
@@ -2098,13 +2154,16 @@ mod tests {
 
   #[test]
   fn draw() {
-    assert_debug_snapshot!(compile(r#"
+    assert_debug_snapshot!(compile(
+      r#"
 10 boX 1+2,3,4,5,7:box a%,val(c$(a,b)+chr$(tan(72))),m%(3,j+k,i),0:box 1,2,3,4,5,6
 20 draw 10,20:draw -3,1,t
 30 circle x*10,y*10,3:circle x1,y1%+2,11,0:circle x2,y2,r,4,5
 40 line x0,y0,x1,y1:line x0,y0,x1,y1,2
 50 ellipse x,y,a,b:ellipse x,y,a,b,1:ellipse x,y,a,b,k,6
-    "#.trim()));
+    "#
+      .trim()
+    ));
   }
 
   #[test]

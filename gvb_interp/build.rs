@@ -34,6 +34,7 @@ fn build_gb2312_mapping() -> Result<(), Box<dyn Error>> {
 
   let mut file = OpenOptions::new()
     .create(true)
+    .truncate(true)
     .write(true)
     .open(Path::new(&out_dir).join("gb2312.rs"))?;
 
@@ -83,6 +84,7 @@ fn build_gvb_keyword_mapping() -> Result<(), Box<dyn Error>> {
 
   let mut file = OpenOptions::new()
     .create(true)
+    .truncate(true)
     .write(true)
     .open(Path::new(&out_dir).join("keyword.rs"))?;
 

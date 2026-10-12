@@ -1,8 +1,0 @@
-[tasks.header]
-command = "cbindgen"
-args = ["--output", "../gui-wx/include/api.h"]
-
-[tasks.build]
-clear = true
-command = "cargo"
-args = ["build", "--release"]

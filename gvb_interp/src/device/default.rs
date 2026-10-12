@@ -1,10 +1,10 @@
 use super::*;
-use crate::machine::{AddrProp, BrkKind, EofBehavior, MachineProps};
 use crate::ByteString;
+use crate::machine::{AddrProp, BrkKind, EofBehavior, MachineProps};
 use chrono::prelude::*;
 use emulator_6502::{Interface6502, MOS6502};
 use std::fs::{File as FsFile, OpenOptions};
-use std::io::{self, prelude::*, SeekFrom};
+use std::io::{self, SeekFrom, prelude::*};
 use std::path::PathBuf;
 
 const CHAR_HEIGHT: usize = 16;
@@ -234,10 +234,12 @@ impl DefaultDevice {
   }
 
   unsafe fn nibble_to_ascii8_ptr(n: u8) -> *const u8 {
-    if n < 10 {
-      ASCII_8_DATA.as_ptr().add((48 + n as usize) << 3)
-    } else {
-      ASCII_8_DATA.as_ptr().add((65 + n as usize - 10) << 3)
+    unsafe {
+      if n < 10 {
+        ASCII_8_DATA.as_ptr().add((48 + n as usize) << 3)
+      } else {
+        ASCII_8_DATA.as_ptr().add((65 + n as usize - 10) << 3)
+      }
     }
   }
 
@@ -278,34 +280,36 @@ impl DefaultDevice {
     mut y: u8,
     mode: DrawMode,
   ) {
-    if left >= screen::WIDTH as u8 {
-      left = screen::WIDTH as u8 - 1;
-      // } else if left == 0 {
-      //   left = 1;
-    }
-    if right >= screen::WIDTH as u8 {
-      right = screen::WIDTH as u8 - 1;
-    }
-    if y >= screen::HEIGHT as u8 {
-      y = screen::HEIGHT as u8 - 1;
-    }
+    unsafe {
+      if left >= screen::WIDTH as u8 {
+        left = screen::WIDTH as u8 - 1;
+        // } else if left == 0 {
+        //   left = 1;
+      }
+      if right >= screen::WIDTH as u8 {
+        right = screen::WIDTH as u8 - 1;
+      }
+      if y >= screen::HEIGHT as u8 {
+        y = screen::HEIGHT as u8 - 1;
+      }
 
-    let mut g = ptr.add(y as usize * screen::WIDTH_IN_BYTE);
-    let left_byte = left >> 3;
-    let right_byte = right >> 3;
-    let start_mask = START_BIT_MASK[left as usize & 7];
-    let end_mask = END_BIT_MASK[right as usize & 7];
-    if left_byte == right_byte {
-      mode.mask(g.add(left_byte as usize), start_mask & end_mask);
-      return;
-    }
+      let mut g = ptr.add(y as usize * screen::WIDTH_IN_BYTE);
+      let left_byte = left >> 3;
+      let right_byte = right >> 3;
+      let start_mask = START_BIT_MASK[left as usize & 7];
+      let end_mask = END_BIT_MASK[right as usize & 7];
+      if left_byte == right_byte {
+        mode.mask(g.add(left_byte as usize), start_mask & end_mask);
+        return;
+      }
 
-    mode.mask(g.add(right_byte as usize), end_mask);
-    g = g.add(left_byte as usize);
-    mode.mask(g, start_mask);
-    for _ in left_byte + 1..right_byte {
-      g = g.add(1);
-      mode.mask(g, 255);
+      mode.mask(g.add(right_byte as usize), end_mask);
+      g = g.add(left_byte as usize);
+      mode.mask(g, start_mask);
+      for _ in left_byte + 1..right_byte {
+        g = g.add(1);
+        mode.mask(g, 255);
+      }
     }
   }
 
@@ -355,15 +359,19 @@ impl DefaultDevice {
     y: u8,
     mode: DrawMode,
   ) {
-    if x1 > x2 {
-      x1 = 0;
+    unsafe {
+      if x1 > x2 {
+        x1 = 0;
+      }
+      Self::draw_hor_line_with_ptr(ptr, x1, x2, y, mode);
     }
-    Self::draw_hor_line_with_ptr(ptr, x1, x2, y, mode);
   }
 
   unsafe fn ellipse_point(ptr: *mut u8, x: u8, y: u8, mode: DrawMode) {
-    if x < screen::WIDTH as u8 && y < screen::HEIGHT as u8 {
-      mode.point(ptr, x, y);
+    unsafe {
+      if x < screen::WIDTH as u8 && y < screen::HEIGHT as u8 {
+        mode.point(ptr, x, y);
+      }
     }
   }
 
@@ -376,26 +384,28 @@ impl DefaultDevice {
     fill: bool,
     mode: DrawMode,
   ) {
-    if fill {
-      Self::ellipse_hor_line(
-        ptr,
-        x.wrapping_sub(rx),
-        x.wrapping_add(rx),
-        y.wrapping_sub(ry),
-        mode,
-      );
-      Self::ellipse_hor_line(
-        ptr,
-        x.wrapping_sub(rx),
-        x.wrapping_add(rx),
-        y.wrapping_add(ry),
-        mode,
-      );
-    } else {
-      Self::ellipse_point(ptr, x.wrapping_sub(rx), y.wrapping_sub(ry), mode);
-      Self::ellipse_point(ptr, x.wrapping_add(rx), y.wrapping_sub(ry), mode);
-      Self::ellipse_point(ptr, x.wrapping_sub(rx), y.wrapping_add(ry), mode);
-      Self::ellipse_point(ptr, x.wrapping_add(rx), y.wrapping_add(ry), mode);
+    unsafe {
+      if fill {
+        Self::ellipse_hor_line(
+          ptr,
+          x.wrapping_sub(rx),
+          x.wrapping_add(rx),
+          y.wrapping_sub(ry),
+          mode,
+        );
+        Self::ellipse_hor_line(
+          ptr,
+          x.wrapping_sub(rx),
+          x.wrapping_add(rx),
+          y.wrapping_add(ry),
+          mode,
+        );
+      } else {
+        Self::ellipse_point(ptr, x.wrapping_sub(rx), y.wrapping_sub(ry), mode);
+        Self::ellipse_point(ptr, x.wrapping_add(rx), y.wrapping_sub(ry), mode);
+        Self::ellipse_point(ptr, x.wrapping_sub(rx), y.wrapping_add(ry), mode);
+        Self::ellipse_point(ptr, x.wrapping_add(rx), y.wrapping_add(ry), mode);
+      }
     }
   }
 }
@@ -406,23 +416,27 @@ const POINT_BIT_MASK: &[u8] = &[128, 64, 32, 16, 8, 4, 2, 1];
 
 impl DrawMode {
   unsafe fn point(&self, ptr: *mut u8, x: u8, y: u8) {
-    let x = x as usize;
-    let ptr = ptr.add(y as usize * 20 + (x >> 3));
-    match self {
-      Self::Or => *ptr |= POINT_BIT_MASK[x & 7],
-      Self::Clear => *ptr &= !POINT_BIT_MASK[x & 7],
-      Self::Xor => *ptr ^= POINT_BIT_MASK[x & 7],
-      Self::Unknown => {
-        // do nothing
+    unsafe {
+      let x = x as usize;
+      let ptr = ptr.add(y as usize * 20 + (x >> 3));
+      match self {
+        Self::Or => *ptr |= POINT_BIT_MASK[x & 7],
+        Self::Clear => *ptr &= !POINT_BIT_MASK[x & 7],
+        Self::Xor => *ptr ^= POINT_BIT_MASK[x & 7],
+        Self::Unknown => {
+          // do nothing
+        }
       }
     }
   }
 
   unsafe fn mask(&self, ptr: *mut u8, mask: u8) {
-    match self {
-      Self::Or => *ptr |= mask,
-      Self::Clear => *ptr &= !mask,
-      Self::Xor | Self::Unknown => *ptr ^= mask,
+    unsafe {
+      match self {
+        Self::Or => *ptr |= mask,
+        Self::Clear => *ptr &= !mask,
+        Self::Xor | Self::Unknown => *ptr ^= mask,
+      }
     }
   }
 }
@@ -675,6 +689,59 @@ impl Device for DefaultDevice {
         y as usize + 1,
       );
     }
+  }
+
+  fn paint_bitmap(
+    &mut self,
+    addr: u16,
+    x: i32,
+    y: i32,
+    width: u8,
+    height: u8,
+    mode: PaintMode,
+  ) {
+    let width = width as usize;
+    let height = height as usize;
+    if width == 0 || height == 0 {
+      return;
+    }
+    let stride = width.div_ceil(8);
+    // Keep the source stable when it overlaps the screen buffer.
+    let bitmap =
+      self.memory[addr as usize..addr as usize + stride * height].to_vec();
+    let left = x.max(0) as usize;
+    let top = y.max(0) as usize;
+    let right = (x + width as i32).min(screen::WIDTH as i32).max(0) as usize;
+    let bottom = (y + height as i32).min(screen::HEIGHT as i32).max(0) as usize;
+    if left >= right || top >= bottom {
+      return;
+    }
+
+    let graph = self.props.graphics_base_addr as usize;
+    for dst_y in top..bottom {
+      let src_y = (dst_y as i32 - y) as usize;
+      for dst_x in left..right {
+        let src_x = (dst_x as i32 - x) as usize;
+        let src =
+          bitmap[src_y * stride + src_x / 8] & (0x80 >> (src_x % 8)) != 0;
+        let index = graph + dst_y * screen::WIDTH_IN_BYTE + dst_x / 8;
+        let mask = POINT_BIT_MASK[dst_x % 8];
+        let dst = self.memory[index] & mask != 0;
+        let result = match mode {
+          PaintMode::Copy => src,
+          PaintMode::Or => src | dst,
+          PaintMode::Not => !src,
+          PaintMode::And => src & dst,
+          PaintMode::Xor => src ^ dst,
+        };
+        if result {
+          self.memory[index] |= mask;
+        } else {
+          self.memory[index] &= !mask;
+        }
+      }
+    }
+    self.update_dirty_area(left, top, right, bottom);
   }
 
   fn draw_line(
@@ -1089,7 +1156,7 @@ impl Device for DefaultDevice {
                 "调用了中断 ${:04X}，目前模拟器不支持 {}",
                 code,
                 sim.get_program_counter()
-              ))
+              ));
             }
           }
         }
@@ -1153,7 +1220,7 @@ impl DefaultFileHandle {
     let mut data = vec![];
     file.read_to_end(&mut data)?;
     if matches!(&self.state, FileState::Open { .. }) {
-      Err(io::Error::new(io::ErrorKind::Other, "重复打开文件"))
+      Err(io::Error::other("重复打开文件"))
     } else {
       self.state = FileState::Open {
         file,
@@ -1187,15 +1254,13 @@ impl FileHandle for DefaultFileHandle {
     match &self.state {
       FileState::Open { data, .. } => {
         if pos > data.len() as u64 {
-          Err(io::Error::new(io::ErrorKind::Other, "文件指针超出文件大小"))
+          Err(io::Error::other("文件指针超出文件大小"))
         } else {
           self.pos = pos as _;
           Ok(())
         }
       }
-      FileState::Closed { .. } => {
-        Err(io::Error::new(io::ErrorKind::Other, "未打开文件"))
-      }
+      FileState::Closed { .. } => Err(io::Error::other("未打开文件")),
     }
   }
 
@@ -1222,9 +1287,7 @@ impl FileHandle for DefaultFileHandle {
         *dirty = true;
         Ok(())
       }
-      FileState::Closed { .. } => {
-        Err(io::Error::new(io::ErrorKind::Other, "未打开文件"))
-      }
+      FileState::Closed { .. } => Err(io::Error::other("未打开文件")),
     }
   }
 
@@ -1239,9 +1302,7 @@ impl FileHandle for DefaultFileHandle {
         self.pos += len;
         Ok(len as _)
       }
-      FileState::Closed { .. } => {
-        Err(io::Error::new(io::ErrorKind::Other, "未打开文件"))
-      }
+      FileState::Closed { .. } => Err(io::Error::other("未打开文件")),
     }
   }
 
@@ -1256,10 +1317,9 @@ impl FileHandle for DefaultFileHandle {
         self.state = FileState::Closed { len };
         Ok(())
       }
-      FileState::Closed { .. } => Err(io::Error::new(
-        io::ErrorKind::Other,
-        "未打开文件，不能关闭文件",
-      )),
+      FileState::Closed { .. } => {
+        Err(io::Error::other("未打开文件，不能关闭文件"))
+      }
     }
   }
 

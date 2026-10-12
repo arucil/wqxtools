@@ -4,17 +4,18 @@ use std::fmt::{self, Debug, Formatter};
 use std::num::NonZeroUsize;
 
 use super::{
-  Addr, Alignment, ByteString, CmpKind, DatumIndex, Instr, InstrKind, Location,
-  PrintMode, ScreenMode, StringProblem, Symbol, DUMMY_ADDR, FISRT_DATUM_INDEX,
+  Addr, Alignment, ByteString, CmpKind, DUMMY_ADDR, DatumIndex,
+  FISRT_DATUM_INDEX, Instr, InstrKind, Location, PrintMode, ScreenMode,
+  StringProblem, Symbol,
 };
 use crate::ast::{
   BinaryOpKind, FileMode, Range, StmtKind, SysFuncKind, UnaryOpKind,
 };
 use crate::diagnostic::Diagnostic;
 use crate::util::mbf5::Mbf5;
-use widestring::Utf16String;
 use crate::{compiler::CodeEmitter, machine::EmojiVersion};
-use string_interner::StringInterner;
+use string_interner::DefaultStringInterner as StringInterner;
+use widestring::Utf16String;
 
 use super::Datum;
 
@@ -103,6 +104,10 @@ impl CodeEmitter for CodeGen {
     // do nothing
   }
 
+  fn emit_load_bytes(&mut self, range: Range, bytes: Vec<u8>) {
+    self.push_instr(range, InstrKind::LoadBytes(bytes));
+  }
+
   fn emit_op(&mut self, range: Range, kind: &StmtKind, arity: usize) {
     match kind {
       StmtKind::Beep => self.push_instr(range, InstrKind::Beep),
@@ -167,6 +172,12 @@ impl CodeEmitter for CodeGen {
       }
       StmtKind::NoTrace => self.push_instr(range, InstrKind::SetTrace(false)),
       StmtKind::Play(_) => self.push_instr(range, InstrKind::PlayNotes),
+      StmtKind::Paint(_) => self.push_instr(
+        range,
+        InstrKind::PaintBitmap {
+          has_mode: arity >= 6,
+        },
+      ),
       StmtKind::Poke { .. } => self.push_instr(range, InstrKind::Poke),
       StmtKind::Pop => self.push_instr(range, InstrKind::Pop),
       StmtKind::Put { .. } => self.push_instr(range, InstrKind::WriteRecord),
@@ -445,7 +456,8 @@ impl CodeEmitter for CodeGen {
   }
 
   fn emit_string(&mut self, range: Range, str: Utf16String) -> usize {
-    let (str, problems) = ByteString::from_utf16str(str, self.emoji_version, true);
+    let (str, problems) =
+      ByteString::from_utf16str(str, self.emoji_version, true);
     let range_offset = (range.start + 1) as _;
     self.add_string_problems(problems, range_offset);
     let len = str.len();
@@ -564,7 +576,7 @@ impl CodeGen {
           }
           match &self.code[i + 1].kind {
             InstrKind::NextFor { name: var } => {
-              if !var.map_or(true, |var| var == *name) {
+              if !var.is_none_or(|var| var == *name) {
                 continue;
               }
             }
@@ -584,30 +596,30 @@ impl CodeGen {
             }
             end_index -= 1;
           }
-          if let InstrKind::PushNum(start) = &self.code[end_index - 1].kind {
-            if start.is_zero() || *start == 1.0 {
-              match &self.code[end_index].kind {
-                InstrKind::PushNum(end) if end.is_positive() => {
-                  let end = f64::from(*end);
-                  let steps = end.ceil();
-                  if let Ok(steps) = Mbf5::try_from(steps) {
-                    self.code[i - 1].kind = InstrKind::NoOp;
-                    self.code[end_index - 1].kind = InstrKind::NoOp;
-                    self.code[end_index].kind = InstrKind::PushNum(steps);
-                    self.code[i].kind = InstrKind::Sleep;
-                    self.code[i + 1].kind = InstrKind::NoOp;
-                  }
-                }
-                InstrKind::PushVar { .. } => {
-                  if *has_step {
-                    self.code[i - 1].kind = InstrKind::NoOp;
-                  }
+          if let InstrKind::PushNum(start) = &self.code[end_index - 1].kind
+            && (start.is_zero() || *start == 1.0)
+          {
+            match &self.code[end_index].kind {
+              InstrKind::PushNum(end) if end.is_positive() => {
+                let end = f64::from(*end);
+                let steps = end.ceil();
+                if let Ok(steps) = Mbf5::try_from(steps) {
+                  self.code[i - 1].kind = InstrKind::NoOp;
                   self.code[end_index - 1].kind = InstrKind::NoOp;
+                  self.code[end_index].kind = InstrKind::PushNum(steps);
                   self.code[i].kind = InstrKind::Sleep;
                   self.code[i + 1].kind = InstrKind::NoOp;
                 }
-                _ => {}
               }
+              InstrKind::PushVar { .. } => {
+                if *has_step {
+                  self.code[i - 1].kind = InstrKind::NoOp;
+                }
+                self.code[end_index - 1].kind = InstrKind::NoOp;
+                self.code[i].kind = InstrKind::Sleep;
+                self.code[i + 1].kind = InstrKind::NoOp;
+              }
+              _ => {}
             }
           }
         }

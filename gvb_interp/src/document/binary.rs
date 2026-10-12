@@ -162,10 +162,10 @@ pub fn load_bas(
           && (last == b'$' as u16 || last.is_ascii_alphanumeric())
         {
           text.push(' ');
-        } else if let "THEN" | "ELSE" | "TO" = kw {
-          if last != b' ' as u16 {
-            text.push(' ');
-          }
+        } else if let "THEN" | "ELSE" | "TO" = kw
+          && last != b' ' as u16
+        {
+          text.push(' ');
         }
         text.push_str(kw);
         if KEYWORD_REQUIRES_SPACE.contains(&b) {

@@ -7,53 +7,33 @@
 - [ ] PAC文件解包
 - [ ] EBK阅读器
 
-<details>
-  <summary>截图</summary>
-
-  GVBASIC编辑器(Linux)：
-  ![](./screenshots/linux-gvb-editor.png)
-
-  GVBASIC模拟器(Linux)：
-  ![](./screenshots/linux-gvb-sim.png)
-
-  GVBASIC编辑器(Windows)：
-  ![](./screenshots/win-gvb-editor.png)
-
-  GVBASIC模拟器(Windows)：
-  ![](./screenshots/win-gvb-sim.png)
-
-</details>
-
 发版专用仓库：<https://gitlab.com/arucil/wqxtools-release>
 
 ## 编译
 
-编译本项目需要的环境：`Rust (nightly)`、`C++ 17及以上`、`Qt 5.15.0 及以上`。在 Windows 下编译时请使用基于 MinGW 的 Rust 和 Qt 版本。
+编译本项目使用 `nightly-2026-09-18`（Rust 1.100 nightly）与 edition 2024。仓库中的 `rust-toolchain.toml` 会由 rustup 自动安装并选择正确的 toolchain；Rust-native GUI 不再依赖 C++、Qt、qmake 或 cbindgen。
 
-clone 项目到本地，然后运行 `git submodule update --init --recursive` 下载 git submodule。
-
-把 `gui-qt/scintilla521.zip` 解压到 gui-qt 目录。
-
-安装编译辅助工具：
+运行 GUI：
 
 ```shell
-cargo install cargo-make cbindgen
+cargo run -p wqxtools-gui
 ```
 
-编译：
+编译 release：
 
 ```shell
-cargo make -p release all
+cargo build --release -p wqxtools-gui
 ```
 
-生成的可执行文件在 `gui-qt/build/release` 目录中，该程序的执行还依赖于 `gui-qt` 目录下的 `machines.yaml`、`config.yaml`、`docs/help.qhc`、`docs/help.qch` 文件和 `styles` 文件夹。
+生成的可执行文件为 `target/release/wqxtools`，机型配置已编译进可执行文件。
+
+GPUI 版 GUI 正在迁移中，可用 `cargo run -p wqxtools-gui-gpui` 体验编辑器、实时诊断、文件操作、模拟器和工作台界面。当前默认入口仍是功能较完整的 egui 版；GPUI 迁移状态、未覆盖功能与 Windows 构建边界见 [gui_gpui/README.md](gui_gpui/README.md)。
+
+先前的 Floem 试验版仍可用 `cargo run -p wqxtools-gui-floem` 运行，迁移边界见 [gui_floem/README.md](gui_floem/README.md)。
+
+仓库中的 GVBASIC 示例位于 `examples/bas`，模拟器文件数据位于运行目录下的 `dat_files`。
 
 测试：
 ```shell
 cargo test --all
-```
-
-在 Windows 下使用动态链接的 Qt 版本编译程序后，需要使用 `windeployqt` 工具拷贝 Qt 运行库：
-```shell
-windeployqt --compiler-runtime --no-translations --no-system-d3d-compiler --no-opengl-sw gui-qt/build/release/wqxtools.exe
 ```

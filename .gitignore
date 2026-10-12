@@ -7,3 +7,6 @@
 **/*.rs.bk
 
 /build-gui-*/
+
+# Leftover local artifacts from the retired Qt frontend.
+/gui_qt/

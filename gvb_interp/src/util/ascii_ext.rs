@@ -1,4 +1,3 @@
-
 pub trait AsciiExt {
   fn to_ascii_uppercase(&self) -> Self;
   fn to_ascii_lowercase(&self) -> Self;

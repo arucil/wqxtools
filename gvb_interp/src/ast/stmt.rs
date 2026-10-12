@@ -9,9 +9,9 @@ use super::{ExprId, Label, NonEmptyVec, Range, StmtId};
 use id_arena::Arena;
 use smallvec::SmallVec;
 #[cfg(test)]
-use widestring::utf16str;
-#[cfg(test)]
 use widestring::Utf16Str;
+#[cfg(test)]
+use widestring::utf16str;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Stmt {
@@ -98,8 +98,7 @@ pub enum StmtKind {
   Line(NonEmptyVec<[ExprId; 4]>),
   /// identical to REM
   List(Range),
-  /// identical to REM
-  Load(Range),
+  Load(NonEmptyVec<[ExprId; 2]>),
   Locate {
     row: Option<ExprId>,
     column: Option<ExprId>,
@@ -128,6 +127,7 @@ pub enum StmtKind {
     filenum: ExprId,
     len: Option<(Range, ExprId)>,
   },
+  Paint(NonEmptyVec<[ExprId; 5]>),
   Play(ExprId),
   Poke {
     addr: ExprId,
@@ -547,8 +547,15 @@ fn print_stmt(
     StmtKind::List(range) => {
       writeln!(f, "LIST [{:?}]", &text[range.range()])
     }
-    StmtKind::Load(range) => {
-      writeln!(f, "LOAD [{:?}]", &text[range.range()])
+    StmtKind::Load(args) => {
+      write!(f, "LOAD ")?;
+      for (i, &arg) in args.iter().enumerate() {
+        if i > 0 {
+          write!(f, ", ")?;
+        }
+        expr_arena[arg].print(expr_arena, text, f)?;
+      }
+      writeln!(f)
     }
     StmtKind::Locate { row, column } => {
       write!(f, "LOCATE ")?;
@@ -632,6 +639,16 @@ fn print_stmt(
       if let Some((_, len)) = len {
         write!(f, " LEN = ")?;
         expr_arena[*len].print(expr_arena, text, f)?;
+      }
+      writeln!(f)
+    }
+    StmtKind::Paint(args) => {
+      write!(f, "PAINT ")?;
+      for (i, &arg) in args.iter().enumerate() {
+        if i > 0 {
+          write!(f, ", ")?;
+        }
+        expr_arena[arg].print(expr_arena, text, f)?;
       }
       writeln!(f)
     }

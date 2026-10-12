@@ -1,18 +1,19 @@
-[package]
-name = "wqxtools"
-version = "0.2.0"
-authors = ["amlo <xplzjwz@gmail.com>"]
-edition = "2021"
-
-[dependencies]
-semver = "1.0.16"
-
 [workspace]
+resolver = "3"
 members = [
   "bin_dasm",
   "gvb_interp",
-  "api_cpp_binding",
-  "config",
   "util",
-  "misc"
+  "misc",
+  "gui",
+  "gui_floem",
+  "gui_gpui",
+  "vendor/gpui-pre-linux"
 ]
+
+[workspace.package]
+edition = "2024"
+rust-version = "1.100"
+
+[patch.crates-io]
+gpui-pre-linux = { path = "vendor/gpui-pre-linux" }

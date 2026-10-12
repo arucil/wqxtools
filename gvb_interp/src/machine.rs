@@ -1,9 +1,9 @@
-use crate::{util::utf16str_ext::Utf16StrExt, HashMap};
+use crate::{HashMap, util::utf16str_ext::Utf16StrExt};
 use intmap::IntMap;
 use std::collections::BTreeMap;
 use std::io;
-use std::mem::MaybeUninit;
 use std::str::FromStr;
+use std::sync::OnceLock;
 use std::time::Duration;
 use util::config;
 use widestring::{Utf16Str, Utf16String};
@@ -104,22 +104,35 @@ impl FromStr for BrkKind {
 }
 
 pub fn names() -> impl Iterator<Item = &'static Utf16Str> {
-  unsafe { MACHINES.assume_init_ref().keys().map(|s| s.as_ref()) }
+  machines().keys().map(|s| s.as_ref())
 }
 
 pub(crate) fn machines() -> &'static BTreeMap<Utf16String, MachineProps> {
-  unsafe { MACHINES.assume_init_ref() }
+  &machine_registry().machines
 }
 
-static mut MACHINES: MaybeUninit<BTreeMap<Utf16String, MachineProps>> =
-  MaybeUninit::uninit();
-static mut MACHINES_INITED: bool = false;
+pub(crate) fn default_machine_name(
+  emoji_version: EmojiVersion,
+) -> &'static Utf16Str {
+  match emoji_version {
+    EmojiVersion::V1 => machine_registry().default_v1.as_ref(),
+    EmojiVersion::V2 => machine_registry().default_v2.as_ref(),
+  }
+}
 
-pub(crate) static mut DEFAULT_MACHINE_FOR_EMOJI_VERSION_2: Utf16String =
-  Utf16String::new();
+struct MachineRegistry {
+  machines: BTreeMap<Utf16String, MachineProps>,
+  default_v1: Utf16String,
+  default_v2: Utf16String,
+}
 
-pub(crate) static mut DEFAULT_MACHINE_FOR_EMOJI_VERSION_1: Utf16String =
-  Utf16String::new();
+static MACHINE_REGISTRY: OnceLock<MachineRegistry> = OnceLock::new();
+
+fn machine_registry() -> &'static MachineRegistry {
+  MACHINE_REGISTRY
+    .get()
+    .expect("init_machines must be called before using machine configuration")
+}
 
 #[derive(Debug)]
 pub enum InitError {
@@ -153,17 +166,22 @@ impl From<&str> for InitError {
 }
 
 pub fn init_machines() -> Result<(), InitError> {
-  let content = config::load_config_file("machines.yaml")?;
-  let mut docs = YamlLoader::load_from_str(&content)?;
-  unsafe {
-    if MACHINES_INITED {
-      MACHINES.assume_init_drop();
-    }
-    MACHINES.write(BTreeMap::new());
-    MACHINES_INITED = true;
-  }
-  if docs.is_empty() {
+  if MACHINE_REGISTRY.get().is_some() {
     return Ok(());
+  }
+
+  let content = config::load_config_file("machines.yaml")?;
+  init_machines_from_str(&content)
+}
+
+pub fn init_machines_from_str(content: &str) -> Result<(), InitError> {
+  if MACHINE_REGISTRY.get().is_some() {
+    return Ok(());
+  }
+
+  let mut docs = YamlLoader::load_from_str(content)?;
+  if docs.is_empty() {
+    return Err("machines config is empty".into());
   }
 
   let doc = docs.pop().unwrap();
@@ -182,9 +200,7 @@ pub fn init_machines() -> Result<(), InitError> {
     .ok_or("missing field 'emoji-v2' in 'default'")?;
   let mut v2 = v2.into_string().ok_or("default.emoji-v2 is not string")?;
   v2.make_ascii_uppercase();
-  unsafe {
-    DEFAULT_MACHINE_FOR_EMOJI_VERSION_2 = Utf16String::from(v2.as_str());
-  }
+  let default_v2 = Utf16String::from(v2.as_str());
 
   // default.emoji-v1
   let v1 = default
@@ -192,9 +208,7 @@ pub fn init_machines() -> Result<(), InitError> {
     .ok_or("missing field 'emoji-v1' in 'default'")?;
   let mut v1 = v1.into_string().ok_or("default.emoji-v1 is not string")?;
   v1.make_ascii_uppercase();
-  unsafe {
-    DEFAULT_MACHINE_FOR_EMOJI_VERSION_1 = Utf16String::from(v1.as_str());
-  }
+  let default_v1 = Utf16String::from(v1.as_str());
 
   if let Some((key, _)) = default.pop_front() {
     return Err(
@@ -202,6 +216,7 @@ pub fn init_machines() -> Result<(), InitError> {
     );
   }
 
+  let mut machines = BTreeMap::new();
   for (mach_name, obj) in obj {
     let mach_name = mach_name.as_str().ok_or_else(|| {
       format!("key {} is not string", yaml_to_string(&mach_name))
@@ -447,9 +462,7 @@ pub fn init_machines() -> Result<(), InitError> {
           )
         })?;
         let code = u16::try_from(code).map_err(|_| {
-          format!(
-            "key {mach_name}.extra-symbols.{code} is not within the range 0~65535"
-          )
+          format!("key {mach_name}.extra-symbols.{code} is not within the range 0~65535")
         })?;
         if code < 32768 {
           return Err(
@@ -528,30 +541,27 @@ pub fn init_machines() -> Result<(), InitError> {
     let mut mach_name = Utf16String::from(mach_name);
     mach_name.make_ascii_uppercase();
 
-    unsafe {
-      MACHINES.assume_init_mut().insert(mach_name, props);
-    }
+    machines.insert(mach_name, props);
   }
 
-  unsafe {
-    if !MACHINES
-      .assume_init_ref()
-      .contains_key(&DEFAULT_MACHINE_FOR_EMOJI_VERSION_2)
-    {
-      return Err(
-        format!("emoji version 2 default machine '{v2}' not found").into(),
-      );
-    }
-
-    if !MACHINES
-      .assume_init_ref()
-      .contains_key(&DEFAULT_MACHINE_FOR_EMOJI_VERSION_1)
-    {
-      return Err(
-        format!("emoji version 1 default machine '{v1}' not found").into(),
-      );
-    }
+  if !machines.contains_key(&default_v2) {
+    return Err(
+      format!("emoji version 2 default machine '{v2}' not found").into(),
+    );
   }
+
+  if !machines.contains_key(&default_v1) {
+    return Err(
+      format!("emoji version 1 default machine '{v1}' not found").into(),
+    );
+  }
+
+  let registry = MachineRegistry {
+    machines,
+    default_v1,
+    default_v2,
+  };
+  let _ = MACHINE_REGISTRY.set(registry);
 
   Ok(())
 }

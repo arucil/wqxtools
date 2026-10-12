@@ -55,6 +55,17 @@ pub trait Device {
     mode: DrawMode,
   );
 
+  /// Draw a monochrome bitmap from device memory, most-significant bit first.
+  fn paint_bitmap(
+    &mut self,
+    addr: u16,
+    x: i32,
+    y: i32,
+    width: u8,
+    height: u8,
+    mode: PaintMode,
+  );
+
   fn check_point(&self, coord: (i32, i32)) -> bool;
 
   fn check_key(&self, key: u8) -> bool;
@@ -110,6 +121,15 @@ pub enum DrawMode {
   Or,
   Xor,
   Unknown,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PaintMode {
+  Copy,
+  Or,
+  Not,
+  And,
+  Xor,
 }
 
 #[allow(clippy::len_without_is_empty)]

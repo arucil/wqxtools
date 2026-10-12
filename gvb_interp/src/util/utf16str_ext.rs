@@ -103,7 +103,7 @@ impl Utf16StrExt for Utf16Str {
     let len = self.len();
     if c.len_utf16() == 2 {
       len > 1 && {
-        let mut enc = [0; 0];
+        let mut enc = [0; 2];
         c.encode_utf16(&mut enc);
         self.as_slice()[len - 2] == enc[0] && self.as_slice()[len - 1] == enc[1]
       }
@@ -209,17 +209,17 @@ fn utf16str_find_char_from(
 
 macro_rules! match_u16c {
   ($exp:expr, $c:literal) => {{
-    const C: Option<u16> = Some(($c as _));
+    const C: Option<u16> = Some($c as _);
     matches!($exp.copied(), C)
   }};
   ($exp:expr, $c1:literal | $c2:literal) => {{
-    const C1: Option<u16> = Some(($c1 as _));
-    const C2: Option<u16> = Some(($c2 as _));
+    const C1: Option<u16> = Some($c1 as _);
+    const C2: Option<u16> = Some($c2 as _);
     matches!($exp.copied(), C1 | C2)
   }};
   ($exp:expr, $c1:literal | $c2:literal | None) => {{
-    const C1: Option<u16> = Some(($c1 as _));
-    const C2: Option<u16> = Some(($c2 as _));
+    const C1: Option<u16> = Some($c1 as _);
+    const C2: Option<u16> = Some($c2 as _);
     matches!($exp.copied(), C1 | C2 | None)
   }};
 }
@@ -522,7 +522,7 @@ impl UtfTwoWaySearcher {
     let mut left = 0; // Corresponds to i in the paper
     let mut right = 1; // Corresponds to j in the paper
     let mut offset = 0; // Corresponds to k in the paper, but starting at 0
-                        // to match 0-based indexing.
+    // to match 0-based indexing.
     let mut period = 1; // Corresponds to p in the paper
 
     while let Some(&a) = arr.get(right + offset) {
@@ -572,7 +572,7 @@ impl UtfTwoWaySearcher {
     let mut left = 0; // Corresponds to i in the paper
     let mut right = 1; // Corresponds to j in the paper
     let mut offset = 0; // Corresponds to k in the paper, but starting at 0
-                        // to match 0-based indexing.
+    // to match 0-based indexing.
     let mut period = 1; // Corresponds to p in the paper
     let n = arr.len();
 
@@ -634,26 +634,6 @@ impl UtfTwoWayStrategy for MatchOnly {
   #[inline]
   fn matching(a: usize, b: usize) -> Self::Output {
     Some((a, b))
-  }
-}
-
-/// Emit Rejects regularly
-enum RejectAndMatch {}
-
-impl UtfTwoWayStrategy for RejectAndMatch {
-  type Output = UtfSearchStep;
-
-  #[inline]
-  fn use_early_reject() -> bool {
-    true
-  }
-  #[inline]
-  fn rejecting(a: usize, b: usize) -> Self::Output {
-    UtfSearchStep::Reject(a, b)
-  }
-  #[inline]
-  fn matching(a: usize, b: usize) -> Self::Output {
-    UtfSearchStep::Match(a, b)
   }
 }
 

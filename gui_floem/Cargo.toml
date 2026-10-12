@@ -1,0 +1,17 @@
+[package]
+name = "wqxtools-gui-floem"
+version = "0.3.0"
+edition.workspace = true
+rust-version.workspace = true
+publish = false
+
+[[bin]]
+name = "wqxtools-floem"
+path = "src/main.rs"
+
+[dependencies]
+floem = { version = "=0.2.0", default-features = false, features = ["editor", "vger", "image-png"] }
+gvb_interp = { path = "../gvb_interp" }
+image = { version = "0.25.10", default-features = false, features = ["png"] }
+rfd = "0.17.2"
+widestring = "1.0.2"

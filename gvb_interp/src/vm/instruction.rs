@@ -3,13 +3,13 @@ use crate::machine::EmojiVersion;
 use std::fmt::{self, Debug, Formatter};
 use std::num::NonZeroUsize;
 #[cfg(test)]
-use string_interner::StringInterner;
+use string_interner::DefaultStringInterner as StringInterner;
 
 use super::{ByteString, Symbol};
 use crate::{
+  HashMap,
   ast::{FileMode, Range, SysFuncKind},
   util::mbf5::Mbf5,
-  HashMap,
 };
 
 #[derive(Clone, PartialEq, Eq)]
@@ -165,6 +165,10 @@ pub enum InstrKind {
   SetScreenMode(ScreenMode),
   PlayNotes,
   Poke,
+  PaintBitmap {
+    has_mode: bool,
+  },
+  LoadBytes(Vec<u8>),
   Swap,
   Restart,
   SetPrintMode(PrintMode),
@@ -429,6 +433,10 @@ impl InstrKind {
       Self::SetScreenMode(mode) => format!("set screen mode: {mode:?}"),
       Self::PlayNotes => format!("play notes"),
       Self::Poke => format!("poke"),
+      Self::PaintBitmap { has_mode } => {
+        format!("paint bitmap, has_mode: {has_mode}")
+      }
+      Self::LoadBytes(bytes) => format!("load {} bytes", bytes.len()),
       Self::Swap => format!("swap"),
       Self::Restart => format!("restart"),
       Self::SetPrintMode(mode) => format!("set print mode: {mode:?}"),

@@ -99,12 +99,7 @@ impl EmojiVersion {
   }
 
   pub fn default_machine_name(&self) -> &'static Utf16Str {
-    unsafe {
-      match self {
-        Self::V2 => super::DEFAULT_MACHINE_FOR_EMOJI_VERSION_2.as_ref(),
-        Self::V1 => super::DEFAULT_MACHINE_FOR_EMOJI_VERSION_1.as_ref(),
-      }
-    }
+    super::default_machine_name(*self)
   }
 }
 
@@ -128,7 +123,7 @@ mod tests {
 
   #[quickcheck]
   fn version_2_is_symmetric(Gb(code): Gb) -> bool {
-    EmojiVersion::V2.code_to_char(code).map_or(true, |c| {
+    EmojiVersion::V2.code_to_char(code).is_none_or(|c| {
       EmojiVersion::V2
         .char_to_code(c)
         .filter(|&new_code| new_code == code)
@@ -138,7 +133,7 @@ mod tests {
 
   #[quickcheck]
   fn version_1_is_symmetric(Gb(code): Gb) -> bool {
-    EmojiVersion::V1.code_to_char(code).map_or(true, |c| {
+    EmojiVersion::V1.code_to_char(code).is_none_or(|c| {
       EmojiVersion::V1
         .char_to_code(c)
         .filter(|&new_code| new_code == code)
@@ -148,7 +143,7 @@ mod tests {
 
   #[quickcheck]
   fn fallback_is_symmetric(Gb(code): Gb) -> bool {
-    EmojiVersion::fallback_code_to_char(code).map_or(true, |c| {
+    EmojiVersion::fallback_code_to_char(code).is_none_or(|c| {
       EmojiVersion::fallback_char_to_code(c)
         .filter(|&new_code| new_code == code)
         .is_some()

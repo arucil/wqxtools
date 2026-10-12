@@ -9,8 +9,10 @@ use widestring::Utf16Str;
 
 use crate::ast::{self, Range, SysFuncKind};
 use crate::compiler::compile_fn_body;
-use crate::device::{AsmExecState, Device, DrawMode, FileHandle, KeyCode};
-use crate::diagnostic::{contains_errors, Diagnostic};
+use crate::device::{
+  AsmExecState, Device, DrawMode, FileHandle, KeyCode, PaintMode,
+};
+use crate::diagnostic::{Diagnostic, contains_errors};
 use crate::machine::{EmojiVersion, EofBehavior};
 use crate::parser::{parse_expr, read_number};
 use crate::util::mbf5::{Mbf5, ParseRealError, RealError};
@@ -26,7 +28,7 @@ pub(crate) mod instruction;
 pub mod r#type;
 
 use string_interner::DefaultSymbol as Symbol;
-use string_interner::StringInterner;
+use string_interner::DefaultStringInterner as StringInterner;
 
 #[derive(Debug, Clone)]
 pub(crate) struct Datum {
@@ -37,7 +39,7 @@ pub(crate) struct Datum {
 
 const NUM_FILES: usize = 3;
 
-pub struct VirtualMachine<'d, D: Device> {
+pub struct VirtualMachine<D: Device> {
   emoji_version: EmojiVersion,
   data: Vec<Datum>,
   data_ptr: usize,
@@ -51,7 +53,7 @@ pub struct VirtualMachine<'d, D: Device> {
   interner: StringInterner,
   bindings: Bindings,
   fn_call_stack: Vec<FnCallRecord>,
-  device: &'d mut D,
+  device: D,
   files: [VmFile<D::File>; NUM_FILES],
   rng: WyRand,
   current_rand: u32,
@@ -211,8 +213,9 @@ struct VmFile<F> {
   pub mode: FileMode,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 enum FileMode {
+  #[default]
   None,
   Input,
   Output,
@@ -230,12 +233,6 @@ struct RecordField {
   lvalue: LValue,
 }
 
-impl Default for FileMode {
-  fn default() -> Self {
-    Self::None
-  }
-}
-
 impl InputFuncBody {
   pub fn new(codegen: CodeGen) -> Self {
     assert!(codegen.data.is_empty());
@@ -246,11 +243,11 @@ impl InputFuncBody {
   }
 }
 
-impl<'d, D> VirtualMachine<'d, D>
+impl<D> VirtualMachine<D>
 where
   D: Device,
 {
-  pub fn new(g: CodeGen, device: &'d mut D) -> Self {
+  pub fn new(g: CodeGen, device: D) -> Self {
     let mut vm = Self {
       emoji_version: g.emoji_version,
       data: g.data,
@@ -285,6 +282,14 @@ where
         true,
       )
       .unwrap();
+  }
+
+  pub fn device(&self) -> &D {
+    &self.device
+  }
+
+  pub fn device_mut(&mut self) -> &mut D {
+    &mut self.device
   }
 
   pub fn stop(&mut self) -> Result<()> {
@@ -417,7 +422,7 @@ where
   }
 }
 
-impl<'d, D> VirtualMachine<'d, D>
+impl<D> VirtualMachine<D>
 where
   D: Device,
   <D as Device>::AsmError: ToString,
@@ -526,7 +531,7 @@ where
             self.device.print(b",");
           }
         };
-      }}
+      }};
     }
 
     macro_rules! do_get_put {
@@ -825,7 +830,8 @@ where
               loc,
               format!(
                 "运算结果数值过大，超出了实数的表示范围。加法运算的两个运算数分别为：{lhs}，{rhs}"
-              ))?;
+              ),
+            )?;
           }
           Err(RealError::Nan) => unreachable!(),
         }
@@ -840,7 +846,8 @@ where
               loc,
               format!(
                 "运算结果数值过大，超出了实数的表示范围。减法运算的两个运算数分别为：{lhs}，{rhs}"
-              ))?;
+              ),
+            )?;
           }
           Err(RealError::Nan) => unreachable!(),
         }
@@ -855,7 +862,8 @@ where
               loc,
               format!(
                 "运算结果数值过大，超出了实数的表示范围。乘法运算的两个运算数分别为：{lhs}，{rhs}"
-              ))?;
+              ),
+            )?;
           }
           Err(RealError::Nan) => unreachable!(),
         }
@@ -873,7 +881,8 @@ where
               loc,
               format!(
                 "运算结果数值过大，超出了实数的表示范围。除法运算的两个运算数分别为：{lhs}，{rhs}"
-              ))?;
+              ),
+            )?;
           }
           Err(RealError::Nan) => unreachable!(),
         }
@@ -886,9 +895,8 @@ where
           Err(RealError::Infinite) => {
             self.state.error(
               loc,
-              format!(
-                "运算结果数值过大，超出了实数的表示范围。底数为：{lhs}，指数为：{rhs}"
-              ))?;
+              format!("运算结果数值过大，超出了实数的表示范围。底数为：{lhs}，指数为：{rhs}"),
+            )?;
           }
           Err(RealError::Nan) => {
             self.state.error(
@@ -1060,7 +1068,7 @@ where
               filenum + 1,
               file.mode
             ),
-          )?;
+          )?
         };
 
         let offset = self.lval_stack.len() - num_fields.get();
@@ -1225,7 +1233,8 @@ where
         self.device.draw_line((x1, y1), (x2, y2), mode);
       }
       InstrKind::AlignedAssign(align) => self.exec_set(loc, align)?,
-      InstrKind::SetTrace(_) => {
+      InstrKind::SetTrace(trace) => {
+        let _trace = trace;
         // do nothing
       }
       InstrKind::SetScreenMode(mode) => {
@@ -1239,6 +1248,44 @@ where
         let byte = self.pop_u8(false)?;
         let addr = self.pop_range(-65535, 65535)? as _;
         self.device.write_byte(addr, byte);
+      }
+      InstrKind::LoadBytes(bytes) => {
+        let addr = self.pop_range(0, 65535)? as usize;
+        if addr + bytes.len() > 65536 {
+          self
+            .state
+            .error(loc, "LOAD 语句的数据超出了内存的地址范围")?;
+        }
+        for (offset, &byte) in bytes.iter().enumerate() {
+          self.device.write_byte((addr + offset) as u16, byte);
+        }
+      }
+      InstrKind::PaintBitmap { has_mode } => {
+        let mode = if has_mode {
+          match self.pop_u8(false)? {
+            1 => PaintMode::Or,
+            2 => PaintMode::Not,
+            3 => PaintMode::And,
+            4 => PaintMode::Xor,
+            _ => PaintMode::Copy,
+          }
+        } else {
+          PaintMode::Copy
+        };
+        let height = self.pop_u8(false)?;
+        let width = self.pop_u8(false)?;
+        let y = self.pop_range(-65535, 65535)?;
+        let x = self.pop_range(-65535, 65535)?;
+        let addr = self.pop_range(0, 65535)? as usize;
+        let source_len = (width as usize).div_ceil(8) * height as usize;
+        if addr + source_len > 65536 {
+          self
+            .state
+            .error(loc, "PAINT 语句的图像数据超出了内存的地址范围")?;
+        }
+        self
+          .device
+          .paint_bitmap(addr as u16, x, y, width, height, mode);
       }
       InstrKind::Swap => {
         let lvalue2 = self.lval_stack.pop().unwrap().1;
@@ -1439,7 +1486,7 @@ where
   }
 }
 
-impl<'d, D> VirtualMachine<'d, D>
+impl<D> VirtualMachine<D>
 where
   D: Device,
 {
@@ -1518,14 +1565,12 @@ where
         let file = &self.files[filenum as usize];
         match file.mode {
           FileMode::Input => {
-            let len =
-              self
-                .state
-                .io(loc.clone(), "获取文件大小", file.handle.len())?;
-            let pos =
-              self
-                .state
-                .io(loc.clone(), "获取文件指针", file.handle.pos())?;
+            let len = self
+              .state
+              .io(loc.clone(), "获取文件大小", file.handle.len())?;
+            let pos = self
+              .state
+              .io(loc.clone(), "获取文件指针", file.handle.pos())?;
             let mut eof_reached = pos >= len;
             if self.device.eof_behavior() == EofBehavior::Inverse {
               eof_reached = !eof_reached;
@@ -1533,18 +1578,15 @@ where
             self.num_stack.push((loc, Mbf5::from(eof_reached)));
             Ok(())
           }
-          FileMode::None => {
-            self.state.error(loc, "未打开文件")?;
-          }
-          _ => {
-            self.state.error(
-              loc,
-              format!(
-                "EOF 函数只能用于以 INPUT 模式打开的文件，但 {} 号文件是以 {} 模式打开的",
-                filenum + 1,
-                file.mode
-              ))?;
-          }
+          FileMode::None => self.state.error(loc, "未打开文件")?,
+          _ => self.state.error(
+            loc,
+            format!(
+              "EOF 函数只能用于以 INPUT 模式打开的文件，但 {} 号文件是以 {} 模式打开的",
+              filenum + 1,
+              file.mode
+            ),
+          )?,
         }
       }
       SysFuncKind::Exp => {
@@ -1585,25 +1627,21 @@ where
         let file = &self.files[filenum as usize];
         match file.mode {
           FileMode::Random { .. } => {
-            let len =
-              self
-                .state
-                .io(loc.clone(), "获取文件大小", file.handle.len())?;
+            let len = self
+              .state
+              .io(loc.clone(), "获取文件大小", file.handle.len())?;
             self.num_stack.push((loc, Mbf5::from(len)));
             Ok(())
           }
-          FileMode::None => {
-            self.state.error(loc, "未打开文件")?;
-          }
-          _ => {
-            self.state.error(
-              loc,
-              format!(
-                "LOF 函数只能用于以 RANDOM 模式打开的文件，但 {} 号文件是以 {} 模式打开的",
-                filenum + 1,
-                file.mode
-              ))?;
-          }
+          FileMode::None => self.state.error(loc, "未打开文件")?,
+          _ => self.state.error(
+            loc,
+            format!(
+              "LOF 函数只能用于以 RANDOM 模式打开的文件，但 {} 号文件是以 {} 模式打开的",
+              filenum + 1,
+              file.mode
+            ),
+          )?,
         }
       }
       SysFuncKind::Log => {
@@ -1915,7 +1953,10 @@ where
         if matches!(&mode, FileMode::Binary) {
           return Ok(());
         } else {
-          self.state.io(loc, "打开文件", Err(err))?;
+          let name = self.string_from_byte_string_lossy(filename);
+          self
+            .state
+            .io(loc, &format!("打开文件「{name}」"), Err(err))?;
         }
       }
     };
@@ -2013,26 +2054,25 @@ where
 
   fn exec_field(&mut self, loc: Location, num_fields: usize) -> Result<()> {
     let filenum = self.get_filenum(true)?;
-    let record_len;
     let file = &self.files[filenum as usize];
     if !file.handle.is_open() {
-      self.state.error(loc, "未打开文件")?;
+      self.state.error(loc, "未打开文件")?
     }
-    if let FileMode::Random {
+    let record_len = if let FileMode::Random {
       record_len: len, ..
     } = &file.mode
     {
-      record_len = *len as u32;
+      *len as u32
     } else {
       self.state.error(
-          loc,
-          format!(
-            "FIELD 语句只能用于以 RANDOM 模式打开的文件，但 {} 号文件是以 {} 模式打开的",
-            filenum + 1,
-            file.mode
-          )
-        )?;
-    }
+        loc,
+        format!(
+          "FIELD 语句只能用于以 RANDOM 模式打开的文件，但 {} 号文件是以 {} 模式打开的",
+          filenum + 1,
+          file.mode
+        ),
+      )?
+    };
 
     let mut fields = vec![];
     let mut total_len = 0u32;
@@ -2053,7 +2093,7 @@ where
         format!(
           "FIELD 语句定义的字段总长度 {total_len} 超出了打开文件时所指定的记录长度 {record_len}"
         ),
-      )?;
+      )?
     }
 
     match &mut self.files[filenum as usize].mode {
@@ -2083,11 +2123,10 @@ where
     let mut prev_loop = None;
     for (i, item) in self.control_stack.iter().enumerate().rev() {
       if let ControlRecord::ForLoop(ForLoopRecord { var: prev_var, .. }) = item
+        && name == *prev_var
       {
-        if name == *prev_var {
-          prev_loop = Some(i);
-          break;
-        }
+        prev_loop = Some(i);
+        break;
       }
     }
     if let Some(i) = prev_loop {
@@ -2112,11 +2151,11 @@ where
     let mut found = None;
     if let Some(name) = name {
       while let Some(record) = self.control_stack.pop() {
-        if let ControlRecord::ForLoop(record) = record {
-          if record.var == name {
-            found = Some(record);
-            break;
-          }
+        if let ControlRecord::ForLoop(record) = record
+          && record.var == name
+        {
+          found = Some(record);
+          break;
         }
       }
     } else {
@@ -2136,11 +2175,9 @@ where
       let loc = self.code[record.addr.0].loc.clone();
       let new_value = match value + record.step {
         Ok(new_value) => new_value,
-        Err(RealError::Infinite) => {
-          self
-            .state
-            .error(loc, "计数器数值过大，超出了实数的表示范围。")?;
-        }
+        Err(RealError::Infinite) => self
+          .state
+          .error(loc, "计数器数值过大，超出了实数的表示范围。")?,
         Err(_) => unreachable!(),
       };
 
@@ -2500,7 +2537,7 @@ fn exec_file_input<F: FileHandle, S>(
               loc,
               format!(
                 "读取到的数据：\"{}\"，没有以逗号或 U+00FF 字符结尾",
-                ByteString::from(buf).to_string_lossy(emoji_version)
+                ByteString::from(buf.as_slice()).to_string_lossy(emoji_version)
               ),
             )?
           }
@@ -2522,7 +2559,7 @@ fn exec_file_input<F: FileHandle, S>(
           loc,
           format!(
             "读取到的数据：\"{}\"，是用引号括起来的字符串，无法转换为数值",
-            ByteString::from(buf).to_string_lossy(emoji_version)
+            ByteString::from(buf.as_slice()).to_string_lossy(emoji_version)
           ),
         )?
       }
@@ -2539,7 +2576,7 @@ fn exec_file_input<F: FileHandle, S>(
                     无法赋值给整数变量",
                   f64::from(num),
                 ),
-              )?;
+              )?
             } else {
               Value::Integer(int as _)
             }
@@ -2547,24 +2584,20 @@ fn exec_file_input<F: FileHandle, S>(
             Value::Real(num)
           }
         }
-        Err(ParseRealError::Malformed) => {
-          state.error(
-            loc,
-            format!(
-              "读取到的数据：{}，不符合实数的格式",
-              ByteString::from(buf).to_string_lossy(emoji_version)
-            ),
-          )?;
-        }
-        Err(ParseRealError::Infinite) => {
-          state.error(
-            loc,
-            format!(
-              "读取到的数据：{}，数值过大，超出了实数的表示范围",
-              ByteString::from(buf).to_string_lossy(emoji_version)
-            ),
-          )?;
-        }
+        Err(ParseRealError::Malformed) => state.error(
+          loc,
+          format!(
+            "读取到的数据：{}，不符合实数的格式",
+            ByteString::from(buf.as_slice()).to_string_lossy(emoji_version)
+          ),
+        )?,
+        Err(ParseRealError::Infinite) => state.error(
+          loc,
+          format!(
+            "读取到的数据：{}，数值过大，超出了实数的表示范围",
+            ByteString::from(buf.as_slice()).to_string_lossy(emoji_version)
+          ),
+        )?,
       }
     }
     Type::String => Value::String(buf.into()),
@@ -2796,7 +2829,7 @@ mod tests {
   use pretty_assertions::assert_eq;
   use std::cell::RefCell;
   use std::rc::Rc;
-  use widestring::{utf16str, Utf16String};
+  use widestring::{Utf16String, utf16str};
 
   fn compile(text: &str) -> CodeGen {
     let text = Utf16String::from(text);
@@ -2830,12 +2863,13 @@ mod tests {
 
   fn run(text: &str, seq: Vec<(ExecResult, ExecInput)>) -> String {
     let codegen = compile(text);
-    let mut device = TestDevice::new();
-    let vm = VirtualMachine::new(codegen, &mut device);
+    let device = TestDevice::new();
+    let log = device.log.clone();
+    let vm = VirtualMachine::new(codegen, device);
 
     run_vm(vm, seq);
 
-    let log = device.log.borrow();
+    let log = log.borrow();
     (*log).clone()
   }
 
@@ -2846,12 +2880,13 @@ mod tests {
     file: File,
   ) -> String {
     let codegen = compile(text);
-    let mut device = TestDevice::new().with_file(name.to_vec(), file);
-    let vm = VirtualMachine::new(codegen, &mut device);
+    let device = TestDevice::new().with_file(name.to_vec(), file);
+    let log = device.log.clone();
+    let vm = VirtualMachine::new(codegen, device);
 
     run_vm(vm, seq);
 
-    let log = device.log.borrow();
+    let log = log.borrow();
     (*log).clone()
   }
 
@@ -2865,15 +2900,22 @@ mod tests {
     for (name, file, _) in &files {
       device = device.with_file(name.to_vec(), file.clone());
     }
-    let vm = VirtualMachine::new(codegen, &mut device);
+    let log = device.log.clone();
+    let file_handles: Vec<_> = files
+      .iter()
+      .map(|(name, _, data)| {
+        (name.to_vec(), device.files[*name].data.clone(), data)
+      })
+      .collect();
+    let vm = VirtualMachine::new(codegen, device);
 
     run_vm(vm, seq);
 
-    for (name, _, data) in files {
-      assert_eq!(*device.files[name].data.borrow(), data);
+    for (_, actual, expected) in file_handles {
+      assert_eq!(*actual.borrow(), *expected);
     }
 
-    let log = device.log.borrow();
+    let log = log.borrow();
     (*log).clone()
   }
 
@@ -2991,6 +3033,23 @@ mod tests {
       add_log(
         self.log.clone(),
         format!("draw point at ({x}, {y}), {mode:?}"),
+      );
+    }
+
+    fn paint_bitmap(
+      &mut self,
+      addr: u16,
+      x: i32,
+      y: i32,
+      width: u8,
+      height: u8,
+      mode: PaintMode,
+    ) {
+      add_log(
+        self.log.clone(),
+        format!(
+          "paint bitmap {addr} at ({x}, {y}), {width}x{height}, {mode:?}"
+        ),
       );
     }
 
@@ -3182,7 +3241,7 @@ mod tests {
     fn seek(&mut self, pos: u64) -> io::Result<()> {
       add_log(self.log.clone(), format!("seek file: {pos}"));
       if pos > self.data.borrow().len() as u64 {
-        Err(io::Error::new(io::ErrorKind::Other, "out of range"))
+        Err(io::Error::other("out of range"))
       } else {
         self.pos = pos as _;
         Ok(())
@@ -4695,7 +4754,15 @@ mod tests {
 40 print eof(3);
     "#
           .trim(),
-          vec![(exec_error(3, 9, 15, "EOF 函数只能用于以 INPUT 模式打开的文件，但 3 号文件是以 BINARY 模式打开的"), ExecInput::None)],
+          vec![(
+            exec_error(
+              3,
+              9,
+              15,
+              "EOF 函数只能用于以 INPUT 模式打开的文件，但 3 号文件是以 BINARY 模式打开的"
+            ),
+            ExecInput::None
+          )],
           b"f.DAT",
           File::new(b"AB,\",ab\"\xff12\xff\xff".to_vec())
         ));
@@ -4753,7 +4820,10 @@ mod tests {
 10 a$="ABCD":print left$(a$,2); left$(a$,1); left$(a$,10); left$("",3); left$(a$,0);
     "#
           .trim(),
-          vec![(exec_error(0, 81, 82, "参数超出范围 1~255。运算结果为：0"), ExecInput::None)]
+          vec![(
+            exec_error(0, 81, 82, "参数超出范围 1~255。运算结果为：0"),
+            ExecInput::None
+          )]
         ));
       }
 
@@ -4795,7 +4865,15 @@ mod tests {
 40 print lof(1);
     "#
           .trim(),
-          vec![(exec_error(3, 9, 15, "LOF 函数只能用于以 RANDOM 模式打开的文件，但 1 号文件是以 APPEND 模式打开的"), ExecInput::None)],
+          vec![(
+            exec_error(
+              3,
+              9,
+              15,
+              "LOF 函数只能用于以 RANDOM 模式打开的文件，但 1 号文件是以 APPEND 模式打开的"
+            ),
+            ExecInput::None
+          )],
           b"f.DAT",
           File::new(b"0123456789".to_vec())
         ));
@@ -4880,12 +4958,7 @@ mod tests {
     "#
           .trim(),
           vec![(
-            exec_error(
-              0,
-              83,
-              88,
-              "参数超出范围 -32768~32767。运算结果为：32768"
-            ),
+            exec_error(0, 83, 88, "参数超出范围 -32768~32767。运算结果为：32768"),
             ExecInput::None
           )]
         ));
@@ -4933,7 +5006,10 @@ mod tests {
 10 a$="ABCD":print right$(a$,2); right$(a$,1); right$(a$,10); right$("",3); right$(a$,0);
     "#
           .trim(),
-          vec![(exec_error(0, 86, 87, "参数超出范围 1~255。运算结果为：0"), ExecInput::None)]
+          vec![(
+            exec_error(0, 86, 87, "参数超出范围 1~255。运算结果为：0"),
+            ExecInput::None
+          )]
         ));
       }
 
@@ -5014,10 +5090,7 @@ mod tests {
 10 print val("1e3"); val(""); val("abc"); val("- 1.52f%U7"); val("1 .  2 e + 2K");
     "#
           .trim(),
-          vec![(
-            ExecResult::End,
-            ExecInput::None
-          )]
+          vec![(ExecResult::End, ExecInput::None)]
         ));
       }
 

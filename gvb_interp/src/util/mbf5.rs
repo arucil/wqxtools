@@ -471,6 +471,10 @@ impl Mbf5 {
     Self::try_from(self.0.trunc()).unwrap()
   }
 
+  pub fn floor(&self) -> Self {
+    Self::try_from(self.0.floor()).unwrap()
+  }
+
   pub fn ln(&self) -> CalcResult {
     Self::try_from(self.0.ln())
   }

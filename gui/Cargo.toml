@@ -1,0 +1,18 @@
+[package]
+name = "wqxtools-gui"
+version = "0.3.0"
+edition.workspace = true
+rust-version.workspace = true
+
+[[bin]]
+name = "wqxtools"
+path = "src/main.rs"
+
+[dependencies]
+eframe = { version = "0.36.2", default-features = false, features = ["accesskit", "glow", "wayland", "x11"] }
+egui_code_editor = "0.4.1"
+egui_extras = { version = "0.36.2", features = ["svg"] }
+fontdb = "0.24.0"
+gvb_interp = { path = "../gvb_interp" }
+rfd = "0.17.2"
+widestring = "1.0.2"

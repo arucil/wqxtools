@@ -33,7 +33,7 @@ impl SymbolSet {
     Self([0; 3])
   }
 
-  pub fn iter(&self) -> SymbolIter {
+  pub fn iter(&self) -> SymbolIter<'_> {
     self.into_iter()
   }
 
@@ -213,6 +213,7 @@ impl Nonterminal {
     set.add(Symbol::Term(TokenKind::Keyword(Keyword::Notrace)).to_usize());
     set.add(Symbol::Term(TokenKind::Keyword(Keyword::On)).to_usize());
     set.add(Symbol::Term(TokenKind::Keyword(Keyword::Open)).to_usize());
+    set.add(Symbol::Term(TokenKind::Keyword(Keyword::Paint)).to_usize());
     set.add(Symbol::Term(TokenKind::Keyword(Keyword::Play)).to_usize());
     set.add(Symbol::Term(TokenKind::Keyword(Keyword::Poke)).to_usize());
     set.add(Symbol::Term(TokenKind::Keyword(Keyword::Pop)).to_usize());

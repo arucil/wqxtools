@@ -1,5 +1,4 @@
 use std::env;
-use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
 
@@ -11,7 +10,7 @@ where
   P: AsRef<Path>,
 {
   let p = p.as_ref();
-  let path = if fs::try_exists(p)? {
+  let path = if p.try_exists()? {
     PathBuf::from(p)
   } else {
     env::current_exe()?.parent().unwrap().join(p)

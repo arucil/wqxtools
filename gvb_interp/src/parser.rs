@@ -11,9 +11,9 @@ use crate::diagnostic::Diagnostic;
 use crate::util::ascii_ext::AsciiExt;
 use crate::util::utf16str_ext::Utf16StrExt;
 use id_arena::Arena;
-use smallvec::{smallvec, Array, SmallVec};
+use smallvec::{Array, SmallVec, smallvec};
 use std::fmt::Write;
-use widestring::{utf16str, Utf16Str};
+use widestring::{Utf16Str, utf16str};
 
 pub mod symbol;
 
@@ -289,6 +289,10 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
           | b'(' | b')' | b';' | b',' | b'#' => {
             self.advance(1);
             self.set_token(start, TokenKind::Punc(Punc::from(c as u8)));
+          }
+          b'\'' => {
+            self.advance(1);
+            self.set_token(start, TokenKind::Keyword(Keyword::Rem));
           }
           b'"' => {
             let len = self.read_quoted_string();
@@ -627,7 +631,7 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
       Ident => self.parse_assign_stmt(false),
       Keyword(Kw::Line) => self.parse_cmd(StmtKind::Line),
       Keyword(Kw::List) => self.parse_rem_stmt(StmtKind::List, in_if_branch),
-      Keyword(Kw::Load) => self.parse_rem_stmt(StmtKind::Load, in_if_branch),
+      Keyword(Kw::Load) => self.parse_cmd(StmtKind::Load),
       Keyword(Kw::Locate) => self.parse_locate_stmt(),
       Keyword(Kw::Lset) => {
         self.parse_set_stmt(|var, value| StmtKind::LSet { var, value })
@@ -638,6 +642,7 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
       Keyword(Kw::Notrace) => self.parse_nullary_cmd(StmtKind::NoTrace),
       Keyword(Kw::On) => self.parse_on_stmt(),
       Keyword(Kw::Open) => self.parse_open_stmt(),
+      Keyword(Kw::Paint) => self.parse_cmd(StmtKind::Paint),
       Keyword(Kw::Play) => self.parse_unary_cmd(StmtKind::Play),
       Keyword(Kw::Poke) => self.parse_poke_stmt(),
       Keyword(Kw::Pop) => self.parse_nullary_cmd(StmtKind::Pop),
@@ -820,10 +825,9 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
     if self
       .match_token(TokenKind::Punc(Punc::LParen), false, false)
       .is_err()
+      && let Some(name_range) = &name_range
     {
-      if let Some(name_range) = &name_range {
-        self.add_error(name_range.clone(), "函数名称之后缺少左括号");
-      }
+      self.add_error(name_range.clone(), "函数名称之后缺少左括号");
     }
 
     setup_first! { self : (id) }
@@ -844,10 +848,9 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
     if self
       .match_token(TokenKind::Punc(Punc::RParen), false, false)
       .is_err()
+      && let Some(param_range) = &param_range
     {
-      if let Some(param_range) = &param_range {
-        self.add_error(param_range.clone(), "函数参数之后缺少右括号");
-      }
+      self.add_error(param_range.clone(), "函数参数之后缺少右括号");
     }
 
     setup_first! { self : (punc Eq) }
@@ -983,10 +986,9 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
     if self
       .match_token(TokenKind::Punc(Punc::Eq), false, false)
       .is_err()
+      && let Some(id_range) = &id_range
     {
-      if let Some(id_range) = &id_range {
-        self.add_error(id_range.clone(), "标识符之后缺少等号");
-      }
+      self.add_error(id_range.clone(), "标识符之后缺少等号");
     }
 
     setup_first! { self : }
@@ -1137,10 +1139,10 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
       setup_first! { self : }
       setup_follow! { self, old_follow : (kw Else) }
       let conseq = self.parse_stmts(true);
-      if conseq.is_empty() {
-        if let Some(range) = then {
-          self.add_error(range, "THEN 之后缺少语句")
-        }
+      if conseq.is_empty()
+        && let Some(range) = then
+      {
+        self.add_error(range, "THEN 之后缺少语句")
       }
       conseq
     };
@@ -1621,7 +1623,7 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
           self.read_token(false);
         }
         TokenKind::Punc(Punc::Colon) | TokenKind::Keyword(Keyword::Else) => {
-          break
+          break;
         }
         TokenKind::Eof => {
           self.set_expected_symbols_at_eof();
@@ -1709,13 +1711,12 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
       if self
         .match_token(TokenKind::Punc(Punc::Comma), false, false)
         .is_err()
+        && let Some(filenum) = filenum
       {
-        if let Some(filenum) = filenum {
-          let filenum = self.node_builder.expr_node(filenum);
-          if !matches!(&filenum.kind, ExprKind::Error) {
-            let range = filenum.range.clone();
-            self.add_error(range, "文件号表达式之后缺少逗号");
-          }
+        let filenum = self.node_builder.expr_node(filenum);
+        if !matches!(&filenum.kind, ExprKind::Error) {
+          let range = filenum.range.clone();
+          self.add_error(range, "文件号表达式之后缺少逗号");
         }
       }
     } else {
@@ -1741,7 +1742,7 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
 
       match self.token.1 {
         TokenKind::Punc(Punc::Colon) | TokenKind::Keyword(Keyword::Else) => {
-          break
+          break;
         }
         TokenKind::Eof => {
           self.set_expected_symbols_at_eof();
@@ -2146,10 +2147,9 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
     if self
       .match_token(TokenKind::Punc(Punc::LParen), false, false)
       .is_err()
+      && let Some(id_range) = &id_range
     {
-      if let Some(id_range) = &id_range {
-        self.add_error(id_range.clone(), "函数名称之后缺少左括号");
-      }
+      self.add_error(id_range.clone(), "函数名称之后缺少左括号");
     }
 
     setup_first! { self : }
@@ -2248,12 +2248,12 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
     setup_first! { self : }
     setup_follow! { self, old_follow : (punc RParen) }
     let arg = self.parse_expr();
-    args.extend_one(arg);
+    args.extend(std::iter::once(arg));
     while self.token.1 == TokenKind::Punc(Punc::Comma) {
       self.read_token(false);
 
       let arg = self.parse_expr();
-      args.extend_one(arg);
+      args.extend(std::iter::once(arg));
     }
 
     setup_first! { self : (punc RParen) }
@@ -2261,10 +2261,9 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
     if self
       .match_token(TokenKind::Punc(Punc::RParen), false, false)
       .is_err()
+      && let Some(lparen_range) = lparen_range
     {
-      if let Some(lparen_range) = lparen_range {
-        self.add_error(lparen_range, "缺少匹配的右括号");
-      }
+      self.add_error(lparen_range, "缺少匹配的右括号");
     }
   }
 
@@ -2278,12 +2277,12 @@ impl<'a, T: NodeBuilder> LineParser<'a, T> {
     setup_first! { self : }
     setup_follow! { self, old_follow : (punc Comma) }
     let arg = self.parse_expr();
-    args.extend_one(arg);
+    args.extend(std::iter::once(arg));
     while self.token.1 == TokenKind::Punc(Punc::Comma) {
       self.read_token(false);
 
       let arg = self.parse_expr();
-      args.extend_one(arg);
+      args.extend(std::iter::once(arg));
     }
   }
 }

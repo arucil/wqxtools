@@ -1,0 +1,4 @@
+edition = "2024"
+max_width = 80
+reorder_imports = false
+tab_spaces = 2

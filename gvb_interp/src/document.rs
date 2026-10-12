@@ -2,18 +2,18 @@ use std::collections::hash_map;
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
-use widestring::{utf16str, Utf16Str, Utf16String};
+use widestring::{Utf16Str, Utf16String, utf16str};
 
+use crate::HashMap;
 use crate::ast::{Eol, Label, Program, ProgramLine, Range, StmtKind};
 use crate::compiler::compile_prog;
-use crate::device::default::DefaultDevice;
 use crate::device::Device;
+use crate::device::default::DefaultDevice;
 use crate::machine::EmojiVersion;
 use crate::machine::MachineProps;
-use crate::parser::{parse_line, ParseResult};
+use crate::parser::{ParseResult, parse_line};
 use crate::util::ascii_ext::AsciiExt;
 use crate::util::utf16str_ext::Utf16StrExt;
-use crate::HashMap;
 use crate::{CodeGen, Diagnostic, VirtualMachine};
 
 mod binary;
@@ -242,7 +242,7 @@ impl Document {
         ext => {
           return Err(LoadDocumentError::UnknownExt(
             ext.map(|ext| ext.to_owned()),
-          ))
+          ));
         }
       }
     } else {
@@ -267,7 +267,7 @@ impl Document {
         ext => {
           return Err(SaveDocumentError::InvalidExt(
             ext.map(|ext| ext.to_owned()),
-          ))
+          ));
         }
       }
     } else {
@@ -286,25 +286,31 @@ impl Document {
   }
 
   pub fn diagnostics(&mut self) -> &[LineDiagnosis] {
-    if let Some(cache) = &self.compile_cache {
-      if cache.version == self.version {
-        let len = cache.diagnostics.len();
-        let ptr = cache.diagnostics.as_ptr();
-        // TODO remove unsafe when Polonius borrow checker is done
-        return unsafe { std::slice::from_raw_parts(ptr, len) };
-      }
+    if let Some(cache) = &self.compile_cache
+      && cache.version == self.version
+    {
+      let len = cache.diagnostics.len();
+      let ptr = cache.diagnostics.as_ptr();
+      // TODO remove unsafe when Polonius borrow checker is done
+      return unsafe { std::slice::from_raw_parts(ptr, len) };
     }
 
+    // The empty editor line after a terminal newline is not a BASIC line.
+    // Keep it in `self.lines` for editing, but omit it from compilation.
+    let terminal_empty_line = self.lines.len() > 1
+      && self.lines.last().unwrap().line_start == self.text.len();
+    let program_line_count =
+      self.lines.len() - usize::from(terminal_empty_line);
     let mut prog = Program {
-      lines: Vec::with_capacity(self.lines.len()),
+      lines: Vec::with_capacity(program_line_count),
     };
-    for i in 0..self.lines.len() {
+    for i in 0..program_line_count {
       prog.lines.push(self.ensure_line_parsed(i).clone());
     }
     let mut codegen = CodeGen::new(self.emoji_version);
     compile_prog(&self.text, &mut prog, &mut codegen);
 
-    let diagnostics = prog
+    let mut diagnostics: Vec<_> = prog
       .lines
       .into_iter()
       .zip(&self.lines)
@@ -313,6 +319,12 @@ impl Document {
         diagnostics: line.diagnostics,
       })
       .collect();
+    if terminal_empty_line {
+      diagnostics.push(LineDiagnosis {
+        line_start: self.text.len(),
+        diagnostics: Vec::new(),
+      });
+    }
 
     self.compile_cache = Some(CompileCache {
       diagnostics,
@@ -407,9 +419,9 @@ impl Document {
         let first_line = self.text.first_line();
         let quotes = first_line.count_char('"');
         let mut str = Utf16String::new();
-        if quotes % 2 != 0 {
+        if !quotes.is_multiple_of(2) {
           str.push_str("\":");
-        } else if self.text.as_slice()[first_line.len() - 1] != b':' as u16 {
+        } else if first_line.as_slice().last().copied() != Some(b':' as u16) {
           str.push(':');
         }
         str.push_str("REM {type:");
@@ -437,11 +449,7 @@ impl Document {
         (None, Some(ub)) => {
           if ub >= 10 {
             let r = ub % 10;
-            if r == 0 {
-              Some(ub - 10)
-            } else {
-              Some(ub - r)
-            }
+            if r == 0 { Some(ub - 10) } else { Some(ub - r) }
           } else if ub > 0 {
             Some(ub - 1)
           } else {
@@ -463,18 +471,10 @@ impl Document {
               Some(lb + 10 - lb % 10)
             } else {
               let r = ub % 10;
-              if r == 0 {
-                Some(ub - 10)
-              } else {
-                Some(ub - r)
-              }
+              if r == 0 { Some(ub - 10) } else { Some(ub - r) }
             }
           } else if ub - lb > 1 {
-            if lower {
-              Some(lb + 1)
-            } else {
-              Some(ub - 1)
-            }
+            if lower { Some(lb + 1) } else { Some(ub - 1) }
           } else {
             None
           }
@@ -726,10 +726,10 @@ impl Document {
   }
 
   /// If the document contains errors, Err is returned.
-  pub fn create_vm<'d, D>(
+  pub fn create_vm<D>(
     &mut self,
-    device: &'d mut D,
-  ) -> Result<VirtualMachine<'d, D>, ContainsErrors>
+    device: D,
+  ) -> Result<VirtualMachine<D>, ContainsErrors>
   where
     D: Device,
   {
@@ -761,7 +761,7 @@ fn detect_machine_props(
       if !name.is_empty() {
         match crate::machine::machines().get(&name) {
           Some(props) => {
-            return Some(((start, start + end), Ok(props.clone())))
+            return Some(((start, start + end), Ok(props.clone())));
           }
           None => return Some(((start, start + end), Err(name))),
         }
@@ -923,6 +923,26 @@ mod tests {
   fn make_doc(text: &str) -> Document {
     let text = text.replace('\n', "\r\n");
     Document::load(text, false).unwrap()
+  }
+
+  #[test]
+  fn terminal_newline_is_preserved_without_a_phantom_basic_line() {
+    for ending in ["\n", "\r\n"] {
+      let source = format!("10 PRINT 1{ending}");
+      let mut doc = Document::load(&source, false).unwrap();
+      assert_eq!(doc.text().to_string(), source);
+      assert_eq!(doc.diagnostics().len(), 2);
+      assert!(
+        doc
+          .diagnostics()
+          .iter()
+          .all(|line| line.diagnostics.is_empty())
+      );
+      let device = doc.create_device("unused");
+      assert!(doc.create_vm(device).is_ok());
+    }
+    let mut doc = Document::load("10 PRINT 1\n\n", false).unwrap();
+    assert!(doc.diagnostics()[1].contains_errors());
   }
 
   const INPUT: &str = "\
@@ -2417,7 +2437,9 @@ ab
     );
     let edits = doc.compute_relabel_edits(1000, 20).unwrap();
     apply_replaces(&mut doc, &edits);
-    assert_eq!(&doc.text, "
+    assert_eq!(
+      &doc.text,
+      "
 1000 cls:restore 1140\r
 1020 cls:goto 1000:goto 1000:goto 1040:goto 1000  :gosub 1000:gosub 1000:gosub 1040\r
 1040 restore:on a goto 1000,1140,1000, 1000,1000,1020:\r
@@ -2426,6 +2448,8 @@ ab
 1100 ab\r
 1120 abc\r
 1140 ::\r
-1160 ".trim_start());
+1160 "
+        .trim_start()
+    );
   }
 }

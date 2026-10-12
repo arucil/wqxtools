@@ -1,0 +1,21 @@
+[package]
+name = "wqxtools-gui-gpui"
+version = "0.3.0"
+edition.workspace = true
+rust-version.workspace = true
+publish = false
+
+[[bin]]
+name = "wqxtools-gpui"
+path = "src/main.rs"
+
+[dependencies]
+gpui-kit = { version = "=0.6.6", features = ["tree-sitter"] }
+gvb_interp = { path = "../gvb_interp" }
+image = { version = "0.25.10", default-features = false }
+rfd = "0.17.2"
+regex = "1"
+widestring = "1.0.2"
+
+[dev-dependencies]
+tempfile = "3"

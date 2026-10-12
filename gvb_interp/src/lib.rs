@@ -1,12 +1,3 @@
-#![feature(
-  exclusive_range_pattern,
-  extend_one,
-  const_mut_refs,
-  never_type,
-  io_error_more,
-  const_maybe_uninit_assume_init,
-  iter_order_by
-)]
 #![allow(
   clippy::needless_late_init,
   clippy::useless_format,
